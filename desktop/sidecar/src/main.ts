@@ -6,17 +6,28 @@ import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { CodingSessionManager } from "./coding/sessionManager.js";
 import { createHeadlessAgentRunner } from "./coding/headlessAgentRunner.js";
+import { createScheduledHeadlessRunner } from "./coding/scheduledHeadlessRunner.js";
 import {
   SkillOptimizerManager,
   createHeadlessOptimizePreviewRunner,
 } from "./coding/skillOptimizerManager.js";
 import { createHeadlessOllamaClient } from "../../../modules/coding/llm/headlessOllamaClient.js";
+import { AskInbox } from "../../../modules/coding/autonomy/AskInbox.js";
+import { AgentRunScheduler } from "../../../modules/coding/autonomy/AgentRunScheduler.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
+import { createStudioRuntime } from "./generations/studioRuntime.js";
+import { resolveStudioDbPath } from "../../../core/generations/paths.js";
 import { createServingRuntime } from "./serving/servingRuntime.js";
+import { createJsonCliRoute } from "./controlSurface/jsonCliRoutes.js";
+import { createAuditRuntime } from "./audit/runtime.js";
+import { InProcessTelemetryBus } from "../../../core/telemetry/TelemetryBus.js";
+import { createHookBus } from "../../../core/lifecycle/HookBus.js";
+import { SIDECAR_MODELS } from "./coding/models.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
+import { applyRuntimeConfigEnv } from "./runtimeConfig.js";
 import { existsSync } from "node:fs";
 import { NexusHubSyncer } from "../../../core/skills/NexusHubSyncer.js";
 import { migrateLegacyCatalogCleanup } from "../../../core/skills/migrateLegacyCatalog.js";
@@ -42,15 +53,36 @@ interface JsonRpcResponseErr {
   error: { code: number; message: string };
 }
 
+// v2.2.0 Phase 1 (1.3): apply the installer-written runtime contract BEFORE
+// any runtime construction below reads process.env. Explicit env always wins;
+// a missing runtime.json (dev checkout) is a silent no-op.
+const appliedRuntimeEnv = applyRuntimeConfigEnv(process.env);
+if (appliedRuntimeEnv.length > 0) {
+  process.stderr.write(
+    `[nexus-sidecar] runtime.json applied: ${appliedRuntimeEnv.join(", ")}\n`,
+  );
+}
+
 // v1.7.0: drive the Coding pillar with the real headless agent runtime (the
-// agent's tools are scoped to the session's workspacePath, or NEXUS_WORKSPACE /
-// cwd). Tests and bare `createHandlerContext()` callers keep the placeholder.
-const sessions = new CodingSessionManager({ agentRunner: createHeadlessAgentRunner() });
+// agent's tools are scoped to the session's workspacePath, or NEXUS_WORKSPACE.
+// Tests and bare `createHandlerContext()` callers keep the placeholder.
+const telemetry = new InProcessTelemetryBus();
+const hookBus = createHookBus(telemetry);
+const sessions = new CodingSessionManager({
+  agentRunner: createHeadlessAgentRunner({ hookBus }),
+});
 // v1.7.0: route Image Studio + Video Lab to the real Python diffusion runtime
 // (set NEXUS_DIFFUSION_INMEMORY=1 for a no-GPU dev/test host).
 const diffusion = createDiffusionRuntime(process.env);
 // v1.7.0: drive the Local Chatbot Explorer with a real local-model chat stream.
-const chat = new ChatSessionManager({ runner: createChatMessageHandler() });
+const chat = new ChatSessionManager({
+  runner: createChatMessageHandler(),
+  retrieveMemory: async ({ query, limit }) => {
+    const { chatMemoryRuntime } = await import("./chat/memoryRuntime.js");
+    const result = await chatMemoryRuntime().search({ query, limit });
+    return result.hits.map((hit) => hit.content);
+  },
+});
 // v1.12.0 EM.P2.A: the skill-optimizer preview/apply manager. The preview runner
 // needs the golden task corpus + a local model, so it is wired only when the
 // golden tasks dir is resolvable (NEXUS_GOLDEN_TASKS_DIR); otherwise the manager
@@ -72,9 +104,17 @@ const skillOptimizer = goldenTasksDir
   : new SkillOptimizerManager();
 // v1.16.0 Phase 1 (adoption item A1): the loopback serving gateway. Constructed
 // eagerly so the same instance backs both the `serving.*` IPC and the startup
-// reconcile below, but it opens NO listener unless `nexus.serving.enabled` is
-// true -- the opt-in defaults off.
-const serving = createServingRuntime();
+// reconcile below. OpenAI `/v1` stays off until `nexus.serving.enabled` is
+// true; JSON CLI still binds the listener.
+const askInbox = new AskInbox({ filePath: join(nexusHome(), "ask-inbox.json") });
+const serving = createServingRuntime({ askInbox });
+const scheduler = new AgentRunScheduler({
+  inbox: askInbox,
+  workspacePath: process.env.NEXUS_WORKSPACE ?? process.cwd(),
+  filePath: join(nexusHome(), "agent-schedules.json"),
+  runHeadless: createScheduledHeadlessRunner({ hookBus }),
+});
+scheduler.start();
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,
@@ -84,6 +124,18 @@ const ctx = createHandlerContext(
   chat,
   skillOptimizer,
   serving,
+);
+ctx.askInbox = askInbox;
+ctx.scheduler = scheduler;
+ctx.telemetry = telemetry;
+ctx.studio = createStudioRuntime({ dbPath: resolveStudioDbPath(), telemetry });
+ctx.audit = createAuditRuntime({ credentials: ctx.credentials, telemetry }).log;
+serving.gateway.surface.mount(
+  createJsonCliRoute({
+    sessions,
+    studio: ctx.studio,
+    listModels: async () => SIDECAR_MODELS.map((m) => ({ id: m.id, displayName: m.displayName })),
+  }),
 );
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
@@ -150,6 +202,7 @@ async function firstLaunchCatalog(): Promise<void> {
  * may hard-kill us anyway -- a hung close must never wedge shutdown.
  */
 async function shutdown(): Promise<void> {
+  scheduler.stop();
   try {
     await Promise.race([
       serving.gateway.stop(),
@@ -180,9 +233,9 @@ function main(): void {
   // and non-fatal -- a bad host or a taken port must not stop the sidecar.
   void serving.sync().then(
     (status) => {
-      if (!status.enabled) return;
+      if (!status.running) return;
       process.stderr.write(
-        `[nexus-sidecar] local serving gateway: ${status.running ? "listening" : "not listening"}\n`,
+        `[nexus-sidecar] local serving gateway: ${status.enabled ? "routes on" : "JSON CLI on"} ${status.running ? "listening" : "not listening"}\n`,
       );
     },
     (err: unknown) => {
@@ -199,6 +252,10 @@ function main(): void {
   rl.on("close", () => {
     void shutdown();
   });
+  // v2.2.1: the shell waits for this line (or 500ms of liveness) before the
+  // first JSON-RPC write. Import-time crashes never reach here; try_wait
+  // then reports sidecar-exited instead of Windows 232.
+  process.stderr.write("[nexus-sidecar] ready\n");
   process.on("SIGTERM", () => void shutdown());
   process.on("SIGINT", () => void shutdown());
 }

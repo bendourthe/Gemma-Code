@@ -39,7 +39,9 @@ def _write(tmp_path: Path, models: list[dict]) -> Path:
 class TestPatientTierGate:
     def test_hidden_by_default(self, tmp_path, monkeypatch) -> None:
         monkeypatch.delenv("NEXUS_PATIENT_TIER", raising=False)
-        ids = {m.id for m in load_catalog_models(_write(tmp_path, [_PATIENT, _STANDARD]))}
+        ids = {
+            m.id for m in load_catalog_models(_write(tmp_path, [_PATIENT, _STANDARD]))
+        }
         assert "glm-5.2" not in ids  # patient-tier hidden
         assert "gemma4:e4b" in ids  # ordinary entry unaffected
 
@@ -47,3 +49,19 @@ class TestPatientTierGate:
         monkeypatch.setenv("NEXUS_PATIENT_TIER", "1")
         ids = {m.id for m in load_catalog_models(_write(tmp_path, [_PATIENT]))}
         assert "glm-5.2" in ids
+
+    def test_repo_inkling_hidden_by_default(self, monkeypatch) -> None:
+        from nexus_installer.registry_paths import default_catalog_path
+
+        monkeypatch.delenv("NEXUS_PATIENT_TIER", raising=False)
+        ids = {m.id for m in load_catalog_models(default_catalog_path())}
+        assert "inkling-small" not in ids
+        assert "nomic-embed-text" in ids
+        assert "hermes3:8b" not in ids
+
+    def test_repo_inkling_visible_when_opted_in(self, monkeypatch) -> None:
+        from nexus_installer.registry_paths import default_catalog_path
+
+        monkeypatch.setenv("NEXUS_PATIENT_TIER", "1")
+        ids = {m.id for m in load_catalog_models(default_catalog_path())}
+        assert "inkling-small" in ids

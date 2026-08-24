@@ -10,27 +10,85 @@
 
 import type {
   Chat,
+  ChatMessageRecord,
   ChatExplorerSearchHit,
+  AppendMessageInput,
   CreateChatInput,
   CreateFolderInput,
   Folder,
   FolderTreeNode,
 } from "./types";
 
-export interface ChatExplorerClient {
-  listTree(): FolderTreeNode;
-  createFolder(input: CreateFolderInput): Folder;
-  renameFolder(id: string, name: string): Folder;
-  moveFolder(id: string, newParentId: string | null): Folder;
-  deleteFolder(id: string): void;
-  createChat(input: CreateChatInput): Chat;
-  renameChat(id: string, title: string): Chat;
-  moveChat(id: string, newFolderId: string | null): Chat;
-  deleteChat(id: string): void;
-  getFolder(id: string): Folder | null;
-  getChat(id: string): Chat | null;
-  ancestors(folderId: string | null): readonly Folder[];
-  search(query: string, limit?: number): readonly ChatExplorerSearchHit[];
+/** A value that may arrive synchronously (in-memory client) or via IPC. */
+export type MaybeAsync<T> = T | Promise<T>;
+export type ExplorerResult<T, Mode extends "sync" | "async"> = Mode extends "sync"
+  ? T
+  : MaybeAsync<T>;
+
+/**
+ * v2.2.3 Phase 1 (1.1) -- the async-safe explorer contract FolderTree and
+ * ChatPage actually consume. Every method may return a plain value (the sync
+ * in-memory client below satisfies this structurally, so tests stay sync) or
+ * a Promise (the IPC adapter in `ipcChatExplorerClient.ts`). Callers must go
+ * through `resolveMaybe` / `await Promise.resolve(...)` instead of assuming a
+ * sync return -- assuming sync is exactly what blanked the app (P0, U7).
+ */
+export interface ChatExplorerClient<Mode extends "sync" | "async"> {
+  listTree(): ExplorerResult<FolderTreeNode, Mode>;
+  createFolder(input: CreateFolderInput): ExplorerResult<Folder, Mode>;
+  renameFolder(id: string, name: string): ExplorerResult<Folder, Mode>;
+  moveFolder(id: string, newParentId: string | null): ExplorerResult<Folder, Mode>;
+  deleteFolder(id: string): ExplorerResult<void, Mode>;
+  createChat(input: CreateChatInput): ExplorerResult<Chat, Mode>;
+  /** `byUser` pins the title so auto-titling can never overwrite it. */
+  renameChat(id: string, title: string, byUser?: boolean): ExplorerResult<Chat, Mode>;
+  moveChat(id: string, newFolderId: string | null): ExplorerResult<Chat, Mode>;
+  deleteChat(id: string): ExplorerResult<void, Mode>;
+  getFolder(id: string): ExplorerResult<Folder | null, Mode>;
+  getChat(id: string): ExplorerResult<Chat | null, Mode>;
+  ancestors(folderId: string | null): ExplorerResult<readonly Folder[], Mode>;
+  search(query: string, limit?: number): ExplorerResult<readonly ChatExplorerSearchHit[], Mode>;
+  /** OPTIONAL: only the sidecar-backed adapter can title from a model. */
+  generateTitle?(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
+  /** OPTIONAL: persisted per-chat persona (sidecar-backed adapter only). */
+  setPersona?(id: string, persona: string | null): Promise<void>;
+  /** OPTIONAL: durable transcript methods exposed by the sidecar adapter. */
+  appendMessage?(input: AppendMessageInput): ExplorerResult<ChatMessageRecord, Mode>;
+  listMessages?(chatId: string, limit?: number): ExplorerResult<readonly ChatMessageRecord[], Mode>;
+}
+
+export type AsyncChatExplorerClient = ChatExplorerClient<"async">;
+export type SyncChatExplorerClient = ChatExplorerClient<"sync">;
+
+function isThenable<T>(value: MaybeAsync<T>): value is Promise<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
+/**
+ * Run one client call that may be sync or async. Sync results (and sync
+ * throws) are delivered synchronously, so existing sync-client tests keep
+ * their immediate-assertion style; Promise results are delivered on
+ * settlement. Errors always land in `onError` instead of crashing the pane.
+ */
+export function resolveMaybe<T>(
+  run: () => MaybeAsync<T>,
+  onValue: (value: T) => void,
+  onError?: (err: unknown) => void,
+): void {
+  try {
+    const result = run();
+    if (isThenable(result)) {
+      result.then(onValue, (err: unknown) => onError?.(err));
+    } else {
+      onValue(result);
+    }
+  } catch (err) {
+    onError?.(err);
+  }
 }
 
 function makeId(): string {
@@ -43,7 +101,7 @@ function makeId(): string {
   return "id-" + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
 }
 
-export class InMemoryChatExplorerClient implements ChatExplorerClient {
+export class InMemoryChatExplorerClient implements SyncChatExplorerClient {
   private readonly folders = new Map<string, Folder>();
   private readonly chats = new Map<string, Chat>();
 

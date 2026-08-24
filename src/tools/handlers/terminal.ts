@@ -1,4 +1,3 @@
-import { spawn } from "child_process";
 import * as vscode from "vscode";
 import type {
   ToolHandler,
@@ -17,6 +16,14 @@ import {
   type CompressedOutput,
 } from "../../../core/observability/CommandCompressor.js";
 import { scrubEnv } from "../../../core/observability/scrubEnv.js";
+import {
+  describeSandbox,
+  formatSandboxViolationError,
+  isExecSandboxEnabled,
+  isSandboxViolation,
+  spawnSandboxed,
+  type SandboxReport,
+} from "../../../modules/coding/sandbox/index.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -130,6 +137,32 @@ function readEnvScrubAllowlist(): readonly string[] {
   }
 }
 
+/**
+ * v1.18.0 Phase 6 (OI-A1): `nexus.coding.execSandbox` is off by default.
+ * `NEXUS_EXEC_SANDBOX` overrides so headless hosts share the switch.
+ */
+function readExecSandboxSetting(): boolean {
+  try {
+    const cfg = vscode.workspace.getConfiguration("nexus.coding");
+    return isExecSandboxEnabled(cfg.get<boolean>("execSandbox") === true);
+  } catch {
+    return isExecSandboxEnabled();
+  }
+}
+
+/** `# DEVIATION:` additive `sandbox` key on the JSON result; inputs unchanged. */
+function sandboxJson(report: SandboxReport): Record<string, unknown> {
+  return {
+    sandbox: {
+      mode: report.mode,
+      summary: report.summary,
+      backendId: report.backendId,
+      enforced: report.enforced,
+      unenforced: report.unenforced,
+    },
+  };
+}
+
 function workspaceRoot(): string {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
@@ -182,6 +215,11 @@ export class RunTerminalTool implements ToolHandler {
      * workspace. Null (default) preserves the legacy workspace-rooted behavior.
      */
     private readonly _rootOverride: string | null = null,
+    /**
+     * v1.18.0 Phase 6 (OI-A1): when true, wrap spawn in the OS sandbox.
+     * Default off. Tests inject this so they do not depend on vscode config.
+     */
+    private readonly _execSandboxEnabled: boolean = readExecSandboxSetting(),
   ) {}
 
   /**
@@ -312,13 +350,15 @@ export class RunTerminalTool implements ToolHandler {
           .map((p) => `${p.operation}:'${p.raw}'`)
           .join(", ")}]`
       : `(unresolved: ${introspection.unsupportedReason ?? "unparseable"})`;
+    const sandbox = describeSandbox({ enabled: this._execSandboxEnabled, cwd });
     const output =
       "=== DRY RUN: no execution occurred ===\n" +
       `Tokens: [${tokenList}]\n` +
       `CWD: ${cwd}\n` +
       `Allowlisted: ${allowlisted}\n` +
       `Blocked-pattern match: ${blockedField}\n` +
-      `Touched paths: ${touchedField}`;
+      `Touched paths: ${touchedField}\n` +
+      `Sandbox: ${sandbox.summary}`;
     return { id, success: true, output };
   }
 
@@ -328,10 +368,15 @@ export class RunTerminalTool implements ToolHandler {
       let stderr = "";
       let timedOut = false;
 
-      const child = spawn(command, [], { shell: true, cwd, env: this._childEnv() });
+      const { child, report } = spawnSandboxed({
+        command,
+        cwd,
+        env: this._childEnv(),
+        enabled: this._execSandboxEnabled,
+      });
 
-      child.stdout.on("data", (data: Buffer) => { stdout += data.toString(); });
-      child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });
+      child.stdout?.on("data", (data: Buffer) => { stdout += data.toString(); });
+      child.stderr?.on("data", (data: Buffer) => { stderr += data.toString(); });
 
       const timer = setTimeout(() => {
         timedOut = true;
@@ -351,6 +396,26 @@ export class RunTerminalTool implements ToolHandler {
           return;
         }
         const exitCode = code ?? -1;
+        if (
+          isSandboxViolation({
+            mode: report.mode,
+            exitCode,
+            stderr,
+          })
+        ) {
+          resolve({
+            id,
+            success: false,
+            output: JSON.stringify({
+              stdout,
+              stderr,
+              exitCode,
+              ...sandboxJson(report),
+            }),
+            error: formatSandboxViolationError(command, stderr, exitCode),
+          });
+          return;
+        }
         const compressed = this._maybeCompress({ command, stdout, stderr, exitCode });
         resolve({
           id,
@@ -359,6 +424,7 @@ export class RunTerminalTool implements ToolHandler {
             stdout: compressed.stdout,
             stderr: compressed.stderr,
             exitCode,
+            ...sandboxJson(report),
             ...(compressed.compressionRatio > 0
               ? { compressionRatio: compressed.compressionRatio }
               : {}),

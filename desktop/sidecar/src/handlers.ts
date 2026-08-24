@@ -10,6 +10,8 @@
 import {
   ChatSessionSendMessageRequest,
   ChatSessionStartRequest,
+  EpisodicMemoryRecordRequest,
+  EpisodicMemorySearchRequest,
   CodingMemorySnapshotRequest,
   CodingSessionCancelRequest,
   CodingSessionListRequest,
@@ -26,17 +28,38 @@ import {
   DiffusionImg2ImgRequest,
   DiffusionInpaintRequest,
   DiffusionOutpaintRequest,
+  DiffusionSegmentRequest,
   DiffusionTxt2ImgRequest,
+  DiffusionVideoAudio2VideoRequest,
   DiffusionVideoImage2VideoRequest,
   DiffusionVideoText2VideoRequest,
   DiffusionVideoWorkflowExtractRequest,
   DiffusionWorkflowExtractRequest,
+  GenerationQueueCancelRequest,
+  GenerationQueueEnqueueRequest,
+  GenerationQueueListRequest,
+  GenerationQueuePendingCountRequest,
+  GenerationQueueReorderRequest,
+  GenerationSchedulerSnapshotRequest,
+  TuningEmptyRequest,
+  TuningDatasetBuildRequest,
+  TuningJobStartRequest,
+  TuningJobListRequest,
+  TuningJobCancelRequest,
+  TuningModelsListRequest,
+  AuditListRequest,
+  AuditStatusRequest,
+  MediaSampleVideoFramesRequest,
+  CodingParseDocumentStatusRequest,
+  CodingParseDocumentSetEnabledRequest,
   ModelsInstallRequest,
   ModelsRemoveRequest,
   ModelsInstallDrainRequest,
   ModelsInstallCancelRequest,
   ServingSetEnabledRequest,
   type ServingStatusResponseT,
+  AcpSetEnabledRequest,
+  type AcpStatusResponseT,
   MetricsEmptyRequest,
   type MetricsInferenceResponseT,
   OcrEmptyRequest,
@@ -45,7 +68,29 @@ import {
   OcrJobCancelRequest,
   type OcrHealthResponseT,
   type OcrJobDrainResponseT,
+  AudioEmptyRequest,
+  AudioTranscribeRequest,
+  AudioSpeakRequest,
+  type AudioHealthResponseT,
+  type AudioTranscribeResponseT,
+  type AudioSpeakResponseT,
+  ChatExplorerCreateChatRequest,
+  ChatExplorerCreateFolderRequest,
+  ChatExplorerIdRequest,
+  ChatExplorerListMessagesRequest,
+  ChatExplorerMoveChatRequest,
+  ChatExplorerMoveFolderRequest,
+  ChatExplorerRenameChatRequest,
+  ChatExplorerRenameFolderRequest,
+  ChatExplorerSearchRequest,
+  ChatExplorerSetPersonaRequest,
+  ChatExplorerAppendMessageRequest,
+  ChatGenerateTitleRequest,
+  DataExportRequest,
+  DataImportRequest,
   SkillsSyncRequest,
+  SkillsAutoSyncGetRequest,
+  SkillsAutoSyncSetRequest,
   SkillsOptimizePreviewRequest,
   SkillsOptimizeApplyRequest,
   type SkillsStatusResponseT,
@@ -53,6 +98,15 @@ import {
   type SkillsUpstreamLatestResponseT,
   type SkillsOptimizePreviewResponseT,
   type SkillsOptimizeApplyResponseT,
+  McpInvokeRequest,
+  McpListRequest,
+  McpRegistryListRequest,
+  McpRegistrySetToolDeniedRequest,
+  AskInboxListRequest,
+  AskInboxIdRequest,
+  AskInboxPendingCountRequest,
+  AskSchedulerListRequest,
+  AskSchedulerSetEnabledRequest,
   IPC_METHODS,
   METHOD_SCHEMAS,
   NotImplementedError,
@@ -61,13 +115,15 @@ import {
   isMethod,
   type Method,
 } from "./protocol.js";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import * as path from "node:path";
+import { Buffer } from "node:buffer";
 import {
   NexusHubSyncer,
   defaultDependencies,
   summarizeDiff,
 } from "../../../core/skills/NexusHubSyncer.js";
-import { catalogRoot, hubLayoutDir } from "../../../core/storage/paths.js";
+import { catalogRoot, hubLayoutDir, nexusHome } from "../../../core/storage/paths.js";
 import {
   readHubVersionManifest,
   resolveHubLayout,
@@ -84,23 +140,68 @@ import {
 import {
   buildJobRequest,
   extractWorkflowFromBase64Png,
+  nextJobId,
 } from "./diffusion/dispatcher.js";
-import { buildVideoJobRequest } from "./diffusion/videoDispatcher.js";
+import { foldRequestModelId } from "./diffusion/route.js";
+import { IMAGE_RUNTIME_NOT_READY, VIDEO_RUNTIME_NOT_READY } from "./diffusion/resultGuard.js";
+import {
+  audio2videoProvenance,
+  buildVideoJobRequest,
+  gateAudio2VideoRequest,
+  nextVideoJobId,
+} from "./diffusion/videoDispatcher.js";
 import {
   type FfmpegContext,
   extractWorkflow as extractVideoWorkflow,
+  embedWorkflow as embedVideoWorkflow,
+  type VideoWorkflowMetadata,
 } from "../../../core/video/WorkflowMetadata.js";
+import { sampleVideoFramesFromDataUrl } from "../../../core/chat/sampleVideoFrames.js";
+import { createHeadlessOcrParser } from "../../../core/documents/headlessOcrParser.js";
+import {
+  PARSE_DOCUMENT_SETTING_KEY,
+  isParseDocumentEnabled,
+} from "../../../core/documents/parseDocumentEnabled.js";
+import { InMemorySettingsStore, JsonFileSettingsStore, type SettingsStore } from "../../../core/storage/SettingsStore.js";
+import { pumpOnce } from "../../../core/generations/queuePump.js";
+import {
+  createStudioRuntime,
+  recordCompletion,
+  takeCompletions,
+  type StudioRuntime,
+} from "./generations/studioRuntime.js";
+import { createTuningRuntime, type TuningRuntime } from "./tuning/runtime.js";
+import { createAuditRuntime } from "./audit/runtime.js";
+import type { AuditLog } from "../../../core/audit/index.js";
+import type { TelemetryBus } from "../../../core/telemetry/TelemetryBus.js";
 import {
   type CredentialVault,
   createCredentialVault,
 } from "../../../core/security/CredentialVault.js";
 import { createModelsRuntime, type ModelsRuntime } from "./models/modelsService.js";
+import { sampleGpu } from "./telemetry/gpuRuntime.js";
+import { readHubCatalog, readHubCommands } from "./skills/hubSkillReader.js";
+import { generateChatTitle } from "./chat/titleGenerator.js";
+import type { ChatExplorerOps } from "./chat/explorerRuntime.js";
+import type { ChatMemoryOps } from "./chat/memoryRuntime.js";
+import { NEXUS_HUB_AUTO_SYNC_SETTING_KEY } from "../../../core/skills/NexusHubAutoSync.js";
 import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
 import {
   type InferenceMetricsRegistry,
   sharedInferenceMetrics,
 } from "../../../core/observability/InferenceMetrics.js";
-import { createOcrRuntimeBundle, type OcrRuntime } from "../../../core/documents/ocrRuntimeFactory.js";
+import type { OcrRuntime } from "../../../core/documents/ocrRuntimeFactory.js";
+import { getSharedOcrRuntime } from "./ocr/sharedRuntime.js";
+import type { AudioRuntime } from "../../../core/audio/audioRuntimeFactory.js";
+import { getSharedAudioRuntime } from "./audio/sharedRuntime.js";
+import {
+  listMcpRegistrySettings,
+  setMcpRegistryToolDenied,
+} from "../../../modules/coding/mcp/McpRegistrySettings.js";
+import { buildMcpHandlers } from "../../../core/coding/McpBridge.js";
+import type { AskInbox } from "../../../modules/coding/autonomy/AskInbox.js";
+import type { AgentRunScheduler } from "../../../modules/coding/autonomy/AgentRunScheduler.js";
+import type { ParkedAsk } from "../../../modules/coding/autonomy/types.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -146,6 +247,32 @@ export interface HandlerContext {
    * parses a document never spawns Python.
    */
   ocr?: OcrRuntime;
+  /**
+   * v2.0.0 Phase 1 -- local STT/TTS runtime. Optional so tests inject the
+   * in-memory client; production lazily builds on first `audio.*` call.
+   */
+  audio?: AudioRuntime;
+  /**
+   * v1.18.0 Phase 3 (OW-A5) -- project root for per-project MCP tool deny.
+   * Production uses `NEXUS_WORKSPACE` or `process.cwd()`; tests inject a temp dir.
+   */
+  workspacePath?: string;
+  /** v1.18.0 Phase 4 -- persistent approval queue. Tests inject a memory inbox. */
+  askInbox?: AskInbox;
+  /** v1.18.0 Phase 4 -- local cron-style agent-run scheduler. */
+  scheduler?: AgentRunScheduler;
+  /** v2.1.0 Phase 3 -- generation index + persistent queue. */
+  studio?: StudioRuntime;
+  /** v2.1.0 Phase 5 -- Unsloth Core fine-tuning. */
+  tuning?: TuningRuntime;
+  /** v2.1.0 Phase 6 -- signed local audit log. */
+  audit?: AuditLog;
+  /** v2.1.0 Phase 6 -- shared telemetry bus for audit attribution. */
+  telemetry?: TelemetryBus;
+  /** v2.2.3 Phase 4 -- durable Local Chat episodic memory. */
+  chatMemory?: ChatMemoryOps;
+  /** Optional settings store (parse_document toggle, tests). */
+  settings?: SettingsStore;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -177,13 +304,15 @@ function resolveServingRuntime(ctx: HandlerContext): ServingRuntime {
 
 /**
  * Lazily resolve the OCR runtime, memoized per process. Kept lazy so a session
- * that never parses a document never spawns the Python child.
+ * that never parses a document never spawns the Python child. Shared with the
+ * `parse_document` agent tool so Chat IPC and the coding host use one child.
  */
-let _ocrRuntime: OcrRuntime | null = null;
 function resolveOcrRuntime(ctx: HandlerContext): OcrRuntime {
-  if (ctx.ocr) return ctx.ocr;
-  if (!_ocrRuntime) _ocrRuntime = createOcrRuntimeBundle();
-  return _ocrRuntime;
+  return getSharedOcrRuntime(ctx.ocr);
+}
+
+function resolveAudioRuntime(ctx: HandlerContext): AudioRuntime {
+  return getSharedAudioRuntime(ctx.audio);
 }
 
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
@@ -211,6 +340,9 @@ export function createHandlerContext(
   metrics?: InferenceMetricsRegistry,
   /** v1.16.0 Phase 3 -- left undefined so the Python child stays unspawned. */
   ocr?: OcrRuntime,
+  workspacePath?: string,
+  /** v2.0.0 Phase 1 -- left undefined so the STT/TTS child stays unspawned. */
+  audio?: AudioRuntime,
 ): HandlerContext {
   return {
     ...base,
@@ -223,6 +355,282 @@ export function createHandlerContext(
     serving,
     metrics,
     ocr,
+    workspacePath,
+    audio,
+  };
+}
+
+function resolveStudio(ctx: HandlerContext): StudioRuntime {
+  if (!ctx.studio) {
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:", telemetry: ctx.telemetry });
+  }
+  return ctx.studio;
+}
+
+function resolveTuning(ctx: HandlerContext): TuningRuntime {
+  if (!ctx.tuning) {
+    ctx.tuning = createTuningRuntime({
+      telemetry: ctx.telemetry,
+      extractPdf: async (file) => {
+        try {
+          const bytes = readFileSync(file);
+          const result = await createHeadlessOcrParser(getSharedOcrRuntime(ctx.ocr).parser).parse(
+            bytes.toString("base64"),
+          );
+          const text = result.text.trim();
+          return text.length > 0 ? text : null;
+        } catch {
+          return null;
+        }
+      },
+    });
+  }
+  return ctx.tuning;
+}
+
+let _settingsStore: SettingsStore | null = null;
+function resolveSettings(ctx: HandlerContext): SettingsStore {
+  if (ctx.settings) return ctx.settings;
+  if (!_settingsStore) {
+    _settingsStore =
+      process.env.VITEST === "true"
+        ? new InMemorySettingsStore()
+        : new JsonFileSettingsStore({
+            filePath: path.join(nexusHome(), "settings.json"),
+          });
+  }
+  return _settingsStore;
+}
+
+let _explorerOps: ChatExplorerOps | null = null;
+/**
+ * Lazily build the chat-explorer ops.
+ *
+ * The import is dynamic on purpose: `ChatExplorerStore` pulls in
+ * `better-sqlite3` (a native module) and, through `src/storage/dbPermissions`,
+ * a vscode-coupled logger. Importing it statically here would drag both into
+ * every consumer of this module -- which broke ~30 handler test files at
+ * collection time. Deferring it also means a session that never opens the chat
+ * tab never loads the native binding or creates a database file.
+ */
+async function explorerOps(): Promise<ChatExplorerOps> {
+  if (!_explorerOps) {
+    const mod = await import("./chat/explorerRuntime.js");
+    _explorerOps = mod.createChatExplorerOps();
+  }
+  return _explorerOps;
+}
+
+/** Test seam: drop the memoized explorer ops. */
+export function resetExplorerOps(): void {
+  _explorerOps = null;
+}
+
+async function memoryOps(ctx: HandlerContext): Promise<ChatMemoryOps> {
+  if (ctx.chatMemory) return ctx.chatMemory;
+  const mod = await import("./chat/memoryRuntime.js");
+  return mod.chatMemoryRuntime();
+}
+
+function resolveAudit(ctx: HandlerContext): AuditLog {
+  if (!ctx.audit) {
+    ctx.audit = createAuditRuntime({
+      credentials: ctx.credentials,
+      telemetry: ctx.telemetry,
+      dbPath: ":memory:",
+    }).log;
+  }
+  return ctx.audit;
+}
+
+function jobDto(job: {
+  id: string;
+  pillar: "image" | "video";
+  jobType: string;
+  parameters: Record<string, unknown>;
+  state: string;
+  priority: string;
+  sortOrder: number;
+  error: string | null;
+  threadId: string | null;
+}) {
+  return {
+    id: job.id,
+    pillar: job.pillar,
+    jobType: job.jobType,
+    parameters: job.parameters,
+    state: job.state,
+    priority: job.priority,
+    sortOrder: job.sortOrder,
+    error: job.error,
+    threadId: job.threadId,
+  };
+}
+
+let _studioPumping = false;
+let _studioPumpWaiters: Array<() => void> = [];
+
+async function pumpStudio(ctx: HandlerContext): Promise<void> {
+  if (_studioPumping) {
+    await new Promise<void>((resolve) => {
+      _studioPumpWaiters.push(resolve);
+    });
+    return;
+  }
+  _studioPumping = true;
+  const studio = resolveStudio(ctx);
+  try {
+    for (;;) {
+      const ran = await pumpOnce(studio.queue, {
+        scheduler: studio.scheduler,
+        index: studio.index,
+        onError: (event) => recordCompletion(studio, event),
+        run: async (job) => {
+          if (job.pillar === "video") {
+            const result = await buildVideoJobRequest(
+              job.jobType as "text2video" | "image2video" | "audio2video",
+              job.parameters,
+              ctx.diffusion,
+              job.id,
+            );
+            if (!result.mp4Path) {
+              throw new Error(VIDEO_RUNTIME_NOT_READY);
+            }
+            if (result.workflow) {
+              try {
+                await embedVideoWorkflow(
+                  result.mp4Path,
+                  result.workflow as unknown as VideoWorkflowMetadata,
+                  ctx.ffmpeg,
+                );
+              } catch {
+                /* The playable clip remains valid even when metadata embedding fails. */
+              }
+            }
+            recordCompletion(studio, {
+              kind: "complete",
+              jobId: result.jobId,
+              outputPath: result.mp4Path,
+            });
+            return { outputPath: result.mp4Path, workflow: result.workflow };
+          }
+          const result = await buildJobRequest(
+            job.jobType as "txt2img" | "img2img" | "inpaint" | "outpaint",
+            job.parameters,
+            ctx.diffusion,
+            job.id,
+          );
+          if (!result.pngBase64) {
+            throw new Error(IMAGE_RUNTIME_NOT_READY);
+          }
+          recordCompletion(studio, {
+            kind: "complete",
+            jobId: result.jobId,
+            png: result.pngBase64,
+          });
+          return {
+            pngBase64: result.pngBase64,
+            workflow: result.workflow as Record<string, unknown> | undefined,
+          };
+        },
+      });
+      if (!ran) break;
+    }
+  } finally {
+    _studioPumping = false;
+    const waiters = _studioPumpWaiters.splice(0);
+    for (const w of waiters) w();
+  }
+}
+
+async function enqueueInteractive(
+  ctx: HandlerContext,
+  pillar: "image" | "video",
+  jobType: string,
+  parameters: Record<string, unknown>,
+): Promise<{ jobId: string; mode: string; provenance?: ReturnType<typeof audio2videoProvenance> }> {
+  if (pillar === "video" && jobType === "audio2video") {
+    gateAudio2VideoRequest(foldRequestModelId(parameters));
+  }
+  const folded = foldRequestModelId(parameters);
+  const studio = resolveStudio(ctx);
+  const id = pillar === "video" ? nextVideoJobId() : nextJobId();
+  studio.queue.enqueue({
+    id,
+    pillar,
+    jobType,
+    parameters: folded,
+    priority: "interactive",
+  });
+  // Return immediately so the UI can poll drainEvents. pumpOnce still owns
+  // the GPU slot (interactive jobs share the queue with batches).
+  void pumpStudio(ctx).catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[nexus-sidecar] studio-pump-failed job=${id}: ${message}\n`);
+    recordCompletion(studio, { kind: "error", jobId: id, message });
+  });
+  const provenance =
+    pillar === "video" && jobType === "audio2video"
+      ? audio2videoProvenance(folded)
+      : undefined;
+  return { jobId: id, mode: jobType, ...(provenance ? { provenance } : {}) };
+}
+
+function parkedAskDto(ask: ParkedAsk) {
+  return {
+    id: ask.id,
+    state: ask.state,
+    runMode: ask.runMode,
+    createdAt: ask.createdAt,
+    expiresAt: ask.expiresAt,
+    decidedAt: ask.decidedAt,
+    decisionReason: ask.decisionReason,
+    toolName: ask.toolName,
+    summary: ask.summary,
+    detail: ask.detail,
+    args: ask.args,
+    risk: ask.risk,
+    classificationReason: ask.classificationReason,
+    parkedTier: ask.parkedTier,
+    sessionId: ask.sessionId,
+    runId: ask.runId,
+  };
+}
+
+function requireAskInbox(ctx: HandlerContext): AskInbox {
+  if (!ctx.askInbox) throw new Error("Ask inbox is not configured");
+  return ctx.askInbox;
+}
+
+function requireScheduler(ctx: HandlerContext): AgentRunScheduler {
+  if (!ctx.scheduler) throw new Error("Agent-run scheduler is not configured");
+  return ctx.scheduler;
+}
+
+function mcpHarnessFor(ctx: HandlerContext) {
+  const workspacePath = ctx.workspacePath ?? process.env.NEXUS_WORKSPACE ?? process.cwd();
+  return {
+    async listTools() {
+      const listed = listMcpRegistrySettings({ workspacePath });
+      return listed.servers.flatMap((s) =>
+        s.tools
+          .filter((t) => t.exposed)
+          .map((t) => ({
+            name: `${s.name}/${t.name}`,
+            description: t.reason,
+            inputSchema: "{}",
+            serverId: s.name,
+          })),
+      );
+    },
+    async invokeTool(name: string, _args: Record<string, unknown>) {
+      return {
+        ok: false,
+        toolName: name,
+        error:
+          "mcp.invoke has no stdio harness in the sidecar. Deny tools via mcp.registry.setToolDenied.",
+      };
+    },
   };
 }
 
@@ -238,8 +646,11 @@ export const handlers: Record<Method, HandlerFn> = {
     return response;
   },
   "models.list": async (_params, ctx) => {
-    const { service } = await resolveModelsRuntime(ctx);
-    return { models: await service.list() };
+    const runtime = await resolveModelsRuntime(ctx);
+    const models = await runtime.service.list();
+    const { loadSnapshot } = await import("./models/selectionSnapshot.js");
+    const selection = await loadSnapshot();
+    return { models, catalogStatus: runtime.catalogStatus, selection };
   },
   "models.install": async (params, ctx) => {
     const req = ModelsInstallRequest.parse(params ?? {});
@@ -274,6 +685,14 @@ export const handlers: Record<Method, HandlerFn> = {
   "serving.setEnabled": async (params, ctx): Promise<ServingStatusResponseT> => {
     const req = ServingSetEnabledRequest.parse(params ?? {});
     return resolveServingRuntime(ctx).setEnabled(req.enabled);
+  },
+  // v1.18.0 Phase 5 (OI-A3) -- ACP mount on the shared control surface.
+  "acp.status": async (_params, ctx): Promise<AcpStatusResponseT> => {
+    return resolveServingRuntime(ctx).acpStatus();
+  },
+  "acp.setEnabled": async (params, ctx): Promise<AcpStatusResponseT> => {
+    const req = AcpSetEnabledRequest.parse(params ?? {});
+    return resolveServingRuntime(ctx).setAcpEnabled(req.enabled);
   },
   // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics. Reads
   // the in-process registry the instrumented LLM clients write to; purely local,
@@ -334,6 +753,24 @@ export const handlers: Record<Method, HandlerFn> = {
     resolveOcrRuntime(ctx).parser.cancel(req.jobId);
     return { ok: true as const };
   },
+  "audio.health": async (params, ctx): Promise<AudioHealthResponseT> => {
+    AudioEmptyRequest.parse(params ?? {});
+    const client = resolveAudioRuntime(ctx);
+    return client.health();
+  },
+  "audio.transcribe": async (params, ctx): Promise<AudioTranscribeResponseT> => {
+    const req = AudioTranscribeRequest.parse(params ?? {});
+    const client = resolveAudioRuntime(ctx);
+    return client.transcribe({
+      audioBase64: req.audioBase64,
+      ...(req.mimeType ? { mimeType: req.mimeType } : {}),
+    });
+  },
+  "audio.speak": async (params, ctx): Promise<AudioSpeakResponseT> => {
+    const req = AudioSpeakRequest.parse(params ?? {});
+    const client = resolveAudioRuntime(ctx);
+    return client.speak({ text: req.text });
+  },
   "coding.startTask": async () => {
     throw new NotImplementedError("coding.startTask");
   },
@@ -343,7 +780,21 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "coding.session.sendMessage": async (params, ctx) => {
     const req = CodingSessionSendMessageRequest.parse(params ?? {});
+    ctx.telemetry?.publish({
+      kind: "chat.turn",
+      source: "coding",
+      payload: { role: "worker", sessionId: req.sessionId },
+    });
     const events = await ctx.sessions.sendMessage(req.sessionId, req.message);
+    for (const event of events) {
+      if (event.kind === "toolCallHeader") {
+        ctx.telemetry?.publish({
+          kind: "tool.call",
+          source: "coding",
+          payload: { role: "worker", sessionId: req.sessionId, name: event.name, callId: event.callId },
+        });
+      }
+    }
     return { sessionId: req.sessionId, events };
   },
   "coding.session.cancel": async (params, ctx) => {
@@ -380,17 +831,70 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "chat.session.sendMessage": async (params, ctx) => {
     const req = ChatSessionSendMessageRequest.parse(params ?? {});
-    const events = await ctx.chat.sendMessage(req.sessionId, req.message);
+    ctx.telemetry?.publish({
+      kind: "chat.turn",
+      source: "chat",
+      payload: { role: "app", sessionId: req.sessionId },
+    });
+    const events = await ctx.chat.sendMessage(req.sessionId, req.message, req.images);
     return { sessionId: req.sessionId, events };
   },
+  "memory.episodic.record": async (params, ctx) =>
+    (await memoryOps(ctx)).record(EpisodicMemoryRecordRequest.parse(params ?? {})),
+  "memory.episodic.search": async (params, ctx) =>
+    (await memoryOps(ctx)).search(EpisodicMemorySearchRequest.parse(params ?? {})),
   "coding.chat.autocomplete": async () => {
     throw new NotImplementedError("coding.chat.autocomplete");
   },
-  "mcp.list": async () => {
-    throw new NotImplementedError("mcp.list");
+  "mcp.list": async (params, ctx) => {
+    McpListRequest.parse(params ?? {});
+    return buildMcpHandlers(mcpHarnessFor(ctx)).list();
   },
-  "mcp.invoke": async () => {
-    throw new NotImplementedError("mcp.invoke");
+  "mcp.invoke": async (params, ctx) => {
+    const req = McpInvokeRequest.parse(params ?? {});
+    return buildMcpHandlers(mcpHarnessFor(ctx)).invoke(req);
+  },
+  "mcp.registry.list": async (_params, ctx) => {
+    McpRegistryListRequest.parse(_params ?? {});
+    const workspacePath = ctx.workspacePath ?? process.env.NEXUS_WORKSPACE ?? process.cwd();
+    return listMcpRegistrySettings({ workspacePath });
+  },
+  "mcp.registry.setToolDenied": async (params, ctx) => {
+    const req = McpRegistrySetToolDeniedRequest.parse(params ?? {});
+    const workspacePath = ctx.workspacePath ?? process.env.NEXUS_WORKSPACE ?? process.cwd();
+    const result = setMcpRegistryToolDenied({
+      workspacePath,
+      serverName: req.serverName,
+      toolName: req.toolName,
+      denied: req.denied,
+    });
+    return { ok: result.ok, reason: result.reason, servers: result.list.servers };
+  },
+  "ask.inbox.list": async (params, ctx) => {
+    const req = AskInboxListRequest.parse(params ?? {});
+    const asks = await requireAskInbox(ctx).list(req.state);
+    return { asks: asks.map(parkedAskDto) };
+  },
+  "ask.inbox.approve": async (params, ctx) => {
+    const req = AskInboxIdRequest.parse(params ?? {});
+    return requireAskInbox(ctx).approve(req.id);
+  },
+  "ask.inbox.deny": async (params, ctx) => {
+    const req = AskInboxIdRequest.parse(params ?? {});
+    return requireAskInbox(ctx).deny(req.id);
+  },
+  "ask.inbox.pendingCount": async (params, ctx) => {
+    AskInboxPendingCountRequest.parse(params ?? {});
+    return { pending: await requireAskInbox(ctx).pendingCount() };
+  },
+  "ask.scheduler.list": async (params, ctx) => {
+    AskSchedulerListRequest.parse(params ?? {});
+    return { schedules: requireScheduler(ctx).list() };
+  },
+  "ask.scheduler.setEnabled": async (params, ctx) => {
+    const req = AskSchedulerSetEnabledRequest.parse(params ?? {});
+    const schedule = await requireScheduler(ctx).setEnabled(req.id, req.enabled);
+    return { ok: Boolean(schedule), schedule };
   },
   "settings.get": async () => {
     throw new NotImplementedError("settings.get");
@@ -444,6 +948,117 @@ export const handlers: Record<Method, HandlerFn> = {
       sourceRepo: manifest?.source_repo ?? DEFAULT_HUB_SOURCE_REPO,
     };
   },
+  // v2.2.0 Phase 3 (3.2): the real listing. `ipcSkillsClient.list()` returned a
+  // hardcoded [] (NHC.P6.B), so the page showed (0) in every section no matter
+  // what was on disk.
+  "skills.list": async () => {
+    const root = catalogRoot();
+    const manifest = readHubVersionManifest(root);
+    const listing = await readHubCatalog({ catalogDir: root, tag: manifest?.version ?? null });
+    return { skills: listing.rows, error: listing.error };
+  },
+  "skills.autoSync.get": async (params, ctx) => {
+    SkillsAutoSyncGetRequest.parse(params ?? {});
+    const stored = await resolveSettings(ctx).get<boolean>(NEXUS_HUB_AUTO_SYNC_SETTING_KEY);
+    // v2.2.4 Phase 6: missing key defaults ON. An explicit false stays off.
+    return { enabled: stored !== false };
+  },
+  "skills.autoSync.set": async (params, ctx) => {
+    const req = SkillsAutoSyncSetRequest.parse(params ?? {});
+    await resolveSettings(ctx).set(NEXUS_HUB_AUTO_SYNC_SETTING_KEY, req.enabled);
+    return { enabled: req.enabled };
+  },
+  // v2.2.0 Phase 3 (3.3): hub command discovery for the Agentic composer. The
+  // desktop app previously had NO harness discovery at all -- only the VS Code
+  // extension constructed the loader.
+  "commands.list": async () => {
+    const root = catalogRoot();
+    let commandsDir: string | null = null;
+    try {
+      commandsDir = hubLayoutDir(root, "commands", resolveHubLayout(root));
+    } catch {
+      commandsDir = null;
+    }
+    const present = commandsDir !== null && existsSync(commandsDir);
+    return {
+      commands: present ? await readHubCommands(root) : [],
+      catalogPresent: present,
+    };
+  },
+  // v2.2.0 Phase 5 (5.1): persistent chat explorer. Every op resolves the
+  // store lazily, so a session that never opens the chat tab never creates a
+  // database file.
+  "chat.explorer.tree": async () => (await explorerOps()).tree(),
+  "chat.explorer.createFolder": async (params) =>
+    (await explorerOps()).createFolder(ChatExplorerCreateFolderRequest.parse(params ?? {})),
+  "chat.explorer.renameFolder": async (params) =>
+    (await explorerOps()).renameFolder(ChatExplorerRenameFolderRequest.parse(params ?? {})),
+  "chat.explorer.moveFolder": async (params) =>
+    (await explorerOps()).moveFolder(ChatExplorerMoveFolderRequest.parse(params ?? {})),
+  "chat.explorer.deleteFolder": async (params) =>
+    (await explorerOps()).deleteFolder(ChatExplorerIdRequest.parse(params ?? {})),
+  "chat.explorer.createChat": async (params) =>
+    (await explorerOps()).createChat(ChatExplorerCreateChatRequest.parse(params ?? {})),
+  "chat.explorer.renameChat": async (params) =>
+    (await explorerOps()).renameChat(ChatExplorerRenameChatRequest.parse(params ?? {})),
+  "chat.explorer.moveChat": async (params) =>
+    (await explorerOps()).moveChat(ChatExplorerMoveChatRequest.parse(params ?? {})),
+  "chat.explorer.deleteChat": async (params) =>
+    (await explorerOps()).deleteChat(ChatExplorerIdRequest.parse(params ?? {})),
+  "chat.explorer.setPersona": async (params) =>
+    (await explorerOps()).setPersona(ChatExplorerSetPersonaRequest.parse(params ?? {})),
+  "chat.explorer.appendMessage": async (params) =>
+    (await explorerOps()).appendMessage(ChatExplorerAppendMessageRequest.parse(params ?? {})),
+  "chat.explorer.listMessages": async (params) =>
+    (await explorerOps()).listMessages(ChatExplorerListMessagesRequest.parse(params ?? {})),
+  "chat.explorer.search": async (params) =>
+    (await explorerOps()).search(ChatExplorerSearchRequest.parse(params ?? {})),
+  // v2.2.0 Phase 5 (5.3): name a chat from its first message.
+  "chat.generateTitle": async (params, ctx) => {
+    const req = ChatGenerateTitleRequest.parse(params ?? {});
+    return generateChatTitle(req, ctx);
+  },
+  // v2.2.0 Phase 8 (DF-16): local data export / import.
+  //
+  // These load the runtime lazily. transferRuntime reaches into the storage
+  // paths module at call time, and a static import would pull that graph into
+  // every handler test that only wanted an unrelated method.
+  "data.categories": async () => {
+    const { CATEGORIES } = await import("./data/transferRuntime.js");
+    return {
+      categories: CATEGORIES.map((c) => ({
+        id: c.id,
+        label: c.label,
+        description: c.description,
+        ...(c.sensitive ? { sensitive: true } : {}),
+      })),
+    };
+  },
+  "data.export": async (params) => {
+    const req = DataExportRequest.parse(params ?? {});
+    const { exportData } = await import("./data/transferRuntime.js");
+    const result = await exportData({
+      categories: req.categories,
+      outPath: req.outPath,
+      includeCredentials: req.includeCredentials === true,
+    });
+    return { path: result.path, bytes: result.bytes, empty: result.empty };
+  },
+  "data.import": async (params) => {
+    const req = DataImportRequest.parse(params ?? {});
+    const { importData } = await import("./data/transferRuntime.js");
+    const result = await importData({
+      archivePath: req.archivePath,
+      dryRun: req.dryRun === true,
+      ...(req.categories ? { categories: req.categories } : {}),
+    });
+    return {
+      applied: result.applied,
+      skipped: result.skipped,
+      dryRun: result.dryRun,
+      backupPath: result.backupPath,
+    };
+  },
   "skills.upstreamLatest": async (): Promise<SkillsUpstreamLatestResponseT> => {
     try {
       const latestTag = await defaultDependencies().resolveLatestTag();
@@ -462,6 +1077,9 @@ export const handlers: Record<Method, HandlerFn> = {
     const req = SkillsOptimizeApplyRequest.parse(params ?? {});
     return ctx.skillOptimizer.apply(req);
   },
+  // v2.2.0 Phase 2 (2.4): real GPU telemetry. The renderer polls this at the
+  // cadence the mock stream used to tick at.
+  "gpu.sample": async () => sampleGpu(),
   "telemetry.subscribe": async () => {
     throw new NotImplementedError("telemetry.subscribe");
   },
@@ -475,41 +1093,196 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "diffusion.txt2img": async (params, ctx) => {
     const req = DiffusionTxt2ImgRequest.parse(params ?? {});
-    return buildJobRequest("txt2img", req, ctx.diffusion);
+    return enqueueInteractive(ctx, "image", "txt2img", req as Record<string, unknown>);
   },
   "diffusion.img2img": async (params, ctx) => {
     const req = DiffusionImg2ImgRequest.parse(params ?? {});
-    return buildJobRequest("img2img", req, ctx.diffusion);
+    return enqueueInteractive(ctx, "image", "img2img", req as Record<string, unknown>);
   },
   "diffusion.inpaint": async (params, ctx) => {
     const req = DiffusionInpaintRequest.parse(params ?? {});
-    return buildJobRequest("inpaint", req, ctx.diffusion);
+    return enqueueInteractive(ctx, "image", "inpaint", req as Record<string, unknown>);
   },
   "diffusion.outpaint": async (params, ctx) => {
     const req = DiffusionOutpaintRequest.parse(params ?? {});
-    return buildJobRequest("outpaint", req, ctx.diffusion);
+    return enqueueInteractive(ctx, "image", "outpaint", req as Record<string, unknown>);
+  },
+  "diffusion.segment": async (params, ctx) => {
+    const req = DiffusionSegmentRequest.parse(params ?? {});
+    const run = async () => ctx.diffusion.call("segment", req);
+    const studio = ctx.studio;
+    if (studio) {
+      const queued = await studio.scheduler.enqueue({
+        moduleId: "image",
+        jobType: "segment",
+        estimatedVramGB: 2,
+        priority: "foreground",
+        run,
+      });
+      return queued.completion;
+    }
+    return run();
   },
   "diffusion.job.drainEvents": async (params, ctx) => {
     const req = DiffusionDrainEventsRequest.parse(params ?? {});
-    return { events: ctx.diffusion.drainEvents(req.jobId) };
+    const runtimeEvents = ctx.diffusion.drainEvents(req.jobId);
+    const extras = ctx.studio ? takeCompletions(ctx.studio, req.jobId) : [];
+    return { events: [...runtimeEvents, ...extras] };
   },
-  "diffusion.workflow.extract": async (params) => {
+  "diffusion.workflow.extract": async (params, ctx) => {
     const req = DiffusionWorkflowExtractRequest.parse(params ?? {});
-    const workflow = extractWorkflowFromBase64Png(req.pngBase64);
+    let workflow = extractWorkflowFromBase64Png(req.pngBase64);
+    if (!workflow) {
+      const hit = resolveStudio(ctx).index.getByBytes(Buffer.from(req.pngBase64, "base64"));
+      workflow = hit?.workflow
+        ? (hit.workflow as NonNullable<typeof workflow>)
+        : null;
+    }
     return { workflow };
   },
   "diffusion.video.text2video": async (params, ctx) => {
     const req = DiffusionVideoText2VideoRequest.parse(params ?? {});
-    return buildVideoJobRequest("text2video", req, ctx.diffusion);
+    return enqueueInteractive(ctx, "video", "text2video", req as Record<string, unknown>);
   },
   "diffusion.video.image2video": async (params, ctx) => {
     const req = DiffusionVideoImage2VideoRequest.parse(params ?? {});
-    return buildVideoJobRequest("image2video", req, ctx.diffusion);
+    return enqueueInteractive(ctx, "video", "image2video", req as Record<string, unknown>);
+  },
+  "diffusion.video.audio2video": async (params, ctx) => {
+    const req = DiffusionVideoAudio2VideoRequest.parse(params ?? {});
+    return enqueueInteractive(ctx, "video", "audio2video", req as Record<string, unknown>);
   },
   "diffusion.video.workflow.extract": async (params, ctx) => {
     const req = DiffusionVideoWorkflowExtractRequest.parse(params ?? {});
-    const workflow = await extractVideoWorkflow(req.mp4Path, ctx.ffmpeg);
+    let workflow = await extractVideoWorkflow(req.mp4Path, ctx.ffmpeg);
+    if (!workflow) {
+      try {
+        const bytes = readFileSync(req.mp4Path);
+        const hit = resolveStudio(ctx).index.getByBytes(bytes);
+        workflow = hit?.workflow
+          ? (hit.workflow as NonNullable<typeof workflow>)
+          : null;
+      } catch {
+        const hit = resolveStudio(ctx).index.getByBytes(req.mp4Path);
+        workflow = hit?.workflow
+          ? (hit.workflow as NonNullable<typeof workflow>)
+          : null;
+      }
+    }
     return { workflow };
+  },
+  "generation.queue.list": async (params, ctx) => {
+    const req = GenerationQueueListRequest.parse(params ?? {});
+    const jobs = resolveStudio(ctx).queue.list(req.states);
+    return { jobs: jobs.map(jobDto) };
+  },
+  "generation.queue.enqueue": async (params, ctx) => {
+    const req = GenerationQueueEnqueueRequest.parse(params ?? {});
+    const studio = resolveStudio(ctx);
+    const id = req.id ?? `gen-${Date.now().toString(36)}`;
+    const jobs = req.batchSpec
+      ? studio.queue.enqueueBatch({
+          id,
+          pillar: req.pillar,
+          jobType: req.jobType,
+          parameters: req.parameters,
+          priority: req.priority ?? "batch",
+          threadId: req.threadId,
+          batchSpec: req.batchSpec,
+        })
+      : [studio.queue.enqueue({
+          id,
+          pillar: req.pillar,
+          jobType: req.jobType,
+          parameters: req.parameters,
+          priority: req.priority ?? "interactive",
+          threadId: req.threadId,
+        })];
+    void pumpStudio(ctx);
+    return { jobs: jobs.map(jobDto) };
+  },
+  "generation.queue.cancel": async (params, ctx) => {
+    const req = GenerationQueueCancelRequest.parse(params ?? {});
+    const job = resolveStudio(ctx).queue.cancel(req.id);
+    return { job: job ? jobDto(job) : null };
+  },
+  "generation.queue.reorder": async (params, ctx) => {
+    const req = GenerationQueueReorderRequest.parse(params ?? {});
+    resolveStudio(ctx).queue.reorder(req.ids);
+    return { ok: true as const };
+  },
+  "generation.queue.pendingCount": async (params, ctx) => {
+    GenerationQueuePendingCountRequest.parse(params ?? {});
+    return { count: resolveStudio(ctx).queue.pendingCount() };
+  },
+  "generation.scheduler.snapshot": async (params, ctx) => {
+    GenerationSchedulerSnapshotRequest.parse(params ?? {});
+    return resolveStudio(ctx).scheduler.snapshot();
+  },
+  "tuning.status": async (params, ctx) => {
+    TuningEmptyRequest.parse(params ?? {});
+    return resolveTuning(ctx).status();
+  },
+  "tuning.provision": async (params, ctx) => {
+    TuningEmptyRequest.parse(params ?? {});
+    return resolveTuning(ctx).provision();
+  },
+  "tuning.preflight": async (params, ctx) => {
+    TuningEmptyRequest.parse(params ?? {});
+    return resolveTuning(ctx).preflight();
+  },
+  "tuning.dataset.build": async (params, ctx) => {
+    const req = TuningDatasetBuildRequest.parse(params ?? {});
+    return resolveTuning(ctx).buildDataset(req);
+  },
+  "tuning.job.start": async (params, ctx) => {
+    const req = TuningJobStartRequest.parse(params ?? {});
+    const job = await resolveTuning(ctx).startJob(req);
+    return { job };
+  },
+  "tuning.job.list": async (params, ctx) => {
+    const req = TuningJobListRequest.parse(params ?? {});
+    return { jobs: resolveTuning(ctx).listJobs(req.states) };
+  },
+  "tuning.job.cancel": async (params, ctx) => {
+    const req = TuningJobCancelRequest.parse(params ?? {});
+    const job = resolveTuning(ctx).cancelJob(req.id);
+    return { job: job ?? null };
+  },
+  "tuning.models.list": async (params, ctx) => {
+    const req = TuningModelsListRequest.parse(params ?? {});
+    const models = await resolveTuning(ctx).listBaseModels(req.hostVramGB);
+    return { models };
+  },
+  "audit.list": async (params, ctx) => {
+    const req = AuditListRequest.parse(params ?? {});
+    return { events: resolveAudit(ctx).list(req) };
+  },
+  "audit.status": async (params, ctx) => {
+    AuditStatusRequest.parse(params ?? {});
+    const log = resolveAudit(ctx);
+    const vaultAvailable = ctx.credentials ? await ctx.credentials.isAvailable() : false;
+    return {
+      eventCount: log.eventCount(),
+      droppedCount: log.droppedCount(),
+      vaultAvailable,
+    };
+  },
+  "media.sampleVideoFrames": async (params, ctx) => {
+    const req = MediaSampleVideoFramesRequest.parse(params ?? {});
+    return sampleVideoFramesFromDataUrl(req.dataUrl, ctx.ffmpeg, {
+      maxFrames: req.maxFrames,
+    });
+  },
+  "coding.parseDocument.status": async (params, ctx) => {
+    CodingParseDocumentStatusRequest.parse(params ?? {});
+    const stored = await resolveSettings(ctx).get<boolean>(PARSE_DOCUMENT_SETTING_KEY);
+    return { enabled: isParseDocumentEnabled({ settingsValue: stored }) };
+  },
+  "coding.parseDocument.setEnabled": async (params, ctx) => {
+    const req = CodingParseDocumentSetEnabledRequest.parse(params ?? {});
+    await resolveSettings(ctx).set(PARSE_DOCUMENT_SETTING_KEY, req.enabled);
+    return { enabled: req.enabled };
   },
 };
 

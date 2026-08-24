@@ -111,4 +111,11 @@ codegraph_files = 0
 lsp_definition = 0
 lsp_references = 0
 parse_document = 1
+watch_path = 0
+hash_file = 0
+browser_navigate = 2
+browser_click = 2
+browser_type = 2
+browser_aria_snapshot = 2
+browser_close = 2
 # END:GENERATED-PERMISSIONS

@@ -2,6 +2,12 @@
  * v1.7.0 (Hub v3.10.0 adoption, gap HUB310.SCAN) -- reviewed injection-scan
  * allowlist for the trusted Nexus-Hub sync source.
  *
+ * v2.2.5 Phase 5: re-reviewed against Hub **v3.19.2** (GitHub
+ * `/repos/bendourthe/Nexus-Hub/releases/latest` on 2026-08-23). The v3.10.0
+ * skill paths below still exist in that tag; each waiver stays one (skill,
+ * rule) pair. New Hub skills are NOT blanket-muted. A planted jailbreak in a
+ * non-allowlisted path still blocks.
+ *
  * The `PromptInjectionScanner` is (correctly) fail-closed and conservative, so
  * it flags security-education / config-example content in the Hub's own curated
  * skills -- a "prompt-injection-defense" skill naturally contains the string
@@ -11,7 +17,7 @@
  * whose job is to teach security has a high benign-match rate.
  *
  * This allowlist waives those specific, reviewed (skill, rule) matches so a live
- * `nexus skills sync` of the pinned+released Hub is not permanently blocked. It
+ * `nexus skills sync` of the latest released Hub is not permanently blocked. It
  * is DELIBERATELY NARROW:
  *   - each entry waives exactly ONE rule for ONE skill (a new / different
  *     injection pattern in an allowlisted skill still blocks),
@@ -19,12 +25,15 @@
  *     (`NexusHubSyncer`); untrusted third-party `nexus skills install` imports
  *     keep the fully-strict scanner (`SkillInstaller` passes no suppressions).
  *
- * Every entry was reviewed against the Hub v3.10.0 checkout by reading the
- * flagged line in context; the `reason` records that adjudication. Re-review
- * when bumping the pinned Hub release.
+ * Every entry was reviewed against the Hub checkout by reading the flagged line
+ * in context; the `reason` records that adjudication. Re-review when the
+ * installed Hub tag moves past `HUB_ALLOWLIST_REVIEWED_TAG`.
  */
 
 import type { ScanSuppression } from "./PromptInjectionScanner.js";
+
+/** Hub release this allowlist was last reviewed against. Not a pin. */
+export const HUB_ALLOWLIST_REVIEWED_TAG = "v3.19.2";
 
 export const HUB_SKILL_SCAN_ALLOWLIST: readonly ScanSuppression[] = Object.freeze([
   {

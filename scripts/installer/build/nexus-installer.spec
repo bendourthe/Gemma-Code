@@ -22,7 +22,10 @@ if sys.platform == "win32":
     # the frozen wizard carries the user-facing `NexusSetup.exe` name directly
     # -- one modern window, no generic pre-wizard dialog.
     APP_NAME = "NexusSetup"
-    ICON = str(REPO_ROOT / "assets" / "icon.ico")
+    icon_path = REPO_ROOT / "assets" / "icon.ico"
+    if not icon_path.is_file():
+        raise SystemExit(f"Windows installer icon missing: expected {icon_path}")
+    ICON = str(icon_path)
 elif sys.platform == "darwin":
     # Shipped as the onefile `Nexus AI Studio Setup`, packaged into
     # NexusSetup.dmg by build-macos.sh.
@@ -104,11 +107,13 @@ for req in req_candidates:
 # window/taskbar icon set via `setWindowIcon` (fixes the generic Python host
 # icon fallback, T018), `icon.png` is the fallback, and the transparent mark
 # feeds the header's StaticLogo. Without these staged, a packaged wizard shows
-# the generic icon and a blank header mark.
+# the generic icon and a blank header mark. FAIL CLOSED: a missing asset must
+# never ship as a silent skip.
 for asset_name in ("icon.ico", "icon.png", "nexus-ai-primary_no-background.png"):
     asset_path = REPO_ROOT / "assets" / asset_name
-    if asset_path.exists():
-        datas.append((str(asset_path), "assets"))
+    if not asset_path.is_file():
+        raise SystemExit(f"runtime icon missing: expected {asset_path}")
+    datas.append((str(asset_path), "assets"))
 
 # v1.11.0 Phase 4 (T401): the embedded desktop-app bundle + its build-time
 # manifest (name, version, sha256), staged by build-windows.ps1 into
@@ -128,6 +133,44 @@ if sys.platform == "win32":
         )
     datas.append((str(_bundle), "desktop-bundle"))
     datas.append((str(_manifest), "desktop-bundle"))
+
+# v2.2.0 Phase 1 (1.3): the diffusion/audio/ocr runtime Python sources. The
+# RuntimeProvisioner copies these to the per-user runtime tree and records the
+# location in ~/.nexus/runtime.json so the sidecar can spawn
+# `python -m runtimes.diffusion.main` on the installed machine. FAIL CLOSED:
+# an installer without the runtime sources produces an app whose Image/Video
+# generation cannot start.
+_runtimes_src = REPO_ROOT / "runtimes"
+if not (_runtimes_src / "diffusion").is_dir():
+    raise SystemExit(f"runtimes sources missing: expected {_runtimes_src / 'diffusion'}")
+datas.append((str(_runtimes_src), "runtimes"))
+
+# v2.2.0 Phase 3 (3.1): the bundled Nexus-Hub catalog snapshot, so an OFFLINE
+# install still lands a working harness. Built by
+# scripts/installer/build/build-hub-snapshot.py. Optional by design (a dev
+# build without it still packages; the installer falls back to a network sync),
+# but when present the manifest MUST carry a real sha256 -- v1.10.0 removed an
+# earlier bundled baseline precisely because its pins were placeholders.
+_hub_snapshot = INSTALLER_ROOT / "build" / "hub-snapshot"
+if _hub_snapshot.is_dir():
+    _snap_archive = _hub_snapshot / "catalog.tar.gz"
+    _snap_manifest = _hub_snapshot / "manifest.json"
+    if not (_snap_archive.is_file() and _snap_manifest.is_file()):
+        raise SystemExit(
+            "hub-snapshot directory present but incomplete: expected "
+            "catalog.tar.gz + manifest.json (run build-hub-snapshot.py)"
+        )
+    import json as _hub_json
+
+    _snap_meta = _hub_json.loads(_snap_manifest.read_text(encoding="utf-8"))
+    _snap_sha = str(_snap_meta.get("sha256", ""))
+    if len(_snap_sha) != 64 or _snap_sha == "0" * 64:
+        raise SystemExit(
+            "hub snapshot manifest carries a placeholder sha256; refusing to "
+            "bundle an unverifiable catalog snapshot"
+        )
+    datas.append((str(_snap_archive), "hub-snapshot"))
+    datas.append((str(_snap_manifest), "hub-snapshot"))
 
 a = Analysis(
     [str(INSTALLER_ROOT / "src" / "nexus_installer" / "main.py")],
@@ -167,7 +210,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # Windowed mode

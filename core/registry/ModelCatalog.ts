@@ -19,15 +19,16 @@
  *    content-addressed registry; the public type surface stays stable).
  */
 
-export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek";
+export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5" | "hermes" | "muse-glimmer" | "nemotron-lightning" | "gpt-oss";
 
-export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek";
+export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek" | "lfm";
 
 export type ToolFormatName =
   | "gemma4-xml"
   | "llama3-json"
   | "qwen-json"
-  | "deepseek-json";
+  | "deepseek-json"
+  | "lfm-pythonic";
 
 export interface SamplingDefaults {
   readonly temperature: number;
@@ -42,6 +43,16 @@ export interface LlmCatalogEntry {
   readonly family: ModelFamily;
   readonly runtime: "ollama" | "lmstudio";
   readonly vramGb?: number;
+  /**
+   * v1.18.0 Phase 3 (LG-A3) -- MoE active-parameter count in billions. Omitted
+   * on dense entries so existing tiering is unchanged.
+   */
+  readonly activeParams?: number;
+  /**
+   * v1.18.0 Phase 3 (LG-A3) -- MoE total / resident parameter count in billions.
+   * Omitted on dense entries.
+   */
+  readonly totalParams?: number;
   readonly tags: readonly string[];
   readonly sampling: SamplingDefaults;
   readonly promptFormat: PromptFormatName;
@@ -116,6 +127,52 @@ const ENTRIES: readonly LlmCatalogEntry[] = Object.freeze([
     toolFormat: "qwen-json",
   },
   {
+    id: "qwen3.5:4b",
+    displayName: "Qwen 3.5 4B",
+    family: "qwen",
+    runtime: "ollama",
+    vramGb: 4,
+    tags: Object.freeze(["coding", "tool-use", "lightweight"]),
+    sampling: { temperature: 0.6, topP: 0.8, topK: 20, contextLength: 32768 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "qwen3.5:9b",
+    displayName: "Qwen 3.5 9B",
+    family: "qwen",
+    runtime: "ollama",
+    vramGb: 8,
+    tags: Object.freeze(["recommended", "coding", "tool-use"]),
+    sampling: { temperature: 0.6, topP: 0.8, topK: 20, contextLength: 32768 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "qwen3-coder:30b",
+    displayName: "Qwen3-Coder 30B-A3B",
+    family: "qwen",
+    runtime: "ollama",
+    vramGb: 20,
+    activeParams: 3.3,
+    totalParams: 30,
+    tags: Object.freeze(["recommended", "coding", "tool-use", "advanced"]),
+    sampling: { temperature: 0.4, topP: 0.8, topK: 20, contextLength: 32768 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "gpt-oss:20b",
+    displayName: "gpt-oss 20B",
+    family: "gpt-oss",
+    runtime: "ollama",
+    vramGb: 16,
+    tags: Object.freeze(["recommended", "coding", "tool-use"]),
+    sampling: { temperature: 0.7, topP: 0.9, topK: 50, contextLength: 32768 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
     id: "deepseek-coder:6.7b",
     displayName: "DeepSeek Coder 6.7B",
     family: "deepseek",
@@ -125,6 +182,91 @@ const ENTRIES: readonly LlmCatalogEntry[] = Object.freeze([
     sampling: { temperature: 0.3, topP: 0.95, topK: 40, contextLength: 16384 },
     promptFormat: "deepseek",
     toolFormat: "deepseek-json",
+  },
+  {
+    id: "lfm2.5:2.6b",
+    displayName: "LFM2.5 2.6B",
+    family: "lfm2.5",
+    runtime: "ollama",
+    vramGb: 3,
+    tags: Object.freeze(["recommended", "coding", "tool-use", "lightweight"]),
+    sampling: { temperature: 0.3, topP: 0.9, topK: 50, contextLength: 128000 },
+    promptFormat: "lfm",
+    toolFormat: "lfm-pythonic",
+  },
+  {
+    id: "hermes3:8b",
+    displayName: "Hermes 3 8B",
+    family: "hermes",
+    runtime: "ollama",
+    vramGb: 8,
+    tags: Object.freeze(["coding", "chat", "tool-use"]),
+    sampling: { temperature: 0.7, topP: 0.9, topK: 50, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
+    id: "hermes3:70b",
+    displayName: "Hermes 3 70B",
+    family: "hermes",
+    runtime: "ollama",
+    vramGb: 40,
+    tags: Object.freeze(["coding", "chat", "tool-use", "advanced"]),
+    sampling: { temperature: 0.7, topP: 0.9, topK: 50, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
+    id: "muse-glimmer:30b",
+    displayName: "Muse Glimmer 30B (K-Quant-17GB)",
+    family: "muse-glimmer",
+    runtime: "ollama",
+    vramGb: 17,
+    activeParams: 4,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "chat", "tool-use", "advanced"]),
+    sampling: { temperature: 0.6, topP: 0.9, topK: 40, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
+    id: "muse-glimmer:30b-dynamic",
+    displayName: "Muse Glimmer 30B (K-Quant-Dynamic)",
+    family: "muse-glimmer",
+    runtime: "ollama",
+    vramGb: 24,
+    activeParams: 4,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "chat", "tool-use", "advanced"]),
+    sampling: { temperature: 0.6, topP: 0.9, topK: 40, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
+    id: "nemotron-lightning:30b-a3b",
+    displayName: "Nemotron 3.5 Lightning 30B-A3B",
+    family: "nemotron-lightning",
+    runtime: "ollama",
+    vramGb: 24,
+    activeParams: 3,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "tool-use", "worker-candidate"]),
+    sampling: { temperature: 0.5, topP: 0.9, topK: 20, contextLength: 131072 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "nemotron-lightning:30b-a3b-offload",
+    displayName: "Nemotron 3.5 Lightning 30B-A3B (expert offload)",
+    family: "nemotron-lightning",
+    runtime: "ollama",
+    vramGb: 16,
+    activeParams: 3,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "tool-use", "worker-candidate"]),
+    sampling: { temperature: 0.5, topP: 0.9, topK: 20, contextLength: 131072 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
   },
 ]);
 

@@ -71,6 +71,10 @@ class PipelineParams:
     strength: Optional[float] = None
     direction: Optional[str] = None
     pixels: Optional[int] = None
+    layer_streaming: bool = False
+    max_cache_vram_gb: Optional[float] = None
+    max_cache_ram_gb: Optional[float] = None
+    working_mem_reserve_gb: Optional[float] = None
 
 
 def _expect_str(d: Mapping[str, Any], key: str, default: Optional[str] = None) -> str:
@@ -106,6 +110,12 @@ def _expect_float(d: Mapping[str, Any], key: str, default: Optional[float] = Non
     if not isinstance(value, (int, float)):
         raise ParamsError(f"{key} must be number, got {type(value).__name__}")
     return float(value)
+
+
+def _optional_float(d: Mapping[str, Any], key: str) -> Optional[float]:
+    if key not in d or d[key] is None:
+        return None
+    return _expect_float(d, key)
 
 
 def _parse_loras(raw: Any) -> List[LoRARef]:
@@ -162,6 +172,10 @@ def parse(mode: str, request: Mapping[str, Any]) -> PipelineParams:
         latent_preview=bool(request.get("latentPreview", True)),
         loras=_parse_loras(request.get("loras")),
         control_net=_parse_control_net(request.get("controlNet")),
+        layer_streaming=bool(request.get("layerStreaming", False)),
+        max_cache_vram_gb=_optional_float(request, "maxCacheVramGB"),
+        max_cache_ram_gb=_optional_float(request, "maxCacheRamGB"),
+        working_mem_reserve_gb=_optional_float(request, "workingMemReserveGB"),
     )
     if mode == "img2img":
         params = _augment(

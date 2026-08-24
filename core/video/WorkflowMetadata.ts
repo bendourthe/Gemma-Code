@@ -6,10 +6,11 @@
  * the video side writes a `comment` tag inside the MP4 container via
  * `ffmpeg -metadata comment=...` and reads it back via `ffprobe`.
  *
- * The schema mirrors the image-side `WorkflowMetadata` plus four
- * video-only fields (`mode: "text2video" | "image2video"`,
- * `durationSeconds`, `fps`, optional `sourceImageHash`). Workflow JSON
- * is sorted-keys so the embed is reproducible.
+ * The schema mirrors the image-side `WorkflowMetadata` plus video-only
+ * fields (`mode: "text2video" | "image2video" | "audio2video"`,
+ * `durationSeconds`, `fps`, optional `sourceImageHash` /
+ * `sourceAudioHash` / `provenance`). Workflow JSON is sorted-keys so
+ * the embed is reproducible.
  *
  * The ffmpeg / ffprobe binaries are bundled with the desktop installer
  * (Phase 9); the path resolver is injected so tests can stub it and the
@@ -21,7 +22,7 @@ import { promises as fs } from "node:fs";
 
 export const NEXUS_VIDEO_WORKFLOW_KEY = "nexus_video_workflow";
 
-export type VideoMode = "text2video" | "image2video";
+export type VideoMode = "text2video" | "image2video" | "audio2video";
 
 export interface VideoWorkflowMetadata {
   readonly tool: string;
@@ -42,6 +43,7 @@ export interface VideoWorkflowMetadata {
   readonly seed: number;
   readonly timestamp: string;
   readonly sourceImageHash?: string;
+  readonly sourceAudioHash?: string;
   readonly [extension: string]: unknown;
 }
 
@@ -147,7 +149,7 @@ function isVideoWorkflow(value: unknown): value is VideoWorkflowMetadata {
     typeof v.prompt === "string" &&
     typeof v.durationSeconds === "number" &&
     typeof v.fps === "number" &&
-    (v.mode === "text2video" || v.mode === "image2video")
+    (v.mode === "text2video" || v.mode === "image2video" || v.mode === "audio2video")
   );
 }
 

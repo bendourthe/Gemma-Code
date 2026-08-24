@@ -31,6 +31,7 @@ describe("LocalModelStatus", () => {
     const node = screen.getByTestId("local-model-status");
     expect(node.dataset.state).toBe("muted");
     expect(node).toHaveTextContent(/telemetry unavailable/i);
+    expect(screen.queryByTestId("agent-state-orb")).toBeNull();
   });
 
   it("renders loading state before the first sample arrives", () => {
@@ -38,6 +39,11 @@ describe("LocalModelStatus", () => {
     render(<LocalModelStatus stream={stream} />);
     const node = screen.getByTestId("local-model-status");
     expect(node.dataset.state).toBe("loading");
+    expect(screen.getByRole("img", { name: /agent working/i })).toHaveAttribute(
+      "data-agent-activity",
+      "model-loading",
+    );
+    expect(screen.queryByTestId("local-model-status-beam")).toBeNull();
   });
 
   it("renders an active sample and updates on subsequent ticks", () => {
@@ -56,6 +62,11 @@ describe("LocalModelStatus", () => {
     expect(screen.getByText(/Gemma 4 7B/)).toBeInTheDocument();
     expect(screen.getByText(/GPU: 42%/)).toBeInTheDocument();
     expect(screen.getByText(/4\.5 GB free/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /agent working/i })).toHaveAttribute(
+      "data-agent-activity",
+      "model-inference",
+    );
+    expect(screen.getByTestId("local-model-status-beam")).toHaveAttribute("data-beam-playing", "false");
 
     act(() => {
       stream.push({
@@ -140,6 +151,8 @@ describe("LocalModelStatus", () => {
     });
     expect(screen.getByTestId("local-model-status").dataset["idle"]).toBe("true");
     expect(screen.getAllByText(/Idle/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId("agent-state-orb")).toBeNull();
+    expect(screen.getByTestId("local-model-status-beam")).toHaveAttribute("data-beam-playing", "true");
   });
 
   it("includes a tooltip with full breakdown when extended fields are present", () => {

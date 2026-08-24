@@ -45,10 +45,12 @@ DESKTOP_BUNDLE_SUBDIR = "desktop-bundle"
 # Grace period for the first-run health check: a GUI app that is still
 # alive after this many seconds launched successfully.
 HEALTH_CHECK_GRACE_SECONDS = 5
+# v2.2.0 Phase 1 (1.4): budget for `--healthcheck` (the app retries sidecar
+# RPCs internally for up to ~25s on a slow cold start; give it headroom).
+HEALTH_CHECK_BUDGET_SECONDS = 40
 
 REDOWNLOAD_SUGGESTION = (
-    "Re-download the installer; if it keeps failing, report this with the "
-    "saved log."
+    "Re-download the installer; if it keeps failing, report this with the saved log."
 )
 
 
@@ -169,8 +171,7 @@ class DesktopProvisioner:
         if payload_dir is None:
             state.record_step_failure(
                 "desktop",
-                "The desktop app package was missing from this installer "
-                "build.",
+                "The desktop app package was missing from this installer build.",
                 REDOWNLOAD_SUGGESTION,
             )
             log(
@@ -201,8 +202,7 @@ class DesktopProvisioner:
             return None
 
         log(
-            f"Verifying the embedded Nexus desktop {manifest['version']} "
-            "bundle...",
+            f"Verifying the embedded Nexus desktop {manifest['version']} bundle...",
             "info",
         )
         if _sha256_file(bundle) != manifest["sha256"].lower():
@@ -258,17 +258,17 @@ class DesktopProvisioner:
         if code != 0:
             state.record_step_failure(
                 "desktop",
-                f"The desktop app's setup program reported an error "
-                f"(code {code}).",
+                f"The desktop app's setup program reported an error (code {code}).",
                 "Re-run the installer; if it keeps failing, save the log and "
                 "report it.",
             )
             log(f"Desktop installer exited with code {code}: {stderr}", "error")
             return False
         install_dir = state.desktop_install_dir or os.path.join(
-            os.environ.get("LOCALAPPDATA", ""), "Nexus"
+            os.environ.get("LOCALAPPDATA", ""), WINDOWS_DESKTOP_PRODUCT_DIR
         )
-        state.desktop_exe_path = _resolve_windows_exe(install_dir)
+        state.desktop_exe_path = _locate_windows_exe(install_dir)
+        log(f"Desktop binary: {state.desktop_exe_path}", "info")
         return True
 
     def _install_macos(
@@ -402,14 +402,37 @@ def check_desktop_payload() -> int:
     return 0
 
 
+#: Tauri NSIS currentUser default is `%LOCALAPPDATA%\{productName}`.
+WINDOWS_DESKTOP_PRODUCT_DIR = "Nexus AI Studio"
+WINDOWS_DESKTOP_DIR_FALLBACKS: tuple[str, ...] = ("Nexus AI Studio", "Nexus")
+WINDOWS_EXE_CANDIDATES: tuple[str, ...] = (
+    "Nexus AI Studio.exe",
+    "Nexus.exe",
+    "nexus-shell.exe",
+)
+
+
+def _windows_install_search_dirs(preferred_dir: str) -> list[str]:
+    """Preferred install dir, then the well-known Tauri currentUser folders."""
+    dirs: list[str] = []
+    if preferred_dir:
+        dirs.append(preferred_dir)
+    local = os.environ.get("LOCALAPPDATA", "")
+    for name in WINDOWS_DESKTOP_DIR_FALLBACKS:
+        candidate = os.path.join(local, name) if local else name
+        if candidate not in dirs:
+            dirs.append(candidate)
+    return dirs
+
+
 def _resolve_windows_exe(install_dir: str) -> str:
     """Return the installed main binary path inside `install_dir`.
 
-    The Tauri bundle currently ships `nexus-shell.exe` (the crate's binary
-    name, verified against the T104 fixture); prefer a product-named
-    `Nexus.exe` if a later bundle renames it.
+    The Tauri crate binary is `nexus-shell.exe`. Current `productName` is
+    `Nexus AI Studio`; older bundles used `Nexus.exe`. Prefer those names
+    in that order, then any other exe except the NSIS uninstaller.
     """
-    for name in ("Nexus.exe", "nexus-shell.exe"):
+    for name in WINDOWS_EXE_CANDIDATES:
         candidate = os.path.join(install_dir, name)
         if os.path.isfile(candidate):
             return candidate
@@ -418,7 +441,28 @@ def _resolve_windows_exe(install_dir: str) -> str:
         for path in glob.glob(os.path.join(install_dir, "*.exe"))
         if os.path.basename(path).lower() != "uninstall.exe"
     ]
-    return others[0] if others else os.path.join(install_dir, "Nexus.exe")
+    return others[0] if others else os.path.join(install_dir, WINDOWS_EXE_CANDIDATES[0])
+
+
+def _locate_windows_exe(preferred_dir: str) -> str:
+    """Resolve the desktop exe, searching Tauri's default folders if needed.
+
+    Silent NSIS without `/D` installs to `%LOCALAPPDATA%\\Nexus AI Studio`.
+    A guess of `%LOCALAPPDATA%\\Nexus` (the pre-rename product folder) must
+    not fail the first-run health check when the real binary is next door.
+    Custom `/D=` directories are not rewritten.
+    """
+    resolved = _resolve_windows_exe(preferred_dir)
+    if os.path.isfile(resolved):
+        return resolved
+    base = os.path.basename(preferred_dir.rstrip("\\/"))
+    if base not in WINDOWS_DESKTOP_DIR_FALLBACKS:
+        return resolved
+    for directory in _windows_install_search_dirs(preferred_dir):
+        candidate = _resolve_windows_exe(directory)
+        if os.path.isfile(candidate):
+            return candidate
+    return resolved
 
 
 def _find_installer_icon() -> str | None:
@@ -430,55 +474,150 @@ def _find_installer_icon() -> str | None:
     return candidate if os.path.isfile(candidate) else None
 
 
+def _parse_healthcheck_verdict(stdout: str) -> dict | None:
+    """Extract the single-line JSON verdict from `--healthcheck` output."""
+    for line in reversed(stdout.strip().splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and "sidecar" in parsed:
+            return parsed
+    return None
+
+
+def _format_healthcheck_failure(verdict: dict, sidecar: str) -> str:
+    """One readable reason for the Complete page.
+
+    v2.2.1: never join the last three stderr fragments with ``" / "``. That
+    produced ``[ / / Nodejs v22.11.0]`` when the real stack sat earlier in
+    the tail and the last lines were blanks plus a Node version banner.
+    """
+    parts = [sidecar]
+    exit_code = verdict.get("exitCode")
+    if exit_code is not None:
+        parts.append(f"exitCode={exit_code}")
+    node = verdict.get("nodePath")
+    if node:
+        parts.append(f"node={node}")
+    script = verdict.get("scriptPath")
+    if script:
+        parts.append(f"script={script}")
+    stderr_tail = verdict.get("stderrTail")
+    if isinstance(stderr_tail, list):
+        lines = [str(s).strip() for s in stderr_tail if str(s).strip()]
+        if lines:
+            preview = lines[-8:]
+            parts.append("stderr: " + " | ".join(preview))
+    return "; ".join(parts)
+
+
 def first_run_health_check(
     state: InstallerState,
     log: Callable[[str, str], None],
-    grace_seconds: int = HEALTH_CHECK_GRACE_SECONDS,
+    grace_seconds: int = HEALTH_CHECK_BUDGET_SECONDS,
 ) -> bool:
-    """Launch the installed app once and record pass/fail on the state.
+    """Prove the installed app actually works, not merely that it launches.
 
-    Pass criteria: the process either exits 0 quickly (CLI-style
-    `--version` handling) or is still alive after the grace period (a GUI
-    app that launched without crashing; it is then terminated). A missing
-    binary or an early nonzero exit fails the check.
+    v2.2.0 Phase 1 (1.4): runs `<exe> --healthcheck`, which spawns the Node
+    sidecar headless, issues real `models.list` / `skills.status` RPCs, and
+    prints one JSON verdict line. A sidecar that cannot spawn or answer fails
+    the check with the reason (the pre-v2.2.0 check passed whenever the
+    process survived 5 seconds -- exactly the state of a sidecar-less app).
+    A legacy app build that does not understand `--healthcheck` (verdict
+    line absent, exit 0) passes with a warning so installer/app version skew
+    does not hard-fail the install.
     """
     log("Running the Nexus desktop first-run health check...", "info")
     exe = state.desktop_exe_path
     if not exe or not os.path.exists(exe):
         log(f"Installed desktop binary not found at: {exe or '<unset>'}", "error")
         state.desktop_health_ok = False
+        state.desktop_health_detail = "desktop binary not found"
         return False
 
     try:
         proc = subprocess.Popen(
-            [exe, "--version"],
-            stdout=subprocess.DEVNULL,
+            [exe, "--healthcheck"],
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            text=True,
             **no_window_kwargs(),
         )
     except OSError as e:
         log(f"Failed to launch the desktop app: {e}", "error")
         state.desktop_health_ok = False
+        state.desktop_health_detail = f"launch failed: {e}"
         return False
 
     try:
-        code = proc.wait(timeout=grace_seconds)
+        stdout, _ = proc.communicate(timeout=grace_seconds)
+        code = proc.returncode
     except subprocess.TimeoutExpired:
-        # Still running after the grace period: the GUI launched fine.
-        proc.terminate()
+        proc.kill()
         try:
-            proc.wait(timeout=10)
+            stdout, _ = proc.communicate(timeout=10)
         except subprocess.TimeoutExpired:
-            proc.kill()
-        log("Desktop app launched and stayed alive; health check passed.", "success")
-        state.desktop_health_ok = True
-        return True
+            stdout = ""
+        log(
+            "Desktop health check timed out; the app produced no verdict "
+            f"within {grace_seconds}s.",
+            "error",
+        )
+        state.desktop_health_ok = False
+        state.desktop_health_detail = f"healthcheck timeout after {grace_seconds}s"
+        return False
 
+    verdict = _parse_healthcheck_verdict(stdout or "")
+    if verdict is not None:
+        sidecar = str(verdict.get("sidecar", "unknown"))
+        catalog_rows = verdict.get("catalogRows", 0)
+        hub = verdict.get("hubCatalog", "unknown")
+        if code == 0 and sidecar == "ok":
+            log(
+                "Desktop health check passed: sidecar ok, "
+                f"{catalog_rows} catalog model(s), hub catalog {hub}.",
+                "success",
+            )
+            state.desktop_health_ok = True
+            state.desktop_health_detail = (
+                f"sidecar ok; catalogRows={catalog_rows}; hubCatalog={hub}"
+            )
+            if isinstance(catalog_rows, int) and catalog_rows == 0:
+                log(
+                    "Warning: the model catalog resolved 0 entries; models "
+                    "will not appear in the app. Check the catalog bundling.",
+                    "warn",
+                )
+            return True
+        detail = _format_healthcheck_failure(verdict, sidecar)
+        log(f"Desktop health check FAILED: {detail}", "error")
+        log(
+            "The app installed but its backend cannot start; the UI would "
+            "show 'sidecar-not-running'. Re-run the installer or report "
+            "this diagnostic.",
+            "error",
+        )
+        state.desktop_health_ok = False
+        state.desktop_health_detail = detail
+        return False
+
+    # No verdict line: an older app build without --healthcheck. Fall back to
+    # the legacy semantics (exit 0 or survived = launched), with a warning.
     if code == 0:
-        log("Desktop app health check passed.", "success")
+        log(
+            "Desktop app predates the sidecar health check; it launched, but "
+            "backend health was not verified.",
+            "warn",
+        )
         state.desktop_health_ok = True
+        state.desktop_health_detail = "legacy pass (no healthcheck verdict)"
         return True
 
-    log(f"Desktop app exited immediately with code {code}.", "error")
+    log(f"Desktop app exited with code {code} and no health verdict.", "error")
     state.desktop_health_ok = False
+    state.desktop_health_detail = f"exit code {code}, no verdict"
     return False

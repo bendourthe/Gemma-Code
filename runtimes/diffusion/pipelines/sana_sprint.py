@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from . import base
+from . import base, real_execute
 
 
 # Sana-Sprint occupies ~3.5 GB on disk; in CUDA at bf16 the transformer
@@ -41,7 +41,7 @@ def register(handlers: Dict[str, Callable]) -> None:
     """
     runner = base.PipelineRunner(
         mode="txt2img",
-        execute=base.select_executor("sana_sprint.txt2img"),
+        execute=base.select_executor("sana_sprint.txt2img", real=real_execute.image_execute),
         model_size_gb=_MODEL_SIZE_GB,
     )
     handlers["sana_sprint.txt2img"] = lambda params: runner.run(params or {})

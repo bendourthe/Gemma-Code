@@ -3,16 +3,18 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import "./styles/globals.css";
-import { readActiveRoute } from "./lib/persistence";
+import { normalizeActiveRoute, readActiveRoute } from "./lib/persistence";
 
 const root = document.getElementById("root");
 if (!root) {
   throw new Error("Nexus shell: #root element missing");
 }
 
-// Restore the last route the user was on (single-window app).
-const initial = readActiveRoute();
-if (initial && initial !== window.location.pathname) {
+// Cold start always opens Chatbot (v2.2.4 Phase 1.1). A stored /coding,
+// /images, /videos, or /settings path is not restored. Chatbot thread
+// sub-paths under /chatbot/ still restore.
+const initial = normalizeActiveRoute(readActiveRoute());
+if (initial !== window.location.pathname) {
   window.history.replaceState(null, "", initial);
 }
 

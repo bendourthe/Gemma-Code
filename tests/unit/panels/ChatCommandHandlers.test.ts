@@ -8,6 +8,7 @@ import {
   forgetMatchingSqlRows,
 } from "../../../src/panels/ChatCommandHandlers.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
+import { HarnessSessionOverride } from "../../../modules/coding/orchestration/HarnessSelector.js";
 
 vi.mock("vscode", () => ({
   workspace: {
@@ -47,6 +48,9 @@ interface FakeContextOptions {
   mcpManager?: unknown;
   mcpEnabled?: boolean;
   mcpTools?: unknown[];
+  modelName?: string;
+  harnessSelectorEnabled?: boolean;
+  harnessSession?: HarnessSessionOverride;
 }
 
 function makeFakeCtx(opts: FakeContextOptions = {}): {
@@ -148,7 +152,10 @@ function makeFakeCtx(opts: FakeContextOptions = {}): {
       embeddingModel: "",
       secretPathDenyExtra: [] as readonly string[],
       subAgentMaxIterations: 5,
+      modelName: opts.modelName ?? "gemma4:e4b",
+      harnessSelectorEnabled: opts.harnessSelectorEnabled ?? false,
     }) as never,
+    getHarnessSession: opts.harnessSession ? () => opts.harnessSession! : undefined,
     buildPromptContext: vi.fn(() => ({}) as never),
     postMessage: (m: ExtensionToWebviewMessage) => posted.push({ msg: m }),
     postHistory,
@@ -173,6 +180,57 @@ describe("ChatCommandHandlers", () => {
     expect(added[0]).toContain("[Thinking mode: `think-max`]");
     expect(added[0]).toContain("next streaming request");
     expect(postHistory).toHaveBeenCalled();
+  });
+
+  it("/harness inspect reports the selected profile and that it is not applied when off", async () => {
+    const { ctx, added } = makeFakeCtx({ modelName: "qwen2.5-coder:7b" });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("harness", "");
+    expect(added[0]).toContain("**Selector:** off");
+    expect(added[0]).toContain("`plan-first`");
+    expect(added[0]).toContain("(not applied)");
+    expect(added[0]).toContain("family `qwen`");
+  });
+
+  it("/harness switch is refused while the selector is off", async () => {
+    const session = new HarnessSessionOverride();
+    const { ctx, added } = makeFakeCtx({
+      modelName: "gemma4:e4b",
+      harnessSelectorEnabled: false,
+      harnessSession: session,
+    });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("harness", "plan-first");
+    expect(added[0]).toContain("Harness selector is off");
+    expect(session.peek("gemma4:e4b")).toBeNull();
+  });
+
+  it("/harness switch applies a session override when enabled and /clear drops it", async () => {
+    const session = new HarnessSessionOverride();
+    const { ctx, added } = makeFakeCtx({
+      modelName: "gemma4:e4b",
+      harnessSelectorEnabled: true,
+      harnessSession: session,
+    });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("harness", "plan-first");
+    expect(added[0]).toContain("[Harness: `plan-first`]");
+    expect(session.peek("gemma4:e4b")).toBe("plan-first");
+    expect(ctx.manager.rebuildSystemPrompt).toHaveBeenCalled();
+
+    await h.dispatch("clear", "");
+    expect(session.peek("gemma4:e4b")).toBeNull();
+  });
+
+  it("/harness list names the generic profiles", async () => {
+    const { ctx, added } = makeFakeCtx();
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("harness", "list");
+    expect(added[0]).toContain("`concise-loop`");
+    expect(added[0]).toContain("`plan-first`");
+    expect(added[0]).toContain("`structured-edit`");
+    expect(added[0]).toContain("`minimal`");
+    expect(added[0]).not.toMatch(/open interpreter|swe-agent/i);
   });
 
   it("/help posts a markdown message listing commands", async () => {

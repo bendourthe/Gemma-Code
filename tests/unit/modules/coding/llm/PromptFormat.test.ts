@@ -17,7 +17,7 @@ describe("PromptFormat strategies", () => {
   });
 
   it("PROMPT_FORMAT_NAMES enumerates every strategy", () => {
-    expect(PROMPT_FORMAT_NAMES).toEqual(["gemma4", "llama3", "qwen", "deepseek"]);
+    expect(PROMPT_FORMAT_NAMES).toEqual(["gemma4", "llama3", "qwen", "deepseek", "lfm"]);
   });
 
   it("Gemma 4 emits start_of_turn user / model turns + a system preamble", () => {
@@ -72,6 +72,20 @@ describe("PromptFormat strategies", () => {
     );
     expect(getPromptFormat("qwen").render(msgs)).toContain("<|im_start|>assistant");
     expect(getPromptFormat("deepseek").render(msgs)).toContain("### Response:");
+    expect(getPromptFormat("lfm").render(msgs)).toContain("<|im_start|>assistant");
+  });
+
+  it("LFM emits startoftext + ChatML roles and keeps the tool role", () => {
+    const out = getPromptFormat("lfm").render(sample);
+    expect(out.startsWith("<|startoftext|><|im_start|>system")).toBe(true);
+    expect(out).toContain("<|im_end|>");
+    expect(out).toMatch(/<\|im_start\|>assistant\n$/);
+    expect(getPromptFormat("lfm").stopTokens).toContain("<|im_end|>");
+    const withTool = getPromptFormat("lfm").render([
+      { role: "user", content: "go" },
+      { role: "tool", content: '{"ok":true}', toolName: "fs.read" },
+    ]);
+    expect(withTool).toContain("<|im_start|>tool");
   });
 
   it("stop tokens are non-empty for every strategy", () => {

@@ -55,6 +55,22 @@ def safe_dir_name(model_id: str) -> str:
     return _SAFE_DIR_CHAR_RE.sub("-", model_id)
 
 
+def _weight_file_entries(model: dict[str, Any]) -> list[dict[str, Any]]:
+    """Layout-v1 `files` plus every official variant's file list."""
+    weights = model.get("weights") or {}
+    files: list[dict[str, Any]] = []
+    for file_entry in weights.get("files") or []:
+        if isinstance(file_entry, dict):
+            files.append(file_entry)
+    for variant in weights.get("variants") or []:
+        if not isinstance(variant, dict):
+            continue
+        for file_entry in variant.get("files") or []:
+            if isinstance(file_entry, dict):
+                files.append(file_entry)
+    return files
+
+
 def load_hf_entries(
     catalog: dict[str, Any], only: set[str]
 ) -> list[tuple[str, str, list[str]]]:
@@ -67,7 +83,7 @@ def load_hf_entries(
         model_id = model["id"]
         if only and model_id not in only:
             continue
-        files = [f["path"] for f in model.get("weights", {}).get("files", [])]
+        files = [f["path"] for f in _weight_file_entries(model) if f.get("path")]
         if files:
             entries.append((model_id, source["repo"], files))
     return entries
@@ -166,7 +182,7 @@ def check_placeholders(entries: list[tuple[str, str, list[str]]]) -> int:
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     unpinned = 0
     for model in catalog.get("models", []):
-        for file_entry in model.get("weights", {}).get("files", []):
+        for file_entry in _weight_file_entries(model):
             if file_entry.get("sha256") == PLACEHOLDER_SHA256:
                 unpinned += 1
                 LOG.warning("unpinned: %s/%s", model["id"], file_entry["path"])

@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# v2.2.0 Phase 8 (DF-7) / v2.2.5 Phase 5: pack only the latest Hub tag.
+# A stale local catalog fails the snapshot job; the installer still builds.
+HUB_CATALOG="${HOME}/.nexus-ai/catalog"
+SNAPSHOT_OUT="$(dirname "$0")/hub-snapshot"
+if [ -d "$HUB_CATALOG" ]; then
+  if python "$(dirname "$0")/build-hub-snapshot.py" --catalog "$HUB_CATALOG" --out "$SNAPSHOT_OUT"; then
+    echo "  Snapshot built from $HUB_CATALOG"
+  else
+    echo "  Snapshot pack refused (catalog is not latest, or latest tag unresolved). Clearing any stale snapshot."
+    rm -rf "$SNAPSHOT_OUT"
+  fi
+else
+  echo "  No local catalog at $HUB_CATALOG; installer will sync at install time."
+fi
+
 # Build the Nexus installer for Linux via PyInstaller.
 # v1.9.0 Phase 1 (T102): a single onefile (spec APP_NAME "nexus-setup") is
 # frozen into a staging dir, then packaged into exactly one artifact at the
@@ -76,10 +91,31 @@ chmod +x "$APPDIR/AppRun"
 mkdir -p "$DIST_DIR"
 APPIMAGE_OUT="$DIST_DIR/NexusSetup-x86_64.AppImage"
 rm -f "$APPIMAGE_OUT"
-"$APPIMAGE_TOOL" "$APPDIR" "$APPIMAGE_OUT" 2>/dev/null || {
+
+# GitHub-hosted Linux runners have no usable /dev/fuse, so a raw
+# appimagetool AppImage dies with a silent FUSE error when stderr is
+# discarded. Prefer extract-and-run; fall back to unpacking the tool.
+run_appimagetool() {
+    local appdir="$1"
+    local out="$2"
+    export ARCH="${ARCH:-x86_64}"
+    export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
+    if "$APPIMAGE_TOOL" --appimage-extract-and-run "$appdir" "$out"; then
+        return 0
+    fi
+    log_info "appimagetool extract-and-run failed; unpacking the AppImage runtime..."
+    local work
+    work="$(mktemp -d)"
+    cp "$APPIMAGE_TOOL" "$work/appimagetool.AppImage"
+    chmod +x "$work/appimagetool.AppImage"
+    (cd "$work" && ./appimagetool.AppImage --appimage-extract)
+    "$work/squashfs-root/AppRun" "$appdir" "$out"
+}
+
+if ! run_appimagetool "$APPDIR" "$APPIMAGE_OUT"; then
     log_error "AppImage creation failed."
     exit 1
-}
+fi
 
 if [ -f "$APPIMAGE_OUT" ]; then
     log_info "AppImage: $APPIMAGE_OUT"

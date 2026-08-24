@@ -77,4 +77,24 @@ describe("TimelinePreviewer", () => {
     const tc = screen.getByTestId("video-timeline-previewer-timecode");
     expect(tc.textContent).toMatch(/^0\.00s/);
   });
+
+  it("plays chained continuation segments as one sequence", () => {
+    render(
+      <TimelinePreviewer
+        src="mock://a.mp4"
+        fps={24}
+        segments={[
+          { src: "mock://a.mp4", durationSeconds: 4 },
+          { src: "mock://b.mp4", durationSeconds: 4 },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("video-timeline-previewer-segment")).toHaveTextContent(
+      "Segment 1/2",
+    );
+    fireEvent.ended(screen.getByTestId("video-timeline-previewer-video"));
+    expect(screen.getByTestId("video-timeline-previewer-segment")).toHaveTextContent(
+      "Segment 2/2",
+    );
+  });
 });

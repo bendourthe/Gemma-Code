@@ -76,6 +76,14 @@ class _CommandRow(QWidget):
 
         copy_btn = SecondaryButton("Copy")
         copy_btn.setFixedWidth(60)
+        # v2.2.3 Phase 7 (7.3): shrink the Copy rows via a LOCAL override on
+        # this page's own buttons only -- the 38px min-height comes from the
+        # global QPushButton#secondaryButton rule (theme.py, fed by
+        # BUTTON_HEIGHT), which must stay untouched so Open VS Code / Finish
+        # keep their full height.
+        copy_btn.setStyleSheet(
+            "QPushButton#secondaryButton { min-height: 24px; padding: 0 8px; }"
+        )
         copy_btn.clicked.connect(self._copy)
         layout.addWidget(copy_btn)
 
@@ -95,8 +103,10 @@ class CompletePage(QWidget):
         super().__init__(parent)
         self._state = state
 
+        # v2.2.3 Phase 7 (7.3): compact layout so the page fits without
+        # scrolling (spacing 16 -> 8, card padding 12 -> 6).
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+        layout.setSpacing(8)
 
         # Title (updated dynamically on show)
         self._title = QLabel("Installation Complete")
@@ -122,7 +132,7 @@ class CompletePage(QWidget):
         self._services_card = QWidget()
         self._services_card.setStyleSheet(
             f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 12px;"
+            f"border-radius: 8px; padding: 6px;"
         )
         self._services_layout = QVBoxLayout(self._services_card)
         layout.addWidget(self._services_card)
@@ -135,7 +145,7 @@ class CompletePage(QWidget):
         manage_card = QWidget()
         manage_card.setStyleSheet(
             f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 12px;"
+            f"border-radius: 8px; padding: 6px;"
         )
         manage_layout = QVBoxLayout(manage_card)
         manage_layout.addWidget(_CommandRow("Start Ollama", "ollama serve"))
@@ -249,10 +259,21 @@ class CompletePage(QWidget):
             ext_installed,
         )
         if state.desktop_installed:
+            # v2.2.0 Phase 1 (1.4): surface the sidecar verdict, not just a
+            # binary pass/fail -- "health check passed" used to mean only
+            # "the window opened".
+            detail_suffix = (
+                f" -- {state.desktop_health_detail}"
+                if getattr(state, "desktop_health_detail", "")
+                else ""
+            )
             desktop_detail = (
-                "Installed (health check passed)"
+                f"Installed (health check passed{detail_suffix})"
                 if state.desktop_health_ok
-                else "Installed (health check failed -- try launching from the OS menu)"
+                else (
+                    "Installed (health check FAILED"
+                    f"{detail_suffix}) -- the app backend cannot start"
+                )
             )
         else:
             desktop_detail = "Not installed"
@@ -269,11 +290,15 @@ class CompletePage(QWidget):
 
     def _add_service(self, name: str, detail: str, ok: bool) -> None:
         row = QHBoxLayout()
+        # v2.2.3 Phase 7 (7.3): drop the default 11px QHBoxLayout margins so
+        # the service rows pack tightly inside the compact card.
+        row.setContentsMargins(0, 0, 0, 0)
         name_label = QLabel(name)
         name_label.setStyleSheet(
             f"font-size: {FS_BODY}px; font-weight: bold; background: transparent;"
         )
-        name_label.setFixedWidth(160)
+        # 160px clipped "VS Code extension"; 200px fits every service name.
+        name_label.setFixedWidth(200)
         row.addWidget(name_label)
 
         detail_label = QLabel(detail)

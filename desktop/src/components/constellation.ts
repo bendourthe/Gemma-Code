@@ -127,11 +127,5 @@ export function drawFrame(
   ctx.globalAlpha = 1;
 }
 
-/** True when the platform requests reduced motion. Safe when matchMedia is absent. */
-export function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
+/** True when the platform requests reduced motion. Delegates to the shared helper. */
+export { prefersReducedMotion } from "../motion/reducedMotion";

@@ -34,10 +34,13 @@ import type { GoldenTaskSpec } from "../evaluation/goldenTaskLoader.js";
 import {
   DEFAULT_HARNESS_PROFILE,
   HarnessSelector,
+  applyHarnessOverlay,
   defaultHarnessSelector,
   toPromptOverlay,
   type HarnessPromptOverlay,
 } from "./HarnessSelector.js";
+import { getToolCallFormat } from "../llm/ToolCallFormat.js";
+import type { ToolFormatName } from "../../../core/registry/ModelCatalog.js";
 
 /** One golden-task rollout outcome under a given scaffold overlay. */
 export interface HarnessRolloutResult {
@@ -92,6 +95,21 @@ export async function runHarnessAb(
   return buildAbReport(comparisons);
 }
 
+/**
+ * v1.18.0 Phase 2 -- the same overlay seam `ToolActivationContext.buildPromptContext`
+ * uses. When `enabled` is false the settings knobs are returned by reference
+ * (byte-identical to the pre-wiring path). Golden A/B tests cover this so the
+ * live composition root and the measurement harness stay aligned.
+ */
+export function liveHarnessKnobs(
+  enabled: boolean,
+  settingsKnobs: HarnessPromptOverlay,
+  modelName: string,
+  selector: HarnessSelector = defaultHarnessSelector,
+): HarnessPromptOverlay {
+  return applyHarnessOverlay(enabled, settingsKnobs, selector.overlayForModel(modelName));
+}
+
 // ---------------------------------------------------------------------------
 // Default-state decision (the H1 gate -- mirrors the SO004 / OF011 gate)
 // ---------------------------------------------------------------------------
@@ -126,6 +144,19 @@ export const DEFAULT_HARNESS_SELECTOR_POLICY: HarnessSelectorDefaultPolicy = {
  * net win -- the no-degradation / SO003.P3.A discipline.
  */
 export const HARNESS_SELECTOR_SHIPPED_DEFAULT = false;
+
+/**
+ * v1.19.0 Phase 2 -- parse-success signal for LFM A/B. The default overlay
+ * has no toolCallFormat so it falls back to gemma4-xml (today's parser),
+ * which cannot read LFM pythonic spans. The LFM profile pins lfm-pythonic.
+ */
+export function overlayParsesToolCalls(
+  text: string,
+  overlay: HarnessPromptOverlay,
+): boolean {
+  const format: ToolFormatName = overlay.toolCallFormat ?? "gemma4-xml";
+  return getToolCallFormat(format).parse(text).length > 0;
+}
 
 /**
  * Decide whether the harness selector should default to on. In the A/B report

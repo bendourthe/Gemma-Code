@@ -8,6 +8,8 @@
  * input + model-selector contract.
  */
 
+import type { AgentActivity } from "../../components/agentState/mapping";
+
 export type ChatRole = "user" | "assistant" | "system";
 
 export interface ChatMessage {
@@ -38,6 +40,16 @@ export interface ChatMessage {
   pending?: boolean;
   /** Optional step/total progress for a pending generation. */
   progress?: { readonly step: number; readonly total: number };
+  /**
+   * v1.17.0 Phase 2 -- agent activity driving the inline orb while this
+   * message is pending. Surfaces pass a typed activity; the bubble maps it
+   * to state + accent. Defaults to chat-streaming when omitted.
+   */
+  activity?: AgentActivity;
+  /**
+   * v2.0.0 Phase 1 -- provenance class for labelled content (STT transcripts).
+   */
+  origin?: "stt_transcript" | "user";
 }
 
 export interface ChatMedia {
@@ -56,4 +68,15 @@ export interface ToolCard {
 export interface ModelOption {
   id: string;
   displayName: string;
+  /** v1.19.0 Phase 1 -- catalog task, when the option is catalog-backed. */
+  task?: string;
+  /** v1.19.0 Phase 1 -- ungated commercial-use restriction, shown as option title. */
+  licenseNote?: string;
+  /** v1.18.0 Phase 3 (OW-A4) -- verified for agentic tool-calling. */
+  toolCallingVerified?: boolean;
+  toolCallingBenchmark?: {
+    readonly suite: string;
+    readonly date: string;
+    readonly result: string;
+  };
 }

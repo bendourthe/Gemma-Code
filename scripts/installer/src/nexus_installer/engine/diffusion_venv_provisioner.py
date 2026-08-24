@@ -55,6 +55,10 @@ REQUIRED_WHEEL_PREFIXES: tuple[str, ...] = (
     "pypdfium2",
     "rapidocr_onnxruntime",
     "onnxruntime",
+    # v1.20.0 Phase 2 -- native Office ingest (not Docling; still no torch).
+    "python_docx",
+    "python_pptx",
+    "openpyxl",
 )
 
 

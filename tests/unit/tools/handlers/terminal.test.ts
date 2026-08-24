@@ -197,7 +197,16 @@ describe("isBlocked (defense-in-depth)", () => {
   it.each([
     ["git reset --hard HEAD~1"],
     ["rm -rf ./tmp"],
+    ["git push --force origin main"],
+    ["drop table users"],
+  ])("blocks newly denied destructive shape: %s", (cmd) => {
+    expect(isBlocked(cmd)).toBe(true);
+  });
+
+  it.each([
     ["echo hello"],
+    ["git status"],
+    ["git reset HEAD~1"],
   ])("does NOT block safe command: %s", (cmd) => {
     expect(isBlocked(cmd)).toBe(false);
   });

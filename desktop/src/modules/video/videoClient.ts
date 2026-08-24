@@ -10,7 +10,14 @@
 
 import { ipc, type IpcReply } from "../../lib/ipc";
 
-export type VideoMode = "text2video" | "image2video";
+export type VideoMode = "text2video" | "image2video" | "audio2video";
+
+export interface VideoContinueFrom {
+  readonly priorJobId: string;
+  readonly lastFramePath?: string;
+  readonly segmentIndex: number;
+  readonly segmentCount: number;
+}
 
 export interface VideoBaseRequest {
   readonly modelId: string;
@@ -25,11 +32,27 @@ export interface VideoBaseRequest {
   readonly sampler: string;
   readonly seed: number;
   readonly latentPreview?: boolean;
+  readonly continueFrom?: VideoContinueFrom;
+  /** v2.1 DF-24 -- frame-anchored comments folded into the next prompt. */
+  readonly frameComments?: readonly { readonly frame: number; readonly text: string }[];
+  readonly maxCacheVramGB?: number;
+  readonly maxCacheRamGB?: number;
+  readonly workingMemReserveGB?: number;
+  readonly layerStreaming?: boolean;
 }
 
 export interface Text2VideoRequest extends VideoBaseRequest {}
 export interface Image2VideoRequest extends VideoBaseRequest {
   readonly sourceImage: string;
+}
+
+export interface Audio2VideoRequest extends VideoBaseRequest {
+  readonly sourceImage: string;
+  readonly sourceAudio: string;
+  readonly confirmLocalAvatar: true;
+  readonly diffusionTier?: string;
+  readonly vramGB?: number;
+  readonly weightRepo?: string;
 }
 
 export interface VideoJobAccepted {
@@ -56,6 +79,7 @@ export interface VideoProgressEvent {
 export interface VideoClient {
   text2video(req: Text2VideoRequest): Promise<VideoJobAccepted>;
   image2video(req: Image2VideoRequest): Promise<VideoJobAccepted>;
+  audio2video(req: Audio2VideoRequest): Promise<VideoJobAccepted>;
   drainEvents(jobId: string): Promise<readonly VideoProgressEvent[]>;
   extractWorkflow(mp4Path: string): Promise<unknown | null>;
 }
@@ -81,6 +105,14 @@ export function createIpcVideoClient(): VideoClient {
       return unwrap(
         await ipc.call<VideoJobAccepted>(
           "diffusion.video.image2video",
+          req as unknown as Record<string, unknown>,
+        ),
+      );
+    },
+    async audio2video(req) {
+      return unwrap(
+        await ipc.call<VideoJobAccepted>(
+          "diffusion.video.audio2video",
           req as unknown as Record<string, unknown>,
         ),
       );
@@ -119,6 +151,7 @@ export class InMemoryVideoClient implements VideoClient {
     mode: VideoMode;
     request: Record<string, unknown>;
   } | null = null;
+  public readonly requests: Array<{ mode: VideoMode; request: Record<string, unknown> }> = [];
   public lastExtractInput: string | null = null;
   public extractResult: unknown | null = null;
 
@@ -129,6 +162,7 @@ export class InMemoryVideoClient implements VideoClient {
   private accept(mode: VideoMode, req: Record<string, unknown>): VideoJobAccepted {
     const jobId = `mem-video-${this.nextId++}`;
     this.lastRequest = { mode, request: req };
+    this.requests.push({ mode, request: req });
     return {
       jobId,
       mode,
@@ -143,6 +177,10 @@ export class InMemoryVideoClient implements VideoClient {
 
   async image2video(req: Image2VideoRequest): Promise<VideoJobAccepted> {
     return this.accept("image2video", req as unknown as Record<string, unknown>);
+  }
+
+  async audio2video(req: Audio2VideoRequest): Promise<VideoJobAccepted> {
+    return this.accept("audio2video", req as unknown as Record<string, unknown>);
   }
 
   async drainEvents(jobId: string): Promise<readonly VideoProgressEvent[]> {

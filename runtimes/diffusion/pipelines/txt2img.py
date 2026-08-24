@@ -15,9 +15,12 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from . import base
+from . import base, real_execute
 
 
 def register(handlers: Dict[str, Callable]) -> None:
-    runner = base.PipelineRunner(mode="txt2img", execute=base.stub_execute("txt2img"))
+    runner = base.PipelineRunner(
+        mode="txt2img",
+        execute=base.select_executor("txt2img", real=real_execute.image_execute),
+    )
     handlers["txt2img"] = lambda params: runner.run(params or {})

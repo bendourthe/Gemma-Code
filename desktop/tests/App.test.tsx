@@ -1,19 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/App";
-import { ModulePlaceholder } from "../src/pages/ModulePlaceholder";
 import { StyleguidePage } from "../src/pages/Styleguide";
 
 describe("App shell", () => {
-  it("renders the sidebar and the dashboard at /", () => {
+  it("redirects / to the Chatbot module (v2.2.4 Phase 1.1)", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <App telemetryStream={null} />
       </MemoryRouter>,
     );
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard")).toBeNull();
+  });
+
+  it("keeps the Dashboard reachable at /dashboard (not the first-run landing)", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
     expect(screen.getByTestId("dashboard")).toBeInTheDocument();
+  });
+
+  it("dismisses the ready overlay outside Tauri (ipc-unavailable is not a hang)", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.queryByTestId("ready-overlay")).toBeNull());
   });
 
   it("renders the Coding module at /coding (Phase 3)", () => {
@@ -70,20 +88,32 @@ describe("App shell", () => {
     expect(screen.getByTestId("title-bar")).toBeInTheDocument();
     expect(screen.getByTestId("app-backdrop")).toBeInTheDocument();
     expect(screen.getByTestId("app-constellation")).toBeInTheDocument();
+    expect(screen.getByTestId("app-backdrop")).toHaveAttribute("data-ambient-receded", "false");
+  });
+
+  it("recedes the ambient glow from the styleguide reference surface", () => {
+    render(
+      <MemoryRouter initialEntries={["/_styleguide"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
+    const backdrop = screen.getByTestId("app-backdrop");
+    const constellation = screen.getByTestId("app-constellation");
+    expect(backdrop).toHaveAttribute("data-ambient-receded", "false");
+    expect(constellation).toHaveAttribute("data-ambient-receded", "false");
+
+    fireEvent.click(screen.getByTestId("recede-reference-toggle"));
+    expect(backdrop).toHaveAttribute("data-ambient-receded", "true");
+    expect(backdrop.className).toContain("nexus-ambient-recede");
+    expect(constellation).toHaveAttribute("data-ambient-receded", "true");
+    expect((constellation as HTMLElement).style.opacity).toBe("var(--motion-recede-opacity)");
+
+    fireEvent.click(screen.getByTestId("recede-reference-toggle"));
+    expect(backdrop).toHaveAttribute("data-ambient-receded", "false");
+    expect(constellation).toHaveAttribute("data-ambient-receded", "false");
   });
 });
 
-describe("ModulePlaceholder", () => {
-  it("renders a custom message when provided", () => {
-    render(<ModulePlaceholder moduleId="image" message="hello world" />);
-    expect(screen.getByText("hello world")).toBeInTheDocument();
-  });
-
-  it("falls back to a default message", () => {
-    render(<ModulePlaceholder moduleId="video" />);
-    expect(screen.getByText(/coming online/i)).toBeInTheDocument();
-  });
-});
 
 describe("Styleguide", () => {
   it("renders swatches for every surface and accent token", () => {
@@ -93,5 +123,6 @@ describe("Styleguide", () => {
     expect(screen.getByTestId("swatch---accent-coding")).toBeInTheDocument();
     expect(screen.getByTestId("swatch---accent-image")).toBeInTheDocument();
     expect(screen.getByTestId("swatch---accent-video")).toBeInTheDocument();
+    expect(screen.getByTestId("recede-reference")).toBeInTheDocument();
   });
 });

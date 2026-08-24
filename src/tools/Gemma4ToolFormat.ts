@@ -273,6 +273,7 @@ export function stripToolCalls(text: string): string {
 export function formatToolResult(name: string, result: ToolResult): string {
   const payload = {
     name,
+    origin: result.origin ?? "workspace_file",
     response: {
       success: result.success,
       output: result.output,

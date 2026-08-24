@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { AccentBeam } from "./AccentBeam";
+import { AgentStateOrb } from "./agentState/AgentStateOrb";
+import { MotionSurface, dockMotionCandidates } from "../motion";
 import type {
   LocalModelTelemetry,
   TelemetryStream,
@@ -7,6 +10,9 @@ import type {
 interface LocalModelStatusProps {
   stream: TelemetryStream | null;
 }
+
+/** A sample older than this is shown as stale (v2.2.0 Phase 2). */
+const STALE_AFTER_MS = 15000;
 
 export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element {
   const [sample, setSample] = useState<LocalModelTelemetry | null>(null);
@@ -43,6 +49,7 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
 
   if (!sample) {
     return (
+      <MotionSurface surfaceId="local-model-status" candidates={dockMotionCandidates({ idle: false, loading: true })}>
       <div
         data-testid="local-model-status"
         data-state="loading"
@@ -54,10 +61,15 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
           color: "var(--fg-muted)",
           borderRadius: "var(--radius-lg)",
           fontSize: "var(--text-sm)",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-2)",
         }}
       >
+        <AgentStateOrb activity="model-loading" size="inline" surfaceId="local-model-status" />
         Connecting to local model...
       </div>
+      </MotionSurface>
     );
   }
 
@@ -67,10 +79,20 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
   const idle = Boolean(sample.idle);
   const headline = idle ? "Idle" : `${sample.modelName} ${sample.paramSize}`;
   const queue = sample.queuedJobs ?? [];
+  const dockCandidates = dockMotionCandidates({ idle });
+  // v2.2.0 Phase 2 (2.4): with real (polled) telemetry a sample can go stale
+  // when the backend stops answering. Show the last known numbers, marked
+  // stale, rather than presenting them as current.
+  const isStale =
+    typeof sample.lastUpdated === "number" &&
+    Date.now() - sample.lastUpdated > STALE_AFTER_MS;
 
   const tooltipLines: string[] = [
     `Device: ${sample.deviceName}`,
   ];
+  if (isStale) {
+    tooltipLines.push("Telemetry is stale (the backend stopped reporting).");
+  }
   if (typeof sample.vramTotalGB === "number") {
     tooltipLines.push(`Total VRAM: ${sample.vramTotalGB.toFixed(1)} GB`);
   }
@@ -97,12 +119,26 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
 
   return (
     <>
+      <MotionSurface
+        surfaceId="local-model-status"
+        candidates={dockCandidates}
+      >
+      <AccentBeam
+        mode="breathing"
+        playing={idle}
+        accentToken="--accent-coding"
+        radiusToken="--radius-lg"
+        strength={0.45}
+        surfaceId="local-model-status-beam"
+        data-testid="local-model-status-beam"
+      >
       <button
         type="button"
         data-testid="local-model-status"
         data-state="active"
         data-idle={idle ? "true" : "false"}
         data-queue-depth={String(queue.length)}
+        data-stale={isStale ? "true" : "false"}
         role="status"
         aria-live="polite"
         aria-label={`Local model status: ${headline}, GPU ${pct.toFixed(0)} percent, ${sample.vramFreeGB.toFixed(1)} GB free`}
@@ -130,7 +166,17 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
             justifyContent: "space-between",
           }}
         >
-          <span style={{ fontWeight: 600 }}>{headline}</span>
+          <span style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
+            {!idle ? (
+              <AgentStateOrb activity="model-inference" size="inline" surfaceId="local-model-status" />
+            ) : null}
+            {headline}
+            {isStale ? (
+              <span data-testid="telemetry-stale" style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+                (stale)
+              </span>
+            ) : null}
+          </span>
           <span
             style={{
               color: idle ? "var(--fg-muted)" : "var(--status-ok)",
@@ -176,6 +222,8 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
           <span>{sample.vramFreeGB.toFixed(1)} GB free</span>
         </div>
       </button>
+      </AccentBeam>
+      </MotionSurface>
 
       {queueOpen ? (
         <QueueModal

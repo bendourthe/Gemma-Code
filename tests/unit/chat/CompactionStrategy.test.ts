@@ -8,6 +8,7 @@ import {
   LlmSummary,
   EmergencyTrim,
   COMPACTION_SUMMARY_PREFIX,
+  isHumanUserMessage,
 } from "../../../modules/coding/chat/CompactionStrategy.js";
 import type { CompactionStrategy } from "../../../modules/coding/chat/CompactionStrategy.js";
 import type { Message } from "../../../modules/coding/chat/types.js";
@@ -274,8 +275,15 @@ describe("SlidingWindow", () => {
     // First user message preserved.
     expect(result[1]?.content).toBe("Original question");
     // Last 5 non-system messages preserved.
-    const nonSystem = result.filter((m) => m.role !== "system");
-    expect(nonSystem.length).toBe(6); // first user + last 5
+    const lastFive = messages.filter((m) => m.role !== "system").slice(-5);
+    for (const m of lastFive) {
+      expect(result.some((r) => r.id === m.id)).toBe(true);
+    }
+    // v1.19.1 Phase 2.4 -- last N human user turns are also anchors.
+    const humans = messages.filter(isHumanUserMessage);
+    for (const m of humans.slice(-5)) {
+      expect(result.some((r) => r.id === m.id)).toBe(true);
+    }
   });
 
   it("preserves conversation summary markers", async () => {
@@ -520,8 +528,10 @@ describe("EmergencyTrim", () => {
       msg("user", "c".repeat(40)),     // 10 tokens
     ];
 
-    const strategy = new EmergencyTrim();
+    const strategy = new EmergencyTrim(1);
     // Budget of 50 tokens: system (1 token) + user-c (10 tokens) = ~11 tokens.
+    // userMessageTail=1 keeps only the latest human turn, so the first user
+    // message can still be dropped.
     const result = await strategy.apply(messages, 50);
 
     expect(result.some((m) => m.role === "system")).toBe(true);
@@ -550,5 +560,29 @@ describe("EmergencyTrim", () => {
   it("canApply always returns true", () => {
     const strategy = new EmergencyTrim();
     expect(strategy.canApply([], 0)).toBe(true);
+  });
+
+  it("never drops the last N human user messages", async () => {
+    const keep = msg("user", "KEEP_ME " + "c".repeat(400));
+    const messages: Message[] = [
+      msg("system", "sys"),
+      msg("user", "a".repeat(400)),
+      toolResultMsg("read_file", true, "x".repeat(400)),
+      msg("assistant", "b".repeat(400)),
+      keep,
+    ];
+    const strategy = new EmergencyTrim(1);
+    const result = await strategy.apply(messages, 20);
+    expect(result.some((m) => m.id === keep.id)).toBe(true);
+    expect(result.some((m) => m.content.startsWith("<|tool_result>"))).toBe(false);
+  });
+});
+
+describe("isHumanUserMessage", () => {
+  it("excludes injected tool results and system nudges", () => {
+    expect(isHumanUserMessage(msg("user", "please fix the bug"))).toBe(true);
+    expect(isHumanUserMessage(toolResultMsg("read_file", true, "ok"))).toBe(false);
+    expect(isHumanUserMessage(msg("user", "[SYSTEM WARNING] loop"))).toBe(false);
+    expect(isHumanUserMessage(msg("assistant", "please fix the bug"))).toBe(false);
   });
 });

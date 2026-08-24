@@ -56,6 +56,20 @@ export function estimateTokensForMessages(messages: readonly Message[]): number 
 // CompactionStrategy interface
 // ---------------------------------------------------------------------------
 
+/** True for a human user turn, excluding injected tool results and system nudges. */
+export function isHumanUserMessage(msg: Message): boolean {
+  if (msg.role !== "user") return false;
+  const c = msg.content;
+  if (c.startsWith("<|tool_result>")) return false;
+  if (c.startsWith("[Tool ")) return false;
+  if (c.startsWith("[SYSTEM")) return false;
+  if (c.startsWith("[Verification Report]")) return false;
+  if (c.startsWith("[Audit Report]")) return false;
+  if (c.startsWith("[Test Gaps Report]")) return false;
+  if (c.startsWith("[Conversation summary]")) return false;
+  return true;
+}
+
 export interface CompactionStrategy {
   readonly name: string;
   canApply(messages: readonly Message[], budgetTokens: number): boolean;
@@ -182,6 +196,10 @@ export class SlidingWindow implements CompactionStrategy {
       if (msg.content.startsWith("[Conversation summary]")) {
         anchors.add(msg.id);
       }
+    }
+    const humanTurns = nonSystem.filter(isHumanUserMessage);
+    for (const msg of humanTurns.slice(-this._keepRecent)) {
+      anchors.add(msg.id);
     }
 
     // Tail: last N non-system messages.
@@ -332,22 +350,23 @@ export class LlmSummary implements CompactionStrategy {
 export class EmergencyTrim implements CompactionStrategy {
   readonly name = "EmergencyTrim";
 
+  constructor(private readonly _userMessageTail: number = 3) {}
+
   canApply(): boolean {
     return true; // Always available as last resort.
   }
 
   async apply(messages: readonly Message[], budgetTokens: number): Promise<Message[]> {
-    // Compute the starting total once, then subtract each dropped message's
-    // estimate instead of re-summing the whole array on every iteration.
     let total = 0;
     for (const msg of messages) total += estimateTokensForMessage(msg);
 
-    // Collect indices of non-system messages in order; drop oldest-first until
-    // under budget. Build the result in a single O(N) pass.
+    const human = messages.filter(isHumanUserMessage);
+    const protectedIds = new Set(human.slice(-this._userMessageTail).map((m) => m.id));
+
     const dropped = new Set<number>();
     for (let i = 0; i < messages.length && Math.round(total) > budgetTokens; i++) {
       const msg = messages[i];
-      if (msg && msg.role !== "system") {
+      if (msg && msg.role !== "system" && !protectedIds.has(msg.id)) {
         total -= estimateTokensForMessage(msg);
         dropped.add(i);
       }

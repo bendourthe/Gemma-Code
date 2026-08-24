@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { redactSecrets } from "../../core/observability/redactSecrets.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import {
   shouldCompress,
@@ -146,11 +147,14 @@ export function applyByteCap(
  * are read as utf-8.
  */
 function _readRedirectedFile(filePath: string): string {
+  let text: string;
   if (filePath.endsWith(COMPRESSED_FILE_SUFFIX)) {
     const raw = fs.readFileSync(filePath);
-    return decompressSync(raw);
+    text = decompressSync(raw);
+  } else {
+    text = fs.readFileSync(filePath, "utf-8");
   }
-  return fs.readFileSync(filePath, "utf-8");
+  return redactSecrets(text);
 }
 
 function _truncationHint(toolName: string, cutBytes: number, originalBytes: number): string {
@@ -222,17 +226,17 @@ export class OutputRedirector {
           const byteLen = Buffer.byteLength(output, "utf8");
           const dataBuf =
             byteLen <= SYNC_COMPRESS_CEILING
-              ? compressSync(output).data
-              : compressSyncLarge(output).data;
+              ? compressSync(redactSecrets(output)).data
+              : compressSyncLarge(redactSecrets(output)).data;
           filePath = path.join(this._outputDir, `${callId}.txt${COMPRESSED_FILE_SUFFIX}`);
           fs.writeFileSync(filePath, dataBuf);
           compressed = true;
         } catch {
           // Fall back to plain write on any compression error.
-          fs.writeFileSync(filePath, output, "utf-8");
+          fs.writeFileSync(filePath, redactSecrets(output), "utf-8");
         }
       } else {
-        fs.writeFileSync(filePath, output, "utf-8");
+        fs.writeFileSync(filePath, redactSecrets(output), "utf-8");
       }
 
       const lineCount = output.split("\n").length;

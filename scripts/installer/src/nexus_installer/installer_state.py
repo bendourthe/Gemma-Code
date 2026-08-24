@@ -64,6 +64,9 @@ class InstallerState:
     selected_models_gb: float = 0.0
     disk_reserve_gb: int = DEFAULT_DISK_RESERVE_GB
     install_vscode_extension: bool = True
+    # v2.1 DF-15 -- opt-in Unsloth Core venv. Off by default. LGPL zoo notice
+    # is shown next to the checkbox.
+    install_unsloth: bool = False
 
     # v1.8.0 Phase 3 -- protocol-routed multi-model selection.
     # `selected_model_ids` (catalog ids, any protocol) wins over the legacy
@@ -73,6 +76,8 @@ class InstallerState:
     selected_model_ids: list[str] = field(default_factory=list)
     failed_models: list[str] = field(default_factory=list)
     models_root: str = ""
+    # v1.19.2 -- official precision-variant override (empty = hardware-aware default).
+    weights_variant: str = ""
 
     # v1.15.0 Phase 3 (Issue 2) -- post-install summary + retry surfaces.
     # `model_failures` maps a failed model id to its raw engine reason (mapped to
@@ -94,6 +99,13 @@ class InstallerState:
     desktop_bundle_override: str = ""  # local bundle path; skips release fetch
     desktop_installed: bool = False
     desktop_health_ok: bool = False
+    # v2.2.0 Phase 3 (3.1): Nexus-Hub catalog provisioning outcome.
+    hub_catalog_source: str = ""
+    hub_catalog_tag: str = ""
+    hub_catalog_error: str = ""
+    # v2.2.0 Phase 1 (1.4): human-readable health verdict for the Complete page
+    # (sidecar ok + catalog rows, or the failure reason).
+    desktop_health_detail: str = ""
     desktop_exe_path: str = ""
     launch_desktop_on_finish: bool = True
 

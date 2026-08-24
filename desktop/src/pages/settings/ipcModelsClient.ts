@@ -12,6 +12,7 @@
 import { ipcCall } from "../../lib/ipc";
 import type { DiskUsageDto, ListedModelDto } from "./modelsTypes";
 import type { InstallHandle, ModelsClient } from "./ModelsSettings";
+import type { SelectionSnapshot } from "../../shared/models/selectionPolicy";
 
 interface InstallEventDto {
   kind: "progress" | "complete" | "error";
@@ -24,11 +25,16 @@ interface InstallEventDto {
 /** Poll cadence for install progress; downloads are minutes-long so this is coarse. */
 const POLL_MS = 400;
 
-export function createIpcModelsClient(): ModelsClient {
-  return {
+export function createIpcModelsClient(): ModelsClient & { lastSelection: SelectionSnapshot | null } {
+  const client: ModelsClient & { lastSelection: SelectionSnapshot | null } = {
+    lastSelection: null,
     async list(): Promise<readonly ListedModelDto[]> {
-      const reply = await ipcCall<{ models: ListedModelDto[] }>("models.list", {});
+      const reply = await ipcCall<{
+        models: ListedModelDto[];
+        selection?: SelectionSnapshot | null;
+      }>("models.list", {});
       if (!reply.ok) throw new Error(reply.message);
+      client.lastSelection = reply.value.selection ?? null;
       return reply.value.models;
     },
 
@@ -110,4 +116,5 @@ export function createIpcModelsClient(): ModelsClient {
       return reply.value;
     },
   };
+  return client;
 }

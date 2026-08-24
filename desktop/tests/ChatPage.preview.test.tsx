@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
+import { INSTALLED_CHAT_MODELS, waitForInstalledChatModel } from "./installedChatModels";
 
 const REPLY = "Assistant reply text";
 
@@ -31,9 +32,10 @@ async function openChatAndSend(): Promise<void> {
     }),
   };
   const user = userEvent.setup();
-  render(<ChatPage client={client} chatSession={chatSession} />);
+  render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
   await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
   await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+  await waitForInstalledChatModel();
   const textarea = screen.getByTestId("media-composer-textarea");
   await user.type(textarea, "hello{Enter}");
   await screen.findByText(REPLY); // wait for the async assistant reply to render

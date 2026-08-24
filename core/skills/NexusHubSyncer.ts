@@ -633,8 +633,8 @@ export class NexusHubSyncer {
     this._catalogRoot = options.catalogRoot ?? resolveCatalogRoot();
     this._upstream = options.upstream ?? DEFAULT_UPSTREAM;
     this._deps = options.deps ?? defaultDependencies(this._upstream);
-    // The default scanner carries the reviewed Hub-skill allowlist: the pinned
-    // upstream source is a trusted producer catalog whose security skills contain
+    // The default scanner carries the reviewed Hub-skill allowlist: the trusted
+    // upstream source is a producer catalog whose security skills contain
     // the patterns they teach. Untrusted third-party imports (SkillInstaller)
     // construct their own scanner with no suppressions.
     this._scanner = options.scanner ?? new PromptInjectionScanner(undefined, HUB_SKILL_SCAN_ALLOWLIST);

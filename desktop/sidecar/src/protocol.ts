@@ -21,6 +21,9 @@ export const IPC_METHODS = [
   // v1.16.0 Phase 1 (adoption item A1) -- local serving gateway control surface.
   "serving.status",
   "serving.setEnabled",
+  // v1.18.0 Phase 5 (OI-A3) -- ACP mount on the shared control surface.
+  "acp.status",
+  "acp.setEnabled",
   // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics.
   "metrics.inference",
   // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing.
@@ -28,6 +31,10 @@ export const IPC_METHODS = [
   "ocr.parseDocument",
   "ocr.job.drainEvents",
   "ocr.job.cancel",
+  // v2.0.0 Phase 1 -- local STT / TTS for Chat.
+  "audio.health",
+  "audio.transcribe",
+  "audio.speak",
   "coding.startTask",
   "coding.session.start",
   "coding.session.sendMessage",
@@ -40,10 +47,22 @@ export const IPC_METHODS = [
   // v1.7.0 -- Local Chatbot Explorer (non-agentic chat pillar).
   "chat.session.start",
   "chat.session.sendMessage",
+  // v2.2.3 Phase 4 -- durable episodic memory for Local Chat.
+  "memory.episodic.record",
+  "memory.episodic.search",
   // v1.1.0 Phase 11 -- nexus VS Code extension surface.
   "coding.chat.autocomplete",
   "mcp.list",
   "mcp.invoke",
+  "mcp.registry.list",
+  "mcp.registry.setToolDenied",
+  // v1.18.0 Phase 4 (OW-A1, OW-A2) -- ask inbox + local agent-run scheduler.
+  "ask.inbox.list",
+  "ask.inbox.approve",
+  "ask.inbox.deny",
+  "ask.inbox.pendingCount",
+  "ask.scheduler.list",
+  "ask.scheduler.setEnabled",
   "settings.get",
   "settings.set",
   // v1.5.0 Phase 5 (item 25) -- credential management over the OS-keychain vault.
@@ -56,20 +75,72 @@ export const IPC_METHODS = [
   "skills.sync",
   "skills.status",
   "skills.upstreamLatest",
+  // v2.2.0 Phase 3 (3.2 / 3.3): real skills listing, the auto-sync setting,
+  // and hub command discovery for the Agentic composer.
+  "skills.list",
+  "skills.autoSync.get",
+  "skills.autoSync.set",
+  "commands.list",
+  // v2.2.0 Phase 5 (5.1): persistent chat explorer (closes 3.P1.N).
+  "chat.explorer.tree",
+  "chat.explorer.createFolder",
+  "chat.explorer.renameFolder",
+  "chat.explorer.moveFolder",
+  "chat.explorer.deleteFolder",
+  "chat.explorer.createChat",
+  "chat.explorer.renameChat",
+  "chat.explorer.moveChat",
+  "chat.explorer.deleteChat",
+  "chat.explorer.setPersona",
+  "chat.explorer.appendMessage",
+  "chat.explorer.listMessages",
+  "chat.explorer.search",
+  "chat.generateTitle",
+  "data.categories",
+  "data.export",
+  "data.import",
   "skills.optimize.preview",
   "skills.optimize.apply",
   "telemetry.subscribe",
+  // v2.2.0 Phase 2 (2.4): poll-based GPU telemetry (telemetry.subscribe, a
+  // push channel, remains unimplemented).
+  "gpu.sample",
   "diffusion.health",
   "diffusion.version",
   "diffusion.txt2img",
   "diffusion.img2img",
   "diffusion.inpaint",
   "diffusion.outpaint",
+  "diffusion.segment",
   "diffusion.job.drainEvents",
   "diffusion.workflow.extract",
   "diffusion.video.text2video",
   "diffusion.video.image2video",
+  "diffusion.video.audio2video",
   "diffusion.video.workflow.extract",
+  "generation.queue.list",
+  "generation.queue.enqueue",
+  "generation.queue.cancel",
+  "generation.queue.reorder",
+  "generation.queue.pendingCount",
+  // v2.2.3 Phase 5 -- read-only Studio GPU occupancy for submit-time gates.
+  "generation.scheduler.snapshot",
+  // v2.1.0 Phase 5 -- local Unsloth Core fine-tuning pillar.
+  "tuning.status",
+  "tuning.provision",
+  "tuning.preflight",
+  "tuning.dataset.build",
+  "tuning.job.start",
+  "tuning.job.list",
+  "tuning.job.cancel",
+  "tuning.models.list",
+  // v2.1.0 Phase 6 -- signed local audit log.
+  "audit.list",
+  "audit.status",
+  // v2.1.0 known-gaps -- Chat video frame sampling + parse_document Settings.
+  "media.sampleVideoFrames",
+  "coding.parseDocument.status",
+  "coding.parseDocument.setEnabled",
 ] as const;
 
 export type Method = (typeof IPC_METHODS)[number];
@@ -85,7 +156,7 @@ export type PingResponseT = z.infer<typeof PingResponse>;
 
 // ---- Coding session lifecycle ------------------------------------------------
 
-export const ModelFamily = z.enum(["gemma", "llama", "qwen", "deepseek"]);
+export const ModelFamily = z.enum(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes", "muse-glimmer", "nemotron-lightning", "gpt-oss"]);
 export type ModelFamilyT = z.infer<typeof ModelFamily>;
 
 export const CodingSessionStartRequest = z
@@ -165,6 +236,20 @@ export const ChatSessionStartRequest = z
   .object({
     modelId: z.string().min(1),
     title: z.string().max(200).optional(),
+    // Replayed explorer rows rebuild model context after a renderer remount or
+    // sidecar restart. Images are deliberately omitted: explorer persistence
+    // stores display attachments, not model-ready visual bytes.
+    history: z
+      .array(
+        z
+          .object({
+            role: z.enum(["user", "assistant"]),
+            content: z.string(),
+          })
+          .strict(),
+      )
+      .max(500)
+      .optional(),
   })
   .strict();
 export type ChatSessionStartRequestT = z.infer<typeof ChatSessionStartRequest>;
@@ -181,9 +266,15 @@ export type ChatSessionStartResponseT = z.infer<typeof ChatSessionStartResponse>
 export const ChatSessionSendMessageRequest = z
   .object({
     sessionId: z.string().min(1),
-    message: z.string().min(1),
+    message: z.string(),
+    /** v2.0.0 Phase 1 -- raw base64 images for a vision-capable local model. */
+    images: z.array(z.string().min(1)).max(16).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => value.message.trim().length > 0 || (value.images !== undefined && value.images.length > 0),
+    { message: "message or images required" },
+  );
 export type ChatSessionSendMessageRequestT = z.infer<typeof ChatSessionSendMessageRequest>;
 
 export const ChatSessionEvent = z.discriminatedUnion("kind", [
@@ -201,6 +292,36 @@ export const ChatSessionSendMessageResponse = z
 export type ChatSessionSendMessageResponseT = z.infer<
   typeof ChatSessionSendMessageResponse
 >;
+
+export const EpisodicMemoryRecordRequest = z
+  .object({
+    id: z.string().min(1),
+    content: z.string().min(1),
+    source: z.string().min(1).optional(),
+    scopeId: z.string().nullable().optional(),
+  })
+  .strict();
+export const EpisodicMemoryRecordResponse = z.object({ ok: z.literal(true) }).strict();
+
+export const EpisodicMemorySearchRequest = z
+  .object({
+    query: z.string().min(1),
+    limit: z.number().int().positive().max(20).optional(),
+    scopeId: z.string().nullable().optional(),
+  })
+  .strict();
+export const EpisodicMemoryHit = z
+  .object({
+    id: z.string(),
+    content: z.string(),
+    source: z.string().optional(),
+    capturedAt: z.string(),
+    scopeId: z.string().nullable().optional(),
+  })
+  .strict();
+export const EpisodicMemorySearchResponse = z
+  .object({ hits: z.array(EpisodicMemoryHit) })
+  .strict();
 
 export const CodingSessionCancelRequest = z
   .object({ sessionId: z.string().min(1) })
@@ -340,6 +461,8 @@ export const DiffusionSampler = z.enum([
   "dpmpp_sde",
   "ddim",
   "lms",
+  // v2.2.2 -- matches Python `_VALID_SAMPLERS` (SANA default / Fast Preview).
+  "flow-dpm-solver",
 ]);
 export type DiffusionSamplerT = z.infer<typeof DiffusionSampler>;
 
@@ -378,6 +501,11 @@ const Txt2ImgBase = z.object({
   latentPreview: z.boolean().default(true),
   loras: z.array(DiffusionLoRA).max(8).default([]),
   controlNet: DiffusionControlNet.optional(),
+  // v2.1.0 Phase 6 -- explicit VRAM/RAM budget knobs (tier defaults when omitted).
+  maxCacheVramGB: z.number().positive().optional(),
+  maxCacheRamGB: z.number().positive().optional(),
+  workingMemReserveGB: z.number().nonnegative().optional(),
+  layerStreaming: z.boolean().optional(),
 });
 
 export const DiffusionTxt2ImgRequest = Txt2ImgBase.strict();
@@ -415,6 +543,44 @@ export const DiffusionOutpaintRequest = Txt2ImgBase.extend({
   pixels: z.number().int().min(8).max(1024),
 }).strict();
 export type DiffusionOutpaintRequestT = z.infer<typeof DiffusionOutpaintRequest>;
+
+export const DiffusionSegmentHint = z
+  .object({
+    text: z.string().optional(),
+    x: z.number().optional(),
+    y: z.number().optional(),
+  })
+  .strict();
+
+export const DiffusionSegmentRequest = z
+  .object({
+    sourceImage: z.string().min(1),
+    phrase: z.string().min(1),
+    hint: DiffusionSegmentHint.optional(),
+    weightsDir: z.string().optional(),
+    stub: z.boolean().optional(),
+  })
+  .strict();
+export type DiffusionSegmentRequestT = z.infer<typeof DiffusionSegmentRequest>;
+
+export const DiffusionSegmentCandidate = z
+  .object({
+    id: z.string().min(1),
+    maskPngBase64: z.string().min(1),
+    score: z.number(),
+    label: z.string(),
+  })
+  .strict();
+
+export const DiffusionSegmentResponse = z
+  .object({
+    ok: z.boolean(),
+    code: z.string().optional(),
+    message: z.string().optional(),
+    candidates: z.array(DiffusionSegmentCandidate).optional(),
+  })
+  .strict();
+export type DiffusionSegmentResponseT = z.infer<typeof DiffusionSegmentResponse>;
 
 export const DiffusionHealthResponse = z
   .object({
@@ -466,6 +632,210 @@ export type DiffusionDrainEventsResponseT = z.infer<
 
 export const DiffusionEmptyRequest = z.object({}).strict();
 
+// v2.2.0 Phase 2 (2.4) -- GPU telemetry sample for the status widget.
+// v2.2.0 Phase 3 (3.2) -- installed skills listing for Settings > Skills.
+// v2.2.0 Phase 5 (5.1) -- chat explorer persistence.
+const ChatFolderDto = z.object({
+  id: z.string(),
+  parentId: z.string().nullable(),
+  name: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  color: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+});
+const ChatChatDto = z.object({
+  id: z.string(),
+  folderId: z.string().nullable(),
+  title: z.string(),
+  modelId: z.string(),
+  contextScopeId: z.string().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  messageCount: z.number(),
+  persona: z.string().nullable().optional(),
+  userRenamed: z.boolean().optional(),
+});
+const ChatMessageDto = z.object({
+  id: z.string(),
+  chatId: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  attachments: z.array(z.string()),
+  createdAt: z.number(),
+});
+// The tree is recursive; validate the leaf shapes and pass the nesting
+// through rather than fighting zod's recursive typing for an internal DTO.
+export const ChatExplorerTreeRequest = z.object({}).strict();
+export const ChatExplorerTreeResponse = z.object({ tree: z.unknown() });
+export const ChatExplorerCreateFolderRequest = z
+  .object({ parentId: z.string().nullable(), name: z.string().min(1) })
+  .strict();
+export const ChatExplorerFolderResponse = ChatFolderDto;
+export const ChatExplorerRenameFolderRequest = z
+  .object({ id: z.string(), name: z.string().min(1) })
+  .strict();
+export const ChatExplorerMoveFolderRequest = z
+  .object({ id: z.string(), parentId: z.string().nullable() })
+  .strict();
+export const ChatExplorerIdRequest = z.object({ id: z.string() }).strict();
+export const ChatExplorerOkResponse = z.object({ ok: z.literal(true) });
+export const ChatExplorerCreateChatRequest = z
+  .object({
+    folderId: z.string().nullable(),
+    title: z.string().min(1),
+    modelId: z.string().min(1),
+  })
+  .strict();
+export const ChatExplorerChatResponse = ChatChatDto;
+export const ChatExplorerRenameChatRequest = z
+  .object({ id: z.string(), title: z.string().min(1), byUser: z.boolean().optional() })
+  .strict();
+export const ChatExplorerMoveChatRequest = z
+  .object({ id: z.string(), folderId: z.string().nullable() })
+  .strict();
+export const ChatExplorerSetPersonaRequest = z
+  .object({ id: z.string(), persona: z.string().nullable() })
+  .strict();
+export const ChatExplorerAppendMessageRequest = z
+  .object({
+    chatId: z.string(),
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+    attachments: z.array(z.string()).optional(),
+  })
+  .strict();
+export const ChatExplorerListMessagesRequest = z
+  .object({ chatId: z.string(), limit: z.number().int().positive().optional() })
+  .strict();
+export const ChatExplorerListMessagesResponse = z.object({
+  messages: z.array(ChatMessageDto),
+});
+export const ChatExplorerSearchRequest = z
+  .object({ query: z.string(), limit: z.number().int().positive().optional() })
+  .strict();
+export const ChatExplorerSearchResponse = z.object({ hits: z.array(z.unknown()) });
+
+// v2.2.0 Phase 5 (5.3) -- auto-title a chat from its first message.
+export const ChatGenerateTitleRequest = z
+  .object({ chatId: z.string(), firstMessage: z.string().min(1), modelId: z.string().optional() })
+  .strict();
+export const ChatGenerateTitleResponse = z.object({
+  title: z.string(),
+  /** "model" when a local model produced it, "fallback" when derived locally. */
+  source: z.enum(["model", "fallback"]),
+});
+
+// v2.2.0 Phase 8 (DF-16) -- move local data to another machine.
+const TransferCategoryId = z.enum([
+  "preferences",
+  "chats",
+  "harness",
+  "generations",
+  "agentic",
+  "credentials",
+]);
+
+export const DataCategoriesRequest = z.object({}).strict();
+export const DataCategoriesResponse = z.object({
+  categories: z.array(
+    z.object({
+      id: TransferCategoryId,
+      label: z.string(),
+      description: z.string(),
+      sensitive: z.boolean().optional(),
+    }),
+  ),
+});
+
+export const DataExportRequest = z
+  .object({
+    categories: z.array(TransferCategoryId).min(1),
+    outPath: z.string().min(1),
+    // Defaults to false on purpose: credentials must be an explicit choice at
+    // the call site, never something a missing field turns on.
+    includeCredentials: z.boolean().optional(),
+  })
+  .strict();
+export const DataExportResponse = z.object({
+  path: z.string(),
+  bytes: z.number(),
+  empty: z.array(TransferCategoryId),
+});
+
+export const DataImportRequest = z
+  .object({
+    archivePath: z.string().min(1),
+    dryRun: z.boolean().optional(),
+    categories: z.array(TransferCategoryId).optional(),
+  })
+  .strict();
+export const DataImportResponse = z.object({
+  applied: z.array(TransferCategoryId),
+  skipped: z.array(TransferCategoryId),
+  dryRun: z.boolean(),
+  backupPath: z.string().nullable(),
+});
+
+export const SkillsListRequest = z.object({}).strict();
+export const SkillsListResponse = z.object({
+  skills: z.array(
+    z.object({
+      id: z.string(),
+      displayName: z.string(),
+      category: z.string().optional(),
+      path: z.string(),
+      tags: z.array(z.string()).optional(),
+      active: z.boolean().optional(),
+      provenance: z.object({
+        source: z.enum(["builtin", "user", "nexus-hub"]),
+        tag: z.string().optional(),
+        contentHash: z.string(),
+      }),
+    }),
+  ),
+  /** Non-null when the catalog exists but could not be parsed. */
+  error: z.string().nullable(),
+});
+
+export const SkillsAutoSyncGetRequest = z.object({}).strict();
+export const SkillsAutoSyncGetResponse = z.object({ enabled: z.boolean() });
+export const SkillsAutoSyncSetRequest = z.object({ enabled: z.boolean() }).strict();
+export const SkillsAutoSyncSetResponse = z.object({ enabled: z.boolean() });
+
+// v2.2.0 Phase 3 (3.3) -- hub command discovery for the Agentic composer.
+export const CommandsListRequest = z.object({}).strict();
+export const CommandsListResponse = z.object({
+  commands: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      source: z.enum(["builtin", "nexus-hub"]),
+    }),
+  ),
+  catalogPresent: z.boolean(),
+});
+
+export const GpuSampleRequest = z.object({}).strict();
+export const GpuSampleResponse = z.object({
+  sample: z
+    .object({
+      capturedAt: z.number(),
+      device: z.enum(["cuda", "apple", "cpu"]),
+      deviceName: z.string(),
+      utilizationPct: z.number(),
+      totalVramGB: z.number(),
+      freeVramGB: z.number(),
+      activeModelId: z.string().nullable(),
+      queuedJobs: z.number(),
+      powerDrawWatts: z.number().nullable().optional(),
+      tokensPerWatt: z.number().nullable().optional(),
+      joulesPerRequest: z.number().nullable().optional(),
+      energyStatus: z.enum(["available", "unavailable"]).optional(),
+    })
+    .nullable(),
+});
+
 export const DiffusionWorkflowExtractRequest = z
   .object({ pngBase64: z.string().min(1) })
   .strict();
@@ -486,6 +856,8 @@ export const DiffusionWorkflowExtractResponse = z
         sampler: z.string(),
         seed: z.number(),
         timestamp: z.string(),
+        schemaVersion: z.number().optional(),
+        diffusionTier: z.string().optional(),
         loras: z.array(DiffusionLoRA).optional(),
         controlNet: DiffusionControlNet.optional(),
       })
@@ -499,7 +871,7 @@ export type DiffusionWorkflowExtractResponseT = z.infer<
 
 // ---- Video pipeline (Phase 7) -----------------------------------------------
 
-export const VideoMode = z.enum(["text2video", "image2video"]);
+export const VideoMode = z.enum(["text2video", "image2video", "audio2video"]);
 export type VideoModeT = z.infer<typeof VideoMode>;
 
 export const VideoFps = z.union([z.literal(12), z.literal(16), z.literal(24)]);
@@ -510,6 +882,15 @@ const VideoResolutionTuple = z.union([
   z.tuple([z.literal(1280), z.literal(720)]),
 ]);
 export type VideoResolutionTupleT = z.infer<typeof VideoResolutionTuple>;
+
+const VideoContinueFrom = z
+  .object({
+    priorJobId: z.string().min(1),
+    lastFramePath: z.string().min(1).optional(),
+    segmentIndex: z.number().int().min(0),
+    segmentCount: z.number().int().min(1),
+  })
+  .strict();
 
 const VideoBase = z.object({
   modelId: z.string().min(1),
@@ -524,6 +905,11 @@ const VideoBase = z.object({
   sampler: DiffusionSampler.default("euler_a"),
   seed: z.number().int().nonnegative(),
   latentPreview: z.boolean().default(true),
+  continueFrom: VideoContinueFrom.optional(),
+  maxCacheVramGB: z.number().positive().optional(),
+  maxCacheRamGB: z.number().positive().optional(),
+  workingMemReserveGB: z.number().nonnegative().optional(),
+  layerStreaming: z.boolean().optional(),
 });
 
 export const DiffusionVideoText2VideoRequest = VideoBase.strict();
@@ -538,6 +924,21 @@ export type DiffusionVideoImage2VideoRequestT = z.infer<
   typeof DiffusionVideoImage2VideoRequest
 >;
 
+export const DiffusionVideoAudio2VideoRequest = VideoBase.extend({
+  durationSeconds: z.number().int().min(1).max(60),
+  sourceImage: z.string().min(1),
+  sourceAudio: z.string().min(1),
+  confirmLocalAvatar: z.literal(true),
+  diffusionTier: z
+    .enum(["diffusion-low", "diffusion-mid", "diffusion-high", "diffusion-pro"])
+    .optional(),
+  vramGB: z.number().nonnegative().optional(),
+  weightRepo: z.string().min(1).optional(),
+}).strict();
+export type DiffusionVideoAudio2VideoRequestT = z.infer<
+  typeof DiffusionVideoAudio2VideoRequest
+>;
+
 export const DiffusionVideoJobAccepted = z
   .object({
     jobId: z.string().min(1),
@@ -545,6 +946,7 @@ export const DiffusionVideoJobAccepted = z
     offloadStrategy: z.string().optional(),
     estimatedSeconds: z.number().nonnegative().optional(),
     frameCount: z.number().int().nonnegative().optional(),
+    provenance: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 export type DiffusionVideoJobAcceptedT = z.infer<typeof DiffusionVideoJobAccepted>;
@@ -569,6 +971,7 @@ export const DiffusionVideoWorkflow = z
     seed: z.number(),
     timestamp: z.string(),
     sourceImageHash: z.string().optional(),
+    sourceAudioHash: z.string().optional(),
   })
   .passthrough();
 export type DiffusionVideoWorkflowT = z.infer<typeof DiffusionVideoWorkflow>;
@@ -583,6 +986,322 @@ export const DiffusionVideoWorkflowExtractResponse = z
 export type DiffusionVideoWorkflowExtractResponseT = z.infer<
   typeof DiffusionVideoWorkflowExtractResponse
 >;
+
+// ---- v2.1.0 Phase 3 -- generation queue ------------------------------------
+
+export const GenerationJobState = z.enum([
+  "queued",
+  "running",
+  "interrupted",
+  "done",
+  "failed",
+]);
+export const GenerationJobPriority = z.enum(["interactive", "batch"]);
+export const GenerationPillar = z.enum(["image", "video"]);
+
+export const GenerationBatchSpec = z.union([
+  z.object({ kind: z.literal("seed-range"), start: z.number(), end: z.number() }).strict(),
+  z
+    .object({
+      kind: z.literal("prompt-matrix"),
+      prompts: z.array(z.string()),
+      negatives: z.array(z.string()).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("combined"),
+      seedStart: z.number().optional(),
+      seedEnd: z.number().optional(),
+      prompts: z.array(z.string()).optional(),
+      negatives: z.array(z.string()).optional(),
+    })
+    .strict(),
+]);
+
+export const GenerationJobDto = z
+  .object({
+    id: z.string(),
+    pillar: GenerationPillar,
+    jobType: z.string(),
+    parameters: z.record(z.string(), z.unknown()),
+    state: GenerationJobState,
+    priority: GenerationJobPriority,
+    sortOrder: z.number(),
+    error: z.string().nullable(),
+    threadId: z.string().nullable(),
+  })
+  .strict();
+
+export const GenerationQueueListRequest = z
+  .object({ states: z.array(GenerationJobState).optional() })
+  .strict();
+export const GenerationQueueListResponse = z.object({ jobs: z.array(GenerationJobDto) }).strict();
+
+export const GenerationQueueEnqueueRequest = z
+  .object({
+    id: z.string().min(1).optional(),
+    pillar: GenerationPillar,
+    jobType: z.string().min(1),
+    parameters: z.record(z.string(), z.unknown()),
+    priority: GenerationJobPriority.optional(),
+    threadId: z.string().optional(),
+    batchSpec: GenerationBatchSpec.optional(),
+  })
+  .strict();
+export const GenerationQueueEnqueueResponse = z
+  .object({ jobs: z.array(GenerationJobDto) })
+  .strict();
+
+export const GenerationQueueCancelRequest = z.object({ id: z.string().min(1) }).strict();
+export const GenerationQueueCancelResponse = z
+  .object({ job: GenerationJobDto.nullable() })
+  .strict();
+
+export const GenerationQueueReorderRequest = z
+  .object({ ids: z.array(z.string().min(1)).min(1) })
+  .strict();
+export const GenerationQueueReorderResponse = z.object({ ok: z.literal(true) }).strict();
+
+export const GenerationQueuePendingCountRequest = z.object({}).strict();
+export const GenerationQueuePendingCountResponse = z
+  .object({ count: z.number().int().nonnegative() })
+  .strict();
+
+export const GenerationSchedulerSnapshotRequest = z.object({}).strict();
+export const GenerationSchedulerModuleId = z.enum([
+  "coding",
+  "chat",
+  "image",
+  "video",
+  "tuning",
+]);
+export const GenerationSchedulerActiveJob = z
+  .object({
+    id: z.string().min(1),
+    moduleId: GenerationSchedulerModuleId,
+    jobType: z.string().min(1),
+    modelId: z.string().min(1).optional(),
+    estimatedVramGB: z.number().nonnegative(),
+    startedAt: z.number(),
+  })
+  .strict();
+export type GenerationSchedulerActiveJobT = z.infer<typeof GenerationSchedulerActiveJob>;
+export const GenerationSchedulerQueuedJob = z
+  .object({
+    id: z.string().min(1),
+    moduleId: GenerationSchedulerModuleId,
+    jobType: z.string().min(1),
+    modelId: z.string().min(1).optional(),
+    estimatedVramGB: z.number().nonnegative(),
+    priority: z.enum(["foreground", "background"]),
+    enqueuedAt: z.number(),
+  })
+  .strict();
+export const GenerationSchedulerSnapshotResponse = z
+  .object({
+    active: GenerationSchedulerActiveJob.nullable(),
+    queued: z.array(GenerationSchedulerQueuedJob),
+    foregroundModule: GenerationSchedulerModuleId.nullable(),
+  })
+  .strict();
+export type GenerationSchedulerSnapshotResponseT = z.infer<
+  typeof GenerationSchedulerSnapshotResponse
+>;
+
+// ---- v2.1.0 Phase 5 -- local fine-tuning pillar -----------------------------
+
+export const TuningProvisionStatus = z.enum(["pending", "ready", "failed", "unsupported"]);
+export const TuningJobState = z.enum([
+  "queued",
+  "running",
+  "interrupted",
+  "done",
+  "failed",
+  "quarantined",
+  "export-failed",
+]);
+
+export const TuningJobDto = z
+  .object({
+    id: z.string(),
+    baseModelId: z.string(),
+    datasetId: z.string(),
+    datasetPath: z.string(),
+    state: TuningJobState,
+    error: z.string().nullable(),
+    checkpointPath: z.string().nullable(),
+    exportPath: z.string().nullable(),
+    evalDelta: z.number().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .strict();
+
+export const TuningEmptyRequest = z.object({}).strict();
+
+export const TuningPinDto = z
+  .object({
+    name: z.string(),
+    version: z.string().optional(),
+    license: z.string(),
+  })
+  .strict();
+
+export const TuningStatusResponse = z
+  .object({
+    supported: z.boolean(),
+    reason: z.string(),
+    provisionStatus: TuningProvisionStatus,
+    provisionError: z.string().nullable(),
+    vramGB: z.number(),
+    gpuVendor: z.string(),
+    osFamily: z.string(),
+    pins: z.array(TuningPinDto),
+  })
+  .strict();
+
+export const TuningProvisionResponse = TuningStatusResponse.extend({
+  ok: z.boolean(),
+});
+
+export const TuningPreflightResponse = z
+  .object({
+    ok: z.boolean(),
+    message: z.string(),
+  })
+  .strict();
+
+export const TuningDatasetBuildRequest = z
+  .object({
+    sources: z.array(z.string().min(1)).min(1),
+    id: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const TuningSkipReport = z
+  .object({
+    path: z.string(),
+    reason: z.string(),
+  })
+  .strict();
+
+export const TuningChatTurn = z
+  .object({
+    role: z.enum(["system", "user", "assistant"]),
+    content: z.string(),
+  })
+  .strict();
+
+export const TuningDatasetBuildResponse = z
+  .object({
+    id: z.string(),
+    outputPath: z.string(),
+    written: z.number().int().nonnegative(),
+    redacted: z.number().int().nonnegative(),
+    skipped: z.array(TuningSkipReport),
+    preview: z.array(z.object({ messages: z.array(TuningChatTurn) }).strict()),
+  })
+  .strict();
+
+export const TuningJobStartRequest = z
+  .object({
+    id: z.string().min(1).optional(),
+    baseModelId: z.string().min(1),
+    datasetId: z.string().min(1),
+    datasetPath: z.string().min(1),
+  })
+  .strict();
+
+export const TuningJobStartResponse = z.object({ job: TuningJobDto }).strict();
+
+export const TuningJobListRequest = z
+  .object({ states: z.array(TuningJobState).optional() })
+  .strict();
+export const TuningJobListResponse = z.object({ jobs: z.array(TuningJobDto) }).strict();
+
+export const TuningJobCancelRequest = z.object({ id: z.string().min(1) }).strict();
+export const TuningJobCancelResponse = z
+  .object({ job: TuningJobDto.nullable() })
+  .strict();
+
+export const TuningModelsListRequest = z
+  .object({ hostVramGB: z.number().nonnegative().optional() })
+  .strict();
+
+export const TuningBaseModelDto = z
+  .object({
+    id: z.string(),
+    displayName: z.string(),
+    codingEligible: z.boolean(),
+    vision: z.boolean(),
+    requiredVramGB: z.number().nullable(),
+  })
+  .strict();
+
+export const TuningModelsListResponse = z
+  .object({ models: z.array(TuningBaseModelDto) })
+  .strict();
+
+export const AuditActor = z.enum(["app", "planner", "critic", "worker"]);
+
+export const AuditListRequest = z
+  .object({
+    actor: AuditActor.optional(),
+    pillar: z.string().min(1).optional(),
+    since: z.string().min(1).optional(),
+    until: z.string().min(1).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+  })
+  .strict();
+
+export const AuditEventDto = z
+  .object({
+    id: z.number().int().nonnegative(),
+    ts: z.string(),
+    actor: AuditActor,
+    pillar: z.string(),
+    kind: z.string(),
+    payload: z.record(z.string(), z.unknown()),
+    signature: z.string(),
+    trusted: z.boolean(),
+  })
+  .strict();
+
+export const AuditListResponse = z
+  .object({ events: z.array(AuditEventDto) })
+  .strict();
+
+export const AuditStatusRequest = z.object({}).strict();
+
+export const AuditStatusResponse = z
+  .object({
+    eventCount: z.number().int().nonnegative(),
+    droppedCount: z.number().int().nonnegative(),
+    vaultAvailable: z.boolean(),
+  })
+  .strict();
+
+export const MediaSampleVideoFramesRequest = z
+  .object({
+    dataUrl: z.string().min(1),
+    maxFrames: z.number().int().min(1).max(24).optional(),
+  })
+  .strict();
+export type MediaSampleVideoFramesRequestT = z.infer<typeof MediaSampleVideoFramesRequest>;
+
+export const MediaSampleVideoFramesResponse = z
+  .object({
+    frames: z.array(z.string()),
+    notice: z.string().optional(),
+  })
+  .strict();
+export type MediaSampleVideoFramesResponseT = z.infer<typeof MediaSampleVideoFramesResponse>;
+
+export const CodingParseDocumentStatusRequest = z.object({}).strict();
+export const CodingParseDocumentStatusResponse = z.object({ enabled: z.boolean() }).strict();
+export const CodingParseDocumentSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
+export const CodingParseDocumentSetEnabledResponse = z.object({ enabled: z.boolean() }).strict();
 
 // ---- v1.1.0 Phase 11 -- VS Code extension surface ---------------------------
 
@@ -645,14 +1364,53 @@ export const ModelListedEntry = z
     sizeBytes: z.number().optional(),
     vramGB: z.number().optional(),
     license: z.string().optional(),
+    task: z.string().optional(),
+    licenseUrl: z.string().optional(),
+    licenseNote: z.string().optional(),
     tags: z.array(z.string()).optional(),
     absPath: z.string().optional(),
+    toolCallingVerified: z.boolean().optional(),
+    toolCallingBenchmark: z
+      .object({
+        suite: z.string(),
+        date: z.string(),
+        result: z.string(),
+      })
+      .strict()
+      .optional(),
+    activeParams: z.number().optional(),
+    totalParams: z.number().optional(),
+    /** v2.0.0 Phase 1 -- catalog modalities for Chat image/audio gating. */
+    modalities: z.array(z.enum(["text", "image", "audio"])).optional(),
+    vision: z.boolean().optional(),
+    visualTokenBudget: z
+      .object({
+        maxImages: z.number().optional(),
+        maxPixels: z.number().optional(),
+        maxVideoFrames: z.number().optional(),
+        maxVideoSeconds: z.number().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;
 
+export const SelectionSnapshotSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    orderedIds: z.array(z.string()),
+    recommendedByTask: z.record(z.string()).optional(),
+    downloadedSinceInstall: z.array(z.string()).optional(),
+  })
+  .strict();
+
 export const ModelsRegistryListResponse = z
-  .object({ models: z.array(ModelListedEntry) })
+  .object({
+    models: z.array(ModelListedEntry),
+    catalogStatus: z.string().optional(),
+    selection: SelectionSnapshotSchema.nullable().optional(),
+  })
   .strict();
 export type ModelsRegistryListResponseT = z.infer<typeof ModelsRegistryListResponse>;
 
@@ -718,6 +1476,26 @@ export type ServingStatusResponseT = z.infer<typeof ServingStatusResponse>;
 
 export const ServingSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
 export type ServingSetEnabledRequestT = z.infer<typeof ServingSetEnabledRequest>;
+
+// v1.18.0 Phase 5 (OI-A3) -- ACP agent on the shared loopback listener.
+export const AcpEmptyRequest = z.object({}).strict();
+export type AcpEmptyRequestT = z.infer<typeof AcpEmptyRequest>;
+
+export const AcpStatusResponse = z
+  .object({
+    enabled: z.boolean(),
+    running: z.boolean(),
+    host: z.string().min(1),
+    port: z.number().int().positive(),
+    /** `http://<host>:<port>/acp` -- JSON-RPC endpoint. */
+    endpoint: z.string().min(1),
+    token: z.string(),
+  })
+  .strict();
+export type AcpStatusResponseT = z.infer<typeof AcpStatusResponse>;
+
+export const AcpSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
+export type AcpSetEnabledRequestT = z.infer<typeof AcpSetEnabledRequest>;
 
 // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics for the
 // Traces panel. Every metric is nullable on purpose: a backend that reports no
@@ -798,6 +1576,51 @@ export const OcrHealthResponse = z
   })
   .strict();
 export type OcrHealthResponseT = z.infer<typeof OcrHealthResponse>;
+
+// v2.0.0 Phase 1 -- local STT / TTS. Request/response; no job polling.
+export const AudioEmptyRequest = z.object({}).strict();
+export type AudioEmptyRequestT = z.infer<typeof AudioEmptyRequest>;
+
+export const AudioEngineAvailability = z
+  .object({ available: z.boolean(), reason: z.string() })
+  .strict();
+
+export const AudioHealthResponse = z
+  .object({
+    ok: z.boolean(),
+    stt: AudioEngineAvailability,
+    tts: AudioEngineAvailability,
+    platform: z.string(),
+  })
+  .strict();
+export type AudioHealthResponseT = z.infer<typeof AudioHealthResponse>;
+
+export const AudioTranscribeRequest = z
+  .object({
+    audioBase64: z.string().min(1),
+    mimeType: z.string().optional(),
+  })
+  .strict();
+export type AudioTranscribeRequestT = z.infer<typeof AudioTranscribeRequest>;
+
+export const AudioTranscribeResponse = z
+  .object({
+    transcript: z.string(),
+    origin: z.literal("stt_transcript"),
+  })
+  .strict();
+export type AudioTranscribeResponseT = z.infer<typeof AudioTranscribeResponse>;
+
+export const AudioSpeakRequest = z.object({ text: z.string().min(1) }).strict();
+export type AudioSpeakRequestT = z.infer<typeof AudioSpeakRequest>;
+
+export const AudioSpeakResponse = z
+  .object({
+    audioBase64: z.string().min(1),
+    mimeType: z.string().min(1),
+  })
+  .strict();
+export type AudioSpeakResponseT = z.infer<typeof AudioSpeakResponse>;
 
 export const OcrParseDocumentRequest = z
   .object({
@@ -920,6 +1743,155 @@ export const McpInvokeResponse = z
   })
   .strict();
 export type McpInvokeResponseT = z.infer<typeof McpInvokeResponse>;
+
+export const McpRegistryTool = z
+  .object({
+    name: z.string().min(1),
+    exposed: z.boolean(),
+    reason: z.enum(["allowed", "user-denied", "policy-denied"]),
+    toggleable: z.boolean(),
+  })
+  .strict();
+export type McpRegistryToolT = z.infer<typeof McpRegistryTool>;
+
+export const McpRegistryServer = z
+  .object({
+    name: z.string().min(1),
+    source: z.enum(["user", "hub"]),
+    policyVerdict: z.enum(["allow", "drop"]),
+    policyReason: z.string(),
+    tools: z.array(McpRegistryTool),
+  })
+  .strict();
+export type McpRegistryServerT = z.infer<typeof McpRegistryServer>;
+
+export const McpRegistryListRequest = z.object({}).strict();
+export const McpRegistryListResponse = z
+  .object({ servers: z.array(McpRegistryServer) })
+  .strict();
+export type McpRegistryListResponseT = z.infer<typeof McpRegistryListResponse>;
+
+export const McpRegistrySetToolDeniedRequest = z
+  .object({
+    serverName: z.string().min(1),
+    toolName: z.string().min(1),
+    denied: z.boolean(),
+  })
+  .strict();
+export type McpRegistrySetToolDeniedRequestT = z.infer<typeof McpRegistrySetToolDeniedRequest>;
+
+export const McpRegistrySetToolDeniedResponse = z
+  .object({
+    ok: z.boolean(),
+    reason: z.string(),
+    servers: z.array(McpRegistryServer),
+  })
+  .strict();
+export type McpRegistrySetToolDeniedResponseT = z.infer<typeof McpRegistrySetToolDeniedResponse>;
+
+export const AskInboxState = z.enum(["pending", "approved", "denied", "expired"]);
+export const AskInboxRunMode = z.enum(["headless", "scheduled"]);
+
+export const ParkedAskDto = z
+  .object({
+    id: z.string().min(1),
+    state: AskInboxState,
+    runMode: AskInboxRunMode,
+    createdAt: z.number(),
+    expiresAt: z.number(),
+    decidedAt: z.number().optional(),
+    decisionReason: z.string().optional(),
+    toolName: z.string().min(1),
+    summary: z.string(),
+    detail: z.string(),
+    args: z.record(z.unknown()),
+    risk: z.string().min(1),
+    classificationReason: z.string(),
+    parkedTier: z.number().int(),
+    sessionId: z.string().optional(),
+    runId: z.string().min(1),
+  })
+  .strict();
+export type ParkedAskDtoT = z.infer<typeof ParkedAskDto>;
+
+export const AskInboxListRequest = z
+  .object({
+    state: AskInboxState.optional(),
+  })
+  .strict();
+export const AskInboxListResponse = z
+  .object({
+    asks: z.array(ParkedAskDto),
+  })
+  .strict();
+export type AskInboxListResponseT = z.infer<typeof AskInboxListResponse>;
+
+export const AskInboxIdRequest = z.object({ id: z.string().min(1) }).strict();
+export const AskInboxApproveResponse = z
+  .object({
+    ok: z.boolean(),
+    reason: z.string(),
+    replay: z
+      .object({
+        allowed: z.boolean(),
+        reason: z.string(),
+        currentTier: z.number().int(),
+        floorClamped: z.boolean(),
+      })
+      .optional(),
+    executed: z.literal(false),
+  })
+  .strict();
+export type AskInboxApproveResponseT = z.infer<typeof AskInboxApproveResponse>;
+
+export const AskInboxDenyResponse = z
+  .object({
+    ok: z.boolean(),
+    reason: z.string(),
+  })
+  .strict();
+export const AskInboxPendingCountRequest = z.object({}).strict();
+export const AskInboxPendingCountResponse = z
+  .object({
+    pending: z.number().int().nonnegative(),
+  })
+  .strict();
+export type AskInboxPendingCountResponseT = z.infer<typeof AskInboxPendingCountResponse>;
+
+export const AskSchedulerListRequest = z.object({}).strict();
+export const ScheduledRunDto = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    enabled: z.boolean(),
+    kind: z.enum(["daily", "interval"]),
+    hour: z.number().int().optional(),
+    minute: z.number().int().optional(),
+    intervalMs: z.number().int().optional(),
+    prompt: z.string(),
+    promptSource: z.string().optional(),
+    workspacePath: z.string().optional(),
+  })
+  .strict();
+export const AskSchedulerListResponse = z
+  .object({
+    schedules: z.array(ScheduledRunDto),
+  })
+  .strict();
+export type AskSchedulerListResponseT = z.infer<typeof AskSchedulerListResponse>;
+
+export const AskSchedulerSetEnabledRequest = z
+  .object({
+    id: z.string().min(1),
+    enabled: z.boolean(),
+  })
+  .strict();
+export const AskSchedulerSetEnabledResponse = z
+  .object({
+    ok: z.boolean(),
+    schedule: ScheduledRunDto.optional(),
+  })
+  .strict();
 
 export const SettingsGetRequest = z
   .object({ key: z.string().min(1) })
@@ -1097,6 +2069,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: ServingStatusResponse,
     implemented: true,
   },
+  "acp.status": {
+    request: AcpEmptyRequest,
+    response: AcpStatusResponse,
+    implemented: true,
+  },
+  "acp.setEnabled": {
+    request: AcpSetEnabledRequest,
+    response: AcpStatusResponse,
+    implemented: true,
+  },
   "metrics.inference": {
     request: MetricsEmptyRequest,
     response: MetricsInferenceResponse,
@@ -1120,6 +2102,21 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "ocr.job.cancel": {
     request: OcrJobCancelRequest,
     response: OcrOkResponse,
+    implemented: true,
+  },
+  "audio.health": {
+    request: AudioEmptyRequest,
+    response: AudioHealthResponse,
+    implemented: true,
+  },
+  "audio.transcribe": {
+    request: AudioTranscribeRequest,
+    response: AudioTranscribeResponse,
+    implemented: true,
+  },
+  "audio.speak": {
+    request: AudioSpeakRequest,
+    response: AudioSpeakResponse,
     implemented: true,
   },
   "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
@@ -1179,9 +2176,67 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: ChatSessionSendMessageResponse,
     implemented: true,
   },
+  "memory.episodic.record": {
+    request: EpisodicMemoryRecordRequest,
+    response: EpisodicMemoryRecordResponse,
+    implemented: true,
+  },
+  "memory.episodic.search": {
+    request: EpisodicMemorySearchRequest,
+    response: EpisodicMemorySearchResponse,
+    implemented: true,
+  },
   "coding.chat.autocomplete": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "mcp.list": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "mcp.invoke": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "mcp.list": {
+    request: McpListRequest,
+    response: McpListResponse,
+    implemented: true,
+  },
+  "mcp.invoke": {
+    request: McpInvokeRequest,
+    response: McpInvokeResponse,
+    implemented: true,
+  },
+  "mcp.registry.list": {
+    request: McpRegistryListRequest,
+    response: McpRegistryListResponse,
+    implemented: true,
+  },
+  "mcp.registry.setToolDenied": {
+    request: McpRegistrySetToolDeniedRequest,
+    response: McpRegistrySetToolDeniedResponse,
+    implemented: true,
+  },
+  "ask.inbox.list": {
+    request: AskInboxListRequest,
+    response: AskInboxListResponse,
+    implemented: true,
+  },
+  "ask.inbox.approve": {
+    request: AskInboxIdRequest,
+    response: AskInboxApproveResponse,
+    implemented: true,
+  },
+  "ask.inbox.deny": {
+    request: AskInboxIdRequest,
+    response: AskInboxDenyResponse,
+    implemented: true,
+  },
+  "ask.inbox.pendingCount": {
+    request: AskInboxPendingCountRequest,
+    response: AskInboxPendingCountResponse,
+    implemented: true,
+  },
+  "ask.scheduler.list": {
+    request: AskSchedulerListRequest,
+    response: AskSchedulerListResponse,
+    implemented: true,
+  },
+  "ask.scheduler.setEnabled": {
+    request: AskSchedulerSetEnabledRequest,
+    response: AskSchedulerSetEnabledResponse,
+    implemented: true,
+  },
   "settings.get": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "settings.set": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "credentials.status": {
@@ -1224,6 +2279,28 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     implemented: true,
   },
   "telemetry.subscribe": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "gpu.sample": { request: GpuSampleRequest, response: GpuSampleResponse, implemented: true },
+  "skills.list": { request: SkillsListRequest, response: SkillsListResponse, implemented: true },
+  "skills.autoSync.get": { request: SkillsAutoSyncGetRequest, response: SkillsAutoSyncGetResponse, implemented: true },
+  "skills.autoSync.set": { request: SkillsAutoSyncSetRequest, response: SkillsAutoSyncSetResponse, implemented: true },
+  "commands.list": { request: CommandsListRequest, response: CommandsListResponse, implemented: true },
+  "chat.explorer.tree": { request: ChatExplorerTreeRequest, response: ChatExplorerTreeResponse, implemented: true },
+  "chat.explorer.createFolder": { request: ChatExplorerCreateFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
+  "chat.explorer.renameFolder": { request: ChatExplorerRenameFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
+  "chat.explorer.moveFolder": { request: ChatExplorerMoveFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
+  "chat.explorer.deleteFolder": { request: ChatExplorerIdRequest, response: ChatExplorerOkResponse, implemented: true },
+  "chat.explorer.createChat": { request: ChatExplorerCreateChatRequest, response: ChatExplorerChatResponse, implemented: true },
+  "chat.explorer.renameChat": { request: ChatExplorerRenameChatRequest, response: ChatExplorerChatResponse, implemented: true },
+  "chat.explorer.moveChat": { request: ChatExplorerMoveChatRequest, response: ChatExplorerChatResponse, implemented: true },
+  "chat.explorer.deleteChat": { request: ChatExplorerIdRequest, response: ChatExplorerOkResponse, implemented: true },
+  "chat.explorer.setPersona": { request: ChatExplorerSetPersonaRequest, response: ChatExplorerOkResponse, implemented: true },
+  "chat.explorer.appendMessage": { request: ChatExplorerAppendMessageRequest, response: ChatMessageDto, implemented: true },
+  "chat.explorer.listMessages": { request: ChatExplorerListMessagesRequest, response: ChatExplorerListMessagesResponse, implemented: true },
+  "chat.explorer.search": { request: ChatExplorerSearchRequest, response: ChatExplorerSearchResponse, implemented: true },
+  "chat.generateTitle": { request: ChatGenerateTitleRequest, response: ChatGenerateTitleResponse, implemented: true },
+  "data.categories": { request: DataCategoriesRequest, response: DataCategoriesResponse, implemented: true },
+  "data.export": { request: DataExportRequest, response: DataExportResponse, implemented: true },
+  "data.import": { request: DataImportRequest, response: DataImportResponse, implemented: true },
   "diffusion.health": {
     request: DiffusionEmptyRequest,
     response: DiffusionHealthResponse,
@@ -1254,6 +2331,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: DiffusionJobAccepted,
     implemented: true,
   },
+  "diffusion.segment": {
+    request: DiffusionSegmentRequest,
+    response: DiffusionSegmentResponse,
+    implemented: true,
+  },
   "diffusion.job.drainEvents": {
     request: DiffusionDrainEventsRequest,
     response: DiffusionDrainEventsResponse,
@@ -1274,9 +2356,109 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: DiffusionVideoJobAccepted,
     implemented: true,
   },
+  "diffusion.video.audio2video": {
+    request: DiffusionVideoAudio2VideoRequest,
+    response: DiffusionVideoJobAccepted,
+    implemented: true,
+  },
   "diffusion.video.workflow.extract": {
     request: DiffusionVideoWorkflowExtractRequest,
     response: DiffusionVideoWorkflowExtractResponse,
+    implemented: true,
+  },
+  "generation.queue.list": {
+    request: GenerationQueueListRequest,
+    response: GenerationQueueListResponse,
+    implemented: true,
+  },
+  "generation.queue.enqueue": {
+    request: GenerationQueueEnqueueRequest,
+    response: GenerationQueueEnqueueResponse,
+    implemented: true,
+  },
+  "generation.queue.cancel": {
+    request: GenerationQueueCancelRequest,
+    response: GenerationQueueCancelResponse,
+    implemented: true,
+  },
+  "generation.queue.reorder": {
+    request: GenerationQueueReorderRequest,
+    response: GenerationQueueReorderResponse,
+    implemented: true,
+  },
+  "generation.queue.pendingCount": {
+    request: GenerationQueuePendingCountRequest,
+    response: GenerationQueuePendingCountResponse,
+    implemented: true,
+  },
+  "generation.scheduler.snapshot": {
+    request: GenerationSchedulerSnapshotRequest,
+    response: GenerationSchedulerSnapshotResponse,
+    implemented: true,
+  },
+  "tuning.status": {
+    request: TuningEmptyRequest,
+    response: TuningStatusResponse,
+    implemented: true,
+  },
+  "tuning.provision": {
+    request: TuningEmptyRequest,
+    response: TuningProvisionResponse,
+    implemented: true,
+  },
+  "tuning.preflight": {
+    request: TuningEmptyRequest,
+    response: TuningPreflightResponse,
+    implemented: true,
+  },
+  "tuning.dataset.build": {
+    request: TuningDatasetBuildRequest,
+    response: TuningDatasetBuildResponse,
+    implemented: true,
+  },
+  "tuning.job.start": {
+    request: TuningJobStartRequest,
+    response: TuningJobStartResponse,
+    implemented: true,
+  },
+  "tuning.job.list": {
+    request: TuningJobListRequest,
+    response: TuningJobListResponse,
+    implemented: true,
+  },
+  "tuning.job.cancel": {
+    request: TuningJobCancelRequest,
+    response: TuningJobCancelResponse,
+    implemented: true,
+  },
+  "tuning.models.list": {
+    request: TuningModelsListRequest,
+    response: TuningModelsListResponse,
+    implemented: true,
+  },
+  "audit.list": {
+    request: AuditListRequest,
+    response: AuditListResponse,
+    implemented: true,
+  },
+  "audit.status": {
+    request: AuditStatusRequest,
+    response: AuditStatusResponse,
+    implemented: true,
+  },
+  "media.sampleVideoFrames": {
+    request: MediaSampleVideoFramesRequest,
+    response: MediaSampleVideoFramesResponse,
+    implemented: true,
+  },
+  "coding.parseDocument.status": {
+    request: CodingParseDocumentStatusRequest,
+    response: CodingParseDocumentStatusResponse,
+    implemented: true,
+  },
+  "coding.parseDocument.setEnabled": {
+    request: CodingParseDocumentSetEnabledRequest,
+    response: CodingParseDocumentSetEnabledResponse,
     implemented: true,
   },
 };

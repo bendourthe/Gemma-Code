@@ -1,4 +1,4 @@
-"""Workflow JSON builder + PNG `tEXt` embedder.
+"""Workflow JSON builder + PNG `iTXt` embedder with `tEXt` compat alias.
 
 Mirrors `core/image/WorkflowMetadata.ts` in Python so a generated image
 produced by the runtime carries the same `nexus_workflow` chunk that the
@@ -20,6 +20,7 @@ from . import params as params_mod
 
 PNG_SIGNATURE = bytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 TEXT_CHUNK_TYPE = b"tEXt"
+ITXT_CHUNK_TYPE = b"iTXt"
 IEND_CHUNK_TYPE = b"IEND"
 NEXUS_WORKFLOW_KEY = b"nexus_workflow"
 COMPAT_WORKFLOW_KEY = b"workflow"
@@ -47,6 +48,14 @@ def _build_text_chunk(key: bytes, value: str) -> bytes:
     length = struct.pack(">I", len(data))
     crc = zlib.crc32(TEXT_CHUNK_TYPE + data) & 0xFFFFFFFF
     return length + TEXT_CHUNK_TYPE + data + struct.pack(">I", crc)
+
+
+def _build_itxt_chunk(key: bytes, value: str) -> bytes:
+    """Uncompressed PNG iTXt: keyword, NUL, flag 0, method 0, empty lang/trans, UTF-8."""
+    data = key + b"\x00\x00\x00\x00\x00" + value.encode("utf-8")
+    length = struct.pack(">I", len(data))
+    crc = zlib.crc32(ITXT_CHUNK_TYPE + data) & 0xFFFFFFFF
+    return length + ITXT_CHUNK_TYPE + data + struct.pack(">I", crc)
 
 
 def _read_chunks(buffer: bytes) -> List[Dict[str, Any]]:
@@ -99,6 +108,7 @@ def build_workflow(
         "sampler": params_obj.sampler,
         "seed": params_obj.seed,
         "timestamp": timestamp,
+        "schemaVersion": 1,
         "loras": [
             {"id": lora.id, "weight": lora.weight} for lora in params_obj.loras
         ],
@@ -131,11 +141,14 @@ def embed_workflow(png_bytes: bytes, workflow: Dict[str, Any]) -> bytes:
     # Strip existing workflow chunks so the embed is idempotent.
     filtered = []
     for chunk in chunks:
-        if chunk["type"] == TEXT_CHUNK_TYPE and _is_workflow_chunk(chunk["data"]):
+        if chunk["type"] in (TEXT_CHUNK_TYPE, ITXT_CHUNK_TYPE) and _is_workflow_chunk(
+            chunk["type"], chunk["data"]
+        ):
             continue
         filtered.append(chunk)
     json_text = json.dumps(workflow, sort_keys=True)
-    nexus_chunk = _build_text_chunk(NEXUS_WORKFLOW_KEY, json_text)
+    nexus_itxt = _build_itxt_chunk(NEXUS_WORKFLOW_KEY, json_text)
+    nexus_text = _build_text_chunk(NEXUS_WORKFLOW_KEY, json_text)
     compat_chunk = _build_text_chunk(COMPAT_WORKFLOW_KEY, json_text)
     head = [PNG_SIGNATURE]
     iend: Optional[Dict[str, Any]] = None
@@ -146,15 +159,18 @@ def embed_workflow(png_bytes: bytes, workflow: Dict[str, Any]) -> bytes:
         head.append(_serialize_chunk(chunk))
     if iend is None:
         raise ValueError("PNG missing IEND terminator")
-    return b"".join(head + [nexus_chunk, compat_chunk, _serialize_chunk(iend)])
+    return b"".join(head + [nexus_itxt, nexus_text, compat_chunk, _serialize_chunk(iend)])
 
 
-def _is_workflow_chunk(data: bytes) -> bool:
+def _keyword(data: bytes) -> bytes:
     null = data.find(b"\x00")
     if null < 0:
-        return False
-    key = data[:null]
-    return key in (NEXUS_WORKFLOW_KEY, COMPAT_WORKFLOW_KEY)
+        return b""
+    return data[:null]
+
+
+def _is_workflow_chunk(_chunk_type: bytes, data: bytes) -> bool:
+    return _keyword(data) in (NEXUS_WORKFLOW_KEY, COMPAT_WORKFLOW_KEY)
 
 
 def extract_workflow(png_bytes: bytes) -> Optional[Dict[str, Any]]:
@@ -163,25 +179,41 @@ def extract_workflow(png_bytes: bytes) -> Optional[Dict[str, Any]]:
     except ValueError:
         return None
     for key in (NEXUS_WORKFLOW_KEY, COMPAT_WORKFLOW_KEY):
-        for chunk in chunks:
-            if chunk["type"] != TEXT_CHUNK_TYPE:
-                continue
-            null = chunk["data"].find(b"\x00")
-            if null < 0:
-                continue
-            if chunk["data"][:null] != key:
-                continue
-            try:
-                parsed = json.loads(chunk["data"][null + 1 :].decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                continue
-            if isinstance(parsed, dict) and parsed.get("mode") in {
-                "txt2img",
-                "img2img",
-                "inpaint",
-                "outpaint",
-            }:
-                return parsed
+        for prefer_itxt in (True, False):
+            wanted = ITXT_CHUNK_TYPE if prefer_itxt else TEXT_CHUNK_TYPE
+            for chunk in chunks:
+                if chunk["type"] != wanted:
+                    continue
+                null = chunk["data"].find(b"\x00")
+                if null < 0:
+                    continue
+                if chunk["data"][:null] != key:
+                    continue
+                payload = chunk["data"][null + 1 :]
+                if wanted == ITXT_CHUNK_TYPE:
+                    # skip compression flag, method, lang NUL, trans NUL
+                    if len(payload) < 4:
+                        continue
+                    rest = payload[2:]
+                    lang_end = rest.find(b"\x00")
+                    if lang_end < 0:
+                        continue
+                    trans = rest[lang_end + 1 :]
+                    trans_end = trans.find(b"\x00")
+                    if trans_end < 0:
+                        continue
+                    payload = trans[trans_end + 1 :]
+                try:
+                    parsed = json.loads(payload.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                if isinstance(parsed, dict) and parsed.get("mode") in {
+                    "txt2img",
+                    "img2img",
+                    "inpaint",
+                    "outpaint",
+                }:
+                    return parsed
     return None
 
 

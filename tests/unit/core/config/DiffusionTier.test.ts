@@ -98,6 +98,15 @@ describe("DIFFUSION_TIER_CONFIGS video defaults", () => {
   it("pro tier ships CogVideoX 5B", () => {
     expect(DIFFUSION_TIER_CONFIGS["diffusion-pro"].video.model).toBe("cogvideox_5b");
   });
+
+  it("enables audioConditioning on diffusion-pro for the avatar tier", () => {
+    expect(DIFFUSION_TIER_CONFIGS["diffusion-low"].video.audioConditioning.enabled).toBe(false);
+    expect(DIFFUSION_TIER_CONFIGS["diffusion-mid"].video.audioConditioning.enabled).toBe(false);
+    expect(DIFFUSION_TIER_CONFIGS["diffusion-high"].video.audioConditioning.enabled).toBe(false);
+    const pro = DIFFUSION_TIER_CONFIGS["diffusion-pro"].video.audioConditioning;
+    expect(pro.enabled).toBe(true);
+    expect(pro.modes).toEqual(["single"]);
+  });
 });
 
 describe("resolveDiffusionTier", () => {

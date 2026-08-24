@@ -37,6 +37,15 @@ describe("SubAgentPolicy.evaluateExploreToolCall", () => {
     expect(decision.message).toMatch(/may not call 'write_file'/);
   });
 
+  it("rejects browser_navigate under explore intent", () => {
+    const decision = evaluateExploreToolCall({
+      intent: "explore",
+      toolName: "browser_navigate",
+    });
+    expect(decision.allow).toBe(false);
+    expect(decision.reason).toBe("tool-not-in-allowlist");
+  });
+
   it("allows every codegraph_* tool under explore intent", () => {
     const codegraphTools = EXPLORE_READONLY_TOOLS.filter((t) =>
       t.startsWith("codegraph_"),

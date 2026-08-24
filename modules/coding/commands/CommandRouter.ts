@@ -15,6 +15,7 @@ export type BuiltinCommandName =
   | "operation-log"
   | "trace"
   | "thinking-mode"
+  | "harness"
   | "skill-metrics"
   | "curate";
 
@@ -63,6 +64,7 @@ const BUILTIN_DESCRIPTORS: CommandDescriptor[] = [
   { name: "operation-log", description: "Manage the opt-in append-only operation log (status, clear)", argumentHint: "<status|clear>" },
   { name: "trace", description: "Single bug-report trace file primitive (enable, dump, clear, status)", argumentHint: "<enable|dump|clear|status> [path]" },
   { name: "thinking-mode", description: "Switch sampler-preset / thinking mode for the active model", argumentHint: "<nothink|think|think-max>" },
+  { name: "harness", description: "Inspect or switch the session harness scaffold profile", argumentHint: "[inspect|list|clear|<profile>]" },
   { name: "skill-metrics", description: "Show per-skill rolling 30-day invocation metrics", argumentHint: "[skill-name]" },
   { name: "curate", description: "Dual-loop curator: dry-run, apply a manifest, or roll back", argumentHint: "<--dry-run|--apply <id>|--rollback <id>|--status>" },
 ];

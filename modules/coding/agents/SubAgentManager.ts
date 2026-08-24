@@ -387,7 +387,7 @@ export class SubAgentManager implements SubAgentSpawner {
         this._client,
         manager,
         registry,
-        this._modelName,
+        config.modelName ?? this._modelName,
         config.maxIterations,
         undefined, // no compactor
         this._ollamaOptions,

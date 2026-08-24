@@ -18,14 +18,28 @@ describe("ModelCatalog", () => {
         "llama3.3:70b",
         "qwen2.5:7b",
         "qwen2.5-coder:7b",
+        "qwen3.5:4b",
+        "qwen3.5:9b",
+        "qwen3-coder:30b",
+        "gpt-oss:20b",
         "deepseek-coder:6.7b",
       ]),
     );
   });
 
-  it("listFamilies covers gemma/llama/qwen/deepseek", () => {
+  it("listFamilies covers gemma/llama/qwen/deepseek/lfm2.5/hermes/muse-glimmer/nemotron-lightning", () => {
     const families = ModelCatalog.listFamilies().sort();
-    expect(families).toEqual(["deepseek", "gemma", "llama", "qwen"] as ModelFamily[]);
+    expect(families).toEqual([
+      "deepseek",
+      "gemma",
+      "gpt-oss",
+      "hermes",
+      "lfm2.5",
+      "llama",
+      "muse-glimmer",
+      "nemotron-lightning",
+      "qwen",
+    ] as ModelFamily[]);
   });
 
   it("byId / get / byFamily expose the right slices", () => {
@@ -42,12 +56,13 @@ describe("ModelCatalog", () => {
     for (const entry of ModelCatalog.listLlm()) {
       expect(entry.sampling.temperature).toBeGreaterThanOrEqual(0);
       expect(entry.sampling.contextLength).toBeGreaterThanOrEqual(1024);
-      expect(["gemma4", "llama3", "qwen", "deepseek"]).toContain(entry.promptFormat);
+      expect(["gemma4", "llama3", "qwen", "deepseek", "lfm"]).toContain(entry.promptFormat);
       expect([
         "gemma4-xml",
         "llama3-json",
         "qwen-json",
         "deepseek-json",
+        "lfm-pythonic",
       ]).toContain(entry.toolFormat);
     }
   });
@@ -64,6 +79,11 @@ describe("ModelCatalog", () => {
       expect(e.tags).toContain("recommended");
       expect(e.tags).toContain("chat");
     }
+  });
+
+  it("does not list LFM2.5-8B-A1B after the Phase 3 decline", () => {
+    expect(ModelCatalog.byId("lfm2.5:8b-a1b")).toBeUndefined();
+    expect(ModelCatalog.listLlm().some((e) => /8b-a1b/i.test(e.id))).toBe(false);
   });
 
   it("stays in sync with the canonical core/registry/models.json", () => {

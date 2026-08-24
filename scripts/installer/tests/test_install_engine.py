@@ -1,11 +1,32 @@
-﻿"""Tests for InstallEngine orchestration."""
+"""Tests for InstallEngine orchestration."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from nexus_installer.engine.installer import InstallEngine
 from nexus_installer.installer_state import InstallerState
+
+
+@pytest.fixture(autouse=True)
+def _stub_runtime_provisioner():
+    """v2.2.0 Phase 1 (1.3): the engine always runs the runtime-wiring step.
+
+    Stub it for every engine test so no test provisions Node or writes the
+    real ~/.nexus/runtime.json; its own behavior is covered in
+    test_runtime_provisioner.py.
+    """
+    with (
+        patch("nexus_installer.engine.installer.RuntimeProvisioner") as mock_rt,
+        patch("nexus_installer.engine.installer.HubCatalogProvisioner") as mock_hub,
+    ):
+        mock_rt.return_value.install.return_value = True
+        # v2.2.0 Phase 3 (3.1): the hub step always runs too; stub it so no
+        # engine test touches the real ~/.nexus-ai catalog or the network.
+        mock_hub.return_value.install.return_value = True
+        yield mock_rt
 
 
 class TestInstallEngineOrder:
@@ -22,9 +43,7 @@ class TestInstallEngineOrder:
             patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
             patch("nexus_installer.engine.installer.VenvInstaller") as MockVenv,
             patch("nexus_installer.engine.installer.ModelStepRouter") as MockRouter,
-            patch(
-                "nexus_installer.engine.installer.DesktopProvisioner"
-            ) as MockDesktop,
+            patch("nexus_installer.engine.installer.DesktopProvisioner") as MockDesktop,
         ):
             MockOllama.return_value.install.side_effect = lambda s, l: (
                 call_order.append("ollama"),
@@ -113,9 +132,7 @@ class TestInstallEngineSkips:
 
         with (
             patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
-            patch(
-                "nexus_installer.engine.installer.DesktopProvisioner"
-            ) as MockDesktop,
+            patch("nexus_installer.engine.installer.DesktopProvisioner") as MockDesktop,
         ):
             MockExt.return_value.install.return_value = True
 
@@ -172,9 +189,7 @@ class TestInstallEnginePartialFailure:
 
         with (
             patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
-            patch(
-                "nexus_installer.engine.installer.DesktopProvisioner"
-            ) as MockDesktop,
+            patch("nexus_installer.engine.installer.DesktopProvisioner") as MockDesktop,
         ):
             MockExt.return_value.install.return_value = True
             MockDesktop.return_value.install.return_value = False
@@ -223,6 +238,12 @@ class TestInstallEngineStepSignals:
             ("completed", "ollama"),
             ("started", "extension"),
             ("completed", "extension"),
+            # v2.2.0 Phase 1: the always-on runtime-wiring step.
+            ("started", "runtime"),
+            ("completed", "runtime"),
+            # v2.2.0 Phase 3: the always-on Nexus-Hub harness step.
+            ("started", "hub-catalog"),
+            ("completed", "hub-catalog"),
         ]
 
     def test_step_failed_emitted_on_failure(self) -> None:
@@ -248,7 +269,7 @@ class TestInstallEngineStepSignals:
             engine.run(state)
 
         assert failed == ["ollama"]
-        assert completed == ["extension"]
+        assert completed == ["extension", "runtime", "hub-catalog"]
 
     def test_step_progress_forwarded_from_model_and_desktop(self) -> None:
         state = InstallerState(
@@ -259,9 +280,7 @@ class TestInstallEngineStepSignals:
 
         with (
             patch("nexus_installer.engine.installer.ModelStepRouter") as MockRouter,
-            patch(
-                "nexus_installer.engine.installer.DesktopProvisioner"
-            ) as MockDesktop,
+            patch("nexus_installer.engine.installer.DesktopProvisioner") as MockDesktop,
         ):
 
             def run_model(
@@ -279,9 +298,7 @@ class TestInstallEngineStepSignals:
             MockDesktop.return_value.install.side_effect = run_desktop
 
             engine = InstallEngine()
-            engine.step_progress.connect(
-                lambda n, pct: progress.append((n, pct))
-            )
+            engine.step_progress.connect(lambda n, pct: progress.append((n, pct)))
             engine.install_finished.connect(lambda *a: None)
 
             engine.run(state)
@@ -315,9 +332,7 @@ class TestInstallEngineResume:
             engine.log_message.connect(lambda *a: None)
             engine.progress_update.connect(lambda *a: None)
             engine.step_completed.connect(completed.append)
-            engine.install_finished.connect(
-                lambda ok, msg: finished.append((ok, msg))
-            )
+            engine.install_finished.connect(lambda ok, msg: finished.append((ok, msg)))
 
             engine.run(state)
 
@@ -364,10 +379,90 @@ class TestInstallEngineCancel:
             MockDesktop.return_value.cancel.assert_called_once()
 
     def test_cancel_propagates_to_model_router(self) -> None:
-        with patch(
-            "nexus_installer.engine.installer.ModelStepRouter"
-        ) as MockRouter:
+        with patch("nexus_installer.engine.installer.ModelStepRouter") as MockRouter:
             engine = InstallEngine()
             engine._model_router = MockRouter.return_value
             engine.cancel()
             MockRouter.return_value.cancel.assert_called_once()
+
+
+class TestInstallEngineUnsloth:
+    def test_unsloth_skipped_by_default(self) -> None:
+        state = InstallerState(
+            components_to_install=["extension"],
+            vscode_path="/usr/bin/code",
+        )
+        with (
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch(
+                "nexus_installer.engine.unsloth_venv_provisioner.UnslothVenvProvisioner"
+            ) as MockUnsloth,
+        ):
+            MockExt.return_value.install.return_value = True
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(lambda *a: None)
+            engine.step_started.connect(lambda *a: None)
+            engine.install_finished.connect(lambda *a: None)
+            engine.run(state)
+            MockUnsloth.assert_not_called()
+
+    def test_unsloth_runs_when_opted_in(self) -> None:
+        state = InstallerState(
+            components_to_install=["extension"],
+            vscode_path="/usr/bin/code",
+            install_unsloth=True,
+            gpu_vendor="nvidia",
+            vram_mb=16384,
+        )
+        with (
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch(
+                "nexus_installer.engine.unsloth_venv_provisioner.UnslothVenvProvisioner"
+            ) as MockUnsloth,
+        ):
+            MockExt.return_value.install.return_value = True
+            MockUnsloth.return_value.install.return_value = True
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(lambda *a: None)
+            engine.step_started.connect(lambda *a: None)
+            engine.install_finished.connect(lambda *a: None)
+            engine.run(state)
+            MockUnsloth.assert_called_once()
+            assert MockUnsloth.call_args.kwargs.get("opt_in") is True
+            MockUnsloth.return_value.install.assert_called_once()
+
+
+class TestRuntimeWiringStep:
+    """v2.2.0 Phase 1 (1.3): the runtime step always runs and routes failure."""
+
+    def test_runtime_failure_emits_step_failed(
+        self, _stub_runtime_provisioner
+    ) -> None:
+        _stub_runtime_provisioner.return_value.install.return_value = False
+        state = InstallerState(
+            components_to_install=["extension"], vscode_path="/usr/bin/code"
+        )
+        failed: list[str] = []
+        finished: list[tuple[bool, str]] = []
+        with patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt:
+            MockExt.return_value.install.return_value = True
+            engine = InstallEngine()
+            engine.step_failed.connect(failed.append)
+            engine.install_finished.connect(lambda ok, msg: finished.append((ok, msg)))
+            engine.run(state)
+        assert failed == ["runtime"]
+        assert "runtime" in state.failed_steps
+        assert finished and finished[0][0] is False
+
+    def test_runtime_step_runs_even_with_no_components(
+        self, _stub_runtime_provisioner
+    ) -> None:
+        state = InstallerState(components_to_install=[])
+        engine = InstallEngine()
+        engine.install_finished.connect(lambda *a: None)
+        engine.run(state)
+        _stub_runtime_provisioner.return_value.install.assert_called_once()

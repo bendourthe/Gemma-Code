@@ -194,7 +194,12 @@ def write_ico(path: Path, source: Image.Image | None) -> None:
     """
     sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
     largest = render_square(256, source)
-    largest.save(path, format="ICO", sizes=sizes)
+    # BMP frames load via Win32 LoadImage; PNG-in-ICO often paints as the
+    # generic application glyph on the Windows taskbar.
+    try:
+        largest.save(path, format="ICO", sizes=sizes, bitmap_format="bmp")
+    except TypeError:
+        largest.save(path, format="ICO", sizes=sizes)
 
 
 def _build_icns_image_block(

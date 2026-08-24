@@ -157,4 +157,22 @@ describe("HeadlessAgentSession", () => {
     expect(kinds.has("toolResult")).toBe(true);
     expect(events.at(-1)).toEqual({ kind: "done", finishReason: "done" });
   });
+
+  it("keeps the headless system prompt without a harness overlay by default", async () => {
+    const { client, requests } = scriptedLlm(["ok"]);
+    const session = new HeadlessAgentSession(client, createHeadlessTools());
+    await session.run({ task: "x", workdir, model: "test" });
+    const system = requests[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).not.toContain("Harness overlay is on");
+  });
+
+  it("appends a harness overlay line when the selector is enabled", async () => {
+    const { client, requests } = scriptedLlm(["ok"]);
+    const session = new HeadlessAgentSession(client, createHeadlessTools(), undefined, {
+      harnessSelectorEnabled: true,
+    });
+    await session.run({ task: "x", workdir, model: "gemma4:e4b" });
+    const system = requests[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).toContain("Harness overlay is on");
+  });
 });

@@ -11,6 +11,7 @@ import { describe, it, expect } from "vitest";
 import { BUILTIN_TOOL_NAMES } from "../../../src/tools/types.js";
 import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
 import { buildToolRegistry } from "../../../src/tools/ToolRegistryBuilder.js";
+import { buildParseDocumentDeps } from "../../../src/tools/parseDocumentWiring.js";
 import {
   PermissionTier,
   TOOL_PERMISSION_MAP,
@@ -74,6 +75,32 @@ describe("parse_document registration", () => {
     const registry = buildToolRegistry({ confirmationGate: null } as never);
     expect(registry.has("parse_document")).toBe(false);
   });
+
+  it("bootstrap-shaped helper registers when the flag is on", () => {
+    const deps = buildParseDocumentDeps({
+      parseDocumentEnabled: true,
+      parseDocumentMemoryIngestEnabled: false,
+      createParser: () => PARSER.resolveParser(),
+    });
+    const registry = buildToolRegistry({
+      confirmationGate: null,
+      parseDocument: deps,
+    } as never);
+    expect(registry.has("parse_document")).toBe(true);
+  });
+
+  it("bootstrap-shaped helper omits the tool when the flag is off", () => {
+    const deps = buildParseDocumentDeps({
+      parseDocumentEnabled: false,
+      parseDocumentMemoryIngestEnabled: true,
+      createParser: () => PARSER.resolveParser(),
+    });
+    const registry = buildToolRegistry({
+      confirmationGate: null,
+      parseDocument: deps,
+    } as never);
+    expect(registry.has("parse_document")).toBe(false);
+  });
 });
 
 describe("inbound classifier membership", () => {
@@ -83,11 +110,11 @@ describe("inbound classifier membership", () => {
     const source = await import("node:fs/promises").then((fs) =>
       fs.readFile(new URL("../../../src/tools/AgentLoop.ts", import.meta.url), "utf8"),
     );
-    const line = source
-      .split("\n")
-      .find((l) => l.includes("INBOUND_EXTERNAL_DATA_TOOLS = new Set"));
-    expect(line).toBeDefined();
-    expect(line).toContain("parse_document");
-    expect(line).toContain("fetch_page");
+    const start = source.indexOf("INBOUND_EXTERNAL_DATA_TOOLS = new Set");
+    expect(start).toBeGreaterThan(-1);
+    const block = source.slice(start, start + 400);
+    expect(block).toContain("parse_document");
+    expect(block).toContain("fetch_page");
+    expect(block).toContain("browser_aria_snapshot");
   });
 });

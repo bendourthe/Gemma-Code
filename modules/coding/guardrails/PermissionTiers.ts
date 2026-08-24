@@ -11,6 +11,11 @@ import { getLogger } from "../utils/logger.js";
  */
 export { PermissionTier } from "./permissionTierMap.js";
 import { PermissionTier, TOOL_PERMISSION_MAP } from "./permissionTierMap.js";
+import {
+  confirmationRequiredForPosture,
+  parseSecurityPosture,
+  type SecurityPostureId,
+} from "./SecurityPosture.js";
 
 /** Baseline tier for any tool, including unknown/MCP tools. */
 function getBaselineTier(toolName: ToolName): PermissionTier {
@@ -43,6 +48,16 @@ export function getPermissionTier(
     const override = userOverrides[toolName];
     if (override === 0 || override === 1 || override === 2) {
       const baseline = getBaselineTier(toolName);
+      if (baseline === PermissionTier.DANGEROUS) {
+        const dedupeKey = `${toolName}=${override}`;
+        if (override < PermissionTier.DANGEROUS && !_warnedOverrides.has(dedupeKey)) {
+          _warnedOverrides.add(dedupeKey);
+          getLogger().warn(
+            `permissionOverride for ${toolName}=${override} clamped to 2; DANGEROUS tools cannot drop below DANGEROUS.`,
+          );
+        }
+        return PermissionTier.DANGEROUS;
+      }
       if (
         baseline >= PermissionTier.CONFIRM &&
         override < PermissionTier.CONFIRM
@@ -70,14 +85,22 @@ export function _resetPermissionOverrideWarnings(): void {
 
 /**
  * Determine whether a tool call should require user confirmation.
- * AUTO_APPROVE tools never require confirmation; CONFIRM and DANGEROUS do.
+ * AUTO_APPROVE tools never require confirmation. DANGEROUS always does (the
+ * floor clamp). CONFIRM follows the security-posture dial: Unattended skips
+ * CONFIRM prompts; Strict and Standard keep them. Hard denials are a separate
+ * path and are not consulted here.
  */
 export function shouldRequireConfirmation(
   toolName: ToolName,
   userOverrides?: Record<string, number>,
+  posture: SecurityPostureId | string = "standard",
 ): boolean {
+  // Baseline DANGEROUS tools (terminal, web) always confirm. An override may
+  // lower the mapped tier to CONFIRM, but Unattended must not treat that as a
+  // skippable prompt -- that would be a no-floor path.
+  if (getBaselineTier(toolName) === PermissionTier.DANGEROUS) return true;
   const tier = getPermissionTier(toolName, userOverrides);
-  return tier >= PermissionTier.CONFIRM;
+  return confirmationRequiredForPosture(tier, parseSecurityPosture(posture));
 }
 
 /**
@@ -87,6 +110,7 @@ export function shouldRequireConfirmation(
 export function getDangerousWarning(
   toolName: ToolName,
   parameters: Record<string, unknown>,
+  sandboxSummary?: string,
 ): string {
   const tier = getPermissionTier(toolName);
   if (tier !== PermissionTier.DANGEROUS) return "";
@@ -97,12 +121,23 @@ export function getDangerousWarning(
       const prefix = isAllowlisted(cmd)
         ? "This will execute a shell command"
         : "This will execute a shell command OUTSIDE the allowlist";
-      return `${prefix}: ${cmd}`;
+      const base = `${prefix}: ${cmd}`;
+      return sandboxSummary ? `${base}\n${sandboxSummary}` : base;
     }
     case "web_search":
       return `This will perform a web search: ${String(parameters["query"] ?? "(unknown)")}`;
     case "fetch_page":
       return `This will fetch a web page: ${String(parameters["url"] ?? "(unknown)")}`;
+    case "browser_navigate":
+      return `This will open a URL in the isolated Nexus browser profile (not your default Chrome): ${String(parameters["url"] ?? "(unknown)")}`;
+    case "browser_click":
+      return `This will click ${String(parameters["selector"] ?? "(unknown)")} in the isolated Nexus browser profile.`;
+    case "browser_type":
+      return `This will type into ${String(parameters["selector"] ?? "(unknown)")} in the isolated Nexus browser profile.`;
+    case "browser_aria_snapshot":
+      return "This will read an ARIA snapshot from the isolated Nexus browser profile. Page content is untrusted.";
+    case "browser_close":
+      return "This will close the isolated Nexus browser session.";
     default:
       return `Tool "${toolName}" requires elevated permission (DANGEROUS tier).`;
   }

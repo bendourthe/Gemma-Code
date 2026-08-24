@@ -47,7 +47,8 @@ import httpx
 
 from nexus_installer import registry_paths
 from nexus_installer.engine.hf_weights_puller import HFWeightsPuller
-from nexus_installer.engine.model_puller import ModelPuller
+from nexus_installer.engine.model_puller import ModelPuller, remedy_for_failure
+from nexus_installer.engine.ollama_installer import ensure_ollama_supports
 from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.installer_state import InstallerState
 
@@ -367,13 +368,30 @@ class ModelStepRouter:
                         "error",
                     )
                 else:
-                    puller = ModelPuller()
-                    with self._lock:
-                        self._active.append(puller)
-                    target = ollama_target_for(entry, model_id)
-                    ok = puller.pull_model(target, mlog, mprogress)
-                    if not ok:
-                        reason = puller.last_error or "ollama pull failed"
+                    # v2.2.0 Phase 2 (2.3): enforce the model's own
+                    # `minOllamaVersion` BEFORE pulling. The global floor is
+                    # only checked while INSTALLING Ollama, which is skipped
+                    # when a (possibly old) Ollama is already present -- that
+                    # is how gemma-4-12b reached `ollama pull` and came back
+                    # HTTP 412 with only a download URL in the log.
+                    gate = ensure_ollama_supports(entry, state, mlog)
+                    if not gate.ok:
+                        ok = False
+                        reason = gate.reason
+                    else:
+                        puller = ModelPuller()
+                        with self._lock:
+                            self._active.append(puller)
+                        target = ollama_target_for(entry, model_id)
+                        ok = puller.pull_model(target, mlog, mprogress)
+                        if not ok:
+                            reason = puller.last_error or "ollama pull failed"
+                            if puller.last_failure_class:
+                                reason = (
+                                    f"{reason} "
+                                    f"[{puller.last_failure_class}] "
+                                    f"{remedy_for_failure(puller.last_failure_class)}"
+                                )
 
             if self._cancelled and not ok:
                 return  # a user cancel is not a per-model failure

@@ -23,7 +23,7 @@ NEXUS_MODEL_PREFLIGHT=1 scripts/installer/.venv/Scripts/python -m nexus_installe
 
 ## Gated (license) models
 
-A few offered models are open-weight but sit behind a Hugging Face license click-through (`gated: true` + `requiresLicense` in `core/registry/catalog.json`): currently `svd`, `stable-audio-open-1.0`, and `sana-1.6b-int4`. The installer makes them work rather than skipping them:
+A few offered models are open-weight but sit behind a Hugging Face license click-through (`gated: true` + `requiresLicense` in `core/registry/catalog.json`): currently `sana-1.6b-int4`. The installer makes them work rather than skipping them:
 
 1. **Automatic** - it resolves a Hugging Face token from `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` or the `huggingface-cli login` cache (`engine.hf_auth.discover_hf_token`) and uses it silently.
 2. **Guided (last resort)** - if no token is found and you selected a gated model, a one-time dialog (`widgets.gated_auth_dialog`) opens the model's license page, lets you paste a free read token, validates it against the repo, and proceeds. Declining removes that model from the install queue so nothing fails mid-download.
@@ -39,6 +39,8 @@ The models the wizard offers come from `core/registry/catalog.json` (shared with
 - `python build/check-catalog.py` runs them ad hoc against `core/registry/catalog.json`.
 
 The invariants encode the fixes: no model may use the known-broken `unsloth/gemma-4-12b-it-GGUF` Ollama reference, and known access-gated models (e.g. `sana-1.6b-int4`) must stay flagged `gated` with a reason / license URL so the guided token step can explain it and offer a clean skip.
+
+v2.1.0: Muse Glimmer and Nemotron Lightning pair-invariants (both quant tiers must ship together). Entries with `hideBelowVramGB` are omitted from the picker when the host is below that floor, not merely grayed. `minOllamaVersion` shows a "Requires Ollama X+" badge; the catalog page does not hide on unknown Ollama version because that page often runs before Ollama is installed.
 
 ## Build
 

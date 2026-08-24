@@ -61,6 +61,16 @@ describe("OutputRedirector", () => {
       expect(content).toBe(output);
     });
 
+    it("scrubs secrets before writing the spill file", () => {
+      const secret = "ghp_0123456789abcdefghijklmnopqrstuvwxyz";
+      const output = `token ${secret} ` + "x".repeat(80);
+      const result = redirector.redirect("run_terminal", "call-secret", output);
+      expect(result).not.toBeNull();
+      const content = fs.readFileSync(result!.redirectedPath, "utf-8");
+      expect(content).not.toContain(secret);
+      expect(content).toContain("<redacted>");
+    });
+
     it("includes a preview in the summary", () => {
       const output = "x".repeat(200);
       const result = redirector.redirect("grep_codebase", "call-2", output);

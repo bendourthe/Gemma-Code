@@ -29,8 +29,43 @@ export interface ListedModelDto {
   sizeBytes?: number;
   vramGB?: number;
   license?: string;
+  /** v1.19.0 Phase 1 -- catalog task (chat | agentic | ...). */
+  task?: string;
+  licenseUrl?: string;
+  licenseNote?: string;
   tags?: readonly string[];
   absPath?: string;
+  /** v1.18.0 Phase 3 (OW-A4) -- catalog tool-calling verification flag. */
+  toolCallingVerified?: boolean;
+  toolCallingBenchmark?: {
+    readonly suite: string;
+    readonly date: string;
+    readonly result: string;
+  };
+  activeParams?: number;
+  totalParams?: number;
+  /** v2.0.0 Phase 1 -- catalog input modalities for Chat gating. */
+  modalities?: readonly ("text" | "image" | "audio")[];
+  /** v2.1.0 Phase 4 -- chat vision. */
+  vision?: boolean;
+  visualTokenBudget?: {
+    readonly maxImages?: number;
+    readonly maxPixels?: number;
+    readonly maxVideoFrames?: number;
+    readonly maxVideoSeconds?: number;
+  };
+  /** v2.2.4 Phase 5 -- installer card copy, marshaled from the catalog spec. */
+  description?: string;
+  strengths?: readonly string[];
+  whyRecommended?: string;
+  differentiators?: string;
+  agentic?: boolean;
+  /** v2.2.5 Phase 3 -- installer card chips. */
+  origin?: string;
+  releaseDate?: string;
+  uncensored?: boolean;
+  /** True when the installer snapshot listed this id (or an alias). */
+  selectedAtInstall?: boolean;
 }
 
 export interface InstallProgressDto {

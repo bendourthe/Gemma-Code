@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 
 import { ServingSettings } from "../src/pages/settings/ServingSettings";
 import { createMockServingClient } from "../src/pages/settings/mockServingClient";
-import type { ServingClient, ServingStatusDto } from "../src/pages/settings/servingTypes";
+import type { AcpStatusDto, ServingClient, ServingStatusDto } from "../src/pages/settings/servingTypes";
 
 const ENABLED: ServingStatusDto = {
   enabled: true,
@@ -23,10 +23,21 @@ const ENABLED: ServingStatusDto = {
   token: "super-secret-token-ABCD",
 };
 
-function staticClient(status: ServingStatusDto): ServingClient {
+const ACP_OFF: AcpStatusDto = {
+  enabled: false,
+  running: false,
+  host: "127.0.0.1",
+  port: 11500,
+  endpoint: "http://127.0.0.1:11500/acp",
+  token: "super-secret-token-ABCD",
+};
+
+function staticClient(status: ServingStatusDto, acp: AcpStatusDto = ACP_OFF): ServingClient {
   return {
     status: async () => status,
     setEnabled: async () => status,
+    acpStatus: async () => acp,
+    setAcpEnabled: async () => acp,
   };
 }
 
@@ -95,6 +106,8 @@ describe("ServingSettings", () => {
       setEnabled: async () => {
         throw new Error("bind failed: port 11500 in use");
       },
+      acpStatus: async () => ACP_OFF,
+      setAcpEnabled: async () => ACP_OFF,
     };
     render(<ServingSettings client={client} />);
     await waitFor(() => expect(screen.getByTestId("serving-toggle")).toBeInTheDocument());
@@ -116,9 +129,23 @@ describe("ServingSettings", () => {
         throw new Error("sidecar unavailable");
       },
       setEnabled: async () => ENABLED,
+      acpStatus: async () => ACP_OFF,
+      setAcpEnabled: async () => ACP_OFF,
     };
     render(<ServingSettings client={client} />);
     await waitFor(() => expect(screen.getByTestId("serving-error")).toBeInTheDocument());
     expect(screen.getByTestId("serving-error").textContent).toContain("sidecar unavailable");
+  });
+
+  it("shows the ACP endpoint after the ACP toggle is on", async () => {
+    const user = userEvent.setup();
+    render(<ServingSettings client={createMockServingClient(false)} />);
+    await waitFor(() => expect(screen.getByTestId("acp-toggle")).toBeInTheDocument());
+    expect(screen.queryByTestId("acp-endpoint")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("acp-toggle"));
+    await waitFor(() => expect(screen.getByTestId("acp-endpoint")).toBeInTheDocument());
+    expect(screen.getByTestId("acp-endpoint").textContent).toBe("http://127.0.0.1:11500/acp");
+    expect(screen.queryByTestId("serving-base-url")).not.toBeInTheDocument();
+    expect(screen.getByTestId("serving-token")).toBeInTheDocument();
   });
 });

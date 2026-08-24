@@ -14,8 +14,9 @@
 // its runtime wasm is located via Parser.init({ locateFile }).
 
 import { build } from "esbuild";
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +34,15 @@ const GRAMMARS = [
   "tree-sitter-go.wasm",
 ];
 
+// v2.2.0 Phase 8: the sidecar reuses the coding runtime, which was written for
+// the VS Code extension and reaches `vscode` through its logger. There is no
+// VS Code process here, so the bundle could not resolve the module at all and
+// this build failed outright. Since Phase 1 the installer embeds sidecar/dist
+// as a Tauri resource, so a sidecar that cannot be built is a shipped app with
+// no backend. The shim provides only the logger's surface and writes to
+// stderr, because stdout carries the JSON-RPC stream.
+const vscodeShim = path.join(here, "src", "shims", "vscode.ts");
+
 await build({
   entryPoints: [path.join(here, "src", "main.ts")],
   bundle: true,
@@ -40,10 +50,105 @@ await build({
   target: "node20",
   format: "cjs",
   outfile: path.join(distDir, "main.js"),
-  external: ["tree-sitter-wasms"],
+  // better-sqlite3 is a NATIVE addon. Bundling its JS wrapper inlines a
+  // `require` for a .node binary that is then looked up relative to the bundle
+  // and never found, so the sidecar died at startup before answering a single
+  // request. Keep it external and ship the real package next to the bundle.
+  external: ["tree-sitter-wasms", "better-sqlite3", "bindings"],
+  alias: { vscode: vscodeShim },
   // import.meta.url is empty in CJS output; rewrite it to a __filename-derived
   // URL so treeSitterWarmup.bundledWasmDir() resolves <dist>/wasm at runtime.
   // The source stays valid ESM (native import.meta.url) for typecheck + tests.
+  banner: { js: "const import_meta_url = require('url').pathToFileURL(__filename).href;" },
+  define: { "import.meta.url": "import_meta_url" },
+});
+
+// v2.2.0 Phase 3 (3.1): a second, side-effect-free entry the installer invokes
+// to provision ~/.nexus-ai/catalog/ during installation. Kept separate from
+// main.js because that module starts the scheduler, serving gateway, and studio
+// DB at import time -- none of which a one-shot catalog sync should touch.
+// Ship the native addon and its resolver next to the bundle so Node's own
+// resolution finds them from dist/. Copied, not bundled: a .node binary is
+// platform-specific machine code, not something a JS bundler can inline.
+const repoNodeModules = path.join(here, "..", "..", "node_modules");
+const distNodeModules = path.join(distDir, "node_modules");
+for (const pkg of ["better-sqlite3", "bindings", "file-uri-to-path"]) {
+  const src = path.join(repoNodeModules, pkg);
+  if (!existsSync(src)) {
+    throw new Error(
+      `[build:sidecar] ${pkg} not found at ${src}. The sidecar cannot open its ` +
+        `database without it, and a sidecar that cannot start is a shipped app ` +
+        `with no backend.`,
+    );
+  }
+  cpSync(src, path.join(distNodeModules, pkg), { recursive: true });
+}
+const nativeBinary = path.join(
+  distNodeModules,
+  "better-sqlite3",
+  "build",
+  "Release",
+  "better_sqlite3.node",
+);
+if (!existsSync(nativeBinary)) {
+  throw new Error(
+    `[build:sidecar] better_sqlite3.node missing after copy (${nativeBinary}). ` +
+      `Run npm rebuild better-sqlite3 before packaging.`,
+  );
+}
+
+// The installer ships Node 22.11.0 (ABI 127). A developer Node 24 tree
+// copies ABI 137 into dist/, and the packaged sidecar then dies with
+// NODE_MODULE_VERSION mismatch before `[nexus-sidecar] ready`. Rebuild
+// only the dist copy so root node_modules stays on the developer's ABI.
+const INSTALLER_NODE_VERSION = "22.11.0";
+const sqlitePkgDir = path.join(distNodeModules, "better-sqlite3");
+const prebuildBin = path.join(repoNodeModules, "prebuild-install", "bin.js");
+if (!existsSync(prebuildBin)) {
+  throw new Error(
+    `[build:sidecar] prebuild-install not found at ${prebuildBin}. ` +
+      `Cannot fetch better-sqlite3 for installer Node ${INSTALLER_NODE_VERSION}.`,
+  );
+}
+const prebuild = spawnSync(
+  process.execPath,
+  [prebuildBin, "--target", INSTALLER_NODE_VERSION, "--runtime", "node"],
+  { cwd: sqlitePkgDir, encoding: "utf8" },
+);
+if (prebuild.status !== 0) {
+  throw new Error(
+    `[build:sidecar] failed to install better-sqlite3 for Node ${INSTALLER_NODE_VERSION}: ` +
+      `${(prebuild.stderr || prebuild.stdout || "").trim()}`,
+  );
+}
+const localAppData = process.env.LOCALAPPDATA;
+const provisionedNode =
+  typeof localAppData === "string" && localAppData.length > 0
+    ? path.join(localAppData, "Nexus", "runtime", "node", "node.exe")
+    : "";
+if (provisionedNode && existsSync(provisionedNode)) {
+  const probe = spawnSync(
+    provisionedNode,
+    ["-e", "require(process.argv[1]);", sqlitePkgDir],
+    { encoding: "utf8" },
+  );
+  if (probe.status !== 0) {
+    throw new Error(
+      `[build:sidecar] better-sqlite3 does not load under provisioned Node ` +
+        `${INSTALLER_NODE_VERSION}: ${(probe.stderr || probe.stdout || "").trim()}`,
+    );
+  }
+}
+
+await build({
+  entryPoints: [path.join(here, "src", "cli", "hubCatalogEntry.ts")],
+  alias: { vscode: vscodeShim },
+  bundle: true,
+  platform: "node",
+  target: "node20",
+  format: "cjs",
+  outfile: path.join(distDir, "hub-catalog.js"),
+  external: ["tree-sitter-wasms"],
   banner: { js: "const import_meta_url = require('url').pathToFileURL(__filename).href;" },
   define: { "import.meta.url": "import_meta_url" },
 });
@@ -54,6 +159,29 @@ await build({
 // runs it as the CJS module it is.
 mkdirSync(distDir, { recursive: true });
 writeFileSync(path.join(distDir, "package.json"), `${JSON.stringify({ type: "commonjs" }, null, 2)}\n`);
+
+// v2.2.0 Phase 1 (1.1): ship the model catalog next to the bundle. The core
+// loader resolves `catalog.json` via `__dirname`, which is `dist/` in the
+// bundled sidecar, so without this copy `loadCatalog()` throws in a packaged
+// app and every model list rendered empty.
+cpSync(
+  path.join(here, "..", "..", "core", "registry", "catalog.json"),
+  path.join(distDir, "catalog.json"),
+);
+
+// v2.2.1: `core/tuning/licensePins.ts` loads `unsloth-pins.json` at import
+// time via `__dirname`. In the CJS bundle that is `sidecar/dist/`, the same
+// way catalog.json is. A packaged sidecar that is missing this file dies
+// before `[nexus-sidecar] ready` (ENOENT on unsloth-pins.json), which is the
+// 2026-08-22 field failure after the sqlite addon itself was found.
+const unslothPinsSrc = path.join(here, "..", "..", "core", "tuning", "unsloth-pins.json");
+if (!existsSync(unslothPinsSrc)) {
+  throw new Error(
+    `[build:sidecar] unsloth-pins.json missing at ${unslothPinsSrc}. ` +
+      `The bundled sidecar loads it at import time; omitting it kills the backend.`,
+  );
+}
+cpSync(unslothPinsSrc, path.join(distDir, "unsloth-pins.json"));
 
 mkdirSync(distWasm, { recursive: true });
 

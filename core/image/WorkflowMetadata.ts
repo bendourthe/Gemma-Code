@@ -26,6 +26,7 @@ export const COMPAT_WORKFLOW_KEY = "workflow";
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const TEXT_CHUNK_TYPE = "tEXt";
+const ITXT_CHUNK_TYPE = "iTXt";
 const IEND_CHUNK_TYPE = "IEND";
 
 export type DiffusionMode = "txt2img" | "img2img" | "inpaint" | "outpaint";
@@ -44,6 +45,8 @@ export interface WorkflowControlNet {
 export interface WorkflowMetadata {
   readonly tool: string;
   readonly version: string;
+  /** v2.1.0 Phase 3 -- readers accept missing (treat as 1) and ignore unknown. */
+  readonly schemaVersion?: number;
   readonly mode: DiffusionMode;
   readonly prompt: string;
   readonly negativePrompt?: string;
@@ -57,6 +60,7 @@ export interface WorkflowMetadata {
   readonly loras?: readonly WorkflowLoRA[];
   readonly controlNet?: WorkflowControlNet;
   readonly timestamp: string;
+  readonly diffusionTier?: string;
   readonly [extension: string]: unknown;
 }
 
@@ -154,6 +158,52 @@ function parseTextChunk(data: Buffer): { key: string; value: string } | null {
 }
 
 /**
+ * PNG iTXt (uncompressed): keyword, null, compression flag 0, method 0,
+ * language tag, null, translated keyword, null, UTF-8 text.
+ */
+function makeITxtChunk(key: string, value: string): Buffer {
+  if (!/^[\x20-\x7e]+$/.test(key)) {
+    throw new Error("WorkflowMetadata: iTXt keyword must be printable ASCII");
+  }
+  if (key.length < 1 || key.length > 79) {
+    throw new Error("WorkflowMetadata: iTXt keyword length must be 1..79 bytes");
+  }
+  const keyBytes = Buffer.from(key, "latin1");
+  const textBytes = Buffer.from(value, "utf8");
+  const data = Buffer.concat([
+    keyBytes,
+    Buffer.from([0, 0, 0, 0, 0]),
+    textBytes,
+  ]);
+  const type = Buffer.from(ITXT_CHUNK_TYPE, "latin1");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([type, data])), 0);
+  return Buffer.concat([length, type, data, crc]);
+}
+
+function parseITxtChunk(data: Buffer): { key: string; value: string } | null {
+  const keyEnd = data.indexOf(0);
+  if (keyEnd < 0 || keyEnd + 5 > data.length) return null;
+  const compressionFlag = data[keyEnd + 1];
+  if (compressionFlag !== 0) return null;
+  let offset = keyEnd + 3;
+  const langEnd = data.indexOf(0, offset);
+  if (langEnd < 0) return null;
+  offset = langEnd + 1;
+  const transEnd = data.indexOf(0, offset);
+  if (transEnd < 0) return null;
+  const key = data.subarray(0, keyEnd).toString("latin1");
+  const value = data.subarray(transEnd + 1).toString("utf8");
+  return { key, value };
+}
+
+function isWorkflowKeyword(key: string): boolean {
+  return key === NEXUS_WORKFLOW_KEY || key === COMPAT_WORKFLOW_KEY;
+}
+
+/**
  * Read every tEXt chunk in a PNG and return them as a `{ keyword: value }`
  * map. Multiple chunks with the same keyword (legal per spec) collapse to
  * the last one wins, which matches how every diffusion tool we tested
@@ -163,6 +213,11 @@ export function readTextChunks(pngBuffer: Buffer): Record<string, string> {
   const chunks = readChunks(pngBuffer);
   const out: Record<string, string> = {};
   for (const chunk of chunks) {
+    if (chunk.type === ITXT_CHUNK_TYPE) {
+      const parsed = parseITxtChunk(chunk.data);
+      if (parsed) out[parsed.key] = parsed.value;
+      continue;
+    }
     if (chunk.type !== TEXT_CHUNK_TYPE) continue;
     const parsed = parseTextChunk(chunk.data);
     if (!parsed) continue;
@@ -185,15 +240,20 @@ export function embedWorkflow(pngBuffer: Buffer, workflow: WorkflowMetadata): Bu
   if (!lastChunk || lastChunk.type !== IEND_CHUNK_TYPE) {
     throw new Error("WorkflowMetadata: PNG missing IEND terminator");
   }
-  const json = JSON.stringify(workflow);
-  const nexusChunk = makeTextChunk(NEXUS_WORKFLOW_KEY, json);
+  const json = JSON.stringify({ ...workflow, schemaVersion: workflow.schemaVersion ?? 1 });
+  const nexusText = makeTextChunk(NEXUS_WORKFLOW_KEY, json);
+  const nexusItxt = makeITxtChunk(NEXUS_WORKFLOW_KEY, json);
   const compatChunk = makeTextChunk(COMPAT_WORKFLOW_KEY, json);
   // Drop any pre-existing workflow chunks so embedding is idempotent.
   const filtered = chunks.filter((chunk) => {
+    if (chunk.type === ITXT_CHUNK_TYPE) {
+      const parsed = parseITxtChunk(chunk.data);
+      return !parsed || !isWorkflowKeyword(parsed.key);
+    }
     if (chunk.type !== TEXT_CHUNK_TYPE) return true;
     const parsed = parseTextChunk(chunk.data);
     if (!parsed) return true;
-    return parsed.key !== NEXUS_WORKFLOW_KEY && parsed.key !== COMPAT_WORKFLOW_KEY;
+    return !isWorkflowKeyword(parsed.key);
   });
   const head: Buffer[] = [PNG_SIGNATURE];
   for (const chunk of filtered) {
@@ -204,7 +264,7 @@ export function embedWorkflow(pngBuffer: Buffer, workflow: WorkflowMetadata): Bu
   if (!iend) {
     throw new Error("WorkflowMetadata: IEND chunk missing");
   }
-  return Buffer.concat([...head, nexusChunk, compatChunk, serializeChunk(iend)]);
+  return Buffer.concat([...head, nexusText, nexusItxt, compatChunk, serializeChunk(iend)]);
 }
 
 function serializeChunk(chunk: Chunk): Buffer {
@@ -262,6 +322,17 @@ export function createMinimalPng(): Buffer {
   // external dependencies.
   return Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+    "base64",
+  );
+}
+
+/**
+ * v2.2.5 Phase 2 -- an 8x8 PNG that passes `isUsableImageBase64` (1x1
+ * catalog stubs are treated as generate failures, not pictures).
+ */
+export function createUsablePng(): Buffer {
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAEklEQVR4nGP4z8DwHx9mGBkKAMLXf4HVAzL9AAAAAElFTkSuQmCC",
     "base64",
   );
 }

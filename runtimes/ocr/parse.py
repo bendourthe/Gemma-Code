@@ -19,8 +19,14 @@ import sys
 from typing import Any, Callable, Dict, Optional
 
 from . import device
-from .documents import DocumentError, MAX_PAGES
-from .engines.base import ParsedDocument, resolve_engine
+from .documents import (
+    MAX_PAGES,
+    OFFICE_KINDS,
+    DocumentError,
+    decode_payload,
+    detect_kind,
+)
+from .engines.base import ParsedDocument, resolve_engine, resolve_office_engine
 
 EmitFn = Callable[[Dict[str, Any]], None]
 
@@ -63,14 +69,31 @@ def run_parse(params: Dict[str, Any], emit: Optional[EmitFn] = None) -> Dict[str
         return _error(job_id, "invalid-params", "request object is required")
 
     try:
-        engine_name = _engine_for_request(request)
         document_base64 = request.get("documentBase64")
+        if not isinstance(document_base64, str):
+            raise DocumentError("invalid-params", "documentBase64 is required")
+        data = decode_payload(document_base64)
+        filename_hint = request.get("filename")
+        if filename_hint is not None and not isinstance(filename_hint, str):
+            raise DocumentError("invalid-params", "filename must be a string")
+        kind = detect_kind(data, filename_hint)
+
         dpi = request.get("dpi")
         max_pages = request.get("maxPages")
         if max_pages is not None and not isinstance(max_pages, int):
             raise DocumentError("invalid-params", "maxPages must be an integer")
 
-        engine = resolve_engine(engine_name, model_dir=request.get("modelDir"))
+        if kind == "unsupported":
+            raise DocumentError(
+                "unsupported-media",
+                "payload is not a PDF, image, DOCX, PPTX, or XLSX file",
+            )
+        if kind in OFFICE_KINDS:
+            # Native Office path: no RapidOCR / Unlimited-OCR / torch.
+            engine = resolve_office_engine(kind)
+        else:
+            engine_name = _engine_for_request(request)
+            engine = resolve_engine(engine_name, model_dir=request.get("modelDir"))
 
         def progress(done: int, total: int) -> None:
             emit_fn(

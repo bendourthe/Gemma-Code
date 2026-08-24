@@ -38,6 +38,7 @@ import {
 import {
   createNexusHubSyncTask,
   NEXUS_HUB_SYNC_TASK_ID,
+  NEXUS_HUB_AUTO_SYNC_SETTING_KEY,
   type SyncWorkerRunner,
 } from "../../../../core/skills/NexusHubAutoSync.js";
 import { migrateLegacyCatalogCleanup } from "../../../../core/skills/migrateLegacyCatalog.js";
@@ -94,7 +95,7 @@ export interface CodingBootstrap {
   readonly legacyCatalogMigrated: boolean;
 }
 
-const AUTO_SYNC_SETTING_KEY = "nexus.skills.autoSync.nexus-hub";
+const AUTO_SYNC_SETTING_KEY = NEXUS_HUB_AUTO_SYNC_SETTING_KEY;
 const LEGACY_AUTO_SYNC_SETTING_KEY = "nexus.skills.autoSync.devai-hub";
 
 export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<CodingBootstrap> {
@@ -134,6 +135,9 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
       if (legacy !== undefined) {
         await settings.set(AUTO_SYNC_SETTING_KEY, legacy);
         enabled = legacy;
+      } else {
+        // v2.2.4 Phase 6: unset means ON. Explicit false still skips.
+        enabled = true;
       }
     }
     if (enabled === true) {

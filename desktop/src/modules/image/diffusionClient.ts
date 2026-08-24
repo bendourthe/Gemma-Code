@@ -75,11 +75,33 @@ export interface ProgressEvent {
   readonly conditioningPreview?: string;
 }
 
+export interface SegmentCandidate {
+  readonly id: string;
+  readonly maskPngBase64: string;
+  readonly score: number;
+  readonly label: string;
+}
+
+export interface SegmentRequest {
+  readonly sourceImage: string;
+  readonly phrase: string;
+  readonly hint?: { text?: string; x?: number; y?: number };
+  readonly stub?: boolean;
+}
+
+export interface SegmentResult {
+  readonly ok: boolean;
+  readonly code?: string;
+  readonly message?: string;
+  readonly candidates?: readonly SegmentCandidate[];
+}
+
 export interface DiffusionClient {
   txt2img(req: Txt2ImgRequest): Promise<JobAccepted>;
   img2img(req: Img2ImgRequest): Promise<JobAccepted>;
   inpaint(req: InpaintRequest): Promise<JobAccepted>;
   outpaint(req: OutpaintRequest): Promise<JobAccepted>;
+  segment(req: SegmentRequest): Promise<SegmentResult>;
   drainEvents(jobId: string): Promise<readonly ProgressEvent[]>;
   extractWorkflow(pngBase64: string): Promise<unknown | null>;
 }
@@ -111,6 +133,11 @@ export function createIpcDiffusionClient(): DiffusionClient {
     async outpaint(req) {
       return unwrap(
         await ipc.call<JobAccepted>("diffusion.outpaint", req as unknown as Record<string, unknown>),
+      );
+    },
+    async segment(req) {
+      return unwrap(
+        await ipc.call<SegmentResult>("diffusion.segment", req as unknown as Record<string, unknown>),
       );
     },
     async drainEvents(jobId) {
@@ -164,6 +191,17 @@ export class InMemoryDiffusionClient implements DiffusionClient {
   }
   async outpaint(req: OutpaintRequest): Promise<JobAccepted> {
     return this.accept("outpaint", req as unknown as Record<string, unknown>);
+  }
+
+  public lastSegment: SegmentRequest | null = null;
+  public segmentResult: SegmentResult = {
+    ok: true,
+    candidates: [{ id: "c0", maskPngBase64: "mask", score: 0.9, label: "object" }],
+  };
+
+  async segment(req: SegmentRequest): Promise<SegmentResult> {
+    this.lastSegment = req;
+    return this.segmentResult;
   }
 
   async drainEvents(jobId: string): Promise<readonly ProgressEvent[]> {

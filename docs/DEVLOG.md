@@ -4,6 +4,1640 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-23] v2.2.5 - First successful generation (release)
+
+Index: [plan](v2/v2.2/plans/v2.2.5-first-successful-generation.md), [history](v2/v2.2/development/history/), [gaps](v2/v2.2/known-gaps.md). Changelog is authoritative.
+
+### What Changed
+
+- Cut product version **2.2.5** (root `package.json` + `tauri.conf.json` via `sync-tauri-version.mjs`). `desktop/package.json` and `Cargo.toml` stay 1.5.0. Installer `__version__` stays 1.1.0. Desktop pin stays `v2.1.0` until this tag's bundle assets attach.
+- One tag covers the untagged v2.2.0-v2.2.4 field-repair work plus v2.2.5: sidecar start, Chatbot-first, alias-fold ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest.
+- This release changes no opt-in capability, installer flag, or host surface.
+
+### Why It Changed
+
+`/update release` after v2.2.5 Phase 6. DF-2 and DF-4 stay open (not_observed != absent).
+
+### Decisions Made
+
+- Did not convert `docs/DEVLOG.md` into a one-line-per-release table (this repo's narrative body is retained; this section is the v2.2.5 index line).
+- Did not bump `NEXUS_DESKTOP_PINNED_TAG` before GitHub Release assets exist.
+- Nexus-Hub-only scripts (`check_version_sync.py`, `generate_manifest.py`, `check_release_preconditions.py`) are absent here and were not invented.
+
+---
+
+## [2026-08-23] v2.2.3 Phase 8 - Architecture, gaps, and CI reconciliation
+
+### What Changed
+
+- Consolidated the synchronous and asynchronous Chat Explorer shapes into one mode-parameterized contract with named aliases.
+- Extracted only the byte-identical structural styles shared by CodingInput and MediaComposer, leaving their distinct interaction markup local.
+- Derived Sidebar routes and labels from the canonical module registry instead of maintaining a second route list.
+- Extended shell validation to `develop` pushes with an Ubuntu-only cost guard, while retaining the full OS matrix on main and manual runs.
+- Added a declarative Windows, macOS, and Linux installer parity contract plus tests that expose target-specific support and the unstaged Unix desktop payload.
+- Reconciled the v2.2.3 gap ledger, closing DF-9 and the develop-shell CI bug while retaining unproven packaged and Hub-hook behavior as named residuals.
+
+### Why It Changed
+
+The end-of-cycle audit found three small sources of structural drift and one release-gate blind spot. Installer workflows also lacked a single machine-readable statement of what each operating-system artifact actually stages, which made it easy to imply parity that had not been demonstrated.
+
+### Decisions Made
+
+- Kept CodingInput and MediaComposer as separate behavioral components because slash commands, audio controls, and media controls still differ; only exact style duplication moved.
+- Kept all existing docs and project files in place after the approved audit found no obsolete tracked files, actionable duplicate documents, or safe archive move within this patch.
+- Ran only Ubuntu shell validation on develop to catch Rust and sidecar regressions without tripling integration-branch CI cost.
+- Recorded macOS and Linux taskbar transparency and process-creation flags as not applicable, and retained their missing desktop payload as DF-18.
+
+### Impact and Context
+
+The solo desktop suite passed 1369 tests across 157 files, and the full root suite passed 5441 tests with 12 skips across 516 passing files and 3 skipped files. Installer pytest passed 1104 tests with 3 skips; Rust check, Clippy with warnings denied, and 15 Rust tests passed. Desktop web and sidecar builds, root lint and build, focused occupancy (91 tests), refactor (85 tests), packaging (32 tests), workflow-discipline (8 tests), docs-layout, and architecture gates passed; architecture retained 16 pre-existing warnings. Packaged clean-VM, live-GPU, and macOS/Linux installer execution remain not proven here.
+
+---
+
+## [2026-08-23] v2.2.3 Phase 6 - Agentic workspace and Hub harness
+
+### What Changed
+
+- Added a persisted workspace field to the Coding header and sent its absolute path on every new coding session.
+- Refused empty, relative, and parent-traversing workspace roots instead of silently using the packaged sidecar directory.
+- Added one shared sidecar enrichment path that loads workspace `AGENTS.md` and `.nexus` rules, resolves and scans only the invoked non-built-in Hub command body, and feeds it to `HeadlessAgentSession` as the active skill.
+- Routed interactive and scheduled runs through the same enrichment and telemetry-backed HookBus, including truthful reflection transcripts and explicit written-file paths.
+- Enforced each workspace's `.nexus/permissions.deny` across the shared sidecar headless tool factory, failing closed on malformed or unreadable policy.
+
+### Why It Changed
+
+Agentic Coding looked connected to Nexus-Hub because slash commands appeared in the composer, but the headless turn ignored their bodies, workspace rules, hooks, and per-project deny policy. Session tools also defaulted to the sidecar process directory when the UI omitted a workspace.
+
+### Decisions Made
+
+- Used the plan-approved persisted text field rather than adding the missing cross-platform Tauri dialog plugin; native picking remains DF-16.
+- Preserved built-in slash-command precedence and unknown-command behavior. Only a matching Hub command file is loaded, so the catalog is never dumped into every prompt.
+- Kept policy enforcement at the shared sidecar tool factory so Coding, scheduled, and ACP-style headless tools cannot drift.
+- Treated scanner blocks and hook failures as logged, non-fatal enrichment failures; malformed deny policy remains fail-closed.
+
+### Impact and Context
+
+The focused Phase 6 gate passed 107 tests across eight files, followed by a solo desktop suite of 1368 tests across 157 files. The root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files. Desktop lint, typecheck, web and sidecar builds, root lint and build, and architecture validation passed; the architecture gate retained 16 pre-existing warnings. Automated workspace and Hub-harness behavior is supported; a packaged turn against a real synced Hub and local model was not executed here.
+
+---
+
+## [2026-08-23] v2.2.3 Phase 5 - Four-pillar submit-time occupancy
+
+### What Changed
+
+- Added read-only `generation.scheduler.snapshot` IPC over the existing Studio `GpuScheduler` active and queued state.
+- Fed live free VRAM, the active scheduler job, and the resolved diffusion tier from App into Image Studio and Video Lab.
+- Added the same submit-time residency gate and switch dialog to Local Chatbot and Agentic Coding.
+- Shared remembered model-pair consent across routes for one renderer session, while keeping each page's pending dialog local.
+- Fixed the existing Studio resume loop so Switch now bypasses classification exactly once even when Remember is unchecked.
+
+### Why It Changed
+
+Image and Video had policy calls but App starved them of live inputs, while Chat and Coding sent immediately. The prior dialog resume pattern could also reopen itself after Switch because one-time approval was lost when the handler reclassified the same prompt.
+
+### Decisions Made
+
+- Classification runs only inside submit handlers; navigation and model-list browsing never load, unload, or classify a model.
+- Missing catalog VRAM is treated as an unknown estimate rather than zero-cost co-residency.
+- Unknown free VRAM with an incumbent produces a confirmation, never a silent swap.
+- Session-only Remember uses in-memory App state and is not written to disk.
+
+### Impact and Context
+
+The focused occupancy suite passed 126 tests across 10 files. The solo desktop suite passed 1355 tests across 156 files, and the root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files. Desktop lint, typecheck, web and sidecar builds, root build, and architecture validation passed; the architecture gate retained 16 pre-existing warnings. DF-9 remains open only for the Phase 8 final reconciliation required by the plan.
+
+---
+
+## [2026-08-23] v2.2.3 Phase 4 - Durable chat transcripts and memory
+
+### What Changed
+
+- Persisted completed Local Chatbot user and assistant turns through the explorer message store and hydrated only the opened chat on remount.
+- Replayed stored turns into new sidecar sessions and retried once after an unknown-session response, preserving model context across renderer remounts and sidecar restarts.
+- Replaced the production in-memory episodic facade with sidecar IPC backed by the existing SQLite memory layer, including scoped retrieval and redaction.
+- Kept pending replies visible as a captioned Composing orb and surfaced transcript hydration or write failures without discarding the in-memory conversation.
+
+### Why It Changed
+
+The explorer could preserve folders and chat metadata while every visible turn lived only in React state. Restoring those rows alone would still have left the model with an empty context, and the production App's `InMemoryMemoryHub` lost episodic records whenever the renderer exited.
+
+### Decisions Made
+
+- Used the explorer message store as transcript source of truth and the existing episodic SQLite layer for cross-chat memory instead of creating another database.
+- Sent bounded persisted history only when a sidecar session is created; retrieval references are ephemeral and never written back into the visible transcript.
+- Kept request/response batching because no incremental transport exists, and recorded streaming as DF-21 rather than presenting simulated tokens.
+
+### Impact and Context
+
+The solo desktop suite passed 1344 tests across 155 files. The full root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files. Desktop lint, typecheck, web build, sidecar build, root build, and the architecture gate all passed; the architecture gate retained 16 pre-existing warnings.
+
+---
+
+## [2026-08-23] v2.2.3 Phase 3 - Orbs, generation honesty, media playback
+
+### What Changed
+
+- Promoted pending image and video work to the existing hero orb, added activity captions, and normalized active orb states to brand cyan while retaining the muted idle state.
+- Made queue exceptions, missing image bytes, missing video paths, and media decode failures visible as written errors; empty completions no longer poison output caches or expose recall actions.
+- Wired Video Lab filesystem paths through Tauri `convertFileSrc`, enabled the asset protocol with a video-output-only scope, and allowed successful video completion without optional workflow metadata.
+
+### Why It Changed
+
+Studio generations could remain pending forever after backend failures, complete into blank bubbles, or produce an MP4 path the webview could not play. Pending media also looked like an ordinary compact chat event instead of a clear full-canvas activity state.
+
+### Decisions Made
+
+- Kept batched completion transport for this cycle because the protocol has no incremental event channel; the orb stays visible until the terminal event arrives.
+- Treated a complete without displayable bytes as an error at both sidecar and renderer boundaries.
+- Scoped Tauri asset access to `~/.nexus/outputs/videos/` rather than granting broad filesystem access.
+
+### Impact and Context
+
+The solo desktop suite passed 1334 tests across 154 files, and the full root suite passed 5436 tests with 12 skips across 515 files. Desktop lint, typecheck, web build, sidecar build, root build, and a debug Tauri build all passed. Real SANA/LTX generation and packaged MP4 playback remain not proven here and stay tracked as DF-4 and DF-2.
+
+---
+
+## [2026-08-22] v2.2.3 Phase 7 - Installer Document, taskbar, Complete
+
+### What Changed
+
+- Added Document to the installer recommendation order as a multi-pick section, with RapidOCR PP-OCRv4 on CPU and 8 GB tiers and Unlimited-OCR 3B on 12, 16, and 24 GB tiers.
+- Changed the Win32 taskbar tile renderer to prefer the transparent no-background brand asset and paint it on an alpha-zero ARGB canvas.
+- Auto-advanced successful installs to Complete through a deferred callback, kept failed or cancelled installs on Installing, and unpinned the stepper after completion.
+- Compacted Complete-page spacing, card padding, service-row margins, and Copy buttons with a local override while widening service names past the clipped VS Code extension label.
+
+### Why It Changed
+
+The field session still showed an empty Document default, an opaque navy taskbar tile, and a completion flow that required an extra click into a page with clipped and oversized rows.
+
+### Decisions Made
+
+- Kept Document multi-pick so later OCR choices can coexist; chat and agentic remain the only single-pick sections.
+- Kept the global `BUTTON_HEIGHT` unchanged and scoped the smaller Copy treatment to Complete-page command rows.
+- Auto-advance occurs only on `finish(True)`; failure and user cancellation never masquerade as completion.
+
+### Impact and Context
+
+The fresh installer gate passed 1101 tests with 3 skips and no failures; all touched files are format-clean, and Phase 7 source plus new test paths pass ruff. One inherited `SIM117` outside the Phase 7 hunks remains tracked as WN-1. This phase does not rebuild `NexusSetup.exe`; frozen visual acceptance remains separate from the supported automated path.
+
+---
+
+## [2026-08-22] v2.2.3 Phase 2 - Liquid glass rail, full-perimeter beam, icon actions
+
+### What Changed
+
+- Replaced per-pillar sidebar icon colors, tinted fills, and 3px bars with one `.nexus-nav-link` liquid-glass selected state.
+- Moved AccentBeam around the inner MediaComposer and CodingInput typing surfaces, made breathing a full masked ring, kept traveling at 360 degrees, and fixed beam, drag, and send colors to the brand-neutral tokens.
+- Replaced native Image and Video action captions with lucide icon buttons using `.nx-icon-btn`, `aria-label`, `title`, and the existing test IDs.
+- Replaced Coding New session's per-pillar MetalAccent wrapper with a neutral glass button.
+
+### Why It Changed
+
+The field session showed a four-color rail, a beam stuck in one quadrant, and Windows-native text buttons beside generated media. Those surfaces competed with the dark glass identity and made the studios look unfinished even when their underlying controls worked.
+
+### Decisions Made
+
+- Kept per-pillar accent tokens for styleguide and module-card use, but removed them from the rail, composer beam, send icon, and New session action.
+- Kept visible captions out of compact studio toolbars while preserving accessible names and tooltips.
+- Made the breathing beam a full-perimeter opacity pulse; the traveling mode remains the 360-degree chase.
+
+### Impact and Context
+
+The earlier solo full desktop gate remained green at 154 files and 1325 tests. The focused Phase 2 gate passed 105 tests across nine files, desktop lint and typecheck exited zero, and Vite built 1751 modules. Generation behavior is unchanged by this phase and remains the responsibility of Phase 3.
+
+---
+
+## [2026-08-22] v2.2.3 Phase 1 - Chat explorer IPC and default route
+
+### What Changed
+
+- Added a promise-safe production explorer adapter that reconciles the IPC and renderer type families, maps object-form folder creation, caches tree-backed lookups, delegates search, and invalidates the cache after mutations.
+- Converted FolderTree mutations, reads, and breadcrumb ancestry to accept synchronous test clients or asynchronous IPC clients without uncaught promise failures.
+- Added a route-keyed `ModuleErrorBoundary`, completed the ChatPage `minHeight: 0` flex chain, redirected `/` to `/chatbot`, and normalized missing, Dashboard, and invalid persisted routes to Local Chatbot.
+
+### Why It Changed
+
+The production Chatbot blanked the application because the renderer cast an async IPC client onto a synchronous interface and called `listTree()` during render. Fresh installs also opened a Dashboard route that is no longer part of the primary rail instead of the requested Local Chatbot module.
+
+### Decisions Made
+
+- Kept `InMemoryChatExplorerClient` synchronous for fast tests while defining an async-safe union contract consumed by the UI.
+- Cached tree-backed folder, chat, and ancestor lookups inside the adapter rather than dual-writing remapped identifiers in the renderer.
+- Kept Dashboard reachable at `/dashboard`, but excluded it from persisted first-launch restoration.
+
+### Impact and Context
+
+The desktop test gate passed 154 files and 1325 tests in one solo Vitest process; the focused Phase 1 pass added 71 green tests across five files. Desktop lint, typecheck, and the Vite production build also exited zero. The packaged Explorer-launch acceptance remains not proven here and is tracked under v2.2.3 DF-2.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 8c - The sidecar bundle could not build or start
+
+### What was actually wrong
+
+Rebuilding for release surfaced two defects that had already shipped, both of which produce exactly the reported "nothing is working":
+
+1. **`npm run build:sidecar` failed outright.** The sidecar reuses the coding runtime, which was written for the VS Code extension and reaches `vscode` through its logger. There is no VS Code process in the sidecar, so esbuild could not resolve the module. Since Phase 1 the installer embeds `sidecar/dist` as a Tauri resource, so a sidecar that cannot be built means the app ships with a stale backend or none.
+2. **The built sidecar died at startup.** better-sqlite3 is a native addon. Bundling its JS wrapper inlined a `require` for a `.node` binary that was then looked up relative to the bundle and never found. `GenerationIndex` constructs a database at module scope, so the process threw before answering a single request.
+
+### Fixes
+
+- Added a `vscode` shim providing only `window.createOutputChannel`, aliased for both entry points. It writes to **stderr**: stdout carries the line-delimited JSON-RPC stream, and a log line there would corrupt the protocol rather than merely being noisy.
+- Marked `better-sqlite3` and `bindings` external and copy the real packages next to the bundle. A `.node` file is platform-specific machine code, not something a bundler can inline. The build now FAILS if the binary is missing after the copy, because a silent skip produces an installer whose backend cannot open its database.
+- DF-7: all three installer build scripts now build the Nexus-Hub catalog snapshot. The PyInstaller spec has embedded it since Phase 3, but nothing ever produced it, so every installer shipped without an offline harness. A build host with no local catalog still builds and syncs at install time.
+
+### Verification
+
+Not just "it compiles": the built sidecar was run and answered `ping` and the new `data.categories` (6 categories) over real JSON-RPC on stdin/stdout.
+
+Gates: root 5425 passed; desktop 1251 passed; 7 new bundle-contract tests.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 8b - Data transfer reaches the backend (DF-16)
+
+Phase 7 shipped the transfer runtime and the Settings > Data page but never connected them, so the page could only ever report the backend as unreachable. This wires `data.categories`, `data.export`, and `data.import` through the protocol and handlers, adds an IPC adapter that returns null outside the desktop shell (so the browser dev server still tells the truth), gives the export an editable destination defaulting to a timestamped name, and adds a Preview step before Import.
+
+Deliberately NOT added: a native file dialog. That needs a Tauri plugin and a capability change, which is not something to slip into a build the user is about to install; the path fields cover the same ground. The import still stages under `~/.nexus/import-staging` rather than merging into final destinations, so it is a preview-and-stage rather than a full restore (DF-16 remaining).
+
+Gates: root 5425 passed; desktop 1251 passed; tsc clean.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 8 - Refactor, known-gaps reconciliation, CI/CD
+
+### Goal
+
+Leave the cycle clean: remove what this work orphaned, close the gaps that were code-completeable, and confirm CI still covers everything.
+
+### What Changed
+
+- **Refactor**: deleted `LocalModelStatusDock` (replaced by the sidebar GPU footer in Phase 6) and `ModulePlaceholder` (its last two routes became redirects in Phase 7). Both were unreachable from app code.
+- **DF-12 closed**: the chat empty state read "Create your first folder", which is the whole reason the module looked like it required a folder before it would let you talk. The store has always accepted `folderId: null`; only the button insisted otherwise. It now starts a chat, and folders stay available from the header and context menu. Two existing tests pinned the old behaviour and were updated to the new intent rather than worked around.
+- **DF-13 closed**: the title generator and its IPC method shipped in Phase 5, but nothing ever called them, so every chat stayed "New chat". The send path now titles a chat from its first prompt, once, only while the chat is still default-named, and treats a titling failure as a no-op rather than failing the send. Titling is declared OPTIONAL on the client interface because the in-memory client has no model and must not pretend to have one.
+- **CI/CD (8.3)**: no change needed. `ci.yml` already runs both suites and both new test files fall inside its globs; 17 of 19 workflows already carry concurrency groups and 13 cache dependencies.
+
+### Test Results
+
+Root vitest **5425 passed / 12 skipped**; desktop vitest **1239 passed** (147 files); eslint clean.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 7 - Settings modernization, profile retirement, data transfer
+
+### Goal
+
+Make Settings look like part of the app, retire the placeholder Profile page, and give the user a way to move their data to another machine.
+
+### What Changed
+
+- **Controls (7.1)**: added token-driven `Select`, `SearchInput`, and `Switch`, and replaced all 19 bare `<select>` elements across Models, Fine-tuning, Security, the Image and Video prompt forms, and the chat model selector. These WRAP the native elements rather than reimplementing them as div listboxes: a custom listbox has to re-earn keyboard navigation, type-ahead, and screen-reader semantics that the native control already has, and the actual complaint was appearance, not behaviour.
+- **Profile (7.3)**: `/profile` and `/inbox` now redirect to Settings. The Profile page was a placeholder whose own copy promised it would "read ~/.nexus/profile.json once Phase 2 lands"; it never read anything.
+- **Data transfer (7.4)**: new `transferRuntime` packs selected categories into one gzipped archive with a manifest and per-category checksums. Credentials are excluded unless explicitly opted in, an import validates the manifest and every destination path BEFORE writing anything, and a real apply takes a pre-import backup first. Settings > Data renders the picker with a warning when credentials are selected.
+
+### Deviations
+
+- The export/import IPC and file dialogs are not wired, so the page reports the backend as unreachable in the running app (DF-16). The runtime itself is complete and tested.
+- Settings tabs are still a hand-written button list rather than the URL-addressable registry 7.2 describes (DF-17).
+
+### Test Results
+
+Root vitest **5425 passed / 12 skipped / 0 failed**; desktop vitest **1233 passed / 0 failed** (147 files); `tsc -b` clean.
+
+### Next
+
+Phase 8 - Architecture refactor, known-gaps reconciliation, and CI/CD.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 6 - Shell UI modernization
+
+### Goal
+
+Make the shell read as one system: no duplicated brand, a collapsible rail, GPU status that does not cover the buttons, and approvals without a permanent tab.
+
+### What Changed
+
+- **Sidebar (6.1)**: the brand block is gone (the frameless title bar already shows "Nexus AI Studio" one row above, so the sidebar copy was pure duplication and a wasted row). Added a compact icon rail: 248px <-> 56px, labels hidden with `aria-label` and `title` retained, a collapse toggle, and a persisted preference under `nexus.sidebar.compact`. With no stored preference the rail follows window width; an explicit choice always wins, so a narrow window never silently overwrites what the user set on a wide one.
+- **GPU status (6.2)**: `LocalModelStatusDock` deleted. It was `position: fixed` bottom-right on every route, sitting directly on top of the Send and Generate buttons - the readout was costing access to the controls it floated over. Replaced by `GpuStatusFooter` at the foot of the rail, with a compact card in the expanded rail and a slim utilization mark (numbers in the tooltip) in the icon rail. Memoized, so a 2 s telemetry tick does not re-render the nav.
+- **Approvals (6.3)**: the Ask-inbox nav entry became an `ApprovalsBell` in the footer with a pending badge, quiet when there is nothing waiting. A failed read renders an explicit error, never the "nothing waiting" message - a fake all-clear on a surface whose whole job is to not miss things would be worse than an error. Acting on a row re-reads the list rather than mutating locally, so an ask that expired while the popover was open cannot be approved from a stale row.
+- **Tokens (6.4)**: `--border-1`, `--accent-primary`, `--accent-danger`, `--accent-warning` were referenced 71 times and never defined; every usage fell through to an inline literal. They are now defined as aliases of the canonical tokens. Also corrected the tokens file's header, which described a Tailwind bridge that does not exist (no tailwind.css ships, no Tailwind dependency is installed).
+
+### Deviations
+
+- The 71 call sites still use the alias names; migrating them and deleting the aliases is DF-15, deferred to the Phase 8 refactor rather than run as a large mechanical rename inside a UI phase.
+
+### Test Results
+
+Root vitest **5410 passed / 12 skipped / 0 failed**; desktop vitest **1218 passed / 0 failed** (146 files); `tsc -b` clean. Three sidebar tests were updated: they asserted the brand lockup and the Ask-inbox nav row that this phase deliberately removes.
+
+### CI/CD
+
+No workflow changes needed.
+
+### Next
+
+Phase 7 - Settings modernization, profile retirement, and data transfer.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 5 - Local Chatbot rebuild (storage, titling, composer)
+
+### Goal
+
+Make the Local Chatbot persistent and modern: conversations that survive a reload, chats that name themselves, and one composer surface instead of a textarea flanked by loose buttons (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 5).
+
+### What Changed
+
+- **Persistence (5.1, closes 3.P1.N)**: `ChatExplorerStore` gained a `chat_chat_messages` table, per-chat `persona`, and a `user_renamed` flag, migrated additively (`PRAGMA table_info` probe, since SQLite has no `ADD COLUMN IF NOT EXISTS`) so re-opening an existing database is a no-op. A message and its chat's counter move in ONE transaction: a message stored but not counted would make the rail disagree with the conversation. New `chat.explorer.*` IPC (13 methods) plus `IpcChatExplorerClient`, and `ChatPage` now uses it inside Tauri while keeping the in-memory client for tests and the dev server. Desktop chat previously held every message in a React Map, so reloading lost the conversation and the persona with it.
+- **Auto-titling (5.3)**: `chat.generateTitle` asks the ALREADY-RESIDENT local model for a 3-6 word title and degrades to a prompt-derived fallback on every failure path (no model, timeout, empty answer, unusable answer). It never triggers a model switch, because evicting the model a user is talking to in order to produce a label would be absurd. `renameChat` is split into a machine path and a `byUser` path so a generated title can never overwrite one the user chose.
+- **Composer (5.4)**: `MediaComposer` is now a single rounded surface with `+` inside-left and mic/send inside-right, absolutely positioned, with textarea padding reserved so typed text can never slide under the controls. It grows to about six lines then scrolls internally. The five-button voice row (Voice loop / Push to talk / VAD / Hold to talk / Start VAD) and the always-on Persona textarea are gone from `ChatPage`: every voice capability moved into the mic dropdown driving the SAME `voiceLoop` state machine, and the persona became a persisted per-chat setting behind a header gear. The mic-open indicator survived, because knowing whether the microphone is live is feedback, not chrome.
+
+### Why It Changed
+
+The user's report was specific: the chatbot "doesn't look like a chatbot", the + button "is poorly designed", and the chat surface was "far from modern". Underneath that, nothing persisted.
+
+### Deviations
+
+- **5.2 (the chat-first rail) is not done.** The storage supports root-level chats and always has, but `FolderTree` still shows "Create your first folder" and the page still needs a selected chat before the composer is useful. The user's "it only starts a chat when we create a folder" complaint is therefore still visible in the UI (DF-12).
+- Auto-titling is implemented and tested end to end but not yet called from `handleSubmit` (DF-13).
+- `CodingInput` still has its own composer; sharing the surface needs an overlay slot for its slash-command dropdown (DF-14).
+- Two import-graph traps were hit and fixed: importing `HandlerContext` into the title generator, and importing the store statically into `handlers.ts`, each of which drags a vscode-coupled logger (and, for the store, `better-sqlite3`) into every consumer. The store import is now dynamic, which also means a session that never opens the chat tab never loads the native binding or creates a database file.
+- A truncation off-by-error was caught by its own test: slicing a title to the 60-char cap and THEN appending an ellipsis produced 62 characters.
+
+### Test Results
+
+Root vitest **5410 passed / 12 skipped / 0 failed**; desktop vitest **1201 passed / 0 failed** (145 files), coverage 88.72% lines / 82.61% branches; `tsc -b` and eslint clean on touched files.
+
+### CI/CD
+
+No workflow changes: `shell-build.yml` already path-filters `desktop/**`, `core/**`, and `modules/**`. No installer files were touched.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-12 rail not rebuilt, DF-13 titling not triggered on send, DF-14 CodingInput composer not shared).
+
+### Next
+
+Phase 6 - Shell UI Modernization.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 4 - Smart single-GPU model orchestration
+
+### Goal
+
+Make model switching on one GPU predictable: never on a tab click, automatic when nothing is at stake, and a confirmation only when something the user is running would be evicted (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 4).
+
+### What Changed
+
+- **Policy engine (4.1)**: new `core/scheduler/ModelSwitchPolicy.ts` classifies each request as `resident | coreside | auto-switch | confirm | defer | not-installed`. Pure and dependency-free like `modelSwap.ts` beside it, so the whole matrix is unit-testable. Co-residency requires 2 GB headroom on top of both models (loading to the exact byte leaves nothing for activations and KV cache, which is how a "successful" co-residency OOMs mid-generation). `assertNoLoadOnNavigation` plus a route-mount test pin the invariant the user actually asked for: arriving on Image Studio must not evict an agentic task's model.
+- **Cross-model orchestration (4.2)**: new `core/scheduler/CrossModelRequest.ts` runs one cross-model step with hold -> classify -> run -> restore. The hold on the agentic model is taken before the swap and released in a `finally`, so an abort, a swap failure, or a runtime crash all end with residency restored. `ModelNotInstalledError` is thrown before any hold or queue entry, so a bad tool call leaves no scheduler state behind.
+- **Switch UX (4.3)**: `useModelResidency` owns residency, the in-flight switch, and the session-scoped "remember" set (shared across surfaces, deliberately not persisted - a choice made once should not silently govern every future launch). `ModelSwitchDialog` names the concrete models and what is using the GPU; `ModelSwitchChip` is the non-interrupting counterpart for auto-switch and co-residency. Answering the dialog re-classifies before acting, so a warning about a job that has since finished cannot evict anything.
+- **Integration**: `ImageStudioPage.handleSubmit` consults the policy, opens the dialog, and resumes the original prompt when the user agrees.
+
+### Why It Changed
+
+On a consumer GPU only one model fits at a time. Switching silently lets a stray tab click evict an agentic task's model; asking every time makes cross-modality automation unusable. The policy is what lets both cases be handled correctly.
+
+### Deviations
+
+- Sub-task 4.3 asks for integration into the studios' AND chat/coding submit paths; only Image Studio is wired (DF-9).
+- The policy is not yet fed live residency or scheduler state - `App.tsx` does not supply the new props and nothing updates the resident list from the scheduler (DF-10, same missing feed as DF-5).
+- `runCrossModelRequest` is not called by the real agent tools yet; it is covered against a mock runtime, which is what 4.2's acceptance asks for, but no live agentic session exercises it (DF-11).
+- **A design flaw surfaced through 9 broken tests**: the first policy demanded confirmation whenever free VRAM was unknown, which would have gated EVERY generation behind a dialog on any host without telemetry. The confirm exists to protect an incumbent model; with nothing resident there is nothing to protect, so that case now loads directly and the scheduler's own VRAM gate remains the backstop.
+
+### Test Results
+
+Root vitest **5373 passed / 12 skipped / 0 failed**; desktop vitest **1191 passed / 0 failed** (144 files), coverage 89.5% lines / 82.53% branches; `tsc -b` and eslint clean. `core/**` is outside the repo's lint scope (`eslint src modules`) by existing convention; typecheck and tests cover it.
+
+### CI/CD
+
+No workflow changes: `shell-build.yml` already path-filters `core/**` and `desktop/**`. No installer files were touched this phase.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-9 one surface wired, DF-10 no live scheduler feed, DF-11 agent tools not calling the orchestrator).
+
+### Next
+
+Phase 5 - Local Chatbot Rebuild.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 3 - Nexus-Hub harness provisioning and skills surface
+
+### Goal
+
+Put the harness on disk at install time and make it visible in the app (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 3).
+
+### What Changed
+
+- **Harness provisioning (3.1)**: new side-effect-free sidecar bundle `hub-catalog.js` (`--sync-hub-catalog`, `--extract-hub-snapshot`, `--hub-catalog-status`, `--catalog-dir`), a checksummed snapshot builder (`build-hub-snapshot.py`), PyInstaller staging that refuses a placeholder digest, and an always-on `HubCatalogProvisioner` install step that extracts the bundled snapshot when the catalog is absent then refreshes from upstream when online. The CLI is a SEPARATE entry from `main.ts` because that module starts the scheduler, serving gateway, and studio DB at import time - none of which a one-shot catalog sync should touch.
+- **Skills surface (3.2)**: `skills.list` now reads the installed catalog through a new vscode-free `hubSkillReader`, closing NHC.P6.B (`ipcSkillsClient.list()` returned a hardcoded `[]`, so the page showed "(0)" in every section regardless of disk contents). `skills.autoSync.get/set` persist the opt-in under the key `codingBootstrap` already honors, closing NHC.P6.C. Enable/disable and quarantine approval still reject, because the sidecar genuinely cannot perform them - no dead buttons.
+- **Command discovery (3.3)**: `commands.list` IPC plus `filterSlashCommandsWithHub` merge built-ins with hub commands in the Agentic composer. The `.slice(0, 8)` cap is gone (a scrollable list; 8 of 16 built-ins were previously unreachable), hub entries carry a source badge, and an absent catalog shows a one-line hint. Only names and descriptions cross the IPC boundary - bodies load on invocation, so discovery costs no prompt context.
+
+### Why It Changed
+
+Nothing bundled or provisioned the harness: it arrived only if the sidecar's best-effort first-launch fetch happened to succeed. An offline install shipped an app with zero skills and a Skills page that blamed the user for not syncing.
+
+### Deviations
+
+- The plan said to construct `HubCommandCatalogLoader` in the sidecar. That module imports a vscode-coupled logger and CANNOT run there - which is exactly why only the VS Code extension ever wired it. Wrote an equivalent vscode-free reader instead; the first attempt broke ~30 handler test files at import until this was found.
+- Two defects were found and fixed mid-phase, both recorded as resolved in known-gaps: the CLI reported a scanner-blocked sync (`applied: false`) as success, and the CLI could only ever target the real `~/.nexus-ai/catalog`. The latter caused a round-trip test to overwrite the developer's installed catalog with a one-skill fixture; it was rebuilt from the intact top-level `~/.nexus-ai/` trees and its original tag restored. `--catalog-dir` now exists and the test asserts it writes nowhere else.
+- MT-4 (no real-archive round-trip test) was raised and then closed within the phase rather than deferred.
+
+### Test Results
+
+Root vitest **5339 passed / 12 skipped / 0 failed**; desktop vitest **1170 passed / 0 failed** (142 files), coverage 89.54% lines / 82.65% branches; installer pytest all green (new `test_hub_catalog_provisioner.py`, 14 cases incl. a real builder-to-extractor round trip); `tsc -b`, eslint, and ruff clean on touched files.
+
+### CI/CD
+
+No workflow changes needed: `shell-build.yml` and `installer-tests.yml` already path-filter `desktop/**`, `core/**`, `modules/**`, and `scripts/installer/**`. The round-trip test skips cleanly when the sidecar bundle has not been built.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-7 no snapshot produced by the release build yet, DF-8 minimal tar reader; BG-1/BG-2 resolved this phase).
+
+### Next
+
+Phase 4 - Smart Single-GPU Model Orchestration.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 2 - Model availability end to end
+
+### Goal
+
+Make every downloaded model visible and runnable, and make every empty/error state tell the truth (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 2).
+
+### What Changed
+
+- **Probe reconciliation (2.1)**: `core/registry/installedProbe.ts` gained `safeDirName()` (a mirror of the installer's `safe_dir_name`), marker-aware `isOnDisk()`, and `synthesizeInstalledFromProbe()`. The probe compared RAW catalog ids against directory names the installer had already sanitized, so any id containing `:` or `/` (e.g. `sam2:hiera-tiny`) could never match. The installer now also stamps `.nexus-model-id` inside each verified weights dir (authoritative, survives future naming changes), `defaultModelsRoot()` honours `NEXUS_MODELS_ROOT` (fed from `runtime.json`), and a failed catalog load synthesizes rows straight off the probe instead of erasing every installed model.
+- **Truthful states (2.2)**: new `useSidecarStatus` hook + `SidecarDownBanner` / `CatalogFailedBanner`, wired into Image Studio, Video Lab, Settings > Models, and Settings > Skills. `ipcSkillsClient.activeTag()` stops swallowing IPC errors - returning null on a dead backend made "cannot reach the backend" indistinguishable from "catalog not synced", so the page offered a Sync button the same dead backend would have had to service. Added `invokeCommand()` so `sidecar_status` / `sidecar_restart` bypass the JSON-RPC bridge (routing them through it would make them fail for the very reason they exist to report).
+- **Ollama version gate (2.3)**: `ensure_ollama_supports()` enforces a catalog entry's `minOllamaVersion` at PULL time and upgrades the managed Ollama once. The global floor was only consulted while INSTALLING Ollama, a step skipped when Ollama is already present - which is exactly how `gemma-4-12b-it-gguf` reached `ollama pull` and came back HTTP 412 with only a download URL in the log. Pull failures are now classified (`ollama-too-old` / network / disk / not-found / cancelled) with a per-class remedy.
+- **Live GPU telemetry (2.4)**: `gpu.sample` IPC + `desktop/sidecar/src/telemetry/gpuRuntime.ts` supply the query function `GpuTelemetrySource` never had in production, and `createLiveTelemetryStream` replaces `createMockTelemetryStream` as the App default (mock retained behind `VITE_NEXUS_MOCK_TELEMETRY=1`). The mock was reporting "Gemma 4 7B Active / GPU 41%" on hosts with no NVIDIA adapter and nothing loaded. Hosts without a GPU now report a real CPU device; stale samples are marked `(stale)` rather than presented as current.
+- **Generation smoke (2.5)**: mocked integration test proves txt2img routes through the handler layer to the configured runtime and that a missing venv fails as typed `runtime-unavailable`; `scripts/smoke/live-gpu-generation.mjs` carries the real-weights leg behind `NEXUS_LIVE_GPU=1`.
+
+### Why It Changed
+
+The installer log showed 9 of 10 models verified on disk while Image Studio and Video Lab reported "No models installed". Phase 1 fixed the backend not starting; Phase 2 fixes what the app does once it does start.
+
+### Deviations
+
+- Two defects were found by the new tests and fixed in-flight: `synthesizeInstalledFromProbe` deduped by comparing directory names against unsanitized marker ids (emitting near-duplicate rows), and `useSidecarStatus` depended on the injected `fetchFn` identity, so an inline callback restarted the effect every render and cleared the down-debounce timer before it could fire (the banner would never have appeared for some callers).
+- The backend-down classifier was initially over-broad (any error message counted), which suppressed a page's real error text. Narrowed to explicit shell tokens with a regression test; `sidecar_status` remains the authoritative signal.
+- Live-GPU smoke written and gate-verified but NOT executed (DF-4).
+
+### Test Results
+
+Root vitest **5339 passed / 12 skipped / 0 failed**; desktop vitest **1132 passed / 0 failed** (140 files), coverage **89.95% lines / 82.79% branches**; installer pytest all green (new `test_ollama_version_gate.py`, marker tests); `tsc -b`, eslint (touched), ruff (touched) clean. The 14 remaining ruff errors are all in untouched pre-existing files.
+
+### CI/CD
+
+No workflow changes needed - `shell-build.yml` and `installer-tests.yml` already path-filter every touched area. The live-GPU smoke is deliberately excluded from CI by its env gate.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-4 live smoke unrun, DF-5 telemetry has no queue/active-model feed until Phase 4, DF-6 private-helper reach-through, MT-3 studio banner page-level test).
+
+### Next
+
+Phase 3 - Nexus-Hub Harness Provisioning and Skills Surface.
+
+---
+
+## [2026-08-22] v2.2.0 Phase 1 - Sidecar packaging and runtime wiring repair
+
+### Goal
+
+Make a fresh install functional: the packaged app must spawn its Node sidecar, see the model catalog, reach the diffusion runtime, and the installer health check must prove it (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 1).
+
+### What Changed
+
+- **Tauri packaging (1.1)**: `bundle.resources` now ships `desktop/sidecar/dist` into the app bundle; `esbuild.config.mjs` copies `core/registry/catalog.json` next to `main.js`; `resolveCatalog()` returns a `{file, error}` pair and `models.list` replies carry `catalogStatus: "ok" | "catalog-load-failed: <reason>"` instead of silently degrading to an empty catalog.
+- **Node resolution + spawn status (1.2)**: `sidecar.rs` replaces bare `Command::new("node")` with a chain (`NEXUS_NODE_PATH` -> `~/.nexus/runtime.json` `nodePath` -> per-OS provisioned runtime path -> PATH `node`), captures the outcome in a serializable `SidecarStatus` (node source, script path, failure reason, rejected candidates), drains child stderr into a 50-line ring buffer (the old piped-but-undrained stderr was a latent deadlock: a chatty sidecar would block once the pipe buffer filled), and exposes `sidecar_status` / single-flight `sidecar_restart` Tauri commands.
+- **Runtime contract (1.3)**: new installer step (always-on, after the component steps) provisions a per-user Node runtime (reuse -> offline payload -> pinned sha256-verified nodejs.org download; real pins replace the all-zero placeholders in `versions.lock.json` for node), copies the `runtimes/` Python sources out of the frozen bundle (now staged by `nexus-installer.spec`, fail-closed), and atomically writes `~/.nexus/runtime.json` (`nodePath`, `diffusionPython`, `diffusionCwd`, `modelsRoot`, ollama). The sidecar applies it at boot via `runtimeConfig.ts` (env always wins); `runtimeFactory.ts` returns a typed `UnavailableDiffusionRuntime` (`runtime-unavailable: ...`) when a configured absolute python path is missing.
+- **Honest health check (1.4)**: the app gained a `--healthcheck` CLI mode (headless sidecar spawn, real `models.list` + `skills.status` RPCs with retry/backoff, one JSON verdict line, nonzero exit on failure); `first_run_health_check` invokes it with a 40 s budget and fails with the reason (the old check passed whenever the window survived 5 s - exactly the state of a sidecar-less app); the Complete page surfaces the verdict detail.
+
+### Why It Changed
+
+Field evidence from a v2.1.0 install: every surface printed `sidecar-not-running` while 9/10 models sat verified on disk. Root causes were all packaging/wiring: sidecar never bundled, bare PATH `node` spawn, catalog never copied, diffusion venv never connected - and the live `InstallEngine.run` never wired the v1.x `provisioner_dispatch` "node" step at all (dead code), so no machine ever had the provisioned Node the spawner was supposed to use.
+
+### Deviations
+
+- Node SEA/`externalBin` bundling (plan's preferred option) deferred to a later phase; the chain + installer guarantee covers all installer-driven paths (DF-1).
+- Real clean-VM packaged-build smoke deferred to the next installer build (DF-2); contracts pinned by static packaging tests instead.
+- `zstandard` was missing from the local dev env (two pre-existing ollama tests failed to import); installed locally - ENV issue, not a code change.
+
+### Test Results
+
+Root vitest **5325 passed / 12 skipped / 0 failed**; desktop vitest full run green, coverage **90.71% lines / 82.93% branches**; installer pytest all green (incl. new `test_runtime_provisioner.py`, rewritten health-check tests, `TestSidecarPackagingContracts`); `cargo test` 10/10; `cargo clippy` 0 warnings; `tsc -b`, eslint (touched), ruff (touched) clean.
+
+### CI/CD
+
+No workflow changes needed: `shell-build.yml` already runs cargo check/clippy/test path-filtered on `desktop/**` with caching + concurrency cancel + PR-gated matrix; `installer-tests.yml` covers `scripts/installer/**`. New tests ride the existing jobs.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (3 DF, 2 MT; no bugs, no bypassed gates).
+
+### Next
+
+Phase 2 - Model Availability End to End (probe sanitization/marker matching, truthful sidecar/empty/error states, live GPU telemetry, Ollama 412 upgrade path, generation smoke).
+
+---
+
+## [2026-08-20] v2.1.0 cut
+
+### Goal
+
+Ship the open local-AI wave: catalog models, routing, studio depth, multimodal chat, local fine-tuning, hardening.
+
+### What Changed
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **2.1.0**.
+- CHANGELOG `[2.1.0]` plus three opt-in surfaces (fine-tuning, JSON CLI loopback, parse_document Settings checkbox).
+- README ledger Landed; What's new in v2.1.0 no longer in-progress.
+- Known-gaps file status finalized. Hardware watches stay open with flip conditions.
+
+### Why It Changed
+
+`/update release` after Phases 1-7 and the known-gaps sweep.
+
+### Next
+
+Push `develop`, tag `v2.1.0`, publish the GitHub Release.
+
+---
+
+## [2026-08-20] v2.1.0 known-gaps sweep
+
+### Goal
+
+Implement code-completeable known-gaps; leave hardware watches deferred.
+
+### What was done
+
+- Python PNG writer emits iTXt plus tEXt (DF-6).
+- Chat `media.sampleVideoFrames` + App wiring (DF-9). Session-scoped Chat memory hub and STT ingest (DF-11, v2.0 DF-5).
+- Dataset builder `extractPdf` through OCR (DF-14). JSON CLI binds without `/v1` (DF-18). Video Lab VRAM knobs (DF-19). Vault notice (DF-20). Desktop `tool.call` (DF-22).
+- Settings parse_document checkbox (v1.20 DF-2). Audio runtime timeout/malformed tests (v2.0 MT-1).
+
+### Tests
+
+Python workflow_metadata 7 passed. Core dataset/sampler/audio units 11 passed. Desktop 7 files / 82 tests plus video/serving follow-ups 40 passed.
+
+### Next
+
+`/update release`.
+
+---
+
+## [2026-08-20] v2.1.0 Phase 7: refactor, known-gaps, CI
+
+### Goal
+
+Leave the v2.1 tree organized, gaps reconciled, CI covering the plan without extra GPU minutes.
+
+### What was done
+
+- Layout audit: canonical `docs/v2/v2.1/` already. SkillLoader empty catalog dirs kept. No archive moves.
+- Known-gaps: recorded A13 mask canvas (DF-23) and A14 video comments (DF-24). DiffusionGemma flip conditions already on DF-1. Status still in-progress until the version bump.
+- CI: comments on `ci.yml` for v2.1 hardware gates and Phase 6 surfaces. Existing concurrency, caches, Node 22 desktop vitest, path-filtered installer/sandbox kept. No new OS matrix.
+
+### Tests
+
+`check:docs-layout` green. `tests/unit/docs/v2.1-phase-7-ci-gates.test.ts` pins the hardware-gates doc.
+
+### Next
+
+Commit and push. Then sweep older known-gaps files. Then `/update release`.
+
+---
+
+## [2026-08-20] v2.1.0 Phase 6: signed audit log, JSON CLI, diffusion VRAM knobs
+
+### Goal
+
+Local-only hardening: signed audit log with per-actor identity, headless JSON CLI over the sidecar bearer token, explicit diffusion VRAM budget knobs.
+
+### What was done
+
+- `core/audit/`: append-only SQLite, Ed25519 per actor (app/planner/critic/worker), `redactSecrets`, backpressure with dropped-event counter, tamper rows marked untrusted. Settings > Security viewer. Keys prefer the OS keychain.
+- JSON CLI on `/nexus/*` (sibling of `/v1`), reusing `nexus.serving.token`. `nexus session|models|generate`. Schema failures never touch the network.
+- Diffusion memory budget defaults from DiffusionTier. Image Studio Advanced exposes cache VRAM/RAM, working reserve, and layer streaming. Python streaming upgrades insufficient VRAM to sequential CPU offload.
+
+### Tests
+
+Root audit/cli/budget units 97% lines. Desktop 8 files / 72 tests. Python diffusion 33 passed. `tsc -b` clean. Skill catalog assertion updated to 18 built-in (`training-recipe`).
+
+### CI/CD
+
+No new workflow. Existing `test-ts` (coverage + desktop vitest on Node 22) and `test-python-runtimes` cover the new files. Concurrency cancel-in-progress and npm cache already present.
+
+### Deviations
+
+DF-18 listener required. DF-19 Video Lab knobs. DF-20 in-memory keys. DF-21 live GPU unproven. DF-22 no AgentLoop `tool.call`.
+
+### Next
+
+Phase 7 refactor, known-gaps, CI. Commit and push.
+
+---
+
+## [2026-08-20] v2.1.0 Phase 5: local fine-tuning (Unsloth Core)
+
+### Goal
+
+License-gated QLoRA on user data: installer/Settings provision Apache Unsloth Core (plus required LGPL zoo), dataset builder through `redactSecrets`, job orchestration with eval quarantine, GGUF export.
+
+### What was done
+
+- License record: `unsloth` 2026.8.18 Apache-2.0; `unsloth-zoo` 2026.8.13 LGPL-3.0-or-later; Studio/CLI extras AGPL and excluded. STOP did not fire.
+- `core/tuning/`: pins, hardware gate, dataset builder, job store, eval gate, orchestrator, base-model picker, Node provisioner.
+- Installer `UnslothVenvProvisioner` (opt-in, not in `chain_for`). Sidecar IPC `tuning.status|provision|preflight|dataset.build|job.start|list|cancel|models.list`. Settings > Fine-tuning tab.
+- GpuScheduler `moduleId: "tuning"`. CI trainer is `--stub`. Live GPU is documented, not proven.
+
+### Tests
+
+Root `core/tuning` units green. Desktop Fine-tuning UI + IPC green. Installer provisioner pytest green. Python stub trainer 2 passed. `tsc -b` clean.
+
+### Deviations
+
+LGPL zoo (DF-12). No live GPU train (DF-13). PDF skip (DF-14). Provision not on default installer chain (DF-15). EvalPort stub (DF-16). Ollama import opt-in (DF-17).
+
+### Next
+
+Phase 6 hardening. Local commit only.
+
+---
+
+## [2026-08-20] v2.1.0 Phase 4: multimodal chat + SAM2 replace-the-X
+
+### Goal
+
+Chat accepts image and short-video attachments with a visual-token budget. Image Studio can replace an object from a phrase without painting a mask, using SAM2 as a local utility.
+
+### What was done
+
+- Catalog: `vision` + `visualTokenBudget`. Gemma 4 12B is a chat VLM. Muse Glimmer is `vision: false` (DF-8). `sam2:hiera-tiny` is Apache-2.0, `codingEligible` false, tagged `utility` so it never appears as a generator.
+- Chat: magic-byte validation, budget skip/truncate, non-vision guidance, optional `sampleVideoFrames`, optional `memoryHub` for redacted caption surrogates.
+- SAM2 Python stub: `weights_missing` vs stub/weights-present; ambiguous phrases return two candidates. Sidecar `diffusion.segment` goes through GpuScheduler when studio runtime exists.
+- Image Studio: parse replace/remove/recolor, segment, inpaint. Missing weights leave the original image in the thread.
+
+### Tests
+
+Root chat/vision/budget/replaceIntent/surrogate + catalog: 69 passed. Coverage 100% lines on `core/chat`, `replaceIntent`, `multimodalSurrogate`. Desktop ChatPage vision, ImageStudioPage replace-the-X, segment handler green. Python sam2 94% lines. Installer catalog invariants include SAM2. `tsc -b` clean. Desktop ESLint on changed files clean.
+
+### Deviations
+
+No live ffmpeg sampler (DF-9). No one-tap mask picker (DF-10). Production App does not pass `memoryHub` (DF-11). SAM2 checkpoint SHA-256 is still the all-zero placeholder.
+
+### Next
+
+Phase 5 local fine-tuning pillar (Unsloth license gate first). Local commit only.
+
+---
+
+## [2026-08-20] v2.1.0 Phase 3: Image Studio provenance + generation queue
+
+### Goal
+
+Embed recallable generation parameters in outputs and run Image Studio / Video Lab jobs through a persistent SQLite queue.
+
+### What was done
+
+- PNG: `schemaVersion` (default 1), iTXt + tEXt. Extract prefers iTXt, ignores unknown fields, hides recall when both are missing. Python still writes tEXt only (DF-6).
+- Index: `~/.nexus/generations/studio.db`, content-hash keyed, `redactSecrets` on prompt / negativePrompt.
+- Queue: queued / running / interrupted / done / failed. Restart recovery is id-stable. Seed-range / prompt-matrix / combined expansion, cap 64.
+- Pump: `pumpOnce` + GpuScheduler for enqueued batches. Interactive clicks still use the existing dispatcher (DF-7).
+- UI: Use Prompt / Use Seed / Use All / Remix; pending count, cancel, reorder, seed sweep.
+
+### Tests
+
+Root 30 passed (generations + WorkflowMetadata). Desktop sidecar + Studio pages green. Python workflow_metadata 7 passed. Coverage 93.3% lines on the new store + metadata writer. `tsc -b` clean.
+
+### Deviations
+
+Live 20-job GPU restart not run. Sidecar `generations/` imports to `core/` need four `../`.
+
+### Next
+
+Phase 4 multimodal chat + SAM2. Local commit only.
+
+---
+
+## [2026-08-20] v2.1.0 Phase 2: Switchyard-derived adaptive routing
+
+### Goal
+
+Cheap-first worker-to-strong routing from existing telemetry signals, GPU swap deferral on a single consumer GPU, and a Traces routing lane.
+
+### What was done
+
+- Signals: consecutive tool errors, identical tool+args repeats, progress-free worker steps. Missing/stale/other-session events are neutral.
+- Policy: planner/critic pin to strong; workers start on `role: worker-candidate`. Thresholds 3 / 2 / 8. Session pin after two turn-escalations. Cooldown wins vs escalate. Strong missing stays on worker with a notice.
+- GPU: honor-and-keep when both fit; honor-and-evict when they do not; defer on missing VRAM telemetry or diffusion occupancy. No Ollama prefetch/unload (DF-4).
+- DAG: optional `DAGRoutingContext`. Absent routing is the old path. AgentLoop not wired (DF-5).
+- UI: `RoutingLane` plus fixture payload on placeholder traces (sidecar still has no TraceStore; LSO.P2.A).
+
+### Tests
+
+Root routing + DAG + modelSwap: 25 passed. Desktop RoutingLane / TraceDashboard / panelData green. `tsc -b` clean after `hashToolCall` record narrowing.
+
+### Deviations
+
+No-scheduler `routeTurn` honors (does not pass Infinity VRAM). Swap cost model is advisory. Planner pin uses orchestrator `modelName`.
+
+### Next
+
+Phase 3 Image Studio provenance + generation queue. Local commit only.
+
+---
+
+## [2026-08-20] v2.1.0 Phase 1: catalog + harness + local-eval gate
+
+### Goal
+
+Ship Muse Glimmer 30B and Nemotron 3.5 Lightning 30B-A3B as tier-gated catalog models with harness profiles, add `diffusion` / `codingEligible` flags, and keep vendor scores out of default routes until a recorded local eval.
+
+### What was done
+
+- Catalog schema: `diffusion`, `codingEligible`, `hideBelowVramGB`, `minOllamaVersion`, `role`, `vendorReported`, `localEval`. `localEvalMayPromote` is pass-only.
+- Visibility: installer hides Muse/Lightning below 16 GB VRAM; unknown Ollama version does not hide on the catalog page.
+- Harness: `muse-glimmer` (strong, detailed, llama3-json) and `lightning-worker` (weak, concise, qwen-json). Reasoning-strength drop is logged in HarnessSelector memory.
+- Unsloth Dynamic audit: no artifact swaps (Gemma hf.co GGUF remains a known-broken Ollama ref).
+- Local eval runner with stubbed golden-task driver. Persisted `not_run` blocks. `recommended.json` unchanged.
+- DiffusionGemma recorded as DF-1 watch item.
+
+### Tests
+
+Targeted root Vitest 145 passed (catalog, visibility, ModelCatalog, HarnessSelector, localCatalogEval, SkillLoader, ModelDropdown). Desktop coding-models + coding-protocol 25 passed. Installer catalog pytest green. `tsc -b` clean. ESLint on changed coding modules clean. Coverage on the four new/changed TS files: 96.1% lines.
+
+### Next
+
+Phase 2 adaptive routing (Switchyard-derived). Local commit only.
+
+---
+
+## [2026-08-20] v2.0.0 cut
+
+### Goal
+
+Cut the convergence release: version 2.0.0, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Convergence GO: v1.18.0, v1.19.0/.1/.2 tags plus this plan P1-P5 histories.
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **2.0.0**.
+- CHANGELOG `[2.0.0]` plus three opt-in surfaces (voice loop, Playwright, LongCat avatar).
+- README ledger and install.md v2.0.0 after-install notes.
+- Gates: root **5160 passed / 12 skipped / 0 failed**, coverage 88.28% / 83.84% / 90.96%, desktop **1036 passed**, python **231 passed**, lint + `tsc -b` clean.
+
+### Next
+
+Push `develop`, tag `v2.0.0`, publish the GitHub Release.
+
+---
+
+## [2026-08-20] v2.0.0 close-out -- Phase 5: layout audit, known-gaps, CI gates
+
+### Goal
+
+Leave the tree organized, ingest v1.15+ gaps into v2.0, and document hardware-gated CI so the convergence cut is honest.
+
+### What was done
+
+- **Layout**: propose-then-apply found nothing to move. Version docs already use `docs/v2/v2.0/{plans,comparisons}`. Skill-catalog empty dirs stay as test placeholders.
+- **Known-gaps**: carry-forward index for v1.15-v1.20. DF-13 Inkling GGUF multimodal, DF-14 Kimi K3 catalog wait. OpenWorker scheduler marked resolved (v1.18).
+- **CI**: `docs/v2/v2.0/ci-hardware-gates.md`; pytest `NEXUS_AUDIO_STUB=1`; existing caches and concurrency kept.
+
+### Next
+
+Phase 6 convergence, then commit, push, `/update release`.
+
+---
+
+## [2026-08-20] v2.0.0 stretch -- Phase 4: ProjectScope, durable sandbox, advisory memory
+
+### Goal
+
+Ship independently testable stretch items without weakening v1.19.1 clamps, and transfer the rest with dependency notes.
+
+### What was done
+
+- **ProjectScope**: one core object for memory scope, MCP subset, skill subset, tightening-only permission overrides.
+- **Durable sandbox**: project-keyed `project-sandboxes/` root, untrusted marker, reset, excluded from memory ingest via `.nexusignore` defaults.
+- **Advisory kinds**: `lesson` / `procedure` with votes, `redactSecrets`, labelled as context not directives, merged onto hybrid retrieve.
+- **Seams**: typed memory / session / sandbox facades; current implementations sit behind them.
+- **Transferred**: code-as-action (DF-10), command router (DF-11), VRM pane (DF-12). No Live2D.
+
+### Tests
+
+Root Vitest for `core/project` and advisory kinds. `tsc -b` and ESLint green. LongCat `multimodal` flag corrected so chat vision matching stays Gemma-family only.
+
+### Next
+
+Phase 5 refactor, known-gaps reconcile, CI. Local commit only.
+
+---
+
+## [2026-08-19] v2.0.0 Video Lab -- Phase 3: continuation + avatar
+
+### Goal
+
+Escape the fixed 4-8 s clip ceiling by chaining segments, and add a local `audio2video` talking-head mode gated to `diffusion-pro`.
+
+### What was done
+
+- **Continuation**: `planVideoContinuation` plus `continueFrom` on each extra segment. TimelinePreviewer plays the playlist. Per-segment tier limits still apply. Seam quality is recorded as prototype-unmeasured (DF-9).
+- **Avatar**: `diffusion.video.audio2video`, official `longcat-video-avatar-1.5` INT8 catalog pins, VRAM/tier/confirm gates, provenance on saved workflow JSON. Byte-level scan note: no LongCat inference tree was imported (DF-8). Photos and audio never leave the device.
+
+### Tests
+
+Root Vitest (continuation, avatar gate, catalog). Desktop protocol / dispatcher / Video Lab. Python diffusion stubs (no GPU).
+
+### Next
+
+Phase 4 stretch items, then local commit only.
+
+---
+
+## [2026-08-19] v2.0.0 coding browser tools -- Phase 2: isolated Playwright profile
+
+### Goal
+
+Give the coding agent navigate / click / type / ARIA-snapshot / close tools at DANGEROUS tier over an isolated local browser profile, with page content treated as hostile input.
+
+### What was done
+
+- **Security design**: `docs/v2/v2.0/browser-surface-security.md` (isolated `~/.nexus/browser-profiles/`, ConfirmationGate, `browser_snapshot` screening, loop-guard budget, no browser-as-a-service).
+- **Tools**: `browser_navigate`, `browser_click`, `browser_type`, `browser_aria_snapshot`, `browser_close`. vscode-free session in `modules/coding/browser/`. VS Code lazy handlers. Sidecar headless always registers the family.
+- **Tests**: InMemory + HTML fixtures in CI. Live Playwright skipped unless `NEXUS_BROWSER_PLAYWRIGHT=1`.
+- **Gaps**: DF-6 (Playwright not in lockfile), DF-7 (15-tool cap may trim the family from the VS Code prompt).
+
+### Tests
+
+Root Vitest + coverage (global thresholds). Desktop lint / tsc / Vitest including sidecar registration of `browser_navigate`.
+
+### Next
+
+Phase 3: Video Lab continuation + avatar. Local commit only.
+
+---
+
+## [2026-08-19] v2.0.0 multimodal chat -- Phase 1: vision, STT, voice loop
+
+### Goal
+
+Chat accepts images against vision-capable local models, transcribes audio on-device, and can run an opt-in offline voice loop.
+
+### What was done
+
+- **Vision**: image attach gated on catalog `modalities` including `image`. Bytes go to `chat.session.sendMessage` as raw base64. Image Studio unchanged.
+- **STT**: `audio.transcribe` sidecar + `runtimes/audio` (faster-whisper catalog id). Transcripts labelled `stt_transcript` and scrubbed with `redactSecrets`. CI uses `NEXUS_AUDIO_STUB=1`.
+- **Voice loop**: off by default. PTT + button VAD, capture indicator, barge-in stops TTS, Kokoro `audio.speak`.
+- **Gaps**: DF-1..DF-5 and MT-1 in `docs/v2/v2.0/known-gaps.md`.
+
+### Tests
+
+Desktop coverage ~91.9% lines. Root 471 passed, 88.2% lines. Python 221 including audio stubs.
+
+### Next
+
+Phase 2: browser tool surface. Local commit only.
+
+---
+
+## [2026-08-19] v1.20.0 cut
+
+### Goal
+
+Ship v1.20.0: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.20.0**.
+- CHANGELOG `[1.20.0]` covers parse_document wiring, Office ingest, Coding attach, Docling deferral, and the post-1.19.2 CI hash_file fix.
+- README ledger and What's new; install.md after-you-install; ARCHITECTURE document-ingest section.
+- Known-gaps file stays in-progress (v1.20.0 DF-1..DF-6 remain). v1.19.2 items stay in that minor's file.
+
+### Next
+
+Tag `v1.20.0`, push the tag, publish the GitHub Release. v2.0.0 is the convergence release.
+
+---
+
+## [2026-08-19] v1.20.0 document-ingest -- Phase 5: refactor, known-gaps, CI
+
+### Goal
+
+Reconcile gaps, confirm CI coverage, and avoid a high-blast-radius runtime rename.
+
+### What was done
+
+- **Layout**: left `runtimes/ocr/` in place (DF-6). `core/documents` stays the vscode-free seam.
+- **Gaps**: DF-1..DF-6 open. LSO.P4.B / LSO.P4.C closed. LSO.P3.C partial via Phase 4. v1.19.2 items untouched.
+- **CI**: `test-python-runtimes` comment now names Office wheels; still no GPU/weights job. Desktop Chat/Coding tests already run via `test:shell` on Node 22.
+- **Parity**: Office prefixes sit next to RapidOCR in `REQUIRED_WHEEL_PREFIXES`.
+
+### Next
+
+`/update release` for v1.20.0.
+
+---
+
+## [2026-08-19] v1.20.0 document-ingest -- Phase 4: layout bake-off (A4)
+
+### Goal
+
+Record adopt-or-decline for a gated local Docling layout engine without installing Docling.
+
+### What was done
+
+- **Decision: DEFER.** Do not `pip install docling`. Do not add it to attach.
+- **Measured**: RapidOCR default ONNX models on a synthetic invoice raster and a tiny digital PDF. Tokens read in order; tables were a wall of text, not a grid.
+- **Not proven here**: Nexus catalog RapidOCR install (placeholder SHA); Unlimited-OCR (no torch in the probe interpreter despite an RTX 3080 Ti).
+- **Gap**: DF-5. LSO.P3.C only partially closed.
+
+### Tests
+
+Python OCR 80/80. No product-code change.
+
+### Next
+
+Phase 5: refactor, known-gaps, CI, then `/update release`.
+
+---
+
+## [2026-08-19] v1.20.0 document-ingest -- Phase 3: Coding composer attach
+
+### Goal
+
+Let Agentic AI Coding attach the same file kinds as Chat, parse them locally, and keep parsed text out of the coding model until a follow-up.
+
+### What was done
+
+- **Composer**: `CodingInput` gained attach / drop / paste using shared `DOCUMENT_ACCEPT` and `fileMatchesAccept`. Slash-command suggestions remain. Empty text plus an attachment is a valid parse turn.
+- **Thread**: `CodingPage` uses Chat's `DocumentClient` / `ocr.*` path. Activity is `document-parse`. Attachment turns do not call `coding.session.sendMessage`. A typed note becomes a follow-up hint.
+- **CONFIRM**: workspace-path `parse_document` is unchanged (still CONFIRM). The desktop attach action is not that tool.
+
+### Tests
+
+CodingInput 15/15. CodingPage 15/15. `parse-document-wiring` 11/11. Desktop lint + `tsc --noEmit` clean.
+
+### Next
+
+Phase 4: on-device layout bake-off and A4 adopt-or-decline. Do not install Docling.
+
+---
+
+## [2026-08-19] v1.20.0 document-ingest -- Phase 2: format router + native Office
+
+### Goal
+
+Classify payloads by magic bytes, parse DOCX/PPTX/XLSX without RapidOCR or Docling, and expand Chat's accept list only after that path exists.
+
+### What was done
+
+- **Router**: `detect_kind` sniffs PDF, raster images, and OOXML zip internals. Unknown bytes and HTML return `unsupported-media` instead of being treated as a page image. Zip member count and uncompressed size are capped. Encrypted zip flags and OLE compound files fail closed.
+- **Office engines**: `docx_engine` / `pptx_engine` / `xlsx_engine` wrap python-docx, python-pptx, and openpyxl. Markdown plus pages (Heading-1 chunks / slides / sheets). No process-global workbook cache. Dispatch never imports RapidOCR.
+- **Chat**: shared `DOCUMENT_ACCEPT` includes Office MIME types and extensions. Image Studio stays `image/*`. Office parse still runs when the RapidOCR empty-state banner is showing.
+- **Install**: `runtimes/ocr/requirements.txt` and installer `REQUIRED_WHEEL_PREFIXES` list the three Office wheels. Still no torch and no Docling.
+
+### Tests
+
+Python OCR 80/80. Desktop Chat + MediaComposer 23/23. Installer provisioner 9/9. Ruff on OCR runtime clean. Desktop lint + `tsc --noEmit` clean.
+
+### Next
+
+Phase 3: Coding composer attach using the shared document accept list.
+
+---
+
+## [2026-08-19] v1.20.0 document-ingest -- Phase 1: wire parse_document
+
+### Goal
+
+Register the existing `parse_document` tool on sidecar ACP/scheduler/coding and the VS Code coding panel, gated on the existing flags, without adding Docling.
+
+### What was done
+
+- **Sidecar**: `createSidecarHeadlessTools` injects a bytes-in OCR parser when `NEXUS_PARSE_DOCUMENT` or `nexus.coding.parseDocument.enabled` is on. Flag off omits the tool even if a parser object exists. ACP, scheduler, and `createHeadlessAgentRunner` all go through that helper. Chat `ocr.*` IPC and the agent tool share one OCR child.
+- **VS Code**: `ChatPanelBootstrap` passes `buildParseDocumentDeps` into `buildToolRegistry` when `parseDocumentEnabled` is true. Parser is lazy.
+- **Memory ingest**: constructed only when parse + ingest flags and a MemoryStore are present (VS Code). Sidecar has no store (known-gap DF-1).
+- **Busy rule**: a second overlapping parse is rejected, not queued.
+
+### Tests
+
+Root phase files 58/58. Desktop sidecar-parse-document + ocr-handlers + ACP + serving + runner 40/40. Lint and `tsc -b` clean. Python OCR tests unchanged.
+
+### Next
+
+Phase 2: magic-byte format router and native Office ingest.
+
+---
+
+## [2026-08-19] v1.19.2 cut
+
+### Goal
+
+Ship v1.19.2: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.19.2**.
+- CHANGELOG `[1.19.2]` covers catalog expansion (Hermes, Inkling, modalities, official weight variants, patient-tier copy).
+- README What's new documents modalities, variants, Hermes, Inkling, and the 0.03 tok/s warning floor.
+- Opt-in: `NEXUS_WEIGHTS_VARIANT` (official file-set pick); `nexus.llm.patientTier.ramPreset` (copy only).
+- Known-gaps file stays in-progress for v2.0.0 ingest (v1.19.2 DF-1..DF-4 remain).
+
+### Next
+
+Tag `v1.19.2`, push the tag, publish the GitHub Release. v2.0.0 is the convergence release.
+
+---
+
+## [2026-08-19] v1.19.2 catalog-and-model-expansion -- Phase 1: catalog, models, patient tier
+
+### Goal
+
+Extend the registry and installer so later v2.0.0 phases have model plumbing: calibrated patient-tier copy, merged modality/audio schema, official-only precision-variant weights, Hermes 3 family + harness profiles, Inkling-Small patient-tier GGUF, RAM-budget presets, and a skip-if-absent determinism assertion.
+
+### What was done
+
+- **Patient-tier copy**: `PATIENT_TIER_LATENCY_WARNING` now covers independently measured ~0.03 tok/s (~32 s/token laptop, ~19-21 s/token server). RAM-budget presets (`laptop` / `workstation` / `max`) are catalog and settings copy. Copy states Nexus does not bundle the offload runtime.
+- **Schema**: `modalities` and `audioConditioning` on catalog entries; DiffusionTier video defaults carry disabled audioConditioning. Every bundled entry is backfilled.
+- **Weights variants**: layoutVersion 2 variants with per-file sha256. Puller selects by VRAM or `NEXUS_WEIGHTS_VARIANT`. Unofficial variants fail closed.
+- **Hermes 3**: `hermes3:8b` / `hermes3:70b` in catalog.json and Coding ModelCatalog (`family: hermes`, llama3 / llama3-json). `hermes-agentic` harness profile. Fixture A/B only.
+- **Inkling-Small**: opt-in patient-tier GGUF, 74.8 GB, Apache-2.0, three UD-IQ1_S shards with real LFS sha256. `modalities: ["text"]`. Never in `recommended.json`.
+- **Determinism**: `runDeterminismAcrossBudget` skip-if-absent (`NEXUS_PATIENT_TIER_ADAPTER`).
+- **CI**: installer-tests.yml path filters include `core/registry/patientTier.ts` and `core/config/**`.
+- **Cycle break**: PatientRamPreset types live in catalog.ts so patientTier imports catalog one-way.
+
+### Decisions
+
+- No unofficial/community quants. No Kimi K3 checkpoint. Inkling and hermes3:70b stay off recommended.json.
+- Live Hermes generate and GGUF multimodal are DF, not silent passes.
+- Version bump waits for `/update release`.
+
+### Tests
+
+Root Vitest: 466 files passed / 3 skipped; 5076 tests passed / 11 skipped / 0 failed. Coverage pass: lines 87.77% / branches 83.95% / functions 91.35%. catalog.ts after augmentation 97.04% lines. Lint 0. `tsc -b` clean. Installer pytest green (3 skipped). Desktop coding-models + coding-protocol 25/25. Architecture: catalog/patientTier cycle removed.
+
+### Next
+
+Commit and push this phase, then `/update release` for v1.19.2 (docs, version, changelog, tag, GitHub Release; confirmation gates).
+
+---
+
+## [2026-08-19] v1.19.1 cut
+
+### Goal
+
+Ship v1.19.1: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.19.1**.
+- CHANGELOG `[1.19.1]` covers Phase 1 (Hub skill-native wins) and Phase 2 (loop + guardrail hardening).
+- README What's new documents hard denials, LoopGuards, the Strict/Standard/Unattended dial, provenance, DNS pin, and watch/hash.
+- Opt-in gate: `nexus.coding.securityPosture` (default `standard`). Unattended skips CONFIRM only; DANGEROUS still confirms; hard denials still apply.
+- Known-gaps file stays in-progress for v1.19.2 (v1.19.1 DF-1..DF-5 remain).
+
+### Next
+
+v1.19.2 catalog and model expansion.
+
+---
+
+## [2026-08-19] v1.19.1 agent-loop-and-guardrail-hardening -- Phase 2: loop + guardrails
+
+### Goal
+
+Make long-horizon autonomous runs trustworthy: hard denials in every posture, unified LoopGuards, tool self-recovery, compression reliability, a named security-posture dial, provenance screening, DNS-pinned fetches, watch/hash tools, and generated tool prompt docs.
+
+### What was done
+
+- **Hard denials**: `HARD_DENIALS` in `modules/coding/guardrails/policy.ts` (recursive delete, git history rewrite, DROP/TRUNCATE). `BLOCKED_PATTERNS` is derived. Matcher searches `${normalized} ` so trailing-space patterns match `rm -rf ./tmp`. `DELETE FROM` stays DESTRUCTIVE, not hard-denied. `git reset` without `--hard` stays unblocked.
+- **LoopGuards**: identical-call N=5, no-action 3, error-burst 4, queue 1+4, ceiling 60 (2x old strong 30, not Hermes 500). Wired in AgentLoop; ChatController shares one LoopDetector with LoopGuards. Identical-call recorded after execute so five calls run then halt. BLOCKED commands count as errors. Queue admit drops extra calls with a SYSTEM message.
+- **Self-recovery**: edit noop via `classifyEditApply`; grep empty-result near-miss probes (`grepViaVscode` extracted so probes work without ripgrep); spill files pass `redactSecrets` on write and on read.
+- **Compression**: last N human user turns retained (`nexus.coding.compactionUserMessageTail`, default 3). EmergencyTrim never drops those ids. `microCompact()` is ToolResultClearing only. HarnessSelector compression overlay (weak 0.7/3, mid 0.8/3, strong 0.85/5). `compress_range` / `compress_message` stay.
+- **Posture**: Strict / Standard / Unattended. DANGEROUS always confirms, including Unattended. Unattended skips CONFIRM only. Setting `nexus.coding.securityPosture` plus desktop Security tab.
+- **Provenance**: `ToolResult.origin` stamped in ToolRegistry.execute. Web/MCP/browser origins always screened. Strict screens all. Taxonomy reserved `browser_snapshot` for v2.0.0.
+- **DNS pin**: `fetchWithSsrfGuard` uses one lookup, connects to the first public IP, sets Host. Rebinding test: second private lookup is never used.
+- **Tools**: `watch_path` / `hash_file` AUTO_APPROVE, OPTIONAL_SPECIALTY (do not blow the 15-tool cap), workspace-scoped.
+- **Assembler**: `ToolPromptAssembler` from the live registry; PromptContext.registeredToolNames so a test tool surfaces. Token budget 8000.
+- **Tests**: unit suites per subtask plus `tests/integration/guardrails/v1.19.1-hardening.test.ts`. CI already runs full Vitest (`test-ts`); no workflow rewrite.
+
+### Decisions
+
+- Unattended is not QM "Dangerous". Floor clamp stays at shouldRequireConfirmation (DANGEROUS baseline always confirms).
+- Do not merge the two PromptInjectionScanner modules.
+- HeadlessAgentSession LoopGuards wiring deferred (DF-3).
+- Version bump waits for `/update release`.
+
+### Tests
+
+Root Vitest with coverage: 466 files passed / 3 skipped; 5054 tests passed / 11 skipped / 0 failed. Lines 87.71% / branches 84.02% / functions 91.27% (thresholds 80 / 75 / 80). Lint 0. `tsc -b` clean. Desktop lint + typecheck + `SecuritySettings.test.tsx` pass. Observe tests 7/7 after removing a duplicate describe.
+
+### Next
+
+`/update release` for v1.19.1 (docs, version, changelog, tag, GitHub Release; confirmation gates). v1.19.2 remains open.
+
+---
+
+## [2026-08-19] v1.19.1 agent-loop-and-guardrail-hardening -- Phase 1: skill-native wins
+
+
+### Goal
+
+Land every zero-code adoption first: grounded citations, persona cards, avatar-prep and transcript prompting, plus four verify-only dedups. No engine code.
+
+### What was done
+
+- **Hub skills** (Nexus-Hub branch `feat/v1.19.1-skill-native-wins`): `deep-research-compilation` gained quote-verification plus a fact-check pass (flag `[UNVERIFIED QUOTE]` / `[UNSUPPORTED]`, do not fabricate). `prompt-engineering` and `creative-generation` gained persona-card prompting. `creative-generation` also gained talking-head avatar prep and transcript-reasoning, both labelled "when available" for the v2.0.0 avatar mode and audio bridge. Hub `validate_skills.py --quality` PASS on all three (0 errors, 0 warnings).
+- **Nexus-AI docs**: [docs/reference/skill-native-adoptions-v1.19.1.md](reference/skill-native-adoptions-v1.19.1.md) records the three edits and the four verify-only evidence lines. Chat has no per-chat system-prompt field; the skill maps a persona card onto the first kept user message.
+- **Verify-only**: (a) `nexus skills sync` + SkillCatalog roots; (b) `AgentRunScheduler` already shipped in v1.18.0; (c) Hub `continuous-learning`; (d) Hub catalog 271 skills, no Atomic playbook import.
+- **Tests**: `tests/unit/docs/v1.19.1-phase-1-reference.test.ts` (links, mapping claims, no duplicate builtin skills).
+
+### Decisions
+
+- Deliverable split matches v1.5.0 / v1.18.0: Hub owns skill bodies; this repo owns the mapping note and does not vendor duplicates.
+- Per-chat persona UI is DF-1 for v2.0.0 Chat phases, not a Phase 1 build.
+
+### Tests
+
+Root Vitest with coverage: 460 files passed / 3 skipped; 4950 tests passed / 11 skipped / 0 failed. Lines 87.8% / branches 83.9% / functions 91.5% (thresholds 80 / 75 / 80). Lint 0. `tsc -b` clean. `check:prompts` 0 errors (two pre-existing oversized warnings on `review-pr` / `council`). Benchmark fixtures rewritten by an unrelated suite were restored (`git checkout -- tests/fixtures`).
+
+### Next
+
+Phase 2: agent-loop and guardrail hardening (hard denials, LoopGuards, self-recovery, compression, posture dial, provenance, DNS pin, watch/hash, introspected prompts).
+
+---
+
+## [2026-08-19] v1.19.0 cut
+
+### Goal
+
+Ship v1.19.0: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.19.0**.
+- CHANGELOG `[1.19.0]` covers Phases 1-4 plus the two v1.18 sandbox/CI fixes that landed after `v1.18.0`.
+- README What's new documents LFM2.5-2.6B, the license label, the harness profile, and the 8B-A1B decline.
+- Opt-in gate: this release changes no opt-in capability, installer flag, or host surface.
+- Known-gaps file stays in-progress for v1.19.1 / v1.19.2.
+
+### Next
+
+v1.19.1 agent-loop and guardrail hardening.
+
+---
+
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 4: refactor, known-gaps, CI
+
+### Goal
+
+Leave the layout clean, reconcile v1.19 known gaps (including the 8B-A1B decline and P3 watchlist), and cover catalog / installer / harness / desktop picker changes in CI without extra OS matrices.
+
+### What was done
+
+- **Layout**: propose-then-apply found nothing to move. Dual `catalog.json` / `models.json` stay. LFM fixtures already under `tests/unit/orchestration/fixtures/`. Skill-catalog `__none__` / `__nonexistent_user__` dirs are test placeholders.
+- **Known gaps**: 8 open DF (2, 3, 6-11). Watchlist recorded as DF-8 / DF-9. Context full-fill caveat DF-10. Vendor-benchmark standing rule DF-11. DF-12 closed (desktop vitest on develop CI). v1.18 items stay in that file. Status remains in-progress for v1.19.1 / v1.19.2.
+- **CI**: installer pytest + headless-smoke moved to path-filtered `.github/workflows/installer-tests.yml` (`scripts/installer/**` + catalog/registry files, uv cache on). `ci.yml` `test-ts` Node 22 now runs `npm run test:shell`. Actions freeze ended 2026-08-01; no new Windows/macOS job. Cross-installer parity and platform-contract / prompting-freshness self-gate to no-ops (not a Nexus-Hub catalog repo).
+
+### Tests
+
+Root **4947 passed / 11 skipped / 0 failed** (459 files). Desktop **971 passed** (112 files). Installer pytest green. Lint + `tsc -b` + `check:tampering` + `check:docs-layout` clean. One ENV flake (`SqliteGraphStore` FTS `< 50ms` hit exactly 50ms under parallel load) passed on retry and on the solo full suite.
+
+### Next
+
+`/update release` (docs, version, changelog, tag, GitHub Release; confirmation gates).
+
+---
+
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 3: 8B-A1B bake-off declined
+
+### Goal
+
+Close LFM2.5-8B-A1B with a pre-committed rule: catalog row only on a golden-task quality-per-GB win vs `qwen2.5-coder:14b` and `deepseek-coder-v2:16b`.
+
+### What was done
+
+- **Rule**: `pass_rate / vramGB` on the same local golden split. Tie is not a win. Vendor tok/s / ToolSandbox / BFCL are not evidence.
+- **Run**: not completed. This host had Qwen 14B installed; DeepSeek 16B and the official 8B-A1B Q4_K_M GGUF (5.16 GB) were not local. No pass_rate table. `not_observed != absent`.
+- **Verdict**: **DECLINE**. No catalog / recommended / ModelCatalog row. Absence guards in catalog tests + installer invariants.
+- **Watchlist**: LFM2.5-VL deferred (existing multimodal coverage); PII-extract Nano deferred (possible future `redactSecrets` aid). Note: [`docs/v1/v1.19/development/2026-08-18_lfm25-8b-a1b-bake-off.md`](v1/v1.19/development/2026-08-18_lfm25-8b-a1b-bake-off.md).
+
+### Tests
+
+Root **4947 passed / 11 skipped / 0 failed**. Desktop **971 passed**. Installer catalog pytest green. Lint + `tsc -b` clean. `check-catalog.py` 41 models.
+
+### Next
+
+Phase 4: architecture / known-gaps / CI. Then `/update release`.
+
+---
+
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 2: LFM harness profile
+
+### Goal
+
+Give the coding orchestrator an LFM-aware harness profile, A/B-validated on captured tool-call fixtures, and correct the catalog context length from the conservative 32K placeholder.
+
+### What was done
+
+- **Characterization (local Ollama, N1)**: Pulled `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M`. Live emission: think tags, then `<|tool_call_start|>[get_candidate_status(candidate_id='12345')]<|tool_call_end|>`. GGUF `lfm2.context_length` is 128000; short-prompt generate accepted `num_ctx=131072`.
+- **Parser / prompt**: `lfm-pythonic` in [`ToolCallFormat.ts`](../modules/coding/llm/ToolCallFormat.ts); `lfm` ChatML + `startoftext` in [`PromptFormat.ts`](../modules/coding/llm/PromptFormat.ts).
+- **Selector**: additive `lfm-agentic` profile keyed on family `lfm2.5` / id `lfm2.5:2.6b`. Fixture A/B net win vs default gemma4-xml; profile kept. Global `HARNESS_SELECTOR_SHIPPED_DEFAULT` stays false.
+- **Catalog**: Coding `ModelCatalog` + `models.json` list LFM. `catalog.json` context 128000; `toolCallingVerified` with suite `nexus-harness-ab-lfm-local`. Sidecar `ModelFamily` includes `lfm2.5`.
+- **Gaps**: DF-1, DF-4, DF-5 closed. DF-6 opened (AgentLoop still Gemma XML).
+
+### Tests
+
+Root **4944 passed / 11 skipped / 0 failed**. Desktop **971 passed**. Installer catalog pytest green. Lint + `tsc -b` clean. `check-catalog.py` 41 models.
+
+### Next
+
+Phase 3: 8B-A1B bake-off vs qwen2.5-coder:14b and deepseek-coder-v2:16b. `is_final_phase` false.
+
+---
+
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 1: catalog entry + license label
+
+### Goal
+
+Give CPU-only and sub-4 GB hosts a dedicated Agentic (tool-calling) catalog pick by curating LFM2.5-2.6B, with the LFM Open License v1.0 USD 10M cap labeled as a use restriction, not a download gate.
+
+### What was done
+
+- **Catalog**: `lfm2.5:2.6b` in [`core/registry/catalog.json`](../core/registry/catalog.json) (`task: "agentic"`, Q4_K_M 1.67 GB, vram 3 GB, context 32K pending Phase 2). Official GGUF via Ollama `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M`; real SHA-256 pin on `weights.files`. `licenseNote` / `licenseUrl` / `requiresLicense: false`. No ToolSandbox / BFCLv4 / tok/s copy.
+- **Defaults**: [`recommended.json`](../core/registry/recommended.json) cpu agentic prefers LFM (chat stays `gemma4:e2b`); 8 GB inserts LFM after `gemma4:e4b` so a 4 GB card falls through; 12/16/24 unchanged.
+- **Installer**: invariants, Liquid AI provider color, card `licenseNote` widget. Gated-auth does not fire.
+- **Desktop**: Settings use-restriction row + ModelSelector `data-task` / title. Sidecar DTO + strict IPC fields. Coding dropdown not updated (DF-1).
+- **Docs**: known-gaps created (DF-1..5), session history, this entry, README in-flight row, ARCHITECTURE subsection.
+
+### Tests
+
+Installer pytest green (full suite). Root **4932 passed / 11 skipped / 0 failed** (459 files). Desktop **971 passed** (112 files). Lint + `tsc -b` clean. `check-catalog.py` 41 models. Targeted installer coverage 91% on changed modules.
+
+### Next
+
+Phase 2: characterize local tool-call format, HarnessSelector profile, empirical context length. `is_final_phase` false.
+
+---
+
+## [2026-08-17] v1.18.0 release cut
+
+### Goal
+
+Ship v1.18.0 on the convergent milestone line (package.json + CHANGELOG + README What's New). Tag, push, and GitHub Release stay behind confirmation.
+
+### What was done
+
+- **docs**: README current-cycle + ledger + What's New rewritten for v1.18.0 (skill-native mappings, live harness selector, catalog/MCP governance, ask inbox + scheduler, ACP, OS sandbox). Install guide after-install section gained ACP park + scheduler. ARCHITECTURE.md already named `modules/coding/autonomy/`. Known-gaps for v1.18 flipped to finalized (14 open DF). Plan header records the cut date.
+- **devlog**: this entry.
+- **gitignore**: no change. `coverage/` already ignored. Ask-inbox and schedule JSON live under `~/.nexus/` (outside the repo). No LFS candidates.
+- **version**: `package.json` and `package-lock.json` 1.17.0 -> 1.18.0. `scripts/sync-tauri-version.mjs` rewrites `desktop/src-tauri/tauri.conf.json`. This repo has no `scripts/check_version_sync.py` (Nexus-Hub catalog guard); the local SSOT is root `package.json`. `desktop/package.json` and `desktop/src-tauri/Cargo.toml` remain at 1.5.0 (not in the sync script; left alone).
+- **changelog**: `[1.18.0]` prepended above `[1.17.0]`. Opt-in surfaces: harness selector, ACP agent, exec sandbox, scheduled agent runs (each with Activation / Validation / Rollback / Authority / Docs).
+- **refactor**: `docs/v1/v1.18/` already has `plans/` and `comparisons/`. No file moves. `check:docs-layout` and `check:naming` re-run. docs-cleanup-report updated for Phase 4 history.
+- **Hub self-gates**: `platform-read-contracts`, installer-parity checker, model-prompting freshness, and `generate_manifest.py` are no-ops (this is not a Nexus-Hub catalog repo).
+
+### Tests
+
+No feature-code change in this cut. Phase 4 gates stand: root **4926 passed / 11 skipped / 0 failed**, coverage 87.61% / 84.09% / 91.14%. Desktop **967 passed**.
+
+### Next
+
+Tag `v1.18.0`, push, and GitHub Release stay behind confirmation. Merge to `main` only after the tag exists so semantic-release does not cut a misnamed version from feat commits.
+
+---
+
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 4: ask inbox + scheduler
+
+### Goal
+
+Park unattended CONFIRM and DANGEROUS approvals in a persistent inbox instead of the 60s webview timeout or a fail-closed refuse, and add a local scheduler whose every wake re-enters the permission stack. No auto-approve. Interactive confirmation unchanged.
+
+### What was done
+
+- **AskInbox** ([`modules/coding/autonomy/`](../modules/coding/autonomy/)): vscode-free queue (`pending | approved | denied | expired`, TTL 24h). File store `~/.nexus/ask-inbox.json`. Approve replays `classifyAction` + `resolveTier` (floor-clamp). No live waiter: fail-safe deny, never re-execute the tool.
+- **ConfirmationGate**: optional park host. Interactive 60s webview unchanged.
+- **ACP**: parks when an inbox is supplied; fail-closed remains the fallback. DF-9 closed.
+- **Desktop**: `/inbox` panel, Admin sidebar, dashboard bell badge. IPC `ask.inbox.*` and `ask.scheduler.*`.
+- **Scheduler**: local `daily` / `interval`. Built-in morning brief **off by default**. `autoApprove: true` throws `NO_AUTO_APPROVE`. Every fire: Git checkpoint, then parking confirm. Persist `~/.nexus/agent-schedules.json`. Morning-brief *content* stays Hub `agent-presets` / `morning-briefing`.
+
+### Tests
+
+Root suite **4926 passed / 11 skipped / 0 failed** (459 files). Coverage **87.61% lines / 84.09% branches / 91.14% functions**. Desktop **967 passed / 0 failed** (112 files). Lint 0 errors. `tsc -b` and desktop typecheck clean. Extra scheduler persist/tick tests: 5/5.
+
+### Next
+
+`/update release` (all 7 plan phases landed).
+
+---
+
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 7: architecture, known-gaps, CI/CD
+
+### Goal
+
+Close-out of landed v1.18 work: layout, known-gaps reconciliation, CI optimization. Phase 4 is still open, so this is not a version cut.
+
+### What was done
+
+- **Layout**: no file moves. Empty/duplicate/orphan detectors clean on v1.18 trees. `docs/v1/v1.18/` complete except Phase 4 history (phase not built). `check:docs-layout` and `check:naming` clean.
+- **Known gaps**: DF-12..15 recorded (LG-A1, LG-A4, OI-A4-native, harness default-off). EM.P1.A / EM.P5.A remain resolved; EM.P3 / EM.P4 stay closed. Shared transport recorded as resolved. Status stays in-progress (DF-9).
+- **CI/CD**: three-OS sandbox matrix moved to [`.github/workflows/sandbox.yml`](../.github/workflows/sandbox.yml) with path filters. `ci.yml` `test-ts` still covers those files on PRs. Actions freeze does not apply.
+- **Release**: `/update release` not handed off (`is_final_phase` false).
+
+### Tests
+
+Root suite **4909 passed / 11 skipped / 0 failed** (454 files). Coverage **87.73% lines / 84.17% branches / 91.39% functions**. Desktop **956 passed / 0 failed** (110 files). Lint 0 errors. `tsc -b` and desktop typecheck clean.
+
+### Next
+
+`/implement phase 4`, then `/update release`. Or skip Phase 4 explicitly and accept DF-9 in the release.
+
+---
+
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 6: OS process sandbox
+
+### Goal
+
+Wrap `run_terminal` in OS-level confinement (OI-A1, closes EM.P5.A). Open Interpreter is a design reference only. No Rust / OI code. Existing guardrails stay in addition. Degraded mode is loud **unconfined**.
+
+### What was done
+
+- **Abstraction**: [`modules/coding/sandbox/`](../modules/coding/sandbox/) (vscode-free). Policy: writable roots = workspace + `os.tmpdir()`; network deny; deny-read of `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.netrc`, `~/.pki` unless inside the workspace. Mode is `confined` only when filesystem **and** network are enforced.
+- **macOS**: Seatbelt via `sandbox-exec`. Confined when the binary is present.
+- **Linux**: Landlock FS + seccomp inet-socket block via an in-repo Python ctypes helper. Confined when Landlock is in the LSM list and python3 is present. Apply failure is fail-closed (exit 125).
+- **Windows**: job object + best-effort restricted token. Mode is **partial**. Filesystem and network are not kernel-enforced. AppContainer not applied (DF-11). Matrix in [`windowsMatrix.ts`](../modules/coding/sandbox/windowsMatrix.ts).
+- **Wiring**: `run_terminal` and headless sidecar share `spawnSandboxed`. Setting `nexus.coding.execSandbox` default **off**; sidecar `NEXUS_EXEC_SANDBOX`. Additive JSON `sandbox` key. Classifier raises enhanced confirmation when the setting is on but mode is not confined.
+- **CI/CD**: added push-only `test-sandbox` job (ubuntu / macos / windows, path-scoped vitest includes). `test-ts` already runs these files on PRs. Proposed (not applied): add a `paths:` filter on the job so it does not run on unrelated pushes.
+- **Known gaps**: EM.P5.A resolved per OS in [docs/v1/v1.18/known-gaps.md](v1/v1.18/known-gaps.md). New DF-11 (Windows FS/network). EM.P3 / EM.P4 stay closed.
+
+### Tests
+
+Root suite **4904 passed / 11 skipped / 0 failed** (454 files passed, 3 skipped). Coverage **87.71% lines / 84.18% branches / 91.36% functions**. `modules/coding/sandbox` **96.47% lines**. Linux/macOS backend bodies are thinner on this Windows host (CI matrix covers them). Lint 0 errors. `tsc -b` clean. `check-architecture` 0 errors. Four extra unit tests landed after the coverage pass (`which` miss/read, empty-unenforced summary, Windows spawn fallback).
+
+### Next
+
+Phase 7: architecture refactor, known-gaps reconciliation, CI/CD. Phase 4 ask inbox remains `/implement phase 4`.
+
+---
+
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 5: ACP agent surface
+
+### Goal
+
+Expose the coding engine as ACP over a single shared loopback + local-auth layer with the v1.16 serving gateway (OI-A3). Native protocol. No Open Interpreter code. Unattended confirm fail-closes because Phase 4 is not landed.
+
+### What was done
+
+- **Shared control surface**: [`LoopbackHttpServer`](../desktop/sidecar/src/controlSurface/loopbackServer.ts) extracted from the serving gateway. Contract in [`contract.ts`](../desktop/sidecar/src/controlSurface/contract.ts): loopback-only, bearer before any mount, `/health` unauthenticated, listen if serving OR ACP, enabling one does not enable the other, token is `nexus.serving.token`.
+- **ACP**: [`AcpAgent`](../desktop/sidecar/src/acp/AcpAgent.ts) at `POST /acp` (JSON-RPC 2.0). `initialize`, `authenticate` (no-op after HTTP bearer), `session/new`, `session/prompt`, `session/cancel`. Updates collected on the prompt result; SSE when `Accept: text/event-stream`.
+- **Gating**: [`AcpConfirmation.ts`](../desktop/sidecar/src/acp/AcpConfirmation.ts) uses `classifyAction` + `resolveTier`. BLOCKED never executes. CONFIRM/DANGEROUS fail-close. Settings toggle `nexus.acp.enabled` / `NEXUS_ACP_ENABLED` on the existing Local API server section. IPC `acp.status` / `acp.setEnabled`.
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered (root suite). `shell-build.yml` already watches `desktop/**`. Optional follow-up (not applied): run desktop Vitest inside `ci.yml` so ACP tests are not only on the shell-build path filter.
+- **Known gaps**: DF-9 (Phase 4 skip / fail-closed confirm), DF-10 (HTTP JSON-RPC rather than stdio ACP).
+
+### Tests
+
+Root suite **4857 passed / 6 skipped / 0 failed** (439 files). Coverage **87.81% lines / 84.2% branches / 91.27% functions**. Lint 0 errors. `tsc -b` clean. Desktop **956 passed / 0 failed** (110 files), coverage **92.75% lines**. First root run under parallel desktop coverage hit two ENV timeouts (`HybridRetriever` p99, golden-runner 5s); isolated and a second full root run were green.
+
+### Next
+
+Phase 6: OS process sandbox. Phase 4 ask inbox remains `/implement phase 4`.
+
+---
+
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 3: catalog + registry governance
+
+### Goal
+
+One additive catalog schema revision (`toolCallingVerified` + MoE fields), UD-style labels in the extreme-low-bit gate without opening EM.P3/EM.P4, and per-tool MCP deny that only tightens Hub policy (OW-A4, LG-A2, LG-A3, OW-A5).
+
+### What was done
+
+- **Catalog (OW-A4 + LG-A3)**: optional `toolCallingVerified` + `toolCallingBenchmark` and paired `activeParams` / `totalParams` (billions) on [`catalog.json`](../core/registry/catalog.json). Nine in-repo `agentic` rows carry provenance (`nexus-catalog-agentic-flag`, 2026-08-17). MoE numbers only on `deepseek-coder-v2:16b` (2.4 / 16). Dense rows omit the new fields.
+- **Consumption**: ModelSelector badge `tool-calling verified` with provenance tooltip. [`modelCapabilityTier`](../modules/coding/orchestration/HarnessSelector.ts) uses active params for compute when present; [`conservativeResidentVramGb`](../core/registry/moeFootprint.ts) never substitutes active for residency. Dense path unchanged (regression tests).
+- **UD labels (LG-A2)**: [`extremeLowBit.ts`](../core/registry/extremeLowBit.ts) recognizes Unsloth UD / MXFP4-style labels. `EXTREME_LOW_BIT_MIN_OLLAMA_VERSION` stays `999.0.0`.
+- **MCP deny (OW-A5)**: [`McpToolDeny.ts`](../modules/coding/mcp/McpToolDeny.ts) tightens-only resolver; persist `.nexus/mcp-tool-deny.json`. Settings > MCP plus sidecar `mcp.registry.list` / `mcp.registry.setToolDenied`. `mcp.list` / `mcp.invoke` stay unimplemented.
+- **Compile fix**: `applyHarnessOverlay` generic loosened to `Partial<HarnessPromptOverlay>` so live `PromptContext` typechecks (`tsc -b`).
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered. `shell-build.yml` already watches `desktop/**`, `core/**`, `modules/**`.
+- **Known gaps**: DF-6 installer badge, DF-7 Gemma 4 26B MoE numbers unused, DF-8 `mcp.list` / `mcp.invoke`. EM.P3/EM.P4 stay closed.
+
+### Tests
+
+Root suite **4857 passed / 6 skipped / 0 failed** (439 files). Coverage **87.81% lines / 84.22% branches / 91.27% functions**. Lint 0 errors. `tsc -b` clean. Desktop **925 passed / 0 failed** (107 files). Dedicated `McpToolDeny` tightens-only tests.
+
+### Next
+
+Phase 4: unattended autonomy (ask inbox + scheduler).
+
+---
+
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 2: live harness activation
+
+### Goal
+
+Turn the dormant per-model harness selector on behind `nexus.coding.harnessSelector.enabled` (closes EM.P1.A), add named per-family profiles as data (OI-A2 / EM.P1.C progress), and ship `/harness` inspect/switch plus a small ModelSelector badge. Do not flip `HARNESS_SELECTOR_SHIPPED_DEFAULT`.
+
+### What was done
+
+- **Live path (OI-A5)**: [`ToolActivationContext.buildPromptContext`](../src/panels/ToolActivationContext.ts) spreads `HarnessSelector.select()` overlay when the setting is on. Off returns the base `PromptContext` by reference (byte-identical). Unknown models fall back to `DEFAULT_HARNESS_PROFILE` and never throw.
+- **Named profiles (OI-A2)**: data tables in [`HarnessSelector.ts`](../modules/coding/orchestration/HarnessSelector.ts): `plan-first` (qwen), `structured-edit` (deepseek), `concise-loop` (kimi id/tag), `minimal` (llama weak), plus the existing tier scaffolds. Generic ids only. Guidance updated in [`docs/reference/low-cost-model-optimization.md`](reference/low-cost-model-optimization.md).
+- **`/harness`**: inspect / list / clear / switch. Session override in `HarnessSessionOverride`, cleared on `/clear` and `/model`. Override is refused while the master setting is off.
+- **Desktop badge**: optional `harnessLabel` on [`ModelSelector`](../desktop/src/shared/chat/ModelSelector.tsx); Coding page shows the auto-selected profile id.
+- **A/B**: `liveHarnessKnobs` in `HarnessSelectorAb.ts` covers the same overlay seam. `HARNESS_SELECTOR_SHIPPED_DEFAULT` remains `false` (no live weak-model A/B; EM.P1.B).
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered. `shell-build.yml` already watches `desktop/**` and `modules/**`.
+- **Known gaps**: EM.P1.A resolved in [docs/v1/v1.18/known-gaps.md](v1/v1.18/known-gaps.md). New DF-3 (sidecar overlay), DF-4 (badge vs setting), DF-5 (EM.P1.C remainder).
+
+### Tests
+
+Root suite **4839 passed / 6 skipped / 0 failed** (436 files). Coverage **87.92% lines / 84.25% branches / 91.31% functions**. Lint 0 errors. `tsc -b` clean. Desktop **920 passed / 0 failed** (106 files). `HarnessSelector.ts` 100% lines.
+
+### Next
+
+Phase 3: catalog + registry governance (OW-A4, LG-A2, LG-A3, OW-A5).
+
+---
+
+## [2026-08-16] v1.18.0 agent-harness-and-governance -- Phase 1: skill-native adoptions + llama.cpp recipe
+
+### Goal
+
+Ship the zero-code wins first: document that OpenWorker's morning-brief *content* and Open Interpreter's browser GUI QA are already covered by Nexus-Hub skills, and promote the user-registered llama.cpp adapter (EM.P4.A) into a first-class loopback recipe. No runtime, dependency, or outbound surface.
+
+### What was done
+
+- **Skill-native note**: [docs/reference/skill-native-adoptions-v1.18.md](reference/skill-native-adoptions-v1.18.md) maps OW-B1 to Hub `agent-presets` / `morning-briefing` (scheduler remains Phase 4 OW-A2) and OI-A4-web to Hub `browser-testing-with-devtools` (OI-A4-native stays deferred). No duplicate builtin skill.
+- **llama.cpp recipe**: [docs/reference/llamacpp-loopback-adapter.md](reference/llamacpp-loopback-adapter.md) plus [examples/llamacpp-loopback-adapter.json](reference/examples/llamacpp-loopback-adapter.json). `protocol: "openai"`, loopback host only, no trailing `/v1`. llama-server flags: `--host 127.0.0.1`, `--n-cpu-moe` / `--cpu-moe`, `--load-mode mmap` for the disk-streamed path. Patient tier stays closed.
+- **Tests**: [tests/unit/docs/v1.18-phase-1-reference.test.ts](../tests/unit/docs/v1.18-phase-1-reference.test.ts) -- example parses against `validateLocalAdapterManifest`; LAN/remote/`0.0.0.0` mutations rejected with MCP Registry Policy citation; guide fences stay valid; internal links resolve; builtin catalog has no duplicate of the two Hub skills.
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered, so the new docs tests run there. There is no dedicated docs-link job; the unit test is the link check. Path-filter proposal: none.
+- **Known gaps**: [docs/v1/v1.18/known-gaps.md](v1/v1.18/known-gaps.md) created (in-progress). DF-1 live llama-server smoke not proven here; DF-2 Hub catalog not present in CI.
+- **User docs**: README, `docs/install.md`, `ARCHITECTURE.md`, ADR-0019, `docs/todos.md`.
+
+### Tests
+
+Root suite **4818 passed / 6 skipped / 0 failed** (435 files). Coverage **87.87% lines / 84.25% branches / 91.4% functions**. Lint 0 errors. `tsc -b` clean.
+
+### Next
+
+Phase 2: live harness activation (OI-A5 flagship, OI-A2 profiles, `/harness` inspect/switch).
+
+---
+
+## [2026-08-16] v1.17.0 release cut
+
+### Goal
+
+Ship v1.17.0 on the convergent milestone line (git tag + `package.json` + CHANGELOG + README What's New). `v1.16.0` already exists on origin; this cut is the shell-only motion-identity cycle on top of that.
+
+### What was done
+
+- **docs**: README current-cycle + ledger + What's New rewritten for v1.17.0 (orbs, beam, metal, one-motion-per-surface, halt-not-slow reduced-motion). Featured-capabilities row added. Install guide gained an after-install section. Root ARCHITECTURE.md names `desktop/src/motion/`, `desktop/src/components/agentState/`, `AccentBeam`, and `MetalAccent`. Known-gaps for v1.17 flipped to finalized. Plan header records the cut date.
+- **devlog**: this entry.
+- **gitignore**: no new patterns. `desktop/coverage/` already ignored.
+- **version**: `package.json` and `package-lock.json` 1.16.0 -> 1.17.0. `scripts/sync-tauri-version.mjs` rewrites `desktop/src-tauri/tauri.conf.json`. This repo has no `scripts/check_version_sync.py` (Nexus-Hub catalog guard); the local SSOT is root `package.json`. `desktop/package.json` and `desktop/src-tauri/Cargo.toml` remain at 1.5.0 (not in the sync script; left alone).
+- **changelog**: `[1.17.0]` prepended above the existing `[1.16.0]` block. Opt-in surfaces: this release changes no opt-in capability, installer flag, or host surface (motion is always-on; reduced-motion is OS-level).
+- **refactor**: propose-only, no moves. Phase 6 already audited layout. ChatInput stays RETAINED-NOT-DEAD (DF-10).
+- **CI/CD**: no rewrite (Phase 6 decision). `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, PR ubuntu-only.
+- **Self-gates (no-ops here)**: no `docs/policy/platform-read-contracts.md`, no `scripts/check_installer_parity.py`, no model-prompting profile layer, no `scripts/generate_manifest.py`. Those are Nexus-Hub catalog release steps.
+- **Unicode**: release artifacts scanned for non-ASCII dashes/quotes after the edit pass.
+
+### Next
+
+Tag `v1.17.0`, push, and GitHub Release stay behind confirmation. Merge to `main` only after the tag exists so semantic-release does not cut a misnamed version from feat commits.
+
+---
+
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 6 (FINAL): refactor + known-gaps + CI/CD
+
+### Goal
+
+Leave the desktop motion cycle well-organized, its known gaps reconciled, and its CI/CD complete, then hand version bump / changelog / tag / push to `/update release`.
+
+### What was done
+
+- **Architecture**: empty-dir / naming / docs-layout clean. No file moves. `ChatInput` marked RETAINED (ChatPage uses MediaComposer). ChatPage header comment corrected.
+- **Known gaps**: v1.16 carry-forward table; DF-9 gigatoken N5 watch; DF-10 ChatInput retain. DF-1/3/5/6/8 stay open. Status in-progress until `/update release`.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, PR ubuntu-only. Narrowing to `desktop/src` was rejected. Actions freeze does not apply.
+- **Tests**: desktop 916 passed / 0 failed (106 files). Coverage 92.92% lines / 86.2% branches / 85.08% functions. Lint and typecheck clean.
+- **Self-gates**: platform-contract-verification and model-prompting-research are no-ops here (not a Nexus-Hub catalog). No new installer surface.
+
+### Next
+
+`/update release` for v1.17.0. On-device GPU/visual pass remains DF-8.
+
+---
+
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 5: motion coordination + polish (A4-completion)
+
+### Goal
+
+One primary motion per surface, recede-when-active on every adopting surface, and a documented accessibility plus battery/perf pass. No new npm packages.
+
+### What was done
+
+- **Precedence**: `desktop/src/motion/precedence.ts` is the SSOT (`orb > metal > beam > aurora`). `MotionSurface` registers recede once; nested effects skip and honor `useAllowsMotion`.
+- **Surfaces**: composers (streaming beam / focus metal / idle quiet), model dock (working orb / idle beam), generation canvas (orb wins; beam paused; aurora static). Combined reduced-motion test covers orb + beam + metal together. Metal also pauses on `document.hidden`.
+- **Tests**: desktop 916 passed / 0 failed (106 files). Coverage 92.92% lines / 86.2% branches / 85.08% functions. `src/motion` 96.96% lines. Lint and typecheck clean.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, and PR ubuntu-only matrix.
+- **Docs**: design-tokens section 9, DF-2/DF-4/DF-7 resolved, DF-8 (on-device GPU/battery not proven here), session history, this entry.
+- **Perf/battery**: offscreen pause, cap 3, hidden-tab pause, and one-motion gating are unit-proven. Live Tauri fps/battery is **not proven here**.
+
+### Next
+
+Phase 6: architecture refactor, known-gaps reconciliation, and CI/CD (final). Then `/update release`.
+
+---
+
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 4: hero-action metal (A3)
+
+### Goal
+
+Give send, Generate, and New session a premium tactile liquid-metal ring. No `metal-fx` package. Locked Nexus accents only (no gold / silver / chromatic). Cap GPU instances and fall back statically when WebGL or motion is unavailable.
+
+### What was done
+
+- **Component**: `MetalAccent` + `metalGl` (rounded-rect SDF specular ring) + `metalRegistry` (cap 3). IntersectionObserver pause. Recede-when-active only while the GPU loop runs. Static `.nexus-metal-fallback` edge under reduced-motion, missing WebGL, compile failure, or a full cap.
+- **Placement**: coding Send, shared ChatInput Send, MediaComposer Send/Generate (Image/Video pass `submitLabel="Generate"`), and a new CodingPage **New session** control. Cancel, add-attachment, slash suggestions, and folder-tree icons stay unadorned.
+- **Tests**: desktop 909 passed / 0 failed (105 files). Coverage 92.91% lines / 86.08% branches / 85.19% functions. `MetalAccent.tsx` 99.17% lines. `metalGl.ts` / `metalRegistry.ts` 100%. Lint and typecheck clean. jsdom default path is fallback; animating path uses a stub GL context.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**`.
+- **Docs**: metal section in design-tokens, DF-2 update, DF-7 (composer beam + button metal are adjacent nodes), session history, this entry.
+- **Perf/battery**: offscreen pause and the instance cap are proven in unit tests. Frame cost and battery with all hero controls visible is **not proven here** (jsdom has no GPU; no on-device trace this session).
+
+### Next
+
+Phase 5: motion coordination (recede everywhere, one-motion-per-element, a11y + perf audit).
+
+---
+
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 3: surface-liveness beam (A2)
+
+### Goal
+
+Make the input composer, idle model dock, and generation-canvas frame feel alive via an internal traveling / breathing border beam. No `border-beam` package. Locked Nexus accents only.
+
+### What was done
+
+- **Component**: `AccentBeam` (CSS `@property` conic beam, breathing and traveling modes, strength, play/pause fade, `--radius-*` fit). Static accent border under reduced-motion. Recede-when-active while playing.
+- **Placement**: `CodingInput` / `MediaComposer` breathe on focus and travel while `streaming`. Chat / image / video / coding pages pass that flag from pending or busy. `LocalModelStatus` breathes only while idle (orb owns loading and inference). `GenerationCanvas` gets a traveling frame beam outside the overflow-hidden aurora box.
+- **Tests**: desktop 886 passed / 0 failed (102 files). Coverage 92.77% lines. `AccentBeam.tsx` 100% lines. Lint and typecheck clean.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**`.
+- **Docs**: beam section in design-tokens, DF-2/DF-4/DF-6 updates, session history, this entry.
+
+### Next
+
+Phase 4: hero-action metal (A3) on send / Generate / New session only.
+
+---
+
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 2: agent-state orbs (A1)
+
+### Goal
+
+Replace ad-hoc loaders with one internal Canvas orb that expresses agent activity (working / searching / solving / listening / composing / shaping) using only locked Nexus accents. No `thinking-orbs` package.
+
+### What was done
+
+- **Mapping**: `desktop/src/components/agentState/mapping.ts` maps Nexus activities to state + accent token + hex fallback. Includes OCR (`document-parse`) and model-dock (`model-loading`, `model-inference`) rows.
+- **Orb**: Canvas 2D dotted ring (`AgentStateOrb` + `orbEngine`). Hero 64px / inline 20px. DPR cap 2. Static under `useReducedMotion`. Pauses offscreen via IntersectionObserver (missing IO treated as visible). Registers recede-when-active when not idle.
+- **Adoption**: Coding busy row, chat pending composing bubble (then patch), image/video pending shaping, LocalModelStatus loading/active, GenerationCanvas hero overlay (retained canvas; aurora kept, DF-4). "Generating..." text removed from `MessageBubble`.
+- **Tests**: desktop 878 passed / 0 failed (101 files). Coverage 92.73% lines / 85.74% branches / 84.8% functions. Lint and `tsc --noEmit` clean for `@nexus/desktop`.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, and PR ubuntu-only matrix.
+- **Docs**: mapping table in `docs/v1/v1.17/design-tokens.md`, known-gaps DF-4/5/6 plus DF-2 update, session history, this entry.
+
+### Next
+
+Phase 3: internal surface-liveness beam (A2) on the composer, model dock, and generation-canvas frame.
+
+---
+
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 1: motion foundation (A4-foundation)
+
+### Goal
+
+Give every later motion effect (orbs, beam, metal) shared primitives: motion tokens, one `prefers-reduced-motion` source of truth, and a recede-when-active flag so the ambient glow can step back. Shell-only; no new frontend dependency.
+
+### What was done
+
+- **Tokens**: additive `--motion-duration-*` / `--motion-ease-*` / `--motion-accent-*` aliases (locked accents + signature gradient only) plus recede opacities in `desktop/src/styles/tokens.css`. `@theme inline` maps the same values for a future Tailwind pipeline; the shell consumes CSS custom properties today (DF-1).
+- **Reduced motion**: `desktop/src/motion/useReducedMotion` + a single `@media (prefers-reduced-motion: reduce)` block in `globals.css`. Constellation, FloatingLogo, and GenerationCanvas now go through that mechanism. Halt, not slow.
+- **Recede**: `MotionActivityProvider` + `useActiveMotionSurface`. App backdrop and constellation dim via opacity when any surface is active. Styleguide toggle is the Phase 1 reference integration; production surfaces wait for Phase 5 (DF-2).
+- **Tests**: desktop 849 passed / 0 failed (98 files). Coverage 92.57% lines / 85.77% branches / 84.62% functions. Lint and `tsc --noEmit` clean for `@nexus/desktop`.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with concurrency cancel-in-progress and npm cache.
+- **Docs**: `docs/v1/v1.17/design-tokens.md`, known-gaps (DF-1/2/3), session history, this entry.
+
+### Next
+
+Phase 2: internal agent-state orbs (A1), mapped across coding / chat / media, on this foundation.
+
+---
+
 ## [2026-08-16] v1.16.0 release cut
 
 ### Goal

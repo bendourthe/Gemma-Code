@@ -26,7 +26,10 @@ export function isBlocked(command: string): boolean {
   const segments = [command, ...shellSegments(command)];
   return segments.some((seg) => {
     // Normalize multiple whitespace into single spaces to catch patterns like `rm  -rf /`.
-    const normalized = seg.toLowerCase().trim().replace(/\s+/g, " ");
+    // Append a trailing space so patterns that end in a space (e.g. "rm -rf ")
+    // still match a trimmed command that has no operand (`rm -rf`) without
+    // matching concatenated typos like `rm -rf./x`.
+    const normalized = `${seg.toLowerCase().trim().replace(/\s+/g, " ")} `;
     return BLOCKED_PATTERNS.some((pattern) => normalized.includes(pattern));
   });
 }
@@ -39,7 +42,7 @@ export function isBlocked(command: string): boolean {
 export function findBlockedPattern(command: string): string | null {
   const segments = [command, ...shellSegments(command)];
   for (const seg of segments) {
-    const normalized = seg.toLowerCase().trim().replace(/\s+/g, " ");
+    const normalized = `${seg.toLowerCase().trim().replace(/\s+/g, " ")} `;
     for (const pattern of BLOCKED_PATTERNS) {
       if (normalized.includes(pattern)) return pattern;
     }

@@ -9,6 +9,7 @@ import { readGemmaContextFiles } from "../../../src/storage/MemoryFiles.js";
 import { readWithSnapshot, type MemorySnapshot } from "../../../src/storage/MemorySnapshot.js";
 import { getLogger } from "../utils/logger.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM, PLAN_MODE_CAPABILITIES_REMINDER } from "./PlanMode.js";
+import { assembleToolPromptDocs } from "./ToolPromptAssembler.js";
 
 /**
  * Phase 5 (v0.5.0): delegates to the shared `countTokens` so PromptBuilder
@@ -315,13 +316,15 @@ export class PromptBuilder {
 
   /** Tool declarations in Gemma 4 native `<|tool>` format. Always included. */
   private _buildToolDeclarations(context: PromptContext): PromptSection | null {
-    if (context.enabledTools.length === 0) return null;
+    const assembled = assembleToolPromptDocs(
+      context.enabledTools,
+      context.registeredToolNames,
+    );
+    if (assembled.tools.length === 0) return null;
 
-    // Cache key: sorted tool ids. Sort ensures the key is insensitive to
-    // tool registration order but sensitive to set membership.
-    const cacheKey = context.enabledTools
+    const cacheKey = [...assembled.tools]
       .map((t) => {
-        const source = "source" in t && t.source === "mcp" ? "mcp" : "built";
+        const source = "source" in t && (t as { source?: string }).source === "mcp" ? "mcp" : "built";
         return `${source}:${t.name}`;
       })
       .sort()
@@ -330,11 +333,11 @@ export class PromptBuilder {
     const cached = this._toolSectionCache.get(cacheKey);
     if (cached !== undefined) return cached;
 
-    const builtinTools = context.enabledTools.filter(
-      (t) => !("source" in t) || t.source !== "mcp",
+    const builtinTools = assembled.tools.filter(
+      (t) => !("source" in t) || (t as { source?: string }).source !== "mcp",
     );
-    const mcpTools = context.enabledTools.filter(
-      (t) => "source" in t && t.source === "mcp",
+    const mcpTools = assembled.tools.filter(
+      (t) => "source" in t && (t as { source?: string }).source === "mcp",
     );
 
     const parts: string[] = [];

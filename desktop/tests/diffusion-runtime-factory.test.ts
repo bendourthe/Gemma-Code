@@ -10,7 +10,10 @@ import { PassThrough } from "node:stream";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createDiffusionRuntime } from "../sidecar/src/diffusion/runtimeFactory";
+import {
+  createDiffusionRuntime,
+  UnavailableDiffusionRuntime,
+} from "../sidecar/src/diffusion/runtimeFactory";
 import {
   ChildProcessDiffusionRuntime,
   InMemoryDiffusionRuntime,
@@ -53,5 +56,35 @@ describe("createDiffusionRuntime", () => {
       expect.objectContaining({ stdio: ["pipe", "pipe", "pipe"] }),
     );
     await rt.shutdown();
+  });
+
+  // v2.2.0 Phase 1 (1.3): a configured absolute python path that is missing on
+  // disk (venv renamed / provisioning skipped) yields the typed unavailable
+  // runtime, never a silent bare-`python` fallback or a spawn crash.
+  it("returns the typed unavailable runtime when the configured python path is missing", async () => {
+    const rt = createDiffusionRuntime(
+      { NEXUS_DIFFUSION_PYTHON: "C:/Nexus/python/venv/Scripts/python.exe" },
+      { existsFn: () => false },
+    );
+    expect(rt).toBeInstanceOf(UnavailableDiffusionRuntime);
+    await expect(rt.call("health", {})).rejects.toThrow(/^runtime-unavailable:/);
+    expect(rt.drainEvents("any")).toEqual([]);
+    await rt.shutdown();
+  });
+
+  it("keeps the real runtime when the configured python path exists", () => {
+    const rt = createDiffusionRuntime(
+      { NEXUS_DIFFUSION_PYTHON: "C:/venv/python.exe" },
+      { existsFn: () => true, spawnFn: fakeSpawn() },
+    );
+    expect(rt).toBeInstanceOf(ChildProcessDiffusionRuntime);
+  });
+
+  it("does not path-check a bare PATH command name", () => {
+    const rt = createDiffusionRuntime(
+      { NEXUS_DIFFUSION_PYTHON: "python3" },
+      { existsFn: () => false, spawnFn: fakeSpawn() },
+    );
+    expect(rt).toBeInstanceOf(ChildProcessDiffusionRuntime);
   });
 });

@@ -34,19 +34,23 @@ describe("<FolderTree>", () => {
     const client = setupClient();
     render(<FolderTree client={client} storageAdapter={storageAdapter} />);
     expect(screen.getByTestId("folder-tree-empty")).toBeInTheDocument();
+    // v2.2.0 DF-12: this used to read "Create your first folder", which is why
+    // the module looked like it required a folder before you could talk to
+    // anything. Folders stay available; they are just no longer the entry.
     expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(
-      /create your first folder/i,
+      /start a new chat/i,
     );
   });
 
-  it("clicking the empty-state CTA creates a folder and enters rename mode", async () => {
+  it("clicking the empty-state CTA creates a chat at the root, not a folder", async () => {
     const client = setupClient();
     const user = userEvent.setup();
     render(<FolderTree client={client} storageAdapter={storageAdapter} />);
     await user.click(screen.getByTestId("folder-tree-empty-cta"));
-    // The new folder shows up with an inline rename input focused.
-    const renameInput = await screen.findByTestId(/^tree-rename-input-/);
-    expect(renameInput).toHaveValue("New folder");
+    const tree = client.listTree();
+    expect(tree.chats.length).toBe(1);
+    expect(tree.chats[0]?.folderId).toBeNull();
+    expect(tree.children.length).toBe(0);
   });
 
   it("creates a new folder via the toolbar button", async () => {
@@ -300,6 +304,70 @@ describe("<FolderTree>", () => {
     const tree = client.listTree();
     const parentNode = tree.children.find((c) => c.folder?.id === parent.id);
     expect(parentNode?.chats.length).toBe(1);
+  });
+
+  it("shows rename and delete icons on a chat row without stealing the open click", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    const onOpenChat = vi.fn();
+    render(
+      <FolderTree client={client} storageAdapter={storageAdapter} onOpenChat={onOpenChat} />,
+    );
+    expect(screen.getByTestId(`tree-rename-${chat.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`tree-delete-${chat.id}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    expect(onOpenChat).toHaveBeenCalledWith(expect.objectContaining({ id: chat.id }));
+    expect(screen.queryByTestId(`tree-rename-input-${chat.id}`)).not.toBeInTheDocument();
+  });
+
+  it("rename icon starts inline rename without opening the chat again", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    const onOpenChat = vi.fn();
+    render(
+      <FolderTree client={client} storageAdapter={storageAdapter} onOpenChat={onOpenChat} />,
+    );
+    fireEvent.click(screen.getByTestId(`tree-rename-${chat.id}`));
+    expect(screen.getByTestId(`tree-rename-input-${chat.id}`)).toBeInTheDocument();
+    expect(onOpenChat).not.toHaveBeenCalled();
+  });
+
+  it("delete icon opens the confirm modal and does not delete until confirmed", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
+    expect(screen.getByTestId("folder-tree-confirm-delete")).toBeInTheDocument();
+    expect(client.getChat(chat.id)?.title).toBe("draft");
+    fireEvent.click(screen.getByTestId("confirm-delete-ok"));
+    expect(client.getChat(chat.id)).toBeNull();
+  });
+
+  it("left-click on the already-selected chat enters rename", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    const onOpenChat = vi.fn();
+    render(
+      <FolderTree
+        client={client}
+        storageAdapter={storageAdapter}
+        selected={{ kind: "chat", id: chat.id }}
+        onOpenChat={onOpenChat}
+      />,
+    );
+    fireEvent.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    expect(screen.getByTestId(`tree-rename-input-${chat.id}`)).toBeInTheDocument();
+    expect(onOpenChat).not.toHaveBeenCalled();
+  });
+
+  it("keeps the right-click context menu on a chat row", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.contextMenu(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    const menu = screen.getByTestId("folder-tree-context-menu");
+    expect(within(menu).getByTestId("ctx-rename")).toBeInTheDocument();
+    expect(within(menu).getByTestId("ctx-delete")).toBeInTheDocument();
   });
 });
 

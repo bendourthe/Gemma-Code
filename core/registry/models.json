@@ -72,6 +72,52 @@
       "toolFormat": "qwen-json"
     },
     {
+      "id": "qwen3.5:4b",
+      "displayName": "Qwen 3.5 4B",
+      "family": "qwen",
+      "runtime": "ollama",
+      "vramGb": 4,
+      "tags": ["coding", "tool-use", "lightweight"],
+      "sampling": { "temperature": 0.6, "topP": 0.8, "topK": 20, "contextLength": 32768 },
+      "promptFormat": "qwen",
+      "toolFormat": "qwen-json"
+    },
+    {
+      "id": "qwen3.5:9b",
+      "displayName": "Qwen 3.5 9B",
+      "family": "qwen",
+      "runtime": "ollama",
+      "vramGb": 8,
+      "tags": ["recommended", "coding", "tool-use"],
+      "sampling": { "temperature": 0.6, "topP": 0.8, "topK": 20, "contextLength": 32768 },
+      "promptFormat": "qwen",
+      "toolFormat": "qwen-json"
+    },
+    {
+      "id": "qwen3-coder:30b",
+      "displayName": "Qwen3-Coder 30B-A3B",
+      "family": "qwen",
+      "runtime": "ollama",
+      "vramGb": 20,
+      "activeParams": 3.3,
+      "totalParams": 30,
+      "tags": ["recommended", "coding", "tool-use", "advanced"],
+      "sampling": { "temperature": 0.4, "topP": 0.8, "topK": 20, "contextLength": 32768 },
+      "promptFormat": "qwen",
+      "toolFormat": "qwen-json"
+    },
+    {
+      "id": "gpt-oss:20b",
+      "displayName": "gpt-oss 20B",
+      "family": "gpt-oss",
+      "runtime": "ollama",
+      "vramGb": 16,
+      "tags": ["recommended", "coding", "tool-use"],
+      "sampling": { "temperature": 0.7, "topP": 0.9, "topK": 50, "contextLength": 32768 },
+      "promptFormat": "llama3",
+      "toolFormat": "llama3-json"
+    },
+    {
       "id": "deepseek-coder:6.7b",
       "displayName": "DeepSeek Coder 6.7B",
       "family": "deepseek",
@@ -81,6 +127,91 @@
       "sampling": { "temperature": 0.3, "topP": 0.95, "topK": 40, "contextLength": 16384 },
       "promptFormat": "deepseek",
       "toolFormat": "deepseek-json"
+    },
+    {
+      "id": "lfm2.5:2.6b",
+      "displayName": "LFM2.5 2.6B",
+      "family": "lfm2.5",
+      "runtime": "ollama",
+      "vramGb": 3,
+      "tags": ["recommended", "coding", "tool-use", "lightweight"],
+      "sampling": { "temperature": 0.3, "topP": 0.9, "topK": 50, "contextLength": 128000 },
+      "promptFormat": "lfm",
+      "toolFormat": "lfm-pythonic"
+    },
+    {
+      "id": "hermes3:8b",
+      "displayName": "Hermes 3 8B",
+      "family": "hermes",
+      "runtime": "ollama",
+      "vramGb": 8,
+      "tags": ["coding", "chat", "tool-use"],
+      "sampling": { "temperature": 0.7, "topP": 0.9, "topK": 50, "contextLength": 131072 },
+      "promptFormat": "llama3",
+      "toolFormat": "llama3-json"
+    },
+    {
+      "id": "hermes3:70b",
+      "displayName": "Hermes 3 70B",
+      "family": "hermes",
+      "runtime": "ollama",
+      "vramGb": 40,
+      "tags": ["coding", "chat", "tool-use", "advanced"],
+      "sampling": { "temperature": 0.7, "topP": 0.9, "topK": 50, "contextLength": 131072 },
+      "promptFormat": "llama3",
+      "toolFormat": "llama3-json"
+    },
+    {
+      "id": "muse-glimmer:30b",
+      "displayName": "Muse Glimmer 30B (K-Quant-17GB)",
+      "family": "muse-glimmer",
+      "runtime": "ollama",
+      "vramGb": 17,
+      "activeParams": 4,
+      "totalParams": 30,
+      "tags": ["coding", "chat", "tool-use", "advanced"],
+      "sampling": { "temperature": 0.6, "topP": 0.9, "topK": 40, "contextLength": 131072 },
+      "promptFormat": "llama3",
+      "toolFormat": "llama3-json"
+    },
+    {
+      "id": "muse-glimmer:30b-dynamic",
+      "displayName": "Muse Glimmer 30B (K-Quant-Dynamic)",
+      "family": "muse-glimmer",
+      "runtime": "ollama",
+      "vramGb": 24,
+      "activeParams": 4,
+      "totalParams": 30,
+      "tags": ["coding", "chat", "tool-use", "advanced"],
+      "sampling": { "temperature": 0.6, "topP": 0.9, "topK": 40, "contextLength": 131072 },
+      "promptFormat": "llama3",
+      "toolFormat": "llama3-json"
+    },
+    {
+      "id": "nemotron-lightning:30b-a3b",
+      "displayName": "Nemotron 3.5 Lightning 30B-A3B",
+      "family": "nemotron-lightning",
+      "runtime": "ollama",
+      "vramGb": 24,
+      "activeParams": 3,
+      "totalParams": 30,
+      "tags": ["coding", "tool-use", "worker-candidate"],
+      "sampling": { "temperature": 0.5, "topP": 0.9, "topK": 20, "contextLength": 131072 },
+      "promptFormat": "qwen",
+      "toolFormat": "qwen-json"
+    },
+    {
+      "id": "nemotron-lightning:30b-a3b-offload",
+      "displayName": "Nemotron 3.5 Lightning 30B-A3B (expert offload)",
+      "family": "nemotron-lightning",
+      "runtime": "ollama",
+      "vramGb": 16,
+      "activeParams": 3,
+      "totalParams": 30,
+      "tags": ["coding", "tool-use", "worker-candidate"],
+      "sampling": { "temperature": 0.5, "topP": 0.9, "topK": 20, "contextLength": 131072 },
+      "promptFormat": "qwen",
+      "toolFormat": "qwen-json"
     }
   ]
 }

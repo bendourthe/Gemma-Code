@@ -1,0 +1,7 @@
+{
+  "name": "llamacpp",
+  "label": "llama.cpp (llama-server)",
+  "protocol": "openai",
+  "endpoint": "http://127.0.0.1:8080",
+  "capabilities": { "chat": true }
+}

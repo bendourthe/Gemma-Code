@@ -29,6 +29,31 @@ export interface PermissionPromptOptionSpec {
 /** Builder injected by the call site so the tool layer never reaches into panels. */
 export type PermissionOptionsBuilder = (toolName: string) => PermissionPromptOptionSpec[];
 
+/**
+ * v1.18.0 Phase 4 (OW-A1) -- unattended host. When a ConfirmationGate is
+ * constructed with this, request() parks instead of the 60s webview timeout.
+ */
+export interface ConfirmationParkHost {
+  parkAndWait(input: {
+    readonly toolName: string;
+    readonly summary: string;
+    readonly detail?: string;
+    readonly args?: Readonly<Record<string, unknown>>;
+    readonly runMode: "headless" | "scheduled";
+    readonly runId: string;
+    readonly sessionId?: string;
+  }): Promise<"approved" | "denied" | "expired">;
+}
+
+export interface ConfirmationParkContext {
+  readonly host: ConfirmationParkHost;
+  readonly runMode: "headless" | "scheduled";
+  readonly runId: string;
+  readonly sessionId?: string;
+  readonly toolName?: string;
+  readonly args?: Readonly<Record<string, unknown>>;
+}
+
 /** Fallback used when the call site does not inject a builder (test seams only). */
 const fallbackPermissionOptions: PermissionOptionsBuilder = (toolName) => [
   { key: "1", label: "Yes", value: "yes", aliases: ["y"] },
@@ -89,9 +114,14 @@ export class ConfirmationGate {
 
   private readonly _optionsBuilder: PermissionOptionsBuilder;
 
+  /**
+   * v1.18.0 Phase 4 -- when set, request() parks in the ask inbox instead of
+   * posting a 60s webview prompt. Interactive gates omit this.
+   */
   constructor(
     private readonly _postMessage: PostMessageFn,
     optionsBuilder?: PermissionOptionsBuilder,
+    private readonly _park?: ConfirmationParkContext,
   ) {
     this._optionsBuilder = optionsBuilder ?? fallbackPermissionOptions;
   }
@@ -143,6 +173,8 @@ export class ConfirmationGate {
   /**
    * Post a confirmation request to the webview and wait for the user's response.
    * Returns true if approved, false if rejected or the 60-second timeout expires.
+   * When this gate was constructed with a park host (headless/scheduled), the
+   * request is parked in the ask inbox instead of the 60s timeout.
    */
   request(
     id: string,
@@ -150,6 +182,19 @@ export class ConfirmationGate {
     detail?: string,
     source?: ToolCallSource,
   ): Promise<boolean> {
+    if (this._park) {
+      return this._park.host
+        .parkAndWait({
+          toolName: this._park.toolName ?? id,
+          summary: attributeDescription(description, source),
+          detail,
+          args: this._park.args,
+          runMode: this._park.runMode,
+          runId: this._park.runId,
+          sessionId: this._park.sessionId,
+        })
+        .then((state) => state === "approved");
+    }
     return new Promise<boolean>((resolve) => {
       this._pending.set(id, resolve);
 

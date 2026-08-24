@@ -9,6 +9,8 @@ import {
   validateSpec,
   findSpec,
   getSpec,
+  normalizeSpec,
+  localEvalMayPromote,
   type CatalogFile,
   type ModelSpec,
 } from "../../../../core/registry/catalog.js";
@@ -123,6 +125,7 @@ describe("catalog", () => {
   it("findSpec / getSpec resolve by id", async () => {
     const file = await loadCatalog();
     expect(findSpec(file, "gemma4:e4b")?.id).toBe("gemma4:e4b");
+    expect(getSpec(file, "gemma4:e4b").id).toBe("gemma4:e4b");
     expect(findSpec(file, "nope:1")).toBeUndefined();
     expect(() => getSpec(file, "nope:1")).toThrow();
   });
@@ -140,6 +143,7 @@ describe("catalog", () => {
     // hf.co GGUF path that failed Ollama manifest registration (bug #15447).
     expect(gguf?.source.protocol).toBe("ollama");
     expect(gguf?.source.url).toBe("ollama://gemma4:12b");
+    expect(gguf?.minOllamaVersion).toBe("0.32.15");
     expect(gguf?.tags).toContain("recommended");
     expect(gguf?.tags).toContain("multimodal");
   });
@@ -196,6 +200,75 @@ describe("catalog", () => {
         source: { protocol: "huggingface", url: "https://x/y" },
       }),
     ).toThrow(/provenance/);
+  });
+
+  it("validateSpec accepts optional toolCallingVerified + MoE fields (v1.18.0 Phase 3)", () => {
+    const spec: ModelSpec = {
+      id: "x:1",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X 1",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+      toolCallingVerified: true,
+      toolCallingBenchmark: {
+        suite: "nexus-catalog-agentic-flag",
+        date: "2026-08-17",
+        result: "pass",
+      },
+      activeParams: 2.4,
+      totalParams: 16,
+    };
+    expect(() => validateSpec(spec)).not.toThrow();
+  });
+
+  it("validateSpec rejects toolCallingVerified without provenance", () => {
+    expect(() =>
+      validateSpec({
+        id: "x:1",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "llm",
+        displayName: "X",
+        source: { protocol: "ollama" },
+        toolCallingVerified: true,
+      } as ModelSpec),
+    ).toThrow(/toolCallingBenchmark/);
+  });
+
+  it("validateSpec rejects inverted MoE params", () => {
+    expect(() =>
+      validateSpec({
+        id: "x:1",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "llm",
+        displayName: "X",
+        source: { protocol: "ollama" },
+        activeParams: 20,
+        totalParams: 8,
+      } as ModelSpec),
+    ).toThrow(/exceeds totalParams/);
+  });
+
+  it("bundled catalog remains valid after the additive v1.18 schema and flags agentic defaults", async () => {
+    const file = await loadCatalog();
+    expect(() => validateCatalog(file)).not.toThrow();
+    const verified = file.models.filter((m) => m.toolCallingVerified === true);
+    expect(verified.length).toBeGreaterThanOrEqual(2);
+    for (const spec of verified) {
+      expect(spec.agentic).toBe(true);
+      expect(spec.toolCallingBenchmark?.suite).toBeTruthy();
+    }
+    const denseUnflagged = file.models.find((m) => m.id === "nomic-embed-text");
+    expect(denseUnflagged?.toolCallingVerified).toBeUndefined();
+    expect(denseUnflagged?.activeParams).toBeUndefined();
+    const moe = file.models.find((m) => m.id === "qwen3-coder:30b");
+    expect(moe?.activeParams).toBe(3.3);
+    expect(moe?.totalParams).toBe(30);
   });
 
   it("bundled catalog carries the Phase 4 curated uncensored image/video entries", async () => {
@@ -272,9 +345,7 @@ describe("catalog", () => {
     const speech: Array<[string, string]> = [
       ["faster-whisper-large-v3", "MIT"],
       ["kokoro-82m", "Apache-2.0"],
-      ["piper-en-us-lessac", "MIT"],
     ];
-    const generation = ["musicgen-medium", "stable-audio-open-1.0"];
     for (const [id, licensePrefix] of speech) {
       const entry = byId.get(id);
       expect(entry, `${id} should exist`).toBeDefined();
@@ -286,12 +357,9 @@ describe("catalog", () => {
       expect(entry?.source.protocol).toBe("huggingface");
       expect(entry?.weights?.files.length).toBeGreaterThan(0);
     }
-    for (const id of generation) {
-      const entry = byId.get(id);
-      expect(entry, `${id} should exist`).toBeDefined();
-      expect(entry?.type).toBe("audio");
-      expect(entry?.license, `${id} must record a license`).toBeTruthy();
-    }
+    expect(byId.has("piper-en-us-lessac")).toBe(false);
+    expect(byId.has("musicgen-medium")).toBe(false);
+    expect(byId.has("stable-audio-open-1.0")).toBe(false);
   });
 
   it("populates origin on every user-facing entry (v1.9.0 Phase 4)", async () => {
@@ -313,17 +381,103 @@ describe("catalog", () => {
       "gemma4:26b",
       "gemma4:31b",
       "gemma-4-12b-it-gguf",
-      "qwen2.5-coder:7b",
-      "qwen2.5-coder:14b",
-      "deepseek-coder-v2:16b",
+      "qwen3.5:4b",
+      "qwen3.5:9b",
+      "qwen3-coder:30b",
+      "gpt-oss:20b",
+      "lfm2.5:2.6b",
+      "muse-glimmer:30b",
+      "muse-glimmer:30b-dynamic",
+      "nemotron-lightning:30b-a3b",
+      "nemotron-lightning:30b-a3b-offload",
     ];
     for (const id of agentic) {
       expect(byId.get(id)?.agentic, `${id} should be agentic-capable`).toBe(true);
     }
-    // A general chat model that is not agentic-coding-capable is not flagged.
-    expect(byId.get("llama3.1:8b")?.agentic ?? false).toBe(false);
+    // A non-coding support model is not flagged agentic.
+    expect(byId.get("nomic-embed-text")?.agentic ?? false).toBe(false);
     // The Gemma 4 family keeps its primary task as chat (surfaced in both tabs).
     expect(byId.get("gemma4:e4b")?.task).toBe("chat");
+  });
+
+  it("ships 2025+ coding specialists and embed opt-ins", async () => {
+    const file = await loadCatalog();
+    const byId = new Map(file.models.map((m) => [m.id, m]));
+    expect(byId.get("qwen3.5:4b")?.source.url).toBe("ollama://qwen3.5:4b");
+    expect(byId.get("qwen3.5:9b")?.source.url).toBe("ollama://qwen3.5:9b");
+    expect(byId.get("gpt-oss:20b")?.source.url).toBe("ollama://gpt-oss:20b");
+    expect(byId.get("qwen3-coder:30b")?.source.url).toBe("ollama://qwen3-coder:30b");
+    expect(byId.get("embeddinggemma")?.source.url).toBe("ollama://embeddinggemma:300m");
+    expect(byId.get("qwen3-embedding:0.6b")?.source.url).toBe(
+      "ollama://qwen3-embedding:0.6b",
+    );
+    expect(byId.get("qwen3.5:9b")?.task).toBe("agentic");
+    expect(byId.get("embeddinggemma")?.task).toBe("embed");
+    expect(byId.has("qwen2.5-coder:7b")).toBe(false);
+    expect(byId.has("qwen2.5-coder:14b")).toBe(false);
+    expect(byId.has("deepseek-coder-v2:16b")).toBe(false);
+  });
+
+  it("curates LFM2.5-2.6B as the low-VRAM agentic entry (v1.19.0 Phase 1)", async () => {
+    const file = await loadCatalog();
+    const lfm = findSpec(file, "lfm2.5:2.6b");
+    expect(lfm).toBeDefined();
+    expect(lfm?.type).toBe("llm");
+    expect(lfm?.task).toBe("agentic");
+    expect(lfm?.agentic).toBe(true);
+    expect(lfm?.origin).toBe("USA");
+    expect(lfm?.sizeGB).toBe(1.67);
+    expect(lfm?.vramGB).toBe(3);
+    expect(lfm?.contextWindow).toBe(128_000);
+    expect(lfm?.toolCallingVerified).toBe(true);
+    expect(lfm?.toolCallingBenchmark?.suite).toBe("nexus-harness-ab-lfm-local");
+    expect(lfm?.license).toBe("LFM Open License v1.0");
+    expect(lfm?.licenseUrl).toMatch(/^https:\/\//);
+    expect(lfm?.licenseNote).toMatch(/10M/i);
+    expect(lfm?.licenseNote).toMatch(/use restriction/i);
+    expect(lfm?.requiresLicense).toBe(false);
+    expect(lfm?.source.protocol).toBe("ollama");
+    expect(lfm?.source.url).toBe("ollama://hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M");
+    const pin = lfm?.weights?.files[0]?.sha256;
+    expect(pin).toMatch(/^[a-f0-9]{64}$/);
+    expect(pin).not.toBe("0".repeat(64));
+    const copy = [
+      lfm?.description,
+      lfm?.whyRecommended,
+      lfm?.differentiators,
+      ...(lfm?.strengths ?? []),
+    ].join(" ");
+    expect(copy).not.toMatch(/ToolSandbox|BFCLv4|77\.83|56\.88|220 tok/i);
+  });
+
+  it("places LFM2.5-2.6B on cpu and 8 GB agentic lists (v1.19.0 Phase 1)", async () => {
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = JSON.parse(await fs.readFile(recommendedPath, "utf8")) as {
+      tiers: Record<string, { agentic: string[] }>;
+    };
+    expect(recommended.tiers.cpu.agentic[0]).toBe("lfm2.5:2.6b");
+    expect(recommended.tiers["8"].agentic).toEqual([
+      "gemma4:e4b",
+      "lfm2.5:2.6b",
+      "qwen3.5:9b",
+    ]);
+    for (const tier of ["12", "16", "24"]) {
+      expect(recommended.tiers[tier].agentic).not.toContain("lfm2.5:2.6b");
+    }
+  });
+
+  it("does not catalog LFM2.5-8B-A1B after the Phase 3 decline", async () => {
+    const file = await loadCatalog();
+    expect(findSpec(file, "lfm2.5:8b-a1b")).toBeUndefined();
+    expect(file.models.some((m) => /8b-a1b/i.test(m.id))).toBe(false);
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = JSON.parse(await fs.readFile(recommendedPath, "utf8")) as {
+      tiers: Record<string, { agentic?: string[]; chat?: string[] }>;
+    };
+    for (const tier of Object.values(recommended.tiers)) {
+      const ids = [...(tier.agentic ?? []), ...(tier.chat ?? [])];
+      expect(ids.some((id) => /8b-a1b/i.test(id))).toBe(false);
+    }
   });
 
   it("every user-facing description is non-empty and names its origin (v1.9.0 Phase 2)", async () => {
@@ -343,5 +497,472 @@ describe("catalog", () => {
         `${entry.id} description should name its origin (${origin})`,
       ).toBe(true);
     }
+  });
+
+  it("backfills modalities on every bundled entry (v1.19.2)", async () => {
+    const file = await loadCatalog();
+    const allowed = new Set(["text", "image", "audio"]);
+    for (const entry of file.models) {
+      expect(entry.modalities?.length, `${entry.id} missing modalities`).toBeGreaterThan(0);
+      for (const modality of entry.modalities ?? []) {
+        expect(allowed.has(modality), `${entry.id} invalid modality ${modality}`).toBe(true);
+      }
+    }
+    expect(findSpec(file, "gemma-4-12b-it-gguf")?.modalities).toEqual(["text", "image"]);
+    expect(findSpec(file, "faster-whisper-large-v3")?.modalities).toEqual(["audio"]);
+    expect(findSpec(file, "gemma4:e4b")?.modalities).toEqual(["text"]);
+  });
+
+  it("video entries declare audioConditioning (v1.19.2)", async () => {
+    const file = await loadCatalog();
+    const videos = file.models.filter((m) => m.type === "video");
+    expect(videos.length).toBeGreaterThan(0);
+    for (const entry of videos) {
+      expect(entry.audioConditioning, `${entry.id} missing audioConditioning`).toBeDefined();
+      expect(typeof entry.audioConditioning?.supported).toBe("boolean");
+    }
+  });
+
+  it("curates LongCat-Video-Avatar-1.5 INT8 as an official diffusion-pro opt-in (v2.0.0)", async () => {
+    const file = await loadCatalog();
+    const avatar = findSpec(file, "longcat-video-avatar-1.5");
+    expect(avatar).toBeDefined();
+    expect(avatar?.source.repo).toBe("meituan-longcat/LongCat-Video-Avatar-1.5");
+    expect(avatar?.license).toBe("MIT");
+    expect(avatar?.tags).toContain("opt-in");
+    expect(avatar?.tags).not.toContain("recommended");
+    expect(avatar?.multimodal).toBe(false);
+    expect(avatar?.audioConditioning?.supported).toBe(true);
+    expect(avatar?.audioConditioning?.modes).toEqual(["single"]);
+    expect(avatar?.weights?.layoutVersion).toBe(2);
+    expect(avatar?.weights?.defaultVariant).toBe("int8");
+    const variant = avatar?.weights?.variants?.[0];
+    expect(variant?.official).toBe(true);
+    expect(variant?.precision).toBe("int8");
+    expect(variant?.files.length).toBe(7);
+    for (const fileEntry of variant?.files ?? []) {
+      expect(fileEntry.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(fileEntry.sha256).not.toBe("0".repeat(64));
+    }
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = await fs.readFile(recommendedPath, "utf8");
+    expect(recommended).not.toContain("longcat-video-avatar-1.5");
+  });
+
+  it("does not catalog Hermes 3 in the installer catalog (coding ModelCatalog keeps the family)", async () => {
+    const file = await loadCatalog();
+    expect(findSpec(file, "hermes3:8b")).toBeUndefined();
+    expect(findSpec(file, "hermes3:70b")).toBeUndefined();
+  });
+
+  it("curates Inkling-Small as an opt-in patient-tier GGUF (v1.19.2)", async () => {
+    const file = await loadCatalog();
+    const inkling = findSpec(file, "inkling-small");
+    expect(inkling).toBeDefined();
+    expect(inkling?.tags).toContain("patient-tier");
+    expect(inkling?.sizeGB).toBe(74.8);
+    expect(inkling?.license).toBe("Apache-2.0");
+    expect(inkling?.modalities).toEqual(["text"]);
+    expect(inkling?.expectedSecondsPerToken).toBe(32);
+    expect(inkling?.measuredPeakRssGB).toBe(8.24);
+    expect(inkling?.patientRamPresets?.map((p) => p.id)).toEqual(["laptop", "workstation", "max"]);
+    expect(inkling?.weights?.layoutVersion).toBe(2);
+    expect(inkling?.weights?.defaultVariant).toBe("gguf-ud-iq1-s");
+    const variant = inkling?.weights?.variants?.[0];
+    expect(variant?.official).toBe(true);
+    expect(variant?.precision).toBe("gguf");
+    expect(variant?.files.length).toBe(3);
+    for (const fileEntry of variant?.files ?? []) {
+      expect(fileEntry.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(fileEntry.sha256).not.toBe("0".repeat(64));
+    }
+    const copy = [
+      inkling?.description,
+      inkling?.whyRecommended,
+      inkling?.differentiators,
+    ].join(" ");
+    expect(copy.toLowerCase()).toContain("text-only");
+    expect(copy.toLowerCase()).toContain("unverified");
+  });
+
+  it("does not add Inkling-Small to recommended.json defaults (v1.19.2)", async () => {
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = JSON.parse(await fs.readFile(recommendedPath, "utf8")) as {
+      tiers: Record<string, Record<string, string[]>>;
+    };
+    for (const [tier, sections] of Object.entries(recommended.tiers)) {
+      for (const [section, ids] of Object.entries(sections)) {
+        expect(ids, `${tier}/${section}`).not.toContain("inkling-small");
+        expect(ids, `${tier}/${section}`).not.toContain("hermes3:70b");
+      }
+    }
+  });
+
+  it("validateSpec rejects unofficial weights variants", () => {
+    expect(() =>
+      validateSpec({
+        id: "x",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "image",
+        displayName: "X",
+        source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+        weights: {
+          layoutVersion: 2,
+          variants: [
+            {
+              id: "community-fp8",
+              precision: "fp8",
+              official: false as unknown as true,
+              files: [{ path: "a.bin", sha256: "a".repeat(64) }],
+            },
+          ],
+        },
+      }),
+    ).toThrow(/not official/);
+  });
+
+  it("validateSpec rejects an unknown patientRamPreset id", () => {
+    expect(() =>
+      validateSpec({
+        id: "x",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "llm",
+        displayName: "X",
+        source: { protocol: "ollama", url: "ollama://x:1" },
+        patientRamPresets: [
+          {
+            id: "handheld" as "laptop",
+            label: "Handheld",
+            peakRssGB: 4,
+            expectedSecondsPerToken: 40,
+            copy: "no",
+          },
+        ],
+      }),
+    ).toThrow(/invalid patientRamPreset id/);
+  });
+
+  it("validateSpec rejects unsafe or incomplete weights variants (v1.19.2)", () => {
+    const hf: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "image",
+      displayName: "X",
+      source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+    };
+    const pin = "a".repeat(64);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: { layoutVersion: 2, files: [{ path: "../a.bin", sha256: pin }] },
+      }),
+    ).toThrow(/unsafe/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: { layoutVersion: 2, files: [{ path: "a.bin", sha256: "nope" }] },
+      }),
+    ).toThrow(/malformed sha256/);
+    expect(() => validateSpec({ ...hf, weights: { layoutVersion: 2 } })).toThrow(/no files or variants/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [{ id: "  ", precision: "int8", official: true, files: [{ path: "a.bin", sha256: pin }] }],
+        },
+      }),
+    ).toThrow(/missing id/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [
+            { id: "int8", precision: "int8", official: true, files: [{ path: "a.bin", sha256: pin }] },
+            { id: "int8", precision: "int8", official: true, files: [{ path: "b.bin", sha256: pin }] },
+          ],
+        },
+      }),
+    ).toThrow(/duplicate weights variant id/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [
+            {
+              id: "q",
+              precision: "int4" as "int8",
+              official: true,
+              files: [{ path: "a.bin", sha256: pin }],
+            },
+          ],
+        },
+      }),
+    ).toThrow(/invalid precision/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [{ id: "int8", precision: "int8", official: true, files: [] }],
+        },
+      }),
+    ).toThrow(/has no files/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          defaultVariant: "missing",
+          variants: [{ id: "int8", precision: "int8", official: true, files: [{ path: "a.bin", sha256: pin }] }],
+        },
+      }),
+    ).toThrow(/defaultVariant/);
+  });
+
+  it("validateSpec rejects invalid modality, audio, throughput, and preset fields (v1.19.2)", () => {
+    const base: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+    };
+    const laptop = {
+      id: "laptop" as const,
+      label: "Laptop",
+      peakRssGB: 8,
+      expectedSecondsPerToken: 32,
+      copy: "copy",
+    };
+    expect(() => validateSpec({ ...base, modalities: [] })).toThrow(/modalities must be a non-empty array/);
+    expect(() => validateSpec({ ...base, modalities: ["smell" as "text"] })).toThrow(/invalid modality/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        audioConditioning: { supported: "yes" as unknown as boolean },
+      }),
+    ).toThrow(/audioConditioning.supported must be a boolean/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        audioConditioning: { supported: true, modes: "single" as unknown as string[] },
+      }),
+    ).toThrow(/audioConditioning.modes must be an array/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        audioConditioning: { supported: true, modes: ["stereo" as "single"] },
+      }),
+    ).toThrow(/invalid audioConditioning mode/);
+    expect(() => validateSpec({ ...base, expectedSecondsPerToken: 0 })).toThrow(/expectedSecondsPerToken/);
+    expect(() => validateSpec({ ...base, measuredPeakRssGB: -1 })).toThrow(/measuredPeakRssGB/);
+    expect(() => validateSpec({ ...base, patientRamPresets: [] })).toThrow(/patientRamPresets must be a non-empty array/);
+    expect(() => validateSpec({ ...base, patientRamPresets: [laptop, laptop] })).toThrow(/duplicate patientRamPreset id/);
+    expect(() =>
+      validateSpec({ ...base, patientRamPresets: [{ ...laptop, peakRssGB: 0 }] }),
+    ).toThrow(/peakRssGB must be positive/);
+    expect(() =>
+      validateSpec({ ...base, patientRamPresets: [{ ...laptop, expectedSecondsPerToken: -2 }] }),
+    ).toThrow(/expectedSecondsPerToken must be positive/);
+  });
+
+  it("validateSpec rejects unpinned trustRemoteCode, bad revision, and inverted MoE fields", () => {
+    const base: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+    };
+    expect(() =>
+      validateSpec({ ...base, source: { ...base.source, revision: "main" } }),
+    ).toThrow(/malformed source.revision/);
+    expect(() => validateSpec({ ...base, trustRemoteCode: true })).toThrow(/trustRemoteCode/);
+    expect(() => validateSpec({ ...base, activeParams: 1 })).toThrow(/both activeParams and totalParams/);
+    expect(() => validateSpec({ ...base, activeParams: 10, totalParams: 3 })).toThrow(/exceeds totalParams/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        toolCallingVerified: true,
+        toolCallingBenchmark: { suite: "s", date: "not-a-date", result: "ok" },
+      }),
+    ).toThrow(/YYYY-MM-DD/);
+  });
+
+  it("validateSpec accepts an official precision-variant manifest", () => {
+    expect(() =>
+      validateSpec({
+        id: "x",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "image",
+        displayName: "X",
+        source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+        weights: {
+          layoutVersion: 2,
+          defaultVariant: "int8",
+          variants: [
+            {
+              id: "int8",
+              precision: "int8",
+              official: true,
+              files: [{ path: "a.bin", sha256: "a".repeat(64) }],
+            },
+          ],
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it("normalizes omitted diffusion and codingEligible flags (v2.1.0 Phase 1)", () => {
+    const spec: ModelSpec = {
+      id: "x:1",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+    };
+    expect(() => validateSpec(spec)).not.toThrow();
+    const normalized = normalizeSpec(spec);
+    expect(normalized.diffusion).toBe(false);
+    expect(normalized.codingEligible).toBe(true);
+  });
+
+  it("curates Muse Glimmer 30B with tier gates and vendor_reported metadata (v2.1.0)", async () => {
+    const file = await loadCatalog();
+    const k17 = findSpec(file, "muse-glimmer:30b");
+    const dyn = findSpec(file, "muse-glimmer:30b-dynamic");
+    expect(k17).toBeDefined();
+    expect(dyn).toBeDefined();
+    expect(k17?.family).toBe("muse-glimmer");
+    expect(k17?.license).toBe("Apache-2.0");
+    expect(k17?.requiredVramGB).toBe(24);
+    expect(k17?.hideBelowVramGB).toBe(16);
+    expect(k17?.minOllamaVersion).toBe("0.32.7");
+    expect(k17?.source.url).toContain("meta-models/Muse-Glimmer-30B-GGUF");
+    expect(k17?.vendorReported?.vendorReported).toBe(true);
+    expect(k17?.vendorReported?.value).toBe(76);
+    expect(k17?.localEval?.status).toBe("not_run");
+    expect(k17?.codingEligible).toBe(true);
+    expect(k17?.diffusion).toBe(false);
+    expect(dyn?.requiredVramGB).toBe(32);
+    const copy = [k17?.description, k17?.whyRecommended, k17?.differentiators, ...(k17?.strengths ?? [])].join(" ");
+    expect(copy).not.toMatch(/SWE-Bench|76\.0/);
+    expect(localEvalMayPromote(k17!)).toBe(false);
+    expect(k17?.vision).toBe(false);
+    expect(dyn?.vision).toBe(false);
+  });
+
+  it("curates Nemotron Lightning as a dual-tier worker-candidate (v2.1.0)", async () => {
+    const file = await loadCatalog();
+    const native = findSpec(file, "nemotron-lightning:30b-a3b");
+    const offload = findSpec(file, "nemotron-lightning:30b-a3b-offload");
+    expect(native?.role).toBe("worker-candidate");
+    expect(offload?.role).toBe("worker-candidate");
+    expect(native?.license).toBe("OpenMDW-1.1");
+    expect(native?.requiredVramGB).toBe(24);
+    expect(offload?.requiredVramGB).toBe(16);
+    expect(offload?.tags).toContain("expert-offload");
+    expect(native?.minOllamaVersion).toBe("0.32.9");
+    expect(native?.hideBelowVramGB).toBe(16);
+    expect(native?.activeParams).toBe(3);
+    expect(native?.totalParams).toBe(30);
+    expect(native?.localEval?.status).toBe("not_run");
+    expect(native?.source.url).toBe("ollama://nemotron-3.5-lightning:30b");
+    expect(offload?.source.url).toBe("ollama://nemotron-3.5-lightning:30b");
+  });
+
+  it("does not promote Muse or Lightning onto recommended.json defaults (v2.1.0)", async () => {
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = await fs.readFile(recommendedPath, "utf8");
+    expect(recommended).not.toContain("muse-glimmer");
+    expect(recommended).not.toContain("nemotron-lightning");
+  });
+
+  it("validateSpec rejects invalid v2.1.0 visibility and eval fields", () => {
+    const base: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+    };
+    expect(() => validateSpec({ ...base, minOllamaVersion: "0.32" })).toThrow(/minOllamaVersion/);
+    expect(() => validateSpec({ ...base, hideBelowVramGB: -1 })).toThrow(/hideBelowVramGB/);
+    expect(() => validateSpec({ ...base, role: "planner" as "worker-candidate" })).toThrow(/invalid role/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        vendorReported: { suite: "x", vendorReported: false as unknown as true },
+      }),
+    ).toThrow(/vendorReported/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        localEval: { suite: "s", status: "maybe" as "pass", date: "2026-08-20" },
+      }),
+    ).toThrow(/localEval/);
+  });
+
+  it("defaults vision on LLMs with image modality and rejects vision without image", () => {
+    const llm: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+      modalities: ["text", "image"],
+    };
+    expect(normalizeSpec(llm).vision).toBe(true);
+    expect(
+      normalizeSpec({
+        ...llm,
+        type: "image",
+        modalities: ["image"],
+      }).vision,
+    ).toBe(false);
+    expect(() =>
+      validateSpec({ ...llm, vision: true, modalities: ["text"] }),
+    ).toThrow(/vision is true but modalities omit image/);
+  });
+
+  it("marks Gemma 4 12B as a chat VLM with a visual-token budget (v2.1.0 Phase 4)", async () => {
+    const file = await loadCatalog();
+    const gemma = findSpec(file, "gemma-4-12b-it-gguf");
+    expect(gemma?.vision).toBe(true);
+    expect(gemma?.visualTokenBudget?.maxImages).toBe(1);
+    expect(gemma?.visualTokenBudget?.maxVideoFrames).toBe(8);
+  });
+
+  it("ships SAM2 as an Apache-2.0 utility, not a generator (v2.1.0 Phase 4)", async () => {
+    const file = await loadCatalog();
+    const sam2 = findSpec(file, "sam2:hiera-tiny");
+    expect(sam2).toBeDefined();
+    expect(sam2?.license).toBe("Apache-2.0");
+    expect(sam2?.codingEligible).toBe(false);
+    expect(sam2?.diffusion).toBe(false);
+    expect(sam2?.vision).toBe(false);
+    expect(sam2?.tags).toContain("utility");
+    expect(sam2?.tags).toContain("sam2");
   });
 });

@@ -14,6 +14,10 @@ import type { Reflection } from "./ReflexionEngine.js";
 import type { CriticReviewer } from "./CriticAgent.js";
 import type { Tracer } from "../observability/Tracer.js";
 import { formatForUser } from "../utils/errors.js";
+import { routeTurn } from "./routing/routeTurn.js";
+import type { EscalationPolicy, RoutingModels } from "./routing/EscalationPolicy.js";
+import type { RoutingTurnEvent } from "./routing/RoutingSignals.js";
+import type { GpuScheduler } from "../../../core/scheduler/GpuScheduler.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,6 +74,20 @@ export interface DAGExecutorOptions {
    * the worker run it reviews. Absent -> sub-runs trace standalone as before.
    */
   readonly swarmTrace?: SwarmTraceContext;
+  /**
+   * v2.1.0 Phase 2 -- adaptive routing. Absent keeps every worker on the
+   * SubAgentManager default model (byte-identical to pre-routing).
+   */
+  readonly routing?: DAGRoutingContext;
+}
+
+export interface DAGRoutingContext {
+  readonly policy: EscalationPolicy;
+  readonly models: RoutingModels;
+  readonly events: RoutingTurnEvent[];
+  readonly scheduler?: Pick<GpuScheduler, "evaluateRoutingSwap">;
+  readonly vramFor?: (modelId: string) => number;
+  readonly workerResident?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +165,8 @@ export class DAGExecutor {
   private readonly _isolateWrites: boolean;
   private readonly _critic: CriticReviewer | null;
   private readonly _swarmTrace: SwarmTraceContext | null;
+  private readonly _routing: DAGRoutingContext | null;
+  private _routingTurn = 0;
 
   constructor(
     private readonly _subAgentManager: SubAgentManager,
@@ -159,6 +179,7 @@ export class DAGExecutor {
     this._isolateWrites = options.isolateWrites === true;
     this._critic = options.critic ?? null;
     this._swarmTrace = options.swarmTrace ?? null;
+    this._routing = options.routing ?? null;
   }
 
   async execute(dag: TaskDAG): Promise<DAGExecutionResult> {
@@ -242,6 +263,28 @@ export class DAGExecutor {
     const isolate =
       this._isolateWrites && WRITE_CAPABLE_AGENT_TYPES.has(agentType);
 
+    // DEVIATION: planner/critic pin stays on Orchestrator.modelName (strong).
+    // Only worker DAG nodes go through routeTurn. Absent routing is the old path.
+    let routedModel: string | undefined;
+    if (this._routing) {
+      this._routingTurn += 1;
+      const sessionId = this._sessionId ?? "dag";
+      const decision = routeTurn(
+        this._routing.policy,
+        {
+          sessionId,
+          turn: this._routingTurn,
+          role: "worker",
+          events: this._routing.events,
+          models: this._routing.models,
+          vramFor: this._routing.vramFor ?? (() => 8),
+          workerResident: this._routing.workerResident ?? true,
+        },
+        this._routing.scheduler,
+      );
+      routedModel = decision.modelId;
+    }
+
     const config: SubAgentConfig = {
       type: agentType,
       maxIterations: this._profile.subAgentMaxIterations,
@@ -250,6 +293,7 @@ export class DAGExecutor {
       recentToolResults: [],
       memoryContext,
       ...(isolate ? { isolate: true } : {}),
+      ...(routedModel ? { modelName: routedModel } : {}),
     };
 
     // v1.6.0 Phase 4 (A2): stamp this worker run with the swarm group + planner
@@ -267,6 +311,7 @@ export class DAGExecutor {
 
     try {
       const result = await this._subAgentManager.run(config, this._postMessage, trace);
+      this._recordRoutingTurn(result.success, node.id, result.success && (node.type === "code" || node.type === "verify"));
 
       if (!result.success) {
         await this._handleNodeFailure(node, dag, result.error ?? "Sub-agent reported failure");
@@ -327,6 +372,19 @@ export class DAGExecutor {
     }
 
     this._postProgress(dag);
+  }
+
+  private _recordRoutingTurn(success: boolean, nodeId: string, fileMutated: boolean): void {
+    if (!this._routing) return;
+    this._routing.events.push({
+      sessionId: this._sessionId ?? "dag",
+      turn: this._routingTurn,
+      role: "worker",
+      toolName: "sub-agent",
+      toolArgsHash: nodeId,
+      toolError: !success,
+      fileMutated,
+    });
   }
 
   private async _handleNodeFailure(

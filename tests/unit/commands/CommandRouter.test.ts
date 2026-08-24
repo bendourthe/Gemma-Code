@@ -114,6 +114,20 @@ describe("CommandRouter", () => {
         expect.stringContaining("/nonexistent-skill")
       );
     });
+
+    it("routes /harness to builtin with profile args", () => {
+      const router = makeRouter();
+      expect(router.route("/harness plan-first")).toEqual({
+        type: "builtin",
+        name: "harness",
+        args: "plan-first",
+      });
+      expect(router.route("/harness")).toEqual({
+        type: "builtin",
+        name: "harness",
+        args: "",
+      });
+    });
   });
 
   describe("getAllDescriptors()", () => {
@@ -128,6 +142,7 @@ describe("CommandRouter", () => {
       expect(names).toContain("model");
       expect(names).toContain("memory");
       expect(names).toContain("mcp");
+      expect(names).toContain("harness");
     });
 
     it("includes skill descriptors returned by the factory", () => {

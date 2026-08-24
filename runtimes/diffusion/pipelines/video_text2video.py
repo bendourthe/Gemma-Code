@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from . import video_base
+from . import video_base, real_execute
 
 
 # LTX-Video weights are ~12 GB on disk; the unet at fp16 inside CUDA is
@@ -28,7 +28,9 @@ _MODEL_SIZE_GB = 12.0
 def register(handlers: Dict[str, Callable]) -> None:
     runner = video_base.VideoPipelineRunner(
         method="diffusion.video.text2video",
-        execute=video_base.stub_execute("text2video"),
+        execute=video_base.select_executor(
+            "text2video", real=real_execute.video_execute
+        ),
         model_size_gb=_MODEL_SIZE_GB,
     )
     handlers["diffusion.video.text2video"] = lambda params: runner.run(params or {})

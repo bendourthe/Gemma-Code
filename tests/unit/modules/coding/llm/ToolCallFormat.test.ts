@@ -11,6 +11,7 @@ describe("ToolCallFormat strategies", () => {
       "llama3-json",
       "qwen-json",
       "deepseek-json",
+      "lfm-pythonic",
     ]);
   });
 
@@ -93,5 +94,80 @@ describe("ToolCallFormat strategies", () => {
       expect(getToolCallFormat(name).parse("")).toEqual([]);
       expect(getToolCallFormat(name).parse("   ")).toEqual([]);
     }
+  });
+
+  it("LFM pythonic parser reads official tool_call_start spans", () => {
+    const text =
+      '<|tool_call_start|>[get_candidate_status(candidate_id="12345")]<|tool_call_end|>';
+    const calls = getToolCallFormat("lfm-pythonic").parse(text);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.name).toBe("get_candidate_status");
+    expect(calls[0]?.args).toEqual({ candidate_id: "12345" });
+  });
+
+  it("LFM pythonic parser reads multiple calls and nested JSON kwargs", () => {
+    const text =
+      '<|tool_call_start|>[read_file(path="a.ts"), search(query="x", filters={"tags":["coding"]})]<|tool_call_end|>';
+    const calls = getToolCallFormat("lfm-pythonic").parse(text);
+    expect(calls.map((c) => c.name)).toEqual(["read_file", "search"]);
+    expect(calls[1]?.args).toEqual({ query: "x", filters: { tags: ["coding"] } });
+  });
+
+  it("LFM pythonic parser accepts a JSON-array override body", () => {
+    const text =
+      '<|tool_call_start|>[{"name":"get_weather","arguments":{"location":"Paris"}}]<|tool_call_end|>';
+    const calls = getToolCallFormat("lfm-pythonic").parse(text);
+    expect(calls[0]?.name).toBe("get_weather");
+    expect(calls[0]?.args).toEqual({ location: "Paris" });
+  });
+
+  it("LFM pythonic parser reads a live local emission with think tags and single quotes", () => {
+    const text =
+      "<think>plan</think><|tool_call_start|>[get_candidate_status(candidate_id='12345')]<|tool_call_end|>";
+    const calls = getToolCallFormat("lfm-pythonic").parse(text);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.name).toBe("get_candidate_status");
+    expect(calls[0]?.args).toEqual({ candidate_id: "12345" });
+  });
+
+  it("LFM pythonic parser returns [] for unclosed or prose-only output", () => {
+    expect(
+      getToolCallFormat("lfm-pythonic").parse(
+        '<|tool_call_start|>[get_candidate_status(candidate_id="12345")',
+      ),
+    ).toEqual([]);
+    expect(getToolCallFormat("lfm-pythonic").parse("just a reply.")).toEqual([]);
+  });
+
+  it("LFM pythonic parser covers True/False/None, numbers, positional args, and empty lists", () => {
+    const fmt = getToolCallFormat("lfm-pythonic");
+    const mixed =
+      "<|tool_call_start|>[flag(on=True, off=False, empty=None, n=3, ratio=1.5, ok=true, no=false, z=null)]<|tool_call_end|>";
+    expect(fmt.parse(mixed)[0]?.args).toEqual({
+      on: true,
+      off: false,
+      empty: null,
+      n: 3,
+      ratio: 1.5,
+      ok: true,
+      no: false,
+      z: null,
+    });
+    const positional =
+      "<|tool_call_start|>[read_file(\"a.ts\")]<|tool_call_end|>";
+    expect(fmt.parse(positional)[0]?.args).toEqual({ _0: "a.ts" });
+    expect(fmt.parse("<|tool_call_start|>[]<|tool_call_end|>")).toEqual([]);
+    const unwrapped =
+      "<|tool_call_start|>get_candidate_status(candidate_id=\"x\")<|tool_call_end|>";
+    expect(fmt.parse(unwrapped)[0]?.name).toBe("get_candidate_status");
+    expect(
+      fmt.parse("<|tool_call_start|>[{not-json]<|tool_call_end|>"),
+    ).toEqual([]);
+  });
+
+  it("Gemma4 XML parser does not treat LFM spans as tool calls", () => {
+    const text =
+      '<|tool_call_start|>[get_candidate_status(candidate_id="12345")]<|tool_call_end|>';
+    expect(getToolCallFormat("gemma4-xml").parse(text)).toEqual([]);
   });
 });

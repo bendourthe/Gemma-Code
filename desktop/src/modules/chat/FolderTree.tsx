@@ -33,8 +33,10 @@ import {
   ChevronRight,
   FolderPlus,
   MessageCirclePlus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
-import type { ChatExplorerClient } from "./chatExplorerClient";
+import { resolveMaybe, type AsyncChatExplorerClient } from "./chatExplorerClient";
 import type { Chat, Folder, FolderTreeNode } from "./types";
 
 export type SelectedNode =
@@ -42,9 +44,21 @@ export type SelectedNode =
   | { kind: "chat"; id: string };
 
 export interface FolderTreeProps {
-  client: ChatExplorerClient;
+  /**
+   * v2.2.3 Phase 1 (1.1): the contract is async-safe. The sync in-memory
+   * client still satisfies it (tests stay synchronous); production injects
+   * the IPC adapter, whose every method returns a Promise.
+   */
+  client: AsyncChatExplorerClient;
   /** Called whenever the tree changes; consumers can use it to refresh. */
   onChange?: () => void;
+  /**
+   * Bump to force a re-read of the store. Needed when something OUTSIDE the
+   * tree changes a row: v2.2.0 auto-titling renames a chat from the message
+   * pane, and the rail would otherwise keep showing "New chat" until the next
+   * local edit. (DF-13)
+   */
+  refreshToken?: number;
   /** Currently active selection (controlled). */
   selected?: SelectedNode | null;
   /** Selection callback. */
@@ -150,6 +164,13 @@ function nodeKey(node: SelectedNode): string {
   return `${node.kind}:${node.id ?? "ROOT"}`;
 }
 
+/** Rendered while the async tree is loading and when a load fails. */
+const EMPTY_TREE: FolderTreeNode = { folder: null, children: [], chats: [] };
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function FolderTree({
   client,
   onChange,
@@ -158,6 +179,7 @@ export function FolderTree({
   onOpenChat,
   onOpenFolder,
   storageAdapter,
+  refreshToken,
   defaultModelId = "gemma4:e4b",
 }: FolderTreeProps): JSX.Element {
   const storage = storageAdapter ?? defaultStorage;
@@ -174,7 +196,31 @@ export function FolderTree({
     onChange?.();
   }, [onChange]);
 
-  const tree = useMemo(() => client.listTree(), [client, revision]);
+  // v2.2.3 Phase 1 (1.1): `listTree()` may resolve asynchronously (IPC
+  // adapter) or synchronously (in-memory client). A failed or malformed load
+  // degrades to an empty tree plus a one-line error instead of throwing out
+  // of a useMemo and blanking the whole app (the P0 behind U7).
+  const [tree, setTree] = useState<FolderTreeNode>(EMPTY_TREE);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    resolveMaybe(
+      () => client.listTree(),
+      (next) => {
+        if (cancelled) return;
+        setTree(next);
+        setLoadError(null);
+      },
+      (err) => {
+        if (cancelled) return;
+        setTree(EMPTY_TREE);
+        setLoadError(errorMessage(err));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [client, revision, refreshToken]);
 
   const flat = useMemo(() => {
     const full = flattenTree(tree, expanded);
@@ -201,21 +247,7 @@ export function FolderTree({
     [onSelect],
   );
 
-  const handleClick = useCallback(
-    (node: FlatNode) => {
-      if (node.kind === "folder") {
-        if (node.id !== null) toggleExpanded(node.id);
-        selectNode({ kind: "folder", id: node.id });
-        onOpenFolder?.(node.folder ?? null);
-      } else if (node.chat) {
-        selectNode({ kind: "chat", id: node.chat.id });
-        onOpenChat?.(node.chat);
-      }
-    },
-    [onOpenChat, onOpenFolder, selectNode, toggleExpanded],
-  );
-
-  const handleDoubleClick = useCallback((node: FlatNode) => {
+  const startRename = useCallback((node: FlatNode) => {
     if (node.kind === "folder" && node.id !== null) {
       setRenamingId(node.id);
       setRenameValue(node.label);
@@ -225,23 +257,58 @@ export function FolderTree({
     }
   }, []);
 
+  const handleClick = useCallback(
+    (node: FlatNode) => {
+      if (node.kind === "folder") {
+        if (node.id !== null) toggleExpanded(node.id);
+        selectNode({ kind: "folder", id: node.id });
+        onOpenFolder?.(node.folder ?? null);
+        return;
+      }
+      if (!node.chat) return;
+      const alreadySelected = selected?.kind === "chat" && selected.id === node.chat.id;
+      if (alreadySelected && renamingId === null) {
+        startRename(node);
+        return;
+      }
+      selectNode({ kind: "chat", id: node.chat.id });
+      onOpenChat?.(node.chat);
+    },
+    [onOpenChat, onOpenFolder, renamingId, selected, selectNode, startRename, toggleExpanded],
+  );
+
+  const handleDoubleClick = useCallback(
+    (node: FlatNode) => {
+      startRename(node);
+    },
+    [startRename],
+  );
+
   const commitRename = useCallback(
     (node: FlatNode) => {
       if (!renamingId || !renameValue.trim()) {
         setRenamingId(null);
         return;
       }
-      try {
-        if (node.kind === "folder" && node.id) {
-          client.renameFolder(node.id, renameValue.trim());
-        } else if (node.kind === "chat" && node.chat) {
-          client.renameChat(node.chat.id, renameValue.trim());
-        }
-      } finally {
-        setRenamingId(null);
-        setRenameValue("");
-        refresh();
-      }
+      const nextName = renameValue.trim();
+      setRenamingId(null);
+      setRenameValue("");
+      resolveMaybe(
+        () => {
+          if (node.kind === "folder" && node.id) {
+            return client.renameFolder(node.id, nextName);
+          }
+          if (node.kind === "chat" && node.chat) {
+            return client.renameChat(node.chat.id, nextName);
+          }
+          return undefined;
+        },
+        () => refresh(),
+        (err) => {
+          setLoadError(errorMessage(err));
+          refresh();
+        },
+      );
     },
     [client, refresh, renameValue, renamingId],
   );
@@ -335,19 +402,20 @@ export function FolderTree({
       if (!source) return;
       if (node.kind !== "folder") return;
       const targetFolderId: string | null = node.id;
-      try {
-        if (source.kind === "folder") {
-          if (source.id === null) return; // root cannot be moved
-          if (source.id === targetFolderId) return;
-          client.moveFolder(source.id, targetFolderId);
-        } else if (source.kind === "chat") {
-          client.moveChat(source.id, targetFolderId);
-        }
-      } catch {
+      resolveMaybe(
+        () => {
+          if (source.kind === "folder") {
+            if (source.id === null) return undefined; // root cannot be moved
+            if (source.id === targetFolderId) return undefined;
+            return client.moveFolder(source.id, targetFolderId);
+          }
+          return client.moveChat(source.id, targetFolderId);
+        },
+        () => refresh(),
         // Refused moves (cycle, self) are silently ignored at the UI layer;
-        // the store throws and the tree stays untouched.
-      }
-      refresh();
+        // the store rejects and the tree stays untouched.
+        () => refresh(),
+      );
     },
     [client, refresh],
   );
@@ -356,11 +424,16 @@ export function FolderTree({
 
   const onCreateFolder = useCallback(
     (parentId: string | null) => {
-      const folder = client.createFolder({ parentId, name: "New folder" });
-      refresh();
-      setRenamingId(folder.id);
-      setRenameValue(folder.name);
-      if (parentId !== null) setExpanded((prev) => new Set(prev).add(parentId));
+      resolveMaybe(
+        () => client.createFolder({ parentId, name: "New folder" }),
+        (folder) => {
+          refresh();
+          setRenamingId(folder.id);
+          setRenameValue(folder.name);
+          if (parentId !== null) setExpanded((prev) => new Set(prev).add(parentId));
+        },
+        (err) => setLoadError(errorMessage(err)),
+      );
       closeContextMenu();
     },
     [client, closeContextMenu, refresh],
@@ -368,15 +441,21 @@ export function FolderTree({
 
   const onCreateChat = useCallback(
     (folderId: string | null) => {
-      const chat = client.createChat({
-        folderId,
-        title: "New chat",
-        modelId: defaultModelId,
-      });
-      refresh();
-      setRenamingId(chat.id);
-      setRenameValue(chat.title);
-      if (folderId !== null) setExpanded((prev) => new Set(prev).add(folderId));
+      resolveMaybe(
+        () =>
+          client.createChat({
+            folderId,
+            title: "New chat",
+            modelId: defaultModelId,
+          }),
+        (chat) => {
+          refresh();
+          setRenamingId(chat.id);
+          setRenameValue(chat.title);
+          if (folderId !== null) setExpanded((prev) => new Set(prev).add(folderId));
+        },
+        (err) => setLoadError(errorMessage(err)),
+      );
       closeContextMenu();
     },
     [client, closeContextMenu, defaultModelId, refresh],
@@ -385,20 +464,30 @@ export function FolderTree({
   const onChangeColor = useCallback(
     (folderId: string | null, color: string | null) => {
       if (folderId === null) return;
-      const folder = client.getFolder(folderId);
-      if (!folder) return;
-      // The color is stored on the folder row by re-creating via update path.
-      // The client doesn't expose an updateFolder yet; use moveFolder
-      // (same parent) plus a renameFolder no-op for now. The real path is to
-      // extend the client with `updateFolder`. Keep behaviour minimal here
-      // and persist the color via a direct mutation on the returned object.
-      // The InMemoryChatExplorerClient stores Folder by reference in its
-      // map, so reassigning the returned object's color is not durable; we
-      // rename to itself which triggers an updatedAt bump and let the caller
-      // see the color via the contextMenu state.
-      client.renameFolder(folderId, folder.name); // touch updatedAt
-      Object.assign(folder, { color });
-      refresh();
+      resolveMaybe(
+        () => client.getFolder(folderId),
+        (folder) => {
+          if (!folder) return;
+          // The color is stored on the folder row by re-creating via update path.
+          // The client doesn't expose an updateFolder yet; use moveFolder
+          // (same parent) plus a renameFolder no-op for now. The real path is to
+          // extend the client with `updateFolder`. Keep behaviour minimal here
+          // and persist the color via a direct mutation on the returned object.
+          // The InMemoryChatExplorerClient stores Folder by reference in its
+          // map, so reassigning the returned object's color is not durable; we
+          // rename to itself which triggers an updatedAt bump and let the caller
+          // see the color via the contextMenu state.
+          resolveMaybe(
+            () => client.renameFolder(folderId, folder.name), // touch updatedAt
+            () => {
+              Object.assign(folder, { color });
+              refresh();
+            },
+            (err) => setLoadError(errorMessage(err)),
+          );
+        },
+        (err) => setLoadError(errorMessage(err)),
+      );
       closeContextMenu();
     },
     [client, closeContextMenu, refresh],
@@ -406,13 +495,24 @@ export function FolderTree({
 
   const confirmDeleteNow = useCallback(() => {
     if (!confirmDelete) return;
-    if (confirmDelete.target.kind === "folder" && confirmDelete.target.id !== null) {
-      client.deleteFolder(confirmDelete.target.id);
-    } else if (confirmDelete.target.kind === "chat") {
-      client.deleteChat(confirmDelete.target.id);
-    }
+    const target = confirmDelete.target;
     setConfirmDelete(null);
-    refresh();
+    resolveMaybe(
+      () => {
+        if (target.kind === "folder" && target.id !== null) {
+          return client.deleteFolder(target.id);
+        }
+        if (target.kind === "chat") {
+          return client.deleteChat(target.id);
+        }
+        return undefined;
+      },
+      () => refresh(),
+      (err) => {
+        setLoadError(errorMessage(err));
+        refresh();
+      },
+    );
   }, [client, confirmDelete, refresh]);
 
   const isEmpty = tree.children.length === 0 && tree.chats.length === 0;
@@ -428,11 +528,27 @@ export function FolderTree({
           alignItems: "flex-start",
         }}
       >
+        {loadError !== null ? (
+          <p
+            data-testid="folder-tree-error"
+            role="status"
+            style={{ margin: 0, color: "var(--status-err, #d33)", fontSize: "var(--text-sm)" }}
+          >
+            Could not load chats: {loadError}
+          </p>
+        ) : null}
         <p style={{ margin: 0, color: "var(--fg-muted)" }}>No chats yet.</p>
+        {/*
+          v2.2.0 Phase 8 (DF-12): this used to read "Create your first folder",
+          which is why the module appeared to require a folder before it would
+          let you talk to anything. The store has always supported chats with
+          `folderId: null`; only this button insisted otherwise. Folders remain
+          available for organising later, from the header and context menu.
+        */}
         <button
           type="button"
           data-testid="folder-tree-empty-cta"
-          onClick={() => onCreateFolder(null)}
+          onClick={() => onCreateChat(null)}
           style={{
             backgroundColor: "var(--accent-chatbot, var(--accent-coding))",
             color: "var(--bg-0)",
@@ -442,7 +558,7 @@ export function FolderTree({
             cursor: "pointer",
           }}
         >
-          Create your first folder
+          Start a new chat
         </button>
       </div>
     );
@@ -490,6 +606,21 @@ export function FolderTree({
           </button>
         </span>
       </header>
+
+      {loadError !== null ? (
+        <p
+          data-testid="folder-tree-error"
+          role="status"
+          style={{
+            margin: 0,
+            padding: "0 var(--space-3)",
+            color: "var(--status-err, #d33)",
+            fontSize: "var(--text-sm)",
+          }}
+        >
+          Could not load chats: {loadError}
+        </p>
+      ) : null}
 
       <ul
         role="tree"
@@ -565,6 +696,43 @@ export function FolderTree({
                 ) : (
                   <span style={{ flex: 1, color: "var(--fg-1)" }}>{node.label}</span>
                 )}
+                {node.kind === "chat" && node.chat && !isRenaming ? (
+                  <span
+                    style={{ display: "inline-flex", gap: 2, flex: "0 0 auto" }}
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      data-testid={`tree-rename-${node.chat.id}`}
+                      aria-label={`Rename ${node.label}`}
+                      title="Rename"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startRename(node);
+                      }}
+                      style={iconButtonStyle}
+                    >
+                      <Pencil size={12} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`tree-delete-${node.chat.id}`}
+                      aria-label={`Delete ${node.label}`}
+                      title="Delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDelete({
+                          target: { kind: "chat", id: node.id ?? "" },
+                          label: node.label,
+                        });
+                      }}
+                      style={iconButtonStyle}
+                    >
+                      <Trash2 size={12} aria-hidden />
+                    </button>
+                  </span>
+                ) : null}
               </li>
             );
           })}
@@ -607,12 +775,25 @@ export function FolderTree({
               data-testid="ctx-rename"
               onClick={() => {
                 if (!contextMenu) return;
-                if (contextMenu.target.kind === "folder" && contextMenu.target.id !== null) {
-                  setRenamingId(contextMenu.target.id);
-                  setRenameValue(client.getFolder(contextMenu.target.id)?.name ?? "");
-                } else if (contextMenu.target.kind === "chat") {
-                  setRenamingId(contextMenu.target.id);
-                  setRenameValue(client.getChat(contextMenu.target.id)?.title ?? "");
+                const target = contextMenu.target;
+                if (target.kind === "folder" && target.id !== null) {
+                  const id = target.id;
+                  resolveMaybe(
+                    () => client.getFolder(id),
+                    (folder) => {
+                      setRenamingId(id);
+                      setRenameValue(folder?.name ?? "");
+                    },
+                  );
+                } else if (target.kind === "chat") {
+                  const id = target.id;
+                  resolveMaybe(
+                    () => client.getChat(id),
+                    (chat) => {
+                      setRenamingId(id);
+                      setRenameValue(chat?.title ?? "");
+                    },
+                  );
                 }
                 closeContextMenu();
               }}
@@ -627,13 +808,22 @@ export function FolderTree({
               data-testid="ctx-delete"
               onClick={() => {
                 if (!contextMenu) return;
-                const label =
-                  contextMenu.target.kind === "folder" && contextMenu.target.id !== null
-                    ? client.getFolder(contextMenu.target.id)?.name ?? ""
-                    : contextMenu.target.kind === "chat"
-                      ? client.getChat(contextMenu.target.id)?.title ?? ""
-                      : "";
-                setConfirmDelete({ target: contextMenu.target, label });
+                const target = contextMenu.target;
+                resolveMaybe(
+                  () => {
+                    if (target.kind === "folder" && target.id !== null) {
+                      return client.getFolder(target.id);
+                    }
+                    if (target.kind === "chat") {
+                      return client.getChat(target.id);
+                    }
+                    return null;
+                  },
+                  (row) => {
+                    const label = row === null ? "" : "name" in row ? row.name : row.title;
+                    setConfirmDelete({ target, label });
+                  },
+                );
                 closeContextMenu();
               }}
               style={ctxButtonStyle}

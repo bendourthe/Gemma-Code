@@ -18,7 +18,6 @@ import sys
 from pathlib import Path
 
 from nexus_installer import __version__
-from nexus_installer.registry_paths import resolve_window_icon
 
 
 def _prompt_resume() -> bool:
@@ -409,7 +408,6 @@ def main() -> None:
 
     # Import PyQt5 lazily so --version/--help/--headless don't require Qt.
     from PyQt5.QtCore import Qt
-    from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import QApplication
 
     from nexus_installer.installer_state import InstallerState
@@ -440,12 +438,14 @@ def main() -> None:
     app.setApplicationDisplayName("Nexus AI Studio")
     app.setApplicationVersion(__version__)
 
-    # Window / taskbar icon, resolved bundle-first (sys._MEIPASS) so the frozen
-    # onefile shows the Nexus mark instead of the generic Python host icon; the
-    # old fixed-depth relative walk silently missed inside the bundle (T018).
-    icon_path = resolve_window_icon()
-    if icon_path is not None:
-        app.setWindowIcon(QIcon(str(icon_path)))
+    # Window / taskbar icon: PNG + ICO packed together so Qt has a raster
+    # Windows will paint (a fully transparent PNG-in-ICO often falls back to
+    # the generic application glyph). Bundle-first via asset_file (T018).
+    from nexus_installer.widgets.win_titlebar import build_window_icon
+
+    window_icon = build_window_icon()
+    if window_icon is not None:
+        app.setWindowIcon(window_icon)
 
     # macOS Retina support
     if sys.platform == "darwin":

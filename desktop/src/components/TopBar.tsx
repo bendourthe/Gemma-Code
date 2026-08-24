@@ -22,7 +22,7 @@ import type {
   ChatExplorerSearchHit,
   Folder,
 } from "../modules/chat/types";
-import type { ChatExplorerClient } from "../modules/chat/chatExplorerClient";
+import type { SyncChatExplorerClient } from "../modules/chat/chatExplorerClient";
 
 export interface MemorySearchHit {
   id: string;
@@ -36,7 +36,7 @@ export interface MemorySearchAdapter {
 
 export interface TopBarProps {
   /** Optional chat explorer; falls back to an empty result list. */
-  chatClient?: ChatExplorerClient;
+  chatClient?: SyncChatExplorerClient;
   /** Optional memory adapter; when absent the Memories group is hidden. */
   memoryAdapter?: MemorySearchAdapter;
   /** Debounce in milliseconds before invoking search. Default 200. */

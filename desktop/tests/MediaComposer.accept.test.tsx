@@ -11,6 +11,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { MediaComposer, fileMatchesAccept, isImageDataUrl } from "../src/shared/chat/MediaComposer";
+import { DOCUMENT_ACCEPT } from "../src/shared/chat/documentAccept";
 
 function file(name: string, type: string): File {
   return new File(["x"], name, { type });
@@ -26,16 +27,31 @@ describe("fileMatchesAccept", () => {
     expect(fileMatchesAccept(file("a.pdf", "application/pdf"), "application/pdf")).toBe(true);
   });
 
-  it("matches a comma-separated list", () => {
-    const accept = "application/pdf,image/*";
-    expect(fileMatchesAccept(file("a.pdf", "application/pdf"), accept)).toBe(true);
-    expect(fileMatchesAccept(file("a.png", "image/png"), accept)).toBe(true);
-    expect(fileMatchesAccept(file("a.txt", "text/plain"), accept)).toBe(false);
+  it("accepts Office Open XML on the shared document accept list", () => {
+    const docx =
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    expect(fileMatchesAccept(file("notes.docx", docx), DOCUMENT_ACCEPT)).toBe(true);
+    expect(
+      fileMatchesAccept(
+        file("deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+        DOCUMENT_ACCEPT,
+      ),
+    ).toBe(true);
+    expect(
+      fileMatchesAccept(
+        file("sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        DOCUMENT_ACCEPT,
+      ),
+    ).toBe(true);
+    expect(fileMatchesAccept(file("page.html", "text/html"), DOCUMENT_ACCEPT)).toBe(false);
   });
 
   it("falls back to the extension when the platform reports no MIME type", () => {
     expect(fileMatchesAccept(file("scan.pdf", ""), ".pdf")).toBe(true);
     expect(fileMatchesAccept(file("scan.txt", ""), ".pdf")).toBe(false);
+    expect(fileMatchesAccept(file("notes.docx", ""), DOCUMENT_ACCEPT)).toBe(true);
+    expect(fileMatchesAccept(file("notes.pptx", ""), DOCUMENT_ACCEPT)).toBe(true);
+    expect(fileMatchesAccept(file("notes.xlsx", ""), DOCUMENT_ACCEPT)).toBe(true);
   });
 
   it("accepts everything for a wildcard or an empty accept", () => {
@@ -70,11 +86,30 @@ describe("MediaComposer attachment filtering", () => {
     await waitFor(() => expect(screen.getByTestId("media-composer-doc-0")).toBeInTheDocument());
   });
 
+  it("accepts a Word file when the document accept list allows it", async () => {
+    const user = userEvent.setup();
+    const docxType =
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    render(<MediaComposer onSubmit={() => {}} accept={DOCUMENT_ACCEPT} />);
+    await user.upload(screen.getByTestId("media-composer-file"), file("notes.docx", docxType));
+    await waitFor(() => expect(screen.getByTestId("media-composer-doc-0")).toBeInTheDocument());
+  });
+
   it("still drops a PDF for an image-only composer (studios unchanged)", async () => {
     const user = userEvent.setup();
     render(<MediaComposer onSubmit={() => {}} />);
     await user.upload(screen.getByTestId("media-composer-file"), file("doc.pdf", "application/pdf"));
     // Nothing attached: the thumbnail strip never renders.
+    expect(screen.queryByTestId("media-composer-thumbs")).not.toBeInTheDocument();
+  });
+
+  it("still drops a Word file for an image-only composer (studios unchanged)", async () => {
+    const user = userEvent.setup();
+    render(<MediaComposer onSubmit={() => {}} />);
+    await user.upload(
+      screen.getByTestId("media-composer-file"),
+      file("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    );
     expect(screen.queryByTestId("media-composer-thumbs")).not.toBeInTheDocument();
   });
 

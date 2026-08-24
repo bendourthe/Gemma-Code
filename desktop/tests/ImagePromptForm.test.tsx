@@ -183,4 +183,20 @@ describe("ImagePromptForm", () => {
       /diffusion-high/,
     );
   });
+
+  it("surfaces VRAM budget knobs in Advanced and forwards them", () => {
+    renderForm();
+    fireEvent.click(screen.getByText("Advanced (LoRAs, ControlNet)"));
+    expect(screen.getByTestId("image-memory-budget")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("image-max-cache-vram"), { target: { value: "2" } });
+    fireEvent.click(screen.getByTestId("image-layer-streaming"));
+    const out = valuesToBaseRequest({
+      ...DEFAULT_FORM_VALUES,
+      maxCacheVramGB: 2,
+      workingMemReserveGB: 1,
+      layerStreaming: true,
+    });
+    expect(out.maxCacheVramGB).toBe(2);
+    expect(out.layerStreaming).toBe(true);
+  });
 });

@@ -118,4 +118,22 @@ describe("store rejection is an expected outcome", () => {
     expect(result.stored).toBe(false);
     expect(result.reason).toBe("database is locked");
   });
+
+  it("reads a live sessionId getter at ingest time", async () => {
+    const store = writer();
+    let current = "s-old";
+    await createDocumentMemoryIngestor({
+      store,
+      enabled: true,
+      sessionId: () => current,
+    }).ingest(ARGS);
+    current = "s-new";
+    await createDocumentMemoryIngestor({
+      store,
+      enabled: true,
+      sessionId: () => current,
+    }).ingest(ARGS);
+    expect((store.save.mock.calls[0] as [string, string, string])[2]).toBe("s-old");
+    expect((store.save.mock.calls[1] as [string, string, string])[2]).toBe("s-new");
+  });
 });

@@ -24,6 +24,7 @@ import tarfile
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
@@ -40,22 +41,24 @@ from nexus_installer.installer_state import InstallerState
 # Pinned release tag + the GitHub-published sha256 digests of its assets
 # (`gh api /repos/ollama/ollama/releases` -> assets[].digest). Update all
 # three together; `check-ollama-pin.py` warns when the pin falls behind.
-OLLAMA_PINNED_TAG = "v0.32.0"
+# v0.32.15 is the floor that can pull current Gemma 4 library tags (older
+# pins return HTTP 412 "requires a newer version of Ollama").
+OLLAMA_PINNED_TAG = "v0.32.15"
 OLLAMA_WINDOWS_URL = f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/OllamaSetup.exe"
 OLLAMA_WINDOWS_SHA256 = (
-    "07846c9074875e4d47518d41636880a9d9a40a7e1483659ac00be7aec082de06"
+    "bb49a9366dacf07e3fc94e87869d1a0ad5df3a8cbd9ee54503d4b6b1c0843cb0"
 )
 OLLAMA_LINUX_ASSET = "ollama-linux-amd64.tar.zst"
 OLLAMA_LINUX_URL = f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/{OLLAMA_LINUX_ASSET}"
-OLLAMA_LINUX_SHA256 = "56362d7609dfa9e35aaebb7c9cab25605d8f0528ec3d5d585dc83d6642002bab"
+OLLAMA_LINUX_SHA256 = "50539c5fe9bf85887733355098dcdb266b433cb8c73fa180713417e9ed6e42bb"
 
-# Minimum Ollama version that can both pull AND load the Gemma 4 architecture:
-# support landed in 0.20.0, and 0.21.0-0.21.2 had a Flash-Attention
-# misreporting bug fixed in 0.22.0. The entire recommended chat/agentic default
-# line is Gemma 4, so a too-old pre-existing Ollama would leave a fresh install
-# with no working chat model. The bundled pin (OLLAMA_PINNED_TAG) is newer than
-# this floor; the floor is what a PRE-EXISTING Ollama must meet or be upgraded.
-MIN_OLLAMA_VERSION = "0.22.0"
+# Minimum Ollama version that can pull AND load the current Gemma 4 library
+# tags. Support landed in 0.20.0, 0.21.x had a Flash-Attention bug, and
+# current `gemma4:12b` manifests require 0.32.15 (HTTP 412 below that).
+# Muse Glimmer needs 0.32.7 and Lightning's library tag needs 0.32.9, so
+# the installer floor matches the pin. A too-old pre-existing Ollama would
+# leave a fresh install with no working chat model.
+MIN_OLLAMA_VERSION = "0.32.15"
 
 MANUAL_INSTALL_SUGGESTION = (
     "Re-run the installer to retry; if it keeps failing, install Ollama "
@@ -403,7 +406,7 @@ class OllamaInstaller:
         state: InstallerState,
         log: Callable[[str, str], None],
     ) -> bool:
-        """True when a pre-existing Ollama already satisfies the Gemma 4 floor.
+        """True when a pre-existing Ollama already satisfies the pin floor.
 
         Returns False (so `install` proceeds to lay down the pinned build) when
         the installed Ollama is older than `MIN_OLLAMA_VERSION`. When the
@@ -419,18 +422,19 @@ class OllamaInstaller:
             return True
         if _meets_min_version(current, MIN_OLLAMA_VERSION):
             log(
-                f"Ollama {current} is already installed and supports Gemma 4; "
-                "skipping install.",
+                f"Ollama {current} is already installed and meets the installer "
+                f"Ollama floor ({MIN_OLLAMA_VERSION}); skipping install.",
                 "info",
             )
             return True
         log(
             f"Installed Ollama {current} is older than {MIN_OLLAMA_VERSION}, "
-            f"which the Gemma 4 default models require; installing the pinned "
+            f"which current Gemma 4 library tags require; installing the pinned "
             f"{OLLAMA_PINNED_TAG}.",
             "warn",
         )
         return False
+
 
     def _ollama_version(self, state: InstallerState) -> str | None:
         """Best-effort detection of the installed Ollama version (API, then CLI)."""
@@ -456,3 +460,68 @@ class OllamaInstaller:
         combined = f"{result.stdout or ''}{result.stderr or ''}"
         match = re.search(r"\d+\.\d+\.\d+", combined)
         return match.group() if match else None
+
+# v2.2.0 Phase 2 (2.3) -- per-model Ollama version gate, run at PULL time.
+#
+# `MIN_OLLAMA_VERSION` is enforced only while installing Ollama; an install
+# that finds Ollama already present skips that step entirely. A catalog entry
+# declaring `minOllamaVersion` above the installed build then fails at pull
+# time with HTTP 412 and a bare download URL in the log. This gate catches it
+# first, attempts the pinned upgrade once, and returns an actionable reason
+# instead of letting `ollama pull` fail opaquely.
+
+
+@dataclass(frozen=True)
+class OllamaVersionGate:
+    ok: bool
+    reason: str = ""
+
+
+def ensure_ollama_supports(
+    entry: dict | None,
+    state: InstallerState,
+    log: Callable[[str, str], None],
+) -> OllamaVersionGate:
+    """Check (and if needed upgrade) Ollama for one catalog entry."""
+    required = (entry or {}).get("minOllamaVersion")
+    if not isinstance(required, str) or not required.strip():
+        return OllamaVersionGate(True)
+
+    installer = OllamaInstaller()
+    current = installer._ollama_version(state)  # noqa: SLF001 - same package
+    if current is None:
+        # Unknowable version: do not block. The pull's own 412 handling
+        # (classified as `ollama-too-old`) remains the backstop.
+        return OllamaVersionGate(True)
+    if _meets_min_version(current, required):
+        return OllamaVersionGate(True)
+
+    log(
+        f"Ollama {current} is older than the {required} this model requires; "
+        f"upgrading to the pinned {OLLAMA_PINNED_TAG}...",
+        "warn",
+    )
+    # Force the install path even though Ollama is present.
+    previously_installed = state.ollama_installed
+    state.ollama_installed = False
+    try:
+        upgraded = installer.install(state, log)
+    finally:
+        if not state.ollama_installed:
+            state.ollama_installed = previously_installed
+    if not upgraded:
+        return OllamaVersionGate(
+            False,
+            f"needs Ollama {required} (installed: {current}) and the automatic "
+            "upgrade failed [ollama-too-old]. Install Ollama manually from "
+            "ollama.com/download, then retry this model.",
+        )
+    after = installer._ollama_version(state)  # noqa: SLF001 - same package
+    if after is not None and not _meets_min_version(after, required):
+        return OllamaVersionGate(
+            False,
+            f"needs Ollama {required} but the upgrade produced {after} "
+            "[ollama-too-old]. Retry after installing a newer Ollama.",
+        )
+    log("Ollama upgraded; continuing with the download.", "success")
+    return OllamaVersionGate(True)

@@ -28,6 +28,13 @@ import type { SkillMetrics } from "../../modules/coding/skills/SkillMetrics.js";
 import { formatMetricsTable } from "../../modules/coding/skills/SkillMetrics.js";
 import type { CurationLoop } from "../../modules/coding/skills/CurationLoop.js";
 import {
+  defaultHarnessSelector,
+  listHarnessProfiles,
+  parseHarnessCommand,
+  type HarnessSelector,
+  type HarnessSessionOverride,
+} from "../../modules/coding/orchestration/HarnessSelector.js";
+import {
   parseCompactArgs,
   computeContextBreakdown,
   renderContextBreakdown,
@@ -67,6 +74,12 @@ export interface ChatCommandContext {
   getSettings(): GemmaCodeSettings;
   getSkillMetrics(): SkillMetrics | null;
   getCurationLoop(): CurationLoop | null;
+  /**
+   * v1.18.0 Phase 2: session-scoped `/harness` override. Optional in legacy
+   * tests; when absent, inspect still works and switch is refused.
+   */
+  getHarnessSession?(): HarnessSessionOverride;
+  getHarnessSelector?(): HarnessSelector;
   buildPromptContext(memoryContext?: string): PromptContext;
   postMessage(msg: ExtensionToWebviewMessage): void;
   postHistory(): void;
@@ -115,6 +128,8 @@ export class ChatCommandHandlers {
         return this._handleTrace(args);
       case "thinking-mode":
         return this._handleThinkingMode(args);
+      case "harness":
+        return this._handleHarness(args);
       case "skill-metrics":
         return this._handleSkillMetrics(args);
       case "curate":
@@ -148,6 +163,7 @@ export class ChatCommandHandlers {
   }
 
   private _handleClear(): void {
+    this._ctx.getHarnessSession?.()?.clear();
     this._ctx.manager.clearHistory();
     this._ctx.planMode.resetPlan();
     this._ctx.postHistory();
@@ -325,6 +341,7 @@ export class ChatCommandHandlers {
     );
 
     if (selected) {
+      this._ctx.getHarnessSession?.()?.clear();
       await vscode.workspace
         .getConfiguration("nexus.llm")
         .update("modelName", selected, vscode.ConfigurationTarget.Global);
@@ -897,6 +914,87 @@ export class ChatCommandHandlers {
         return;
       }
     }
+  }
+
+  /**
+   * v1.18.0 Phase 2 -- `/harness` inspect / list / clear / switch. Session
+   * override never bypasses `settings.harnessSelectorEnabled`.
+   */
+  private _handleHarness(args: string): void {
+    const ctx = this._ctx;
+    const settings = ctx.getSettings();
+    const selector = ctx.getHarnessSelector?.() ?? defaultHarnessSelector;
+    const session = ctx.getHarnessSession?.();
+    const parsed = parseHarnessCommand(args);
+
+    if (parsed.kind === "unknown") {
+      this._emitMarkdown(
+        "_Usage: `/harness [inspect|list|clear|<profile>]` -- unknown profile or verb._",
+      );
+      return;
+    }
+
+    if (parsed.kind === "list") {
+      const lines = ["## Harness profiles", ""];
+      for (const profile of listHarnessProfiles()) {
+        lines.push(
+          `- \`${profile.id}\` -- ${profile.promptStyle}, thinking ${profile.thinkingMode ? "on" : "off"}, budget ${profile.systemPromptBudgetPercent}%`,
+        );
+      }
+      this._emitMarkdown(lines.join("\n"));
+      return;
+    }
+
+    if (parsed.kind === "clear") {
+      session?.clear();
+      this._rebuildHarnessPrompt();
+      this._emitMarkdown("_Harness override cleared. Auto selection applies on the next prompt._");
+      return;
+    }
+
+    if (parsed.kind === "switch") {
+      if (!settings.harnessSelectorEnabled) {
+        this._emitMarkdown(
+          "_Harness selector is off (`nexus.coding.harnessSelector.enabled`). Enable it before switching a profile; off means no overlay._",
+        );
+        return;
+      }
+      if (!session) {
+        this._emitMarkdown("_Harness session override is unavailable in this host._");
+        return;
+      }
+      session.set(parsed.profileId, settings.modelName);
+      this._rebuildHarnessPrompt();
+      this._emitMarkdown(
+        `_[Harness: \`${parsed.profileId}\`] Session override applies to the next prompt. Reverts on model change or \`/clear\`._`,
+      );
+      return;
+    }
+
+    const override = session?.peek(settings.modelName) ?? null;
+    const selection = selector.select(settings.modelName, override);
+    const applied = settings.harnessSelectorEnabled === true;
+    const overlay = selection.overlay;
+    const lines = [
+      "## Harness",
+      "",
+      `- **Selector:** ${applied ? "on" : "off"} (\`nexus.coding.harnessSelector.enabled\`)`,
+      `- **Active profile:** \`${selection.profile.id}\`${applied ? "" : " (not applied)"}`,
+      `- **Why:** ${selection.reason}${selection.family ? ` / family \`${selection.family}\`` : ""} / tier \`${selection.modelTier}\``,
+      `- **Model:** \`${selection.modelName}\``,
+      `- **Tags:** ${selection.tags.length > 0 ? selection.tags.map((t) => `\`${t}\``).join(", ") : "_(none)_"}`,
+      `- **Overlay:** promptStyle \`${overlay.promptStyle}\`, thinkingMode \`${overlay.thinkingMode}\`, budget ${overlay.systemPromptBudgetPercent}%`,
+    ];
+    if (selection.overrideId) {
+      lines.push(`- **Session override:** \`${selection.overrideId}\`${applied ? "" : " (inactive while selector is off)"}`);
+    }
+    this._emitMarkdown(lines.join("\n"));
+  }
+
+  private _rebuildHarnessPrompt(): void {
+    const ctx = this._ctx;
+    const prompt = ctx.promptBuilder.build(ctx.buildPromptContext());
+    ctx.manager.rebuildSystemPrompt(prompt);
   }
 
   /**

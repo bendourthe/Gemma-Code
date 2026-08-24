@@ -20,24 +20,47 @@
 
 import { useEffect, useRef, useState } from "react";
 
+export interface TimelineSegment {
+  readonly src: string;
+  readonly durationSeconds?: number;
+}
+
 export interface TimelinePreviewerProps {
   readonly src: string | null;
   readonly fps: number;
   readonly testId?: string;
+  /** v2.0.0 Phase 3 -- chained continuation clips played as one sequence. */
+  readonly segments?: readonly TimelineSegment[];
+  readonly comments?: readonly { readonly frame: number; readonly text: string }[];
+  readonly onAddComment?: (comment: { frame: number; text: string }) => void;
 }
 
 export function TimelinePreviewer({
   src,
   fps,
   testId = "video-timeline-previewer",
+  segments,
+  comments = [],
+  onAddComment,
 }: TimelinePreviewerProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [segmentIndex, setSegmentIndex] = useState(0);
+
+  const playlist = segments && segments.length > 0 ? segments : src ? [{ src }] : [];
+  const active = playlist[segmentIndex] ?? playlist[0];
+  const activeSrc = active?.src ?? null;
+  const segmentCount = playlist.length;
 
   useEffect(() => {
     setCurrentTime(0);
-  }, [src]);
+    setSegmentIndex(0);
+  }, [src, segments]);
+
+  useEffect(() => {
+    setCurrentTime(0);
+  }, [segmentIndex]);
 
   function handleScrub(value: number): void {
     const video = videoRef.current;
@@ -54,7 +77,7 @@ export function TimelinePreviewer({
     handleScrub(next);
   }
 
-  if (!src) {
+  if (!activeSrc) {
     return (
       <div data-testid={testId} style={previewerEmptyStyle}>
         <p data-testid={`${testId}-empty`} style={{ color: "var(--fg-muted)" }}>
@@ -69,8 +92,13 @@ export function TimelinePreviewer({
       <video
         data-testid={`${testId}-video`}
         ref={videoRef}
-        src={src}
+        src={activeSrc}
         controls={false}
+        onEnded={() => {
+          if (segmentIndex + 1 < segmentCount) {
+            setSegmentIndex(segmentIndex + 1);
+          }
+        }}
         onLoadedMetadata={(e) =>
           setDuration((e.currentTarget as HTMLVideoElement).duration || 0)
         }
@@ -132,7 +160,32 @@ export function TimelinePreviewer({
         <span data-testid={`${testId}-timecode`}>
           {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
         </span>
+        {segmentCount > 1 ? (
+          <span data-testid={`${testId}-segment`}>
+            Segment {segmentIndex + 1}/{segmentCount}
+          </span>
+        ) : null}
       </div>
+      {onAddComment ? (
+        <div data-testid={`${testId}-comments`} style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+          <button
+            type="button"
+            data-testid={`${testId}-add-comment`}
+            onClick={() => {
+              const frame = Math.max(0, Math.round(currentTime * Math.max(fps, 1)));
+              const text = `Mark at frame ${frame}`;
+              onAddComment({ frame, text });
+            }}
+          >
+            Comment this frame
+          </button>
+          {comments.map((c) => (
+            <span key={`${c.frame}-${c.text}`} data-testid={`${testId}-comment-${c.frame}`}>
+              f{c.frame}: {c.text}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

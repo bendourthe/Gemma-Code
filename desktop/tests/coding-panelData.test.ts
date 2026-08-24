@@ -35,5 +35,7 @@ describe("panel data", () => {
       expect(e.id).toBeTruthy();
       expect(["tool", "model", "scheduler", "skill"]).toContain(e.kind);
     }
+    const routing = events.find((e) => e.id === "t-003");
+    expect(routing?.payload?.kind).toBe("routing.decision");
   });
 });

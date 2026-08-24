@@ -146,6 +146,32 @@ describe("createIpcVideoClient", () => {
     );
   });
 
+  it("audio2video forwards request to diffusion.video.audio2video", async () => {
+    (ipc.call as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      value: { jobId: "j3", mode: "audio2video" },
+    });
+    const client = createIpcVideoClient();
+    await client.audio2video({
+      modelId: "longcat-video-avatar-1.5",
+      prompt: "talk",
+      width: 854,
+      height: 480,
+      durationSeconds: 4,
+      fps: 24,
+      steps: 30,
+      cfgScale: 3.5,
+      sampler: "euler_a",
+      seed: 0,
+      sourceImage: "data:image/png;base64,AAAA",
+      sourceAudio: "data:audio/wav;base64,BBBB",
+      confirmLocalAvatar: true,
+    });
+    expect((ipc.call as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toBe(
+      "diffusion.video.audio2video",
+    );
+  });
+
   it("drainEvents returns the events array from a successful reply", async () => {
     (ipc.call as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,

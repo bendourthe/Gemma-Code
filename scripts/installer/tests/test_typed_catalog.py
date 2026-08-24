@@ -93,6 +93,12 @@ def _write_catalog(tmp_path: Path) -> Path:
                 "requiredVramGB": 7,
                 "releaseDate": "2025-06-01",
                 "license": "Apache-2.0",
+                "licenseUrl": "https://www.liquid.ai/lfm-license",
+                "licenseNote": (
+                    "Free commercial use is limited to entities under USD 10M "
+                    "annual revenue. This is a use restriction, not a download gate."
+                ),
+                "requiresLicense": False,
                 "description": "Test agentic model",
                 "strengths": ["code generation"],
                 "differentiators": "Coding specialist",
@@ -241,6 +247,13 @@ class TestLoadCatalog:
         assert gemma.why_recommended == "Best chat per GB"
         assert gemma.differentiators == "The balanced default"
 
+    def test_license_note_parsed(self, tmp_path: Path) -> None:
+        models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
+        coder = models["qwen2.5-coder:7b"]
+        assert "USD 10M" in coder.license_note
+        assert coder.license_url.startswith("https://")
+        assert coder.requires_license is False
+
     def test_origin_and_agentic_parsed(self, tmp_path: Path) -> None:
         # v1.9.0 Phase 4 (T401/T402): origin + agentic capability flag.
         models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
@@ -249,6 +262,38 @@ class TestLoadCatalog:
         assert models["qwen2.5-coder:7b"].origin == "China"
         assert models["qwen2.5-coder:7b"].agentic is True
         assert models["juggernaut-xl-v9"].agentic is False
+
+    def test_tool_calling_verified_defaults_false_and_parses_true(self, tmp_path: Path) -> None:
+        path = tmp_path / "catalog.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "models": [
+                        {
+                            "id": "plain",
+                            "displayName": "Plain",
+                            "type": "llm",
+                            "task": "chat",
+                            "sizeGB": 1,
+                            "requiredVramGB": 4,
+                        },
+                        {
+                            "id": "verified",
+                            "displayName": "Verified",
+                            "type": "llm",
+                            "task": "chat",
+                            "sizeGB": 1,
+                            "requiredVramGB": 4,
+                            "toolCallingVerified": True,
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        models = {m.id: m for m in load_catalog_models(path)}
+        assert models["plain"].tool_calling_verified is False
+        assert models["verified"].tool_calling_verified is True
 
     def test_missing_catalog_returns_empty(self, tmp_path: Path) -> None:
         assert load_catalog_models(tmp_path / "nope.json") == []
@@ -346,8 +391,10 @@ class TestModelMetadata:
         img = self._model(task="image", type="image")
         assert img.guardrails_label == "Safety-tuned"
 
-    def test_is_required_is_embed_only(self) -> None:
-        assert self._model(task="embed").is_required is True
+    def test_is_required_is_nomic_embed_only(self) -> None:
+        assert self._model(id="nomic-embed-text", task="embed").is_required is True
+        assert self._model(id="embeddinggemma", task="embed").is_required is False
+        assert self._model(id="qwen3-embedding:0.6b", task="embed").is_required is False
         assert self._model(task="chat").is_required is False
         assert self._model(task="agentic", type="agentic").is_required is False
 
@@ -428,6 +475,15 @@ class TestTypedCatalogPage:
             "wan2.1-t2v-1.3b",
         }
         assert "qwen2.5-coder:7b" not in selected
+
+    def test_license_note_renders_on_card(self, qt_app, tmp_path: Path) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        page = self._page(_gpu_state(), tmp_path)
+        notes = page.findChildren(QLabel, "licenseNote")
+        assert notes, "expected a licenseNote widget on a card with licenseNote"
+        assert any("USD 10M" in n.text() for n in notes)
+        assert any("use restriction" in n.text().lower() for n in notes)
 
     def test_cpu_tier_skips_image_and_video(self, qt_app, tmp_path: Path) -> None:
         state = InstallerState()
@@ -535,6 +591,17 @@ class TestTypedCatalogPage:
         over = [m.required_vram_gb > 8 for m in models]
         assert over == sorted(over)  # every fitting row precedes every gray row
 
+    def test_enabled_sort_required_then_defaults_then_newest(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        models = page._sorted_section_models(
+            "chat", 8, "nvidia", {"gemma4:e4b", "nomic-embed-text"}
+        )
+        enabled = [m.id for m in models if m.required_vram_gb <= 8]
+        assert enabled[0] == "nomic-embed-text"
+        assert enabled.index("gemma4:e4b") < enabled.index("legacy-text-no-task")
+
     def test_try_advance_tab_walks_tabs_then_stops(
         self, qt_app, tmp_path: Path
     ) -> None:
@@ -629,6 +696,61 @@ class TestRealCatalogPage:
         selected = page.selection().selected
         assert "faster-whisper-large-v3" in selected
         assert "kokoro-82m" in selected
+        assert "lfm2.5:2.6b" in selected
+        assert "gemma4:e2b" in selected
+        assert "qwen2.5-coder:7b" not in selected
+
+    def test_8gb_defaults_keep_lfm_opt_in(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=8192))
+        selected = page.selection().selected
+        assert "lfm2.5:2.6b" not in selected
+        assert "gemma4:e4b" in selected
+
+    def test_agentic_order_is_recommendation_then_newest(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=16384))
+        fitted = set(page._current_defaults())
+        assert "gemma-4-12b-it-gguf" in fitted
+        assert "gpt-oss:20b" not in fitted
+        models = page._sorted_section_models(
+            "agentic",
+            16,
+            "nvidia",
+            fitted,
+            list(page._matrix["16"]["agentic"]),
+        )
+        enabled = [m.id for m in models if m.required_vram_gb <= 16]
+        assert enabled[:2] == ["gemma-4-12b-it-gguf", "gpt-oss:20b"]
+        assert enabled.index("gpt-oss:20b") < enabled.index("lfm2.5:2.6b")
+
+    def test_8gb_agentic_order_follows_recommended_list(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=8192))
+        models = page._sorted_section_models(
+            "agentic",
+            8,
+            "nvidia",
+            set(page._current_defaults()),
+            list(page._matrix["8"]["agentic"]),
+        )
+        enabled = [m.id for m in models if m.required_vram_gb <= 8]
+        assert enabled[:3] == ["gemma4:e4b", "lfm2.5:2.6b", "qwen3.5:9b"]
+
+    def test_new_specialists_listed_retired_coders_absent(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=24576))
+        ids = {m.id for m in page._catalog.values()}
+        for model_id in (
+            "qwen3.5:4b",
+            "qwen3.5:9b",
+            "gpt-oss:20b",
+            "qwen3-coder:30b",
+            "embeddinggemma",
+            "qwen3-embedding:0.6b",
+        ):
+            assert model_id in ids
+        assert "qwen2.5-coder:7b" not in ids
+        assert "qwen2.5-coder:14b" not in ids
+        assert "deepseek-coder-v2:16b" not in ids
+        assert page._catalog["nomic-embed-text"].is_required is True
+        assert page._catalog["embeddinggemma"].is_required is False
 
     def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's
@@ -657,6 +779,7 @@ class TestRealCatalogPage:
         html = page._provider_legend_html()
         assert html  # the bundled catalog spans several providers
         assert "Google" in html and "Alibaba" in html
+        assert "Liquid AI" in html
         assert not page._legend.isHidden()
 
 
@@ -767,3 +890,65 @@ class TestPhase3Collapse:
     def test_tab_order_matches_dod_sections(self) -> None:
         keys = [key for key, _, _ in TYPE_TABS]
         assert keys == ["chat", "agentic", "image", "video", "audio", "document"]
+
+
+class TestV21CatalogVisibility:
+    """v2.1.0 Phase 1 -- Muse Glimmer / Lightning hide-below-VRAM gates."""
+
+    def test_muse_hidden_on_12gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=12 * 1024))
+        ids = {
+            m.id
+            for m in page._sorted_section_models("agentic", 12, "nvidia", set())
+        }
+        assert not any(i.startswith("muse-glimmer") for i in ids)
+        assert not any(i.startswith("nemotron-lightning") for i in ids)
+
+    def test_muse_visible_on_24gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=24 * 1024))
+        ids = {
+            m.id
+            for m in page._sorted_section_models("agentic", 24, "nvidia", set())
+        }
+        assert "muse-glimmer:30b" in ids
+        assert "nemotron-lightning:30b-a3b" in ids
+
+    def test_lightning_offload_fits_16gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=16 * 1024))
+        ids = {
+            m.id
+            for m in page._sorted_section_models("agentic", 16, "nvidia", set())
+        }
+        assert "nemotron-lightning:30b-a3b-offload" in ids
+        fitting = [
+            m
+            for m in page._sorted_section_models("agentic", 16, "nvidia", set())
+            if m.family == "nemotron-lightning" and m.required_vram_gb <= 16
+        ]
+        assert fitting and fitting[0].id == "nemotron-lightning:30b-a3b-offload"
+
+    def test_ollama_version_badge(self) -> None:
+        model = CatalogModel(
+            id="m",
+            display_name="m",
+            type="agentic",
+            task="agentic",
+            size_gb=22.5,
+            required_vram_gb=24,
+            required_ram_gb=0,
+            release_date="2026-08-01",
+            license_name="OpenMDW-1.1",
+            context_window_in=0,
+            context_window_out=0,
+            multimodal=False,
+            uncensored=False,
+            description="",
+            min_ollama_version="0.32.9",
+        )
+        text, _color = compatibility_badge(
+            model,
+            total_vram_gb=24,
+            total_ram_gb=32,
+            gpu_vendor="nvidia",
+        )
+        assert "0.32.9" in text

@@ -88,6 +88,41 @@ describe("computeToolActivation", () => {
     expect(result.disabledTools.has("grep_codebase")).toBe(false);
   });
 
+  it("disables browser tools when the network is unavailable or the session is read-only", () => {
+    const browser = [
+      makeBuiltin("browser_navigate"),
+      makeBuiltin("browser_click"),
+      makeBuiltin("browser_type"),
+      makeBuiltin("browser_aria_snapshot"),
+      makeBuiltin("browser_close"),
+    ];
+    const tools = [...ALL_BUILTINS, ...browser];
+    const offline = computeToolActivation(tools, defaultContext({ networkAvailable: false }));
+    expect(offline.disabledTools.has("browser_navigate")).toBe(true);
+    expect(offline.disabledTools.has("browser_close")).toBe(false);
+    const ro = computeToolActivation(tools, defaultContext({ readOnlySession: true }));
+    expect(ro.disabledTools.has("browser_navigate")).toBe(true);
+    expect(ro.disabledTools.has("browser_close")).toBe(true);
+  });
+
+  it("keeps browser tools while trimming codegraph when over the 20-tool cap", () => {
+    const codegraph = Array.from({ length: 12 }, (_, i) =>
+      makeBuiltin(`codegraph_extra_${i}` as BuiltinToolName),
+    );
+    const tools = [
+      ...ALL_BUILTINS,
+      makeBuiltin("browser_navigate"),
+      makeBuiltin("browser_click"),
+      ...codegraph,
+    ];
+    // 10 core + 2 browser + 12 codegraph = 24. Trim 4 from codegraph first.
+    const result = computeToolActivation(tools, defaultContext({ totalToolCount: tools.length }));
+    expect(result.disabledTools.has("browser_navigate")).toBe(false);
+    expect(result.disabledTools.has("browser_click")).toBe(false);
+    expect(result.trimmedCodegraph).toBe(true);
+    expect(result.disabledTools.has("read_file")).toBe(false);
+  });
+
   // Rule 4: Research sub-agent
   it("disables write tools for research sub-agent", () => {
     const result = computeToolActivation(
@@ -114,9 +149,9 @@ describe("computeToolActivation", () => {
     expect(result.disabledTools.has("read_file")).toBe(false);
   });
 
-  // Rule 6: 15-tool cap trims lowest-priority MCP tools
-  it("trims lowest-priority MCP tools when count exceeds 15", () => {
-    const mcpTools = Array.from({ length: 8 }, (_, i) =>
+  // Rule 6: 20-tool cap trims lowest-priority MCP tools
+  it("trims lowest-priority MCP tools when count exceeds 20", () => {
+    const mcpTools = Array.from({ length: 14 }, (_, i) =>
       makeMcp(`tool_${i}`, 100 + i),
     );
     const allTools = [...ALL_BUILTINS, ...mcpTools];
@@ -126,23 +161,22 @@ describe("computeToolActivation", () => {
       defaultContext({ totalToolCount: allTools.length }),
     );
 
-    // 10 builtins + 8 MCP = 18 total. Need to disable 3 MCP tools.
-    // Highest priority numbers (107, 106, 105) should be disabled first.
-    expect(result.disabledTools.has("mcp:tool_7")).toBe(true);
-    expect(result.disabledTools.has("mcp:tool_6")).toBe(true);
-    expect(result.disabledTools.has("mcp:tool_5")).toBe(true);
-    expect(result.disabledTools.has("mcp:tool_4")).toBe(false);
-    // All builtins remain enabled
+    // 10 builtins + 14 MCP = 24 total. Need to disable 4 MCP tools.
+    expect(result.disabledTools.has("mcp:tool_13")).toBe(true);
+    expect(result.disabledTools.has("mcp:tool_12")).toBe(true);
+    expect(result.disabledTools.has("mcp:tool_11")).toBe(true);
+    expect(result.disabledTools.has("mcp:tool_10")).toBe(true);
+    expect(result.disabledTools.has("mcp:tool_9")).toBe(false);
     for (const tool of ALL_BUILTINS) {
       expect(result.disabledTools.has(tool.name)).toBe(false);
     }
   });
 
-  it("never trims builtin tools even when count exceeds 15", () => {
-    const mcpTools = Array.from({ length: 6 }, (_, i) =>
+  it("never trims builtin tools even when count exceeds 20", () => {
+    const mcpTools = Array.from({ length: 12 }, (_, i) =>
       makeMcp(`tool_${i}`, 100),
     );
-    const allTools = [...ALL_BUILTINS, ...mcpTools]; // 16 total
+    const allTools = [...ALL_BUILTINS, ...mcpTools]; // 22 total
 
     const result = computeToolActivation(
       allTools,
@@ -152,9 +186,8 @@ describe("computeToolActivation", () => {
     for (const tool of ALL_BUILTINS) {
       expect(result.disabledTools.has(tool.name)).toBe(false);
     }
-    // Only 1 MCP tool trimmed (16 - 15 = 1)
     const disabledMcp = mcpTools.filter((t) => result.disabledTools.has(t.name));
-    expect(disabledMcp).toHaveLength(1);
+    expect(disabledMcp).toHaveLength(2);
     // No codegraph tools present, so the trim flag is false.
     expect(result.trimmedCodegraph).toBe(false);
   });
@@ -178,8 +211,20 @@ describe("computeToolActivation", () => {
       source: "builtin" as const,
       priority: 0,
     }));
-    // 10 core builtins + 8 codegraph = 18, no MCP -> trim 3, all from codegraph.
-    const allTools = [...ALL_BUILTINS, ...codegraph];
+    const extraCodegraph: DynamicToolMetadata[] = [
+      "codegraph_files",
+      "codegraph_extra_a",
+      "codegraph_extra_b",
+      "codegraph_extra_c",
+    ].map((name) => ({
+      name: name as DynamicToolMetadata["name"],
+      description: name,
+      parameters: {},
+      source: "builtin" as const,
+      priority: 0,
+    }));
+    // 10 core builtins + 12 codegraph = 22, no MCP -> trim 2, all from codegraph.
+    const allTools = [...ALL_BUILTINS, ...codegraph, ...extraCodegraph];
     const result = computeToolActivation(
       allTools,
       defaultContext({ totalToolCount: allTools.length }),

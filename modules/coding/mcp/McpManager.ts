@@ -19,6 +19,14 @@ import {
   filterHubRegistry,
   type HubRegistryFilterResult,
 } from "./HubRegistryPolicyFilter.js";
+import {
+  deniedToolsFor,
+  emptyMcpToolDenyFile,
+  resolveExposedMcpTools,
+  withKnownTools,
+  withToolDenied,
+} from "./McpToolDeny.js";
+import { readMcpToolDenyFile, writeMcpToolDenyFile } from "./McpToolDenyStore.js";
 
 const DEFAULT_MCP_PRIORITY = 100;
 
@@ -169,8 +177,20 @@ export class McpManager {
 
     await client.connect();
 
-    // Register each discovered tool in the ToolRegistry.
+    const discovered = client.tools.map((t) => t.name);
+    if (this._workspacePath) {
+      try {
+        const next = withKnownTools(readMcpToolDenyFile(this._workspacePath), name, discovered);
+        writeMcpToolDenyFile(this._workspacePath, next);
+      } catch {
+        // Best-effort known-tools cache; connect still proceeds.
+      }
+    }
+    const exposed = this._exposedToolNames(name, discovered);
+
+    // Register each discovered tool that is still allowed after per-tool deny.
     for (const tool of client.tools) {
+      if (!exposed.has(tool.name)) continue;
       this._registry.register(
         tool.qualifiedName,
         new McpToolHandler(client, tool.name),
@@ -199,13 +219,64 @@ export class McpManager {
   /** Return all MCP tools as DynamicToolMetadata for PromptContext injection. */
   getAllToolMetadata(): DynamicToolMetadata[] {
     const result: DynamicToolMetadata[] = [];
-    for (const client of this._clients.values()) {
+    for (const [serverName, client] of this._clients.entries()) {
       if (client.status !== "connected") continue;
+      const exposed = this._exposedToolNames(
+        serverName,
+        client.tools.map((t) => t.name),
+      );
       for (const tool of client.tools) {
+        if (!exposed.has(tool.name)) continue;
         result.push(this._toToolMetadata(tool.qualifiedName, tool.description, tool.inputSchema));
       }
     }
     return result;
+  }
+
+  /**
+   * v1.18.0 Phase 3 (OW-A5) -- persist a per-tool deny/undeny for this project.
+   * User-configured servers are treated as policy-allow (they already passed
+   * enable + workspace approval). Hub policy-dropped servers never reach this
+   * manager; the settings surface rejects those toggles before write.
+   */
+  setToolDenied(
+    serverName: string,
+    toolName: string,
+    denied: boolean,
+  ): { readonly applied: boolean; readonly reason: string } {
+    if (!this._workspacePath) {
+      return { applied: false, reason: "no workspace; per-tool deny is per-project" };
+    }
+    const current = readMcpToolDenyFile(this._workspacePath);
+    const result = withToolDenied(current, {
+      serverName,
+      toolName,
+      denied,
+      policyVerdict: "allow",
+    });
+    if (!result.applied) return { applied: false, reason: result.reason };
+    try {
+      writeMcpToolDenyFile(this._workspacePath, result.file);
+    } catch (err) {
+      return {
+        applied: false,
+        reason: err instanceof Error ? err.message : String(err),
+      };
+    }
+    const client = this._clients.get(serverName);
+    if (client) {
+      const tool = client.tools.find((t) => t.name === toolName);
+      if (tool) {
+        if (denied) {
+          this._registry.setEnabled(tool.qualifiedName, false);
+        } else if (!this._registry.has(tool.qualifiedName)) {
+          this._registry.register(tool.qualifiedName, new McpToolHandler(client, tool.name));
+        } else {
+          this._registry.setEnabled(tool.qualifiedName, true);
+        }
+      }
+    }
+    return { applied: true, reason: result.reason };
   }
 
   dispose(): void {
@@ -218,6 +289,19 @@ export class McpManager {
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
+
+  private _exposedToolNames(serverName: string, discovered: readonly string[]): Set<string> {
+    const file = this._workspacePath
+      ? readMcpToolDenyFile(this._workspacePath)
+      : emptyMcpToolDenyFile();
+    const resolved = resolveExposedMcpTools({
+      serverName,
+      policyVerdict: "allow",
+      discoveredTools: discovered,
+      userDenied: deniedToolsFor(file, serverName),
+    });
+    return new Set(resolved.exposed);
+  }
 
   private async _disconnectClient(name: string, client: McpClient): Promise<void> {
     // Unregister the tools from the registry before disconnecting.

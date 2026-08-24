@@ -24,6 +24,13 @@ import type { OllamaToolDefinition } from "../../modules/coding/llm/types.js";
 import type { LLMClient } from "../../modules/coding/llm/types.js";
 import type { GitSafetyNet } from "../../modules/coding/guardrails/GitSafetyNet.js";
 import { LoopDetector } from "../../modules/coding/guardrails/LoopDetector.js";
+import { LoopGuards } from "../../modules/coding/guardrails/LoopGuards.js";
+import { toolFormatForModel } from "../../modules/coding/llm/parseAgentToolCalls.js";
+import {
+  composePassStateGating,
+  composeVerificationEnabled,
+  parseSecurityPosture,
+} from "../../modules/coding/guardrails/SecurityPosture.js";
 import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
 import type { Tracer } from "../../modules/coding/observability/Tracer.js";
 import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTier.types.js";
@@ -262,6 +269,7 @@ export class ChatController {
         : undefined,
       logger: (message) => getLogger().warn(message),
     });
+    const loopDetector = new LoopDetector();
     return new AgentLoop(
       deps.client,
       deps.manager,
@@ -276,7 +284,10 @@ export class ChatController {
         inboundClassifier,
         inboundClassifierEnabled: deps.settings.inboundClassifierEnabled,
         verificationThreshold: deps.settings.verificationThreshold,
-        verificationEnabled: deps.settings.verificationEnabled,
+        verificationEnabled: composeVerificationEnabled(
+          parseSecurityPosture(deps.settings.securityPosture),
+          deps.settings.verificationEnabled,
+        ),
         auditWorkerEnabled: deps.settings.auditWorkerEnabled,
         testgapsWorkerEnabled: deps.settings.testgapsWorkerEnabled,
         curatorWorkerEnabled: deps.settings.curatorWorkerEnabled,
@@ -284,15 +295,21 @@ export class ChatController {
         episodicMemory: deps.episodicMemory ?? undefined,
         sessionId: deps.manager.sessionId ?? undefined,
         gitSafetyNet: deps.gitSafetyNet ?? undefined,
-        loopDetector: new LoopDetector(),
+        loopDetector,
+        loopGuards: new LoopGuards(undefined, loopDetector),
+        securityPosture: parseSecurityPosture(deps.settings.securityPosture),
         maxTokens: deps.settings.maxTokens,
         tracer: deps.tracer,
         operationLog: deps.operationLog ?? undefined,
-        passStateGating: deps.settings.passStateGating,
+        passStateGating: composePassStateGating(
+          parseSecurityPosture(deps.settings.securityPosture),
+          deps.settings.passStateGating,
+        ),
         subAgentVerificationCredit: deps.settings.passStateSubAgentCredit,
         hookBus: deps.hookBus,
         skillCatalog: deps.skillCatalog,
         activeEditPathProvider: deps.activeEditPathProvider,
+        toolFormat: toolFormatForModel(deps.modelName),
       },
     );
   }

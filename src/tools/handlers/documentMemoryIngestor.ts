@@ -23,10 +23,10 @@
  *     which engine, and from which file, so a later reader can tell a parsed
  *     document apart from something the user actually said.
  *
- * RETAINED, NOT DEAD (v1.16.0 Phase 6 refactor triage): no host constructs
- * `createDocumentMemoryIngestor`, so `nexus.coding.parseDocument.memoryIngest.enabled`
- * has no effect yet (known gap LSO.P4.C). It hangs off the same composition-root
- * wiring as LSO.P4.B. Delete only if that gap is closed as won't-do.
+ * Wired in v1.20.0 Phase 1 (A1 / LSO.P4.C): `ChatPanelBootstrap` constructs
+ * this only when both `parseDocumentEnabled` and
+ * `parseDocumentMemoryIngestEnabled` are true. The sidecar has no MemoryStore,
+ * so it does not ingest.
  */
 
 import type { LifecycleProvenance } from "../../../core/memory/types.js";
@@ -46,7 +46,8 @@ export interface DocumentMemoryIngestorOptions {
   readonly store: MemoryWriter;
   /** `nexus.coding.parseDocument.memoryIngest.enabled`. Default false. */
   readonly enabled?: boolean;
-  readonly sessionId?: string;
+  /** Live session id, or a getter so a later `loadSession` is visible. */
+  readonly sessionId?: string | (() => string | null | undefined);
   /** Cap on stored characters; a 200-page parse must not become one huge row. */
   readonly maxChars?: number;
 }
@@ -80,14 +81,16 @@ export function createDocumentMemoryIngestor(
       const observation =
         `Parsed document "${sourcePath}" (via ${engine}):\n\n${stored}`;
 
+      const sessionId =
+        typeof opts.sessionId === "function" ? (opts.sessionId() ?? "") : (opts.sessionId ?? "");
       const provenance: LifecycleProvenance = {
-        sessionId: opts.sessionId ?? "",
+        sessionId,
         hookKind: "lifecycle.tool.post",
         toolName: "parse_document",
       };
 
       try {
-        await opts.store.save(observation, "fact", opts.sessionId, { provenance });
+        await opts.store.save(observation, "fact", sessionId, { provenance });
         return { stored: true };
       } catch (err) {
         // The store rejects content whose injection scanner fires. That is an

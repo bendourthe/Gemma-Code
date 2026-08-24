@@ -145,4 +145,11 @@ describe("nexus CLI parseArgs", () => {
     expect(a.flags.apply).toBe(true);
     expect(a.flags["max-candidates"]).toBe("4");
   });
+
+  it("captures session new --json", () => {
+    const a = parseArgs(["session", "new", "--json", "{\"modelId\":\"gemma4:e4b\"}"]);
+    expect(a.command).toBe("session");
+    expect(a.subcommand).toBe("new");
+    expect(a.flags.json).toBe("{\"modelId\":\"gemma4:e4b\"}");
+  });
 });

@@ -11,8 +11,31 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from nexus_installer.catalog_invariants import validate_catalog
+from nexus_installer.catalog_invariants import (
+    POST_2025_OLLAMA_TARGETS,
+    validate_catalog,
+)
 from nexus_installer.registry_paths import default_catalog_path
+
+_LFM_PIN = "79fdf00351b46cf26f020aead28d01889886be87c55fa0eb907e6f9b00bfee14"
+_LFM_NOTE = "USD 10M cap. This is a use restriction, not a download gate."
+_LFM_URL = "ollama://hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M"
+
+
+def _lfm_entry(**overrides: Any) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "id": "lfm2.5:2.6b",
+        "task": "agentic",
+        "agentic": True,
+        "license": "LFM Open License v1.0",
+        "licenseUrl": "https://www.liquid.ai/lfm-license",
+        "licenseNote": _LFM_NOTE,
+        "requiresLicense": False,
+        "source": {"protocol": "ollama", "url": _LFM_URL},
+        "weights": {"files": [{"path": "x.gguf", "sha256": _LFM_PIN}]},
+    }
+    entry.update(overrides)
+    return entry
 
 
 def _load_repo_catalog() -> dict[str, Any]:
@@ -31,6 +54,7 @@ class TestRepoCatalog:
             m for m in catalog["models"] if m.get("id") == "gemma-4-12b-it-gguf"
         )
         assert gemma["source"]["url"] == "ollama://gemma4:12b"
+        assert gemma.get("minOllamaVersion") == "0.32.15"
 
     def test_sana_int4_is_flagged_gated(self) -> None:
         # Direct regression check for the reported HTTP-401 loop.
@@ -40,6 +64,129 @@ class TestRepoCatalog:
         )
         if sana is not None:
             assert sana.get("gated") is True
+
+    def test_post_2025_ollama_targets_are_present(self) -> None:
+        catalog = _load_repo_catalog()
+        by_id = {m.get("id"): m for m in catalog["models"] if isinstance(m, dict)}
+        for model_id, expected_url in POST_2025_OLLAMA_TARGETS.items():
+            entry = by_id.get(model_id)
+            assert entry is not None, f"{model_id} missing from catalog.json"
+            assert entry.get("source", {}).get("url") == expected_url
+        assert "qwen2.5-coder:7b" not in by_id
+        assert "qwen2.5-coder:14b" not in by_id
+        assert "deepseek-coder-v2:16b" not in by_id
+
+
+class TestLfmLowVramAgentic:
+    def test_repo_catalog_includes_lfm_entry(self) -> None:
+        catalog = _load_repo_catalog()
+        lfm = next((m for m in catalog["models"] if m.get("id") == "lfm2.5:2.6b"), None)
+        assert lfm is not None
+        assert validate_catalog(catalog) == []
+
+    def test_missing_use_restriction_is_flagged(self) -> None:
+        entry = _lfm_entry(whyRecommended="fits CPU hosts")
+        del entry["licenseNote"]
+        problems = validate_catalog({"models": [entry]})
+        assert any("licenseNote" in p for p in problems)
+
+    def test_vendor_benchmark_in_copy_is_flagged(self) -> None:
+        entry = _lfm_entry(whyRecommended="ToolSandbox 77.83")
+        problems = validate_catalog({"models": [entry]})
+        assert any("ToolSandbox" in p for p in problems)
+
+    def test_requires_license_true_is_flagged(self) -> None:
+        entry = _lfm_entry(
+            requiresLicense=True,
+            gated=True,
+            gatedReason="should not fire",
+        )
+        problems = validate_catalog({"models": [entry]})
+        assert any("requiresLicense" in p for p in problems)
+        assert any("gated" in p for p in problems)
+
+    def test_placeholder_pin_is_flagged(self) -> None:
+        entry = _lfm_entry(
+            weights={"files": [{"path": "x.gguf", "sha256": "0" * 64}]}
+        )
+        problems = validate_catalog({"models": [entry]})
+        assert any("placeholder" in p or "SHA-256" in p for p in problems)
+
+    def test_wrong_task_license_or_source_is_flagged(self) -> None:
+        task = _lfm_entry(task="chat")
+        assert any("task" in p for p in validate_catalog({"models": [task]}))
+        no_agentic = _lfm_entry(agentic=False)
+        assert any("agentic" in p for p in validate_catalog({"models": [no_agentic]}))
+        license_ = _lfm_entry(license="MIT")
+        assert any("license" in p for p in validate_catalog({"models": [license_]}))
+        url = _lfm_entry(licenseUrl="http://example.invalid")
+        assert any("licenseUrl" in p for p in validate_catalog({"models": [url]}))
+        source = _lfm_entry(
+            source={"protocol": "ollama", "url": "ollama://lfm2.5:2.6b"}
+        )
+        assert any("official" in p for p in validate_catalog({"models": [source]}))
+
+    def test_phase3_decline_keeps_8b_a1b_out_of_the_repo_catalog(self) -> None:
+        catalog = _load_repo_catalog()
+        ids = [str(m.get("id")) for m in catalog["models"] if isinstance(m, dict)]
+        assert "lfm2.5:8b-a1b" not in ids
+        assert not any("8b-a1b" in i.lower() for i in ids)
+
+
+class TestMuseAndLightning:
+    def test_repo_catalog_includes_muse_and_lightning(self) -> None:
+        catalog = _load_repo_catalog()
+        ids = {str(m.get("id")) for m in catalog["models"] if isinstance(m, dict)}
+        assert "muse-glimmer:30b" in ids
+        assert "muse-glimmer:30b-dynamic" in ids
+        assert "nemotron-lightning:30b-a3b" in ids
+        assert "nemotron-lightning:30b-a3b-offload" in ids
+        assert "sam2:hiera-tiny" in ids
+        lightning = next(
+            m
+            for m in catalog["models"]
+            if m.get("id") == "nemotron-lightning:30b-a3b"
+        )
+        assert lightning["source"]["url"] == "ollama://nemotron-3.5-lightning:30b"
+        assert validate_catalog(catalog) == []
+
+    def test_muse_vendor_score_in_copy_is_flagged(self) -> None:
+        entry = {
+            "id": "muse-glimmer:30b",
+            "family": "muse-glimmer",
+            "agentic": True,
+            "license": "Apache-2.0",
+            "minOllamaVersion": "0.32.7",
+            "hideBelowVramGB": 16,
+            "requiredVramGB": 24,
+            "source": {
+                "protocol": "ollama",
+                "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-17GB",
+            },
+            "vendorReported": {"suite": "SWE-Bench Verified", "vendorReported": True},
+            "localEval": {"status": "not_run"},
+            "whyRecommended": "SWE-Bench 76.0",
+        }
+        problems = validate_catalog({"models": [entry]})
+        assert any("76.0" in p or "SWE-Bench" in p for p in problems)
+
+    def test_lightning_missing_role_is_flagged(self) -> None:
+        entry = {
+            "id": "nemotron-lightning:30b-a3b",
+            "family": "nemotron-lightning",
+            "agentic": True,
+            "license": "OpenMDW-1.1",
+            "minOllamaVersion": "0.32.9",
+            "hideBelowVramGB": 16,
+            "requiredVramGB": 24,
+            "source": {
+                "protocol": "ollama",
+                "url": "ollama://nemotron-3.5-lightning:30b",
+            },
+            "localEval": {"status": "not_run"},
+        }
+        problems = validate_catalog({"models": [entry]})
+        assert any("worker-candidate" in p for p in problems)
 
 
 class TestValidateCatalog:
@@ -66,6 +213,7 @@ class TestValidateCatalog:
             "models": [
                 {
                     "id": "gemma-4-12b-it-gguf",
+                    "minOllamaVersion": "0.32.15",
                     "source": {"protocol": "ollama", "url": "ollama://gemma4:12b"},
                 }
             ]
@@ -111,3 +259,66 @@ class TestValidateCatalog:
     def test_missing_source_protocol_is_flagged(self) -> None:
         catalog = {"models": [{"id": "x"}]}
         assert any("source.protocol" in p for p in validate_catalog(catalog))
+
+    def test_pre_2025_opt_in_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "llama3.1:8b",
+                    "task": "chat",
+                    "releaseDate": "2024-07-23",
+                    "source": {"protocol": "ollama", "url": "ollama://llama3.1:8b"},
+                }
+            ]
+        }
+        assert any("pre-2025" in p for p in validate_catalog(catalog))
+
+    def test_pre_2025_keep_list_is_allowed(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "nomic-embed-text",
+                    "task": "embed",
+                    "releaseDate": "2024-02-14",
+                    "source": {
+                        "protocol": "ollama",
+                        "url": "ollama://nomic-embed-text",
+                    },
+                }
+            ]
+        }
+        problems = validate_catalog(catalog)
+        assert not any("pre-2025" in p for p in problems)
+
+    def test_gemma12_missing_min_ollama_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "gemma-4-12b-it-gguf",
+                    "source": {"protocol": "ollama", "url": "ollama://gemma4:12b"},
+                }
+            ]
+        }
+        assert any("minOllamaVersion" in p for p in validate_catalog(catalog))
+
+    def test_post_2025_wrong_url_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "gpt-oss:20b",
+                    "source": {"protocol": "ollama", "url": "ollama://gpt-oss:wrong"},
+                }
+            ]
+        }
+        assert any("gpt-oss:20b" in p for p in validate_catalog(catalog))
+
+    def test_qwen35_sizes_must_ship_together(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "qwen3.5:9b",
+                    "source": {"protocol": "ollama", "url": "ollama://qwen3.5:9b"},
+                }
+            ]
+        }
+        assert any("qwen3.5" in p for p in validate_catalog(catalog))

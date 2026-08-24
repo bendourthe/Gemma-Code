@@ -18,6 +18,10 @@ import type { StreamingPipeline } from "../../modules/coding/chat/StreamingPipel
 import { PlanMode } from "../../modules/coding/chat/PlanMode.js";
 import { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
 import { CommandRouter } from "../../modules/coding/commands/CommandRouter.js";
+import {
+  defaultHarnessSelector,
+  HarnessSessionOverride,
+} from "../../modules/coding/orchestration/HarnessSelector.js";
 import { HubCommandCatalogLoader } from "../../modules/coding/commands/HubCommandCatalogLoader.js";
 import { SkillLoader } from "../../modules/coding/skills/SkillLoader.js";
 import { SkillMetrics } from "../../modules/coding/skills/SkillMetrics.js";
@@ -70,6 +74,7 @@ import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import { defaultPermissionOptions } from "./webview/render/permissionPrompt.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
+import { buildParseDocumentDeps } from "../tools/parseDocumentWiring.js";
 import { TodoState } from "../tools/handlers/todos.js";
 import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
@@ -243,6 +248,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
       return undefined;
     }
   };
+  const harnessSession = new HarnessSessionOverride();
   const toolActivation = new ToolActivationContext({
     planMode,
     getSettings: () => hooks.getSettings(),
@@ -253,6 +259,8 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     getWorkingMemory: () => memorySubsystem.workingMemory,
     getUnifiedRetriever: () => memorySubsystem.unifiedRetriever,
     getLanguageRules: resolveHubLanguageRules,
+    getHarnessSelector: () => defaultHarnessSelector,
+    getHarnessSession: () => harnessSession,
   });
 
   const initialPrompt = promptBuilder.buildSync(toolActivation.buildPromptContext());
@@ -317,6 +325,12 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
       state: todoState,
       post: input.hostPostMessage,
     },
+    parseDocument: buildParseDocumentDeps({
+      parseDocumentEnabled: settings.parseDocumentEnabled === true,
+      parseDocumentMemoryIngestEnabled: settings.parseDocumentMemoryIngestEnabled === true,
+      memoryStore: memorySubsystem.memoryStore,
+      sessionId: () => manager.sessionId,
+    }),
   });
 
   const ollamaOptions = buildOllamaTuning(settings);
@@ -550,6 +564,8 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     getSkillMetrics: () => skillMetrics,
     getCurationLoop: () => curationLoop,
     getHubCommand: (name: string) => hubCommandLoader.get(name),
+    getHarnessSession: () => harnessSession,
+    getHarnessSelector: () => defaultHarnessSelector,
     buildPromptContext: (memoryContext) =>
       toolActivation.buildPromptContext(memoryContext),
     postMessage: input.hostPostMessage,

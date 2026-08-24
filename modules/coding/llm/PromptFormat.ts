@@ -135,11 +135,26 @@ const DeepSeekFormat: PromptFormat = {
   },
 };
 
+// ----- LFM2.5 (ChatML + startoftext; tool role is first-class) ----------------
+// Official template (Liquid docs, fetched 2026-08-18):
+//   <|startoftext|><|im_start|>system\n...<|im_end|>
+//   <|im_start|>user\n...<|im_end|>
+//   <|im_start|>assistant\n
+const LfmFormat: PromptFormat = {
+  name: "lfm",
+  stopTokens: ["<|im_end|>"],
+  render(messages) {
+    const turns = messages.map((m) => `<|im_start|>${m.role}\n${m.content}<|im_end|>`);
+    return `<|startoftext|>${turns.join("\n")}\n<|im_start|>assistant\n`;
+  },
+};
+
 const STRATEGIES: Record<PromptFormatName, PromptFormat> = {
   gemma4: Gemma4Format,
   llama3: Llama3Format,
   qwen: QwenFormat,
   deepseek: DeepSeekFormat,
+  lfm: LfmFormat,
 };
 
 export function getPromptFormat(name: PromptFormatName): PromptFormat {
@@ -153,4 +168,5 @@ export const PROMPT_FORMAT_NAMES: readonly PromptFormatName[] = Object.freeze([
   "llama3",
   "qwen",
   "deepseek",
+  "lfm",
 ]);

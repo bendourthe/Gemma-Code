@@ -3,6 +3,7 @@ import type {
   CodingSessionSummaryT,
   TraceEventT,
 } from "../../../../sidecar/src/protocol";
+import { Button, Select } from "../../../components/ui";
 import {
   PLAYBACK_SPEEDS,
   TimelineScrubber,
@@ -96,36 +97,38 @@ export function SessionCompareView({
     >
       <header style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
         <strong>Compare</strong>
-        <button
+        <Button
           type="button"
-          data-testid="session-compare-shared-toggle"
+          testId="session-compare-shared-toggle"
           onClick={togglePlay}
         >
           {playing ? "Pause both" : "Play both"}
-        </button>
+        </Button>
         <label style={{ display: "inline-flex", gap: "var(--space-1)", alignItems: "center" }}>
           Shared speed:
-          <select
+          <Select
             data-testid="session-compare-shared-speed"
             value={speed}
             onChange={handleSharedSpeed}
             aria-label="Shared playback speed"
+            style={{ width: "auto" }}
           >
             {PLAYBACK_SPEEDS.map((s) => (
               <option key={s} value={s}>
                 {s}x
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         {onCloseCompare && (
-          <button
+          <Button
             type="button"
-            data-testid="session-compare-close"
+            testId="session-compare-close"
+            variant="ghost"
             onClick={onCloseCompare}
           >
             Close compare
-          </button>
+          </Button>
         )}
       </header>
 

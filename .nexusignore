@@ -41,3 +41,4 @@ docs/archive/**/dist/
 # Nexus per-user data (in case a developer accidentally drops it under the repo)
 .nexus/
 .gemma-code/
+project-sandboxes/

@@ -57,7 +57,7 @@ describe("e2e: compaction under load", () => {
     new ToolResultClearing(8),
     new SlidingWindow(10),
     new CodeBlockTruncation(10),
-    new EmergencyTrim(10),
+    new EmergencyTrim(2),
   ]);
 
   it("reduces tokens below budget for a 100-message conversation", async () => {

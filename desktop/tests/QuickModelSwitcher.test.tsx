@@ -105,4 +105,31 @@ describe("QuickModelSwitcher", () => {
     expect(onGetMore).toHaveBeenCalledTimes(1);
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("calls onChange with the first owned id when value is not in the ready list", () => {
+    const onChange = vi.fn();
+    render(
+      <QuickModelSwitcher
+        models={MODELS}
+        taskType="llm"
+        value="gemma4:e4b"
+        onChange={onChange}
+        ownedIds={new Set(["qwen2.5-coder:7b"])}
+      />,
+    );
+    expect(onChange).toHaveBeenCalledWith("qwen2.5-coder:7b");
+  });
+
+  it("forwards a harnessLabel to the ModelSelector badge", () => {
+    render(
+      <QuickModelSwitcher
+        models={MODELS}
+        taskType="llm"
+        value="gemma4:e4b"
+        onChange={() => undefined}
+        harnessLabel="plan-first"
+      />,
+    );
+    expect(screen.getByTestId("quick-model-switcher-harness")).toHaveTextContent("plan-first");
+  });
 });

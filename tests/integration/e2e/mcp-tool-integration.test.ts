@@ -2,7 +2,7 @@
  * E2E: MCP tool integration with ToolRegistry.
  *
  * Verifies that MCP-provided tools register cleanly alongside built-ins,
- * can execute via the registry, and count toward the 15-tool activation
+ * can execute via the registry, and count toward the 20-tool activation
  * cap. No actual MCP server process is required.
  */
 
@@ -35,7 +35,7 @@ describe("e2e: MCP tool integration", () => {
     expect(result.output).toContain("mcp lookup");
   });
 
-  it("15-tool cap enforces on a mixed built-in + MCP catalog", () => {
+  it("20-tool cap enforces on a mixed built-in + MCP catalog", () => {
     const builtIns = TOOL_CATALOG.map(toDynamicMetadata);
     const mcpTools: DynamicToolMetadata[] = Array.from({ length: 20 }, (_, i) => ({
       ...builtIns[0]!,
@@ -52,7 +52,7 @@ describe("e2e: MCP tool integration", () => {
       totalToolCount: mixed.length,
     });
     const enabledCount = mixed.length - result.disabledTools.size;
-    expect(enabledCount).toBeLessThanOrEqual(15);
+    expect(enabledCount).toBeLessThanOrEqual(20);
   });
 
   it("disables MCP tools preferentially over built-ins when applying the cap", () => {

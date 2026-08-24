@@ -1,13 +1,17 @@
-﻿"""Main InstallEngine orchestrator running in a QThread."""
+"""Main InstallEngine orchestrator running in a QThread."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
 from nexus_installer.engine.extension_installer import ExtensionInstaller
+from nexus_installer.engine.hub_catalog_provisioner import HubCatalogProvisioner
 from nexus_installer.engine.model_router import ModelStepEvents, ModelStepRouter
 from nexus_installer.engine.ollama_installer import OllamaInstaller
+from nexus_installer.engine.runtime_provisioner import RuntimeProvisioner
 from nexus_installer.engine.venv_installer import VenvInstaller
 from nexus_installer.installer_state import InstallerState
 
@@ -131,6 +135,88 @@ class InstallEngine(QObject):
 
             ok = self._desktop_provisioner.install(state, log, on_desktop_progress)
             advance("desktop", ok)
+
+        # 6. Runtime wiring (v2.2.0 Phase 1, 1.3) -- always runs after the
+        # component steps: guarantees a per-user Node runtime (the shell never
+        # depends on PATH `node`), installs the diffusion runtime sources, and
+        # writes the ~/.nexus/runtime.json contract the desktop shell and
+        # sidecar read at boot. Not part of components_to_install so resume
+        # accounting is untouched; idempotent on re-run.
+        self.step_started.emit("runtime")
+        log("--- Wiring Desktop Runtime (Node + runtime.json) ---", "info")
+        import sys as _sys
+
+        _payload_root = (
+            Path(getattr(_sys, "_MEIPASS", "")) / "payload"
+            if getattr(_sys, "frozen", False)
+            else None
+        )
+        runtime_ok = RuntimeProvisioner(
+            _payload_root if _payload_root and _payload_root.is_dir() else None
+        ).install(state, log)
+        if runtime_ok:
+            self.step_completed.emit("runtime")
+        else:
+            steps_failed.append("runtime")
+            state.failed_steps.append("runtime")
+            self.step_failed.emit("runtime")
+
+        # 7. Nexus-Hub harness (v2.2.0 Phase 3, 3.1) -- offline-first: extract
+        # the bundled snapshot when the catalog is absent, then refresh from
+        # upstream when the network allows. Runs after the runtime step because
+        # it uses the Node and the hub-catalog CLI that step guarantees. A
+        # failure here never fails the install: the app still runs, it just has
+        # no harness until the user syncs.
+        self.step_started.emit("hub-catalog")
+        log("--- Installing the Nexus-Hub Harness ---", "info")
+        hub_ok = HubCatalogProvisioner().install(state, log)
+        if hub_ok:
+            self.step_completed.emit("hub-catalog")
+        else:
+            log(
+                "The Nexus-Hub harness is not installed yet; Settings > Skills "
+                "can sync it later.",
+                "warn",
+            )
+            self.step_failed.emit("hub-catalog")
+
+        # v2.1 DF-15 -- opt-in Unsloth Core. Off the default chain; checkbox
+        # on the extras page sets state.install_unsloth. LGPL zoo is copied
+        # next to that checkbox. Unsupported hosts record provision.json and
+        # still count as success so the rest of the install is not rolled back.
+        if state.install_unsloth:
+            self.step_started.emit("unsloth")
+            log("--- Installing Unsloth Core (opt-in, LGPL zoo) ---", "info")
+            from nexus_installer.engine.host_detect import HostProfile
+            from nexus_installer.engine.unsloth_venv_provisioner import (
+                UnslothVenvProvisioner,
+            )
+
+            platform = state.platform
+            os_family = (
+                "windows"
+                if platform == "win32"
+                else "macos"
+                if platform == "darwin"
+                else "linux"
+                if platform.startswith("linux")
+                else "unknown"
+            )
+            profile = HostProfile(
+                os_family=os_family,
+                gpu_vendor=(state.gpu_vendor or "none").lower(),
+                gpu_model=state.gpu_name or "unknown",
+                total_vram_gb=max(0, int(state.vram_mb) // 1024),
+                free_disk_gb=int(state.free_disk_gb or 0),
+                target_install_path=state.install_path,
+            )
+            ok = UnslothVenvProvisioner(opt_in=True).install(profile, log)
+            if ok:
+                self.step_completed.emit("unsloth")
+            else:
+                steps_failed.append("unsloth")
+                state.failed_steps.append("unsloth")
+                self.step_failed.emit("unsloth")
 
         # Final report
         if steps_failed:

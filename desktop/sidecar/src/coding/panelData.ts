@@ -65,6 +65,24 @@ const PLACEHOLDER_TRACE: readonly TraceEventT[] = Object.freeze([
     summary: "read_file invoked",
     payload: { path: "modules/coding/llm/PromptFormat.ts" },
   },
+  // v2.1.0 Phase 2 -- fixture so a replayed session renders a routing story
+  // until LSO.P2.A ships a sidecar TraceStore.
+  {
+    id: "t-003",
+    timestamp: "2026-05-17T11:30:08.000Z",
+    kind: "scheduler",
+    summary: "routing.decision escalate lightning -> muse",
+    payload: {
+      kind: "routing.decision",
+      turn: 4,
+      role: "worker",
+      modelId: "muse-glimmer:30b",
+      previousModelId: "nemotron-lightning:30b-a3b",
+      action: "escalate",
+      reason: "tool-error-streak",
+      modelInstalled: true,
+    },
+  },
 ]);
 
 export function traceSubscribe(): CodingTraceSubscribeResponseT {

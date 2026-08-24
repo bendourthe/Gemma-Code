@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from . import video_base
+from . import video_base, real_execute
 
 
 # SVD weights are ~9 GB on disk; the unet at fp16 inside CUDA is ~7 GB.
@@ -26,7 +26,9 @@ _MODEL_SIZE_GB = 9.0
 def register(handlers: Dict[str, Callable]) -> None:
     runner = video_base.VideoPipelineRunner(
         method="diffusion.video.image2video",
-        execute=video_base.stub_execute("image2video"),
+        execute=video_base.select_executor(
+            "image2video", real=real_execute.video_execute
+        ),
         model_size_gb=_MODEL_SIZE_GB,
     )
     handlers["diffusion.video.image2video"] = lambda params: runner.run(params or {})

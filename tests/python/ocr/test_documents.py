@@ -16,10 +16,12 @@ from runtimes.ocr.documents import (
     DEFAULT_DPI,
     MAX_DOCUMENT_BYTES,
     MAX_DPI,
+    MAX_ZIP_MEMBERS,
     MIN_DPI,
     DocumentError,
     clamp_dpi,
     decode_payload,
+    detect_kind,
     load_pages,
     looks_like_pdf,
 )
@@ -29,6 +31,16 @@ PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"payload" * 4
 
 def b64(data: bytes) -> str:
     return base64.b64encode(data).decode("ascii")
+
+
+def mark_zip_encrypted(data: bytes) -> bytes:
+    """Flip the zip encryption flag in local + central headers (stdlib cannot write encrypted zips)."""
+    patched = bytearray(data)
+    patched[6] |= 0x01
+    central = patched.find(b"PK\x01\x02")
+    if central != -1:
+        patched[central + 8] |= 0x01
+    return bytes(patched)
 
 
 def make_pdf(pages: int = 3) -> bytes:
@@ -87,6 +99,55 @@ class TestSniffing:
     def test_a_png_is_not_a_pdf(self):
         assert looks_like_pdf(PNG_BYTES) is False
 
+    def test_detect_kind_classifies_png_as_image(self):
+        assert detect_kind(PNG_BYTES, filename_hint="notes.docx") == "image"
+
+    def test_detect_kind_rejects_html(self):
+        assert detect_kind(b"<html><body>hi</body></html>") == "unsupported"
+
+    def test_detect_kind_rejects_a_non_office_zip(self):
+        buffer = io.BytesIO()
+        import zipfile
+
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("readme.txt", "hello")
+        assert detect_kind(buffer.getvalue(), filename_hint="readme.zip") == "unsupported"
+
+    def test_detect_kind_sniffs_docx_from_zip_names(self):
+        buffer = io.BytesIO()
+        import zipfile
+
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("word/document.xml", "<w:document/>")
+        assert detect_kind(buffer.getvalue(), filename_hint="photo.png") == "docx"
+
+    def test_encrypted_zip_fails_closed(self):
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("word/document.xml", "<w:document/>")
+        with pytest.raises(DocumentError) as excinfo:
+            detect_kind(mark_zip_encrypted(buffer.getvalue()))
+        assert excinfo.value.code == "unsupported-media"
+        assert "encrypt" in excinfo.value.message.lower()
+
+    def test_too_many_zip_members_fails_closed(self):
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            for index in range(MAX_ZIP_MEMBERS + 1):
+                archive.writestr(f"f{index}.txt", "x")
+        with pytest.raises(DocumentError) as excinfo:
+            detect_kind(buffer.getvalue())
+        assert excinfo.value.code == "unsupported-media"
+
+    def test_ole_compound_files_fail_closed(self):
+        with pytest.raises(DocumentError) as excinfo:
+            detect_kind(b"\xd0\xcf\x11\xe0" + b"\x00" * 16)
+        assert excinfo.value.code == "unsupported-media"
+
 
 class TestClampDpi:
     def test_defaults_when_unset(self):
@@ -105,12 +166,17 @@ class TestClampDpi:
 
 
 class TestLoadPages:
-    def test_a_non_pdf_becomes_one_passthrough_page(self):
+    def test_a_non_pdf_image_becomes_one_passthrough_page(self):
         pages = load_pages(b64(PNG_BYTES))
         assert len(pages) == 1
         assert pages[0].index == 0
         # Passed through untouched -- re-encoding would only lose fidelity.
         assert pages[0].png == PNG_BYTES
+
+    def test_html_is_not_rasterized_as_an_image(self):
+        with pytest.raises(DocumentError) as excinfo:
+            load_pages(b64(b"<html><body>nope</body></html>"))
+        assert excinfo.value.code == "unsupported-media"
 
     def test_renders_every_pdf_page_to_png(self):
         pages = load_pages(b64(make_pdf(3)), dpi=100)

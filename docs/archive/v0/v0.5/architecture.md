@@ -44,9 +44,9 @@ Permission tiers, codified in [docs/adr/0005-tool-permission-tiers.md](../../adr
 
 | Tier | Tools | Default behavior |
 |------|-------|-------------------|
-| 0 -- auto | `codegraph_callees`, `codegraph_callers`, `codegraph_context`, `codegraph_explore`, `codegraph_files`, `codegraph_impact`, `codegraph_node`, `codegraph_search`, `codegraph_trace`, `compress_message`, `compress_range`, `grep_codebase`, `grep_output`, `list_directory`, `lsp_definition`, `lsp_references`, `read_file`, `tail_output`, `update_todos` | Run silently |
+| 0 -- auto | `codegraph_callees`, `codegraph_callers`, `codegraph_context`, `codegraph_explore`, `codegraph_files`, `codegraph_impact`, `codegraph_node`, `codegraph_search`, `codegraph_trace`, `compress_message`, `compress_range`, `grep_codebase`, `grep_output`, `hash_file`, `list_directory`, `lsp_definition`, `lsp_references`, `read_file`, `tail_output`, `update_todos`, `watch_path` | Run silently |
 | 1 -- confirm | `create_file`, `delete_file`, `edit_file`, `parse_document`, `write_file` | One-click confirmation |
-| 2 -- dangerous | `fetch_page`, `run_terminal`, `web_search` | Blocking confirmation; `editMode: plan` shows a diff |
+| 2 -- dangerous | `browser_aria_snapshot`, `browser_click`, `browser_close`, `browser_navigate`, `browser_type`, `fetch_page`, `run_terminal`, `web_search` | Blocking confirmation; `editMode: plan` shows a diff |
 
 <!-- END:TOOL-PERMISSION-TABLE -->
 

@@ -94,7 +94,9 @@ describe("mergeIgnorePatterns + defaultIgnorePatterns", () => {
     expect(defaults.directoryNames.has("node_modules")).toBe(true);
     expect(defaults.directoryNames.has(".git")).toBe(true);
     expect(defaults.directoryNames.has("dist")).toBe(true);
+    expect(defaults.directoryNames.has("project-sandboxes")).toBe(true);
     expect(defaults.suffixPatterns).toContain(".tsbuildinfo");
+    expect(matchesIgnore("project-sandboxes/proj-a/tool.bin", defaults)).toBe(true);
   });
 
   it("NEXUS_IGNORE_DEFAULTS is exposed for downstream consumers", () => {

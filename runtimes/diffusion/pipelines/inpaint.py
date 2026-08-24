@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from . import base
+from . import base, real_execute
 
 
 def register(handlers: Dict[str, Callable]) -> None:
-    runner = base.PipelineRunner(mode="inpaint", execute=base.stub_execute("inpaint"))
+    runner = base.PipelineRunner(
+        mode="inpaint",
+        execute=base.select_executor("inpaint", real=real_execute.image_execute),
+    )
     handlers["inpaint"] = lambda params: runner.run(params or {})

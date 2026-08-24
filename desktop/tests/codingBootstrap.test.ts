@@ -82,14 +82,14 @@ describe("bootstrapCoding", () => {
     void runs;
   });
 
-  it("skips registration when the auto-sync setting is unset", async () => {
+  it("registers the Nexus-Hub auto-sync worker when the setting is unset (default ON)", async () => {
     const scheduler = new IdleScheduler({ now: () => 0 });
     const boot = await bootstrapCoding({
       nexusHome: root,
       idleScheduler: scheduler,
     });
-    expect(boot.autoSyncRegistered).toBe(false);
-    expect(scheduler.size()).toBe(0);
+    expect(boot.autoSyncRegistered).toBe(true);
+    expect(scheduler.size()).toBe(1);
   });
 
   it("unregisters a stale worker when the setting flips to false", async () => {

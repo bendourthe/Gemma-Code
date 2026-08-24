@@ -40,6 +40,15 @@ export interface DiffusionTierVideoDefaults {
   readonly height: number;
   readonly width: number;
   readonly enabled: boolean;
+  /**
+   * v1.19.2 -- audio-driven video (LongCat A4). Video Lab gates audio-input
+   * modes on this object. Existing consumer tiers ship disabled; avatar-class
+   * models in a later plan flip it on.
+   */
+  readonly audioConditioning: {
+    readonly enabled: boolean;
+    readonly modes: readonly ("none" | "single" | "merge" | "concat")[];
+  };
 }
 
 export interface DiffusionTierConfig {
@@ -75,6 +84,7 @@ export const DIFFUSION_TIER_CONFIGS: Record<DiffusionTierId, DiffusionTierConfig
       height: 0,
       width: 0,
       enabled: false,
+      audioConditioning: { enabled: false, modes: [] },
     },
     parallelJobs: false,
   },
@@ -99,6 +109,7 @@ export const DIFFUSION_TIER_CONFIGS: Record<DiffusionTierId, DiffusionTierConfig
       height: 480,
       width: 720,
       enabled: true,
+      audioConditioning: { enabled: false, modes: [] },
     },
     parallelJobs: false,
   },
@@ -123,6 +134,7 @@ export const DIFFUSION_TIER_CONFIGS: Record<DiffusionTierId, DiffusionTierConfig
       height: 720,
       width: 1280,
       enabled: true,
+      audioConditioning: { enabled: false, modes: [] },
     },
     parallelJobs: false,
   },
@@ -147,6 +159,7 @@ export const DIFFUSION_TIER_CONFIGS: Record<DiffusionTierId, DiffusionTierConfig
       height: 720,
       width: 1280,
       enabled: true,
+      audioConditioning: { enabled: true, modes: ["single"] },
     },
     parallelJobs: true,
   },

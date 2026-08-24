@@ -17,6 +17,8 @@ import type {
 import type { ConfirmationGate } from "../ConfirmationGate.js";
 import type { ToolOutputCache } from "../../storage/ToolOutputCache.js";
 import { matchesSecretPath } from "../../../modules/coding/utils/secretPaths.js";
+import { classifyEditApply, noopEditMessage } from "./editNoop.js";
+import { escapeRegexLiteral, nearMissToken, takeNearMisses } from "./nearMiss.js";
 import { resolveInsideWorkspace, workspaceRoot as guardedWorkspaceRoot } from "./pathGuard.js";
 
 const MAX_READ_LINES = 500;
@@ -622,21 +624,24 @@ export class EditFileTool implements ToolHandler {
       );
     }
 
-    // Count occurrences of old_string.
-    const occurrences = original.split(p.old_string).length - 1;
-    if (occurrences === 0) {
+    const applyKind = classifyEditApply(original, p.old_string, p.new_string);
+    if (applyKind === "missing") {
       return failResult(
         id,
         `old_string not found in path "${p.path}". No changes made. ` +
           `Usage: re-read the file with read_file(path="${p.path}") and pass an exact-matching old_string.`,
       );
     }
-    if (occurrences > 1) {
+    if (applyKind === "ambiguous") {
+      const occurrences = original.split(p.old_string).length - 1;
       return failResult(
         id,
         `old_string appears ${occurrences} times in path "${p.path}"; cannot apply ambiguously. ` +
           `Usage: pass a more specific old_string with surrounding context that appears only once.`,
       );
+    }
+    if (applyKind === "noop") {
+      return { id, success: true, output: noopEditMessage(p.path) };
     }
 
     const updated = original.replace(p.old_string, p.new_string);
@@ -937,6 +942,56 @@ async function grepWithRipgrep(
   });
 }
 
+/**
+ * vscode.workspace.findFiles fallback used when ripgrep is missing, including
+ * v1.19.1 near-miss probes so empty searches still return closest candidates.
+ */
+async function grepViaVscode(
+  pattern: string,
+  glob: string | undefined,
+  root: string,
+  maxResults: number,
+  caseInsensitive: boolean,
+  extraSecretPatterns: readonly string[] | undefined,
+  allowSecrets: boolean,
+): Promise<Array<{ file: string; line: number; content: string }>> {
+  const vsMatches: Array<{ file: string; line: number; content: string }> = [];
+  const includePattern = glob ?? "**/*";
+  const uris = await vscode.workspace.findFiles(
+    includePattern,
+    "{node_modules,out,dist,.git}/**",
+    500,
+  );
+  const regex = new RegExp(pattern, caseInsensitive ? "i" : "");
+  const deadline = Date.now() + GREP_TIME_BUDGET_MS;
+  for (const uri of uris) {
+    if (vsMatches.length >= maxResults) break;
+    if (Date.now() > deadline) break;
+    const relFile = path.relative(root, uri.fsPath);
+    if (!allowSecrets && matchesSecretPath(relFile, extraSecretPatterns)) {
+      continue;
+    }
+    try {
+      const bytes = await vscode.workspace.fs.readFile(uri);
+      const text = Buffer.from(bytes).toString("utf-8");
+      const lines = text.split("\n");
+      for (let i = 0; i < lines.length && vsMatches.length < maxResults; i++) {
+        const line = lines[i] ?? "";
+        if (regex.test(line)) {
+          vsMatches.push({
+            file: relFile,
+            line: i + 1,
+            content: line.trim().slice(0, 200),
+          });
+        }
+      }
+    } catch {
+      // Skip unreadable files silently.
+    }
+  }
+  return vsMatches;
+}
+
 const MAX_PATTERN_LENGTH = 512;
 const GREP_TIME_BUDGET_MS = 500;
 
@@ -1115,16 +1170,16 @@ export class GrepCodebaseTool implements ToolHandler {
 
     // Fall back to manual file-by-file search using vscode.workspace.findFiles.
     if (allMatches === null) {
-      const vsMatches: Array<{ file: string; line: number; content: string }> = [];
-      const includePattern = p.glob ?? "**/*";
-      const uris = await vscode.workspace.findFiles(
-        includePattern,
-        "{node_modules,out,dist,.git}/**",
-        500
-      );
-      let regex: RegExp;
       try {
-        regex = new RegExp(p.pattern, caseInsensitive ? "i" : "");
+        allMatches = await grepViaVscode(
+          p.pattern,
+          p.glob,
+          root,
+          fetchSize,
+          caseInsensitive,
+          this._extraSecretPatterns,
+          p.allow_secrets === true,
+        );
       } catch (err) {
         return failResult(
           id,
@@ -1132,37 +1187,6 @@ export class GrepCodebaseTool implements ToolHandler {
             `Usage: grep_codebase(pattern=<RE2-compatible regex>).`,
         );
       }
-      const deadline = Date.now() + GREP_TIME_BUDGET_MS;
-      for (const uri of uris) {
-        if (vsMatches.length >= fetchSize) break;
-        if (Date.now() > deadline) {
-          // Time budget exhausted: return what we collected so far so the agent
-          // can still page forward via next_offset rather than getting nothing.
-          break;
-        }
-        const relFile = path.relative(root, uri.fsPath);
-        if (p.allow_secrets !== true && matchesSecretPath(relFile, this._extraSecretPatterns)) {
-          continue;
-        }
-        try {
-          const bytes = await vscode.workspace.fs.readFile(uri);
-          const text = Buffer.from(bytes).toString("utf-8");
-          const lines = text.split("\n");
-          for (let i = 0; i < lines.length && vsMatches.length < fetchSize; i++) {
-            const line = lines[i] ?? "";
-            if (regex.test(line)) {
-              vsMatches.push({
-                file: relFile,
-                line: i + 1,
-                content: line.trim().slice(0, 200),
-              });
-            }
-          }
-        } catch {
-          // Skip unreadable files silently.
-        }
-      }
-      allMatches = vsMatches;
     } else if (p.allow_secrets !== true) {
       // Filter ripgrep results through the denylist.
       allMatches = allMatches.filter(
@@ -1190,6 +1214,36 @@ export class GrepCodebaseTool implements ToolHandler {
     }
     if (maxResultsClampWarning !== null) {
       payload["warning"] = maxResultsClampWarning;
+    }
+
+    if (pageMatches.length === 0) {
+      const token = nearMissToken(p.pattern);
+      if (token) {
+        const probePattern =
+          token === p.pattern ? token : escapeRegexLiteral(token);
+        let probes = await grepWithRipgrep(probePattern, p.glob, root, 5, true);
+        if (probes === null) {
+          try {
+            probes = await grepViaVscode(
+              probePattern,
+              p.glob,
+              root,
+              5,
+              true,
+              this._extraSecretPatterns,
+              p.allow_secrets === true,
+            );
+          } catch {
+            probes = [];
+          }
+        }
+        const near = takeNearMisses(probes);
+        if (near.length > 0) {
+          payload["near_misses"] = near;
+          payload["near_miss_hint"] =
+            `No exact matches for ${JSON.stringify(p.pattern)}; closest probes used token ${JSON.stringify(token)}.`;
+        }
+      }
     }
 
     if (p.format === "json") {

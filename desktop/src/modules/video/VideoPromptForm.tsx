@@ -8,7 +8,12 @@
  * the user clicks Generate.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Select, Switch, TextField } from "../../components/ui";
+import { foldModelId } from "../../../../core/registry/modelAliases";
+import { planVideoContinuation } from "../../../../core/video/continuation";
+import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
+import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
 import type { VideoMode } from "./videoClient";
 
 export interface VideoFormValues {
@@ -24,6 +29,14 @@ export interface VideoFormValues {
   readonly cfgScale: number;
   readonly sampler: string;
   readonly seed: number;
+  /** Per-tier clip length used to split continuation chains. */
+  readonly clipSeconds: number;
+  /** Explicit local-generation consent for talking-head output. */
+  readonly confirmLocalAvatar: boolean;
+  readonly maxCacheVramGB: number;
+  readonly maxCacheRamGB: number;
+  readonly workingMemReserveGB: number;
+  readonly layerStreaming: boolean;
 }
 
 export interface VideoPromptFormProps {
@@ -38,9 +51,13 @@ export interface VideoPromptFormProps {
    * other consumer keeps the original form.
    */
   readonly hideMode?: boolean;
+  /** v2.0.0 Phase 3 -- show the talking-head confirm checkbox and mode. */
+  readonly avatarAvailable?: boolean;
+  readonly diffusionTier?: DiffusionTierId;
 }
 
 const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms", "flow-dpm-solver"];
+const LOW_BUDGET = defaultMemoryBudget("diffusion-low");
 const FPS_VALUES: Array<12 | 16 | 24> = [12, 16, 24];
 const RESOLUTIONS: Array<{
   label: string;
@@ -54,7 +71,7 @@ const RESOLUTIONS: Array<{
 export const DEFAULT_VIDEO_FORM_VALUES: VideoFormValues = {
   prompt: "",
   negativePrompt: "",
-  modelId: "ltx-video",
+  modelId: "wan2.1-t2v-1.3b",
   mode: "text2video",
   durationSeconds: 4,
   fps: 24,
@@ -64,6 +81,12 @@ export const DEFAULT_VIDEO_FORM_VALUES: VideoFormValues = {
   cfgScale: 3.5,
   sampler: "euler_a",
   seed: 0,
+  clipSeconds: 4,
+  confirmLocalAvatar: false,
+  maxCacheVramGB: LOW_BUDGET.maxCacheVramGB,
+  maxCacheRamGB: LOW_BUDGET.maxCacheRamGB,
+  workingMemReserveGB: LOW_BUDGET.workingMemReserveGB,
+  layerStreaming: LOW_BUDGET.layerStreaming,
 };
 
 /**
@@ -110,6 +133,8 @@ export function VideoPromptForm({
   disabled,
   onChange,
   hideMode = false,
+  avatarAvailable = false,
+  diffusionTier = "diffusion-low",
 }: VideoPromptFormProps): JSX.Element {
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
@@ -125,6 +150,7 @@ export function VideoPromptForm({
   }, [values, onChange]);
 
   const [presetId, setPresetId] = useState<string>("custom");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   function update<K extends keyof VideoFormValues>(
     key: K,
@@ -154,6 +180,29 @@ export function VideoPromptForm({
   }
 
   const modelsForMode = availableModels.filter((m) => m.mode === values.mode);
+  const continuation = useMemo(
+    () => planVideoContinuation(values.durationSeconds, values.clipSeconds),
+    [values.durationSeconds, values.clipSeconds],
+  );
+  const budgetCheck = useMemo(
+    () =>
+      validateMemoryBudget({
+        budget: {
+          maxCacheVramGB: values.maxCacheVramGB,
+          maxCacheRamGB: values.maxCacheRamGB,
+          workingMemReserveGB: values.workingMemReserveGB,
+          layerStreaming: values.layerStreaming,
+        },
+        modelMinVramGB: diffusionTier === "diffusion-low" ? 4 : 6,
+      }),
+    [
+      values.maxCacheVramGB,
+      values.maxCacheRamGB,
+      values.workingMemReserveGB,
+      values.layerStreaming,
+      diffusionTier,
+    ],
+  );
 
   return (
     <div
@@ -162,7 +211,7 @@ export function VideoPromptForm({
     >
       <label>
         Preset
-        <select
+        <Select
           data-testid="video-preset"
           value={presetId}
           disabled={disabled}
@@ -173,13 +222,13 @@ export function VideoPromptForm({
               {p.label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {!hideMode && (
         <label>
           Mode
-          <select
+          <Select
             data-testid="video-mode"
             value={values.mode}
             disabled={disabled}
@@ -187,35 +236,40 @@ export function VideoPromptForm({
           >
             <option value="text2video">Text -&gt; Video</option>
             <option value="image2video">Image -&gt; Video</option>
-          </select>
+            {avatarAvailable ? (
+              <option value="audio2video">Photo + audio -&gt; Avatar</option>
+            ) : null}
+          </Select>
         </label>
       )}
 
       <label>
         Prompt
-        <textarea
-          data-testid="video-prompt"
+        <TextField
+          multiline
+          testId="video-prompt"
           value={values.prompt}
           disabled={disabled}
           rows={3}
-          onChange={(e) => update("prompt", e.target.value)}
+          onChange={(v) => update("prompt", v)}
         />
       </label>
 
       <label>
         Negative Prompt
-        <textarea
-          data-testid="video-negative-prompt"
+        <TextField
+          multiline
+          testId="video-negative-prompt"
           value={values.negativePrompt}
           disabled={disabled}
           rows={2}
-          onChange={(e) => update("negativePrompt", e.target.value)}
+          onChange={(v) => update("negativePrompt", v)}
         />
       </label>
 
       <label>
         Model
-        <select
+        <Select
           data-testid="video-model"
           value={values.modelId}
           disabled={disabled || modelsForMode.length === 0}
@@ -226,27 +280,30 @@ export function VideoPromptForm({
               {m.displayName}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <label>
         Duration (s)
-        <input
-          data-testid="video-duration"
+        <TextField
+          testId="video-duration"
           type="number"
           min={1}
-          max={10}
-          value={values.durationSeconds}
+          max={120}
+          value={String(values.durationSeconds)}
           disabled={disabled}
-          onChange={(e) =>
-            update("durationSeconds", clamp(Number(e.target.value), 1, 10))
-          }
+          onChange={(v) => update("durationSeconds", clamp(Number(v), 1, 120))}
         />
+        {continuation.length > 1 ? (
+          <span data-testid="video-continuation-hint">
+            {continuation.length} segments of up to {values.clipSeconds}s (prototype seams)
+          </span>
+        ) : null}
       </label>
 
       <label>
         FPS
-        <select
+        <Select
           data-testid="video-fps"
           value={values.fps}
           disabled={disabled}
@@ -257,12 +314,12 @@ export function VideoPromptForm({
               {f}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <label>
         Resolution
-        <select
+        <Select
           data-testid="video-resolution"
           value={`${values.width}x${values.height}`}
           disabled={disabled}
@@ -279,55 +336,81 @@ export function VideoPromptForm({
               {r.label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <label>
         Steps
-        <input
-          data-testid="video-steps"
+        <TextField
+          testId="video-steps"
           type="number"
           min={1}
           max={150}
-          value={values.steps}
+          value={String(values.steps)}
           disabled={disabled}
-          onChange={(e) =>
-            update("steps", clamp(Number(e.target.value), 1, 150))
-          }
+          onChange={(v) => update("steps", clamp(Number(v), 1, 150))}
         />
       </label>
 
       <label>
         CFG Scale
-        <input
-          data-testid="video-cfg"
+        <TextField
+          testId="video-cfg"
           type="number"
           min={0}
           max={30}
           step={0.1}
-          value={values.cfgScale}
+          value={String(values.cfgScale)}
           disabled={disabled}
-          onChange={(e) => update("cfgScale", Number(e.target.value))}
+          onChange={(v) => update("cfgScale", Number(v))}
         />
       </label>
 
       <label>
         Seed
-        <input
-          data-testid="video-seed"
+        <TextField
+          testId="video-seed"
           type="number"
           min={0}
-          value={values.seed}
+          value={String(values.seed)}
           disabled={disabled}
-          onChange={(e) => update("seed", Number(e.target.value))}
+          onChange={(v) => update("seed", Number(v))}
         />
       </label>
 
-      <details>
-        <summary>Advanced</summary>
+      {avatarAvailable ? (
+        <Switch
+          testId="video-avatar-confirm"
+          checked={values.confirmLocalAvatar}
+          disabled={disabled}
+          onChange={(on) => update("confirmLocalAvatar", on)}
+          label="Generate talking-head locally. Photo and audio never leave this device."
+        />
+      ) : null}
+
+      <div>
+        <Button
+          type="button"
+          variant="ghost"
+          testId="video-advanced"
+          aria-expanded={advancedOpen}
+          disabled={disabled}
+          onClick={() => setAdvancedOpen((v) => !v)}
+        >
+          Advanced
+        </Button>
+        <div
+          hidden={!advancedOpen}
+          style={{
+            display: advancedOpen ? "flex" : "none",
+            flexDirection: "column",
+            gap: "var(--space-2)",
+            marginTop: "var(--space-2)",
+          }}
+        >
         <label>
           Sampler
-          <select
+          <Select
             data-testid="video-sampler"
             value={values.sampler}
             disabled={disabled}
@@ -338,9 +421,66 @@ export function VideoPromptForm({
                 {s}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-      </details>
+        <div data-testid="video-memory-budget" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <strong>VRAM budget</strong>
+          <label>
+            max cache VRAM (GB)
+            <TextField
+              testId="video-max-cache-vram"
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={String(values.maxCacheVramGB)}
+              disabled={disabled}
+              onChange={(v) => update("maxCacheVramGB", Number(v))}
+            />
+          </label>
+          <label>
+            max cache RAM (GB)
+            <TextField
+              testId="video-max-cache-ram"
+              type="number"
+              min={1}
+              step={1}
+              value={String(values.maxCacheRamGB)}
+              disabled={disabled}
+              onChange={(v) => update("maxCacheRamGB", Number(v))}
+            />
+          </label>
+          <label>
+            working reserve (GB)
+            <TextField
+              testId="video-working-reserve"
+              type="number"
+              min={0}
+              step={0.5}
+              value={String(values.workingMemReserveGB)}
+              disabled={disabled}
+              onChange={(v) => update("workingMemReserveGB", Number(v))}
+            />
+          </label>
+          <Switch
+            testId="video-layer-streaming"
+            checked={values.layerStreaming}
+            disabled={disabled}
+            onChange={(on) => update("layerStreaming", on)}
+            label="Layer streaming (complete a previously too-small VRAM load)"
+          />
+          {!budgetCheck.ok ? (
+            <p data-testid="video-budget-error" style={{ color: "var(--accent-danger, #f87171)", margin: 0 }}>
+              {budgetCheck.errors.join(" ")}
+            </p>
+          ) : null}
+          {budgetCheck.warnings.map((warning) => (
+            <p key={warning} data-testid="video-budget-warning" style={{ color: "var(--fg-muted)", margin: 0 }}>
+              {warning}
+            </p>
+          ))}
+        </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -349,7 +489,7 @@ export function videoFormToRequest(
   values: VideoFormValues,
 ): Omit<import("./videoClient").VideoBaseRequest, "sourceImage"> {
   return {
-    modelId: values.modelId,
+    modelId: foldModelId(values.modelId),
     prompt: values.prompt,
     negativePrompt: values.negativePrompt || undefined,
     width: values.width,
@@ -361,6 +501,10 @@ export function videoFormToRequest(
     sampler: values.sampler,
     seed: values.seed,
     latentPreview: true,
+    maxCacheVramGB: values.maxCacheVramGB,
+    maxCacheRamGB: values.maxCacheRamGB,
+    workingMemReserveGB: values.workingMemReserveGB,
+    layerStreaming: values.layerStreaming,
   };
 }
 

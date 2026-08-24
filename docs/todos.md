@@ -1,6 +1,63 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.16.0).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.5** first-successful-generation cut 2026-08-23; package **2.2.5**; v2.2.6 and v2.2.7 plans are filed and not started).
+
+> **v2.2.5 RELEASED (2026-08-23)** -- field-repair cycle [v2.2.0](v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md) through [v2.2.5](v2/v2.2/plans/v2.2.5-first-successful-generation.md). Package **2.2.5**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 packaged Explorer, DF-4 live GPU generate). Cycle: sidecar start, honest catalog, Chatbot-first, alias-fold ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest. This release changes no opt-in capability, installer flag, or host surface.
+>
+> **v2.1.0 RELEASED (2026-08-20)** -- [open-local-ai-wave](v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md) Phases 1-7 plus known-gaps sweeps. Package **2.1.0**. Known-gaps [finalized](v2/v2.1/known-gaps.md) (6 open DF remain hardware/watch/live-GPU). Cycle: Muse Glimmer + Nemotron Lightning catalog/harness, cheap-first routing, studio provenance + queue, vision budgets + SAM2, Unsloth Core fine-tuning, signed audit log + JSON CLI + VRAM knobs. Develop follow-up closed code-completeable rows (unload, AgentLoop routing, SAM picker, MaskEditor, frame comments, installer Unsloth checkbox, golden-eval adapter). No retag.
+>
+> Opt-in: Settings > Fine-tuning Provision (`opt_in=False`); JSON CLI loopback on sidecar `sync()` (`/v1` still off until Local API); Settings > Security parse_document checkbox.
+
+> **v2.0.0 RELEASED (2026-08-20)** -- [governed-autonomy-multimodal](v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md) Phases 1-6. Convergence of v1.18.0 + v1.19.0/.1/.2 + this plan. Package **2.0.0**. Known-gaps [in-progress](v2/v2.0/known-gaps.md). Gates: root **5160 passed / 12 skipped / 0 failed**, coverage 88.28% / 83.84% / 90.96%, desktop **1036 passed**, python runtimes **231 passed**, lint + `tsc -b` + docs-layout clean.
+>
+> **v1.20.0 RELEASED (2026-08-19)** -- all 5 phases of [v1.20.0-adoption-docling.md](v1/v1.20/plans/v1.20.0-adoption-docling.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.20.0**. Known-gaps [in-progress](v1/v1.20/known-gaps.md) (v1.20.0: 6 DF). Cycle: wire `parse_document`, magic-byte Office ingest, Chat and Coding attach, Docling bake-off deferred.
+> - **P1** sidecar + VS Code composition-root wiring (LSO.P4.B / LSO.P4.C).
+> - **P2** format router + native DOCX/PPTX/XLSX + Chat `DOCUMENT_ACCEPT`.
+> - **P3** Coding composer attach (parse-then-show; agent tool stays CONFIRM).
+> - **P4** RapidOCR library smoke; A4 DEFER (DF-5).
+> - **P5** keep `runtimes/ocr/` (DF-6); CI already covers Office wheels and desktop shell tests.
+>
+> Opt-in: `nexus.coding.parseDocument.enabled` / `NEXUS_PARSE_DOCUMENT` (agent tool only; attach UI is not this flag).
+
+> **v1.19.2 RELEASED (2026-08-19)** -- Phase 1 of [v1.19.2-adoption-catalog-and-model-expansion.md](v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.2**. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (v1.19.2: 4 DF; file stays open for v2.0.0 ingest). Cycle: modalities + audioConditioning, official-only weight variants, Hermes 3, Inkling-Small patient-tier GGUF, calibrated patient-tier copy.
+> - **P1** schema + puller variants + Hermes family/harness + Inkling GGUF + RAM presets + skip-if-absent determinism. Live Hermes generate is DF-1. GGUF multimodal is DF-2. AgentLoop Gemma XML is DF-3. Offload adapter not bundled is DF-4.
+>
+> Gates: root **5076 passed / 11 skipped / 0 failed** (466 files), coverage 87.77% / 83.95% / 91.35%, lint + `tsc -b` clean. Opt-in: `NEXUS_WEIGHTS_VARIANT` (official variant pick); `nexus.llm.patientTier.ramPreset` (copy only).
+
+> **v1.19.1 RELEASED (2026-08-19)** -- both phases of [v1.19.1-adoption-agent-loop-and-guardrail-hardening.md](v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.1**. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (v1.19.1: 5 DF; file stays open for v1.19.2). Cycle: Hub skill-native wins + agent-loop / guardrail hardening.
+> - **P1** Hub grounded-citation, persona-card, avatar-prep / transcript-reasoning. Chat persona field is DF-1. Hub merge/sync is DF-2.
+> - **P2** HARD_DENIALS, LoopGuards, edit noop / near-miss / spill scrub, user-message compaction tail, Strict/Standard/Unattended posture, origin screening, DNS pin, watch_path/hash_file, ToolPromptAssembler.
+>
+> Gates: root **5054 passed / 11 skipped / 0 failed** (466 files), coverage 87.71% / 84.02% / 91.27%, lint + `tsc -b` clean. Opt-in: `nexus.coding.securityPosture` (default `standard`; Unattended is not no-floor).
+>
+> **v1.19.0 RELEASED (2026-08-19)** -- all 4 phases of [v1.19.0-adoption-liquid-lfm-agentic.md](v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.0**. Known-gaps [reconciled, in-progress](v1/v1.19/known-gaps.md) (8 open DF; file stays open for v1.19.1 / v1.19.2). Cycle: LFM2.5-2.6B low-VRAM Agentic catalog + license label, harness profile, 8B-A1B bake-off declined.
+> - **P1** `lfm2.5:2.6b` catalog entry, cpu/8 agentic defaults, LFM Open License v1.0 use-restriction label (ungated).
+> - **P2** `lfm-agentic` harness profile, pythonic parser, 128K context, Coding ModelCatalog row (DF-1/4/5 closed; DF-6 AgentLoop Gemma XML).
+> - **P3** 8B-A1B **DECLINE** (win not demonstrated). Watchlist: VL variants, PII-extract Nano (DF-7/8/9).
+> - **P4** layout audit (no moves), known-gaps reconcile, installer tests path-filtered, desktop vitest on develop CI.
+>
+> Gates: root **4947 passed / 11 skipped / 0 failed** (459 files), desktop **971 passed** (112 files), installer pytest green, lint + `tsc -b` clean. This release changes no opt-in capability.
+
+> **v1.18.0 RELEASED (2026-08-17)** -- all 7 phases of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.18.0**. Known-gaps [finalized](v1/v1.18/known-gaps.md) (14 open DF). Cycle: skill-native Hub mappings + llama.cpp recipe, live harness selector, catalog/MCP governance, ask inbox + scheduler, loopback ACP, OS process sandbox.
+> - **P1** Hub `agent-presets` / `browser-testing-with-devtools` coverage notes + llama.cpp loopback recipe.
+> - **P2** live `HarnessSelector` overlay behind `nexus.coding.harnessSelector.enabled` (default off) + `/harness`.
+> - **P3** `toolCallingVerified`, MoE active/total params, tightens-only MCP tool deny.
+> - **P4** persistent ask inbox + local scheduler (no auto-approve; DF-9 closed).
+> - **P5** ACP JSON-RPC on the shared serving loopback listener (`nexus.acp.enabled`).
+> - **P6** `run_terminal` OS sandbox (`nexus.coding.execSandbox`; Windows `partial` = DF-11).
+> - **P7** layout/known-gaps/CI path-filter; then `/update release`.
+>
+> Gates: root **4926 passed / 11 skipped / 0 failed** (459 files), coverage 87.61% / 84.09% / 91.14%, lint + `tsc -b` clean. Desktop **967 passed / 0 failed** (112 files). Tag / push / GitHub Release stay behind confirmation.
+>
+> **v1.17.0 RELEASED (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README cut as **v1.17.0**. Plan: [v1.17.0-adoption-ui-motion-identity.md](v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md) - [known-gaps](v1/v1.17/known-gaps.md) (finalized). Cycle: reverse-engineer thinking-orbs / border-beam / metal-fx into an internal motion system (no new npm deps).
+> - **P1** motion tokens, centralized `prefers-reduced-motion` (halt, not slow), recede-when-active primitive.
+> - **P2** agent-state Canvas orbs on coding / chat / image / video / model dock / retained generation canvas.
+> - **P3** surface-liveness beam on composers, idle dock, generation-canvas frame.
+> - **P4** hero-action metal ring on send, Generate, and New session (cap 3 WebGL instances).
+> - **P5** one winner per surface (`orb > metal > beam > aurora`); recede once per group.
+> - **P6** close-out: layout clean, gaps reconciled (incl. gigatoken N5 watch), CI verified. Gates: desktop **916 passed / 0 failed** (106 files), coverage 92.92% / 86.2% / 85.08%, lint + typecheck + docs-layout + naming clean.
+>
+> **Known follow-ups:** on-device GPU/visual pass (DF-8), Tailwind `@theme` compile (DF-1), installer motion (DF-3). Tag / push / GitHub Release stay behind confirmation gates.
 
 > **v1.16.0 RELEASED (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README cut as **v1.16.0**. Plan: [v1.16.0-adoption-local-serving-and-ocr.md](v1/v1.16/plans/v1.16.0-adoption-local-serving-and-ocr.md) - [known-gaps](v1/v1.16/known-gaps.md) (finalized). Cycle: local serving gateway + per-model analytics + document OCR + parse_document tool + MLX-via-adapters docs + model-library UX.
 > - **P1** opt-in loopback OpenAI/Anthropic gateway in front of installed models (auth token, bind guard).
@@ -455,6 +512,11 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v1.8.0 | One-shot end-user installer (desktop bundles in releases, desktop provisioner + health check, HF weights downloader, catalog curation + uncensored defaults, desktop-token restyle, Windows .exe completion) | **In-session work complete (Phases 1-6)** -- Phases 1-2 landed 2026-07-02, Phases 3-6 on 2026-07-03; whole-plan acceptance rides the recorded rehearsals (T602 Windows clean-VM + T604 mac/linux = operator `OSI006.P6.A/C`; T603 CI legs + pre-release tag = post-freeze >= 2026-08-01 `OSI006.P6.B`; pin rotation + GPU-box chain `OSI003.P3.A/B/C` + `OSI004.P4.A/B/E`) | `versions/v1/v1.8.0/plans/one-shot-installer.md` |
 | v1.9.0 | Installer + Nexus AI Studio experience overhaul (single-artifact installer / drop NSIS, shared brand foundation: transparent+rounded icons + glow tokens + constellation/float-logo primitives, installer visual overhaul + frameless dark title bar + NexusAI path, model-selector metadata (origin/guardrails/agentic) + Gemma-4-agentic + audio pillar, desktop app full UI/UX overhaul) | **COMPLETE (Phases 1-6)** -- all in-session work landed 2026-07-04; Phase 6 FINAL (rehearsal + docs + close-out) re-proved the Windows single-artifact build a second time (`dist/NexusSetup.exe` 75.6 MB, smoke 4/4 green, installer suite 651/2/0). Whole-plan DoD met locally + by construction; the 3-OS on-device visual/behavioral rehearsal (`IAE.P1.B` mac/Linux+VM, `IAE.P2.B`, `IAE.P3.A`, `IAE.P5.A`, `IAE.P5.B`) + post-freeze CI legs (`IAE.P4.C` pin rotation, `IAE.P5.D` bundle build, T602 >= 2026-08-01) are recorded operator/dispatch rehearsals. Version tag + CHANGELOG cut on merge to `main` via semantic-release | `versions/v1/v1.9.0/plans/installer-and-app-experience-overhaul.md` |
 | v1.9.0 (UI rework) | Installer + app UI rework: type scale + legibility, static logo (kill float-lag), taskbar/window icon frozen-path fix, two-tone wordmark, modern scrollbars + checkbox, per-provider model colors + plain-language shared catalog copy, whole-app copy pass; desktop app aurora generation animation (Image Studio + Video Lab), chat disclaimer, logo/icon parity | **PROPOSED (2026-07-07)** -- Phases 1-9 / T001-T036 not started; installer PR (P1-7) off the integration branch + app PR (P8-9); operator decisions: animation in the studios (not chat), rewrite shared `catalog.json`, one combined plan | `versions/v1/v1.9.0/plans/installer-and-app-ui-rework.md` |
+| v2.2.3 | Glass chrome, thinking orbs, durable pillar runtime, occupancy, workspace-aware Hub harness, installer field fixes | **Implemented on develop (2026-08-23)** -- Phases 1-8 landed; package remains 2.1.0 until `/update release` | `v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` |
+| v2.2.4 | Chatbot-first shell, installed-catalog honesty, compact studio media, Settings Models catalog, Hub update timeout copy | **Implemented on develop (2026-08-23)** -- Phases 1-7 landed; DF-2 packaged Explorer and DF-4 live GPU remain open | `v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md` |
+| v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest | **Released (2026-08-23)** -- package 2.2.5; DF-2 and DF-4 remain open | `v2/v2.2/plans/v2.2.5-first-successful-generation.md` |
+| v2.2.6 | Session memory and studio history | **Planned** -- next after v2.2.5 | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
+| v2.2.7 | Context meter and transcript chrome | **Planned** -- after v2.2.6 | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 

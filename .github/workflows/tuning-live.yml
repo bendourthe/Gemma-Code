@@ -1,0 +1,31 @@
+# Live Unsloth Core training (hardware-gated)
+
+# Never on pull_request. GitHub-hosted runners do not have a 16 GB NVIDIA GPU
+# or the Unsloth CUDA stack. This workflow only re-runs the CPU --stub trainer
+# that `ci.yml` already covers via tests/python/tuning. Real QLoRA stays local.
+
+name: Tuning live
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: tuning-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stub-train:
+    name: Stub trainer (CPU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Stub train.py
+        run: python runtimes/tuning/train.py --job-id ci --dataset /dev/null --base-model tiny --out /tmp/nexus-tune --stub
+      - name: Live path is local only
+        run: |
+          echo "Live Unsloth training is not run on GitHub-hosted runners."
+          echo "On a 16 GB NVIDIA host after Settings provision: NEXUS_TUNING_LIVE=1 python runtimes/tuning/train.py --job-id live --dataset <jsonl> --base-model <id> --out ~/.nexus/tuning/runs/live"

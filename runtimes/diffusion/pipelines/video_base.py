@@ -31,6 +31,7 @@ from typing import Any, Callable, Dict, Optional
 
 from .. import device, vram_lifecycle
 from . import video_params, video_workflow_metadata
+from .base import RuntimeNotReady
 
 
 @dataclass(frozen=True)
@@ -114,7 +115,12 @@ class VideoPipelineRunner:
         except video_params.VideoParamsError as exc:
             return {"ok": False, "error": "invalid-params", "message": str(exc)}
         info = device.detect()
-        decision = device.choose_offload(info.vram_free_gb, self.model_size_gb)
+        layer_streaming = bool(request.get("layerStreaming", False))
+        decision = device.choose_offload(
+            info.vram_free_gb,
+            self.model_size_gb,
+            layer_streaming=layer_streaming,
+        )
         decision = _upgrade_for_video(decision)
         if decision.strategy == "insufficient_vram":
             return {
@@ -135,6 +141,12 @@ class VideoPipelineRunner:
                 model_size_gb=self.model_size_gb,
             ):
                 output = self.execute(ctx)
+        except RuntimeNotReady as exc:
+            return {
+                "ok": False,
+                "error": getattr(exc, "error", "runtime-not-ready"),
+                "message": str(exc),
+            }
         except Exception as exc:  # noqa: BLE001 - surface as JSON-RPC error
             return {
                 "ok": False,
@@ -162,6 +174,32 @@ def _iso_timestamp() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def fail_closed_execute(method_label: str) -> VideoExecuteFn:
+    """Refuse to complete a video job with no MP4 on a real host."""
+
+    def execute(_ctx: VideoExecutionContext) -> VideoPipelineOutput:
+        raise RuntimeNotReady(
+            "video runtime is not ready: GPU or diffusion weights unavailable"
+        )
+
+    return execute
+
+
+def select_executor(
+    method_label: str, real: Optional[VideoExecuteFn] = None
+) -> VideoExecuteFn:
+    from . import base as image_base
+
+    def dispatch(ctx: VideoExecutionContext) -> VideoPipelineOutput:
+        if real is not None and image_base.can_run_real():  # pragma: no cover
+            return real(ctx)
+        if image_base.allow_stub():
+            return stub_execute(method_label)(ctx)
+        return fail_closed_execute(method_label)(ctx)
+
+    return dispatch
+
+
 def stub_execute(method_label: str) -> VideoExecuteFn:
     """Return an execution callback that produces deterministic stub output.
 
@@ -175,15 +213,20 @@ def stub_execute(method_label: str) -> VideoExecuteFn:
     def execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
         seconds = ctx.params.duration_seconds
         previews = [_stub_jpeg_b64() for _ in range(seconds)]
+        extra: Dict[str, Any] = {
+            "stubbed": True,
+            "method": method_label,
+            "jobId": ctx.job_id,
+            "frameCount": video_params.frame_count(ctx.params),
+            "conditionedOnPriorEndingFrames": bool(ctx.params.continue_from),
+            "seamQuality": "prototype-unmeasured",
+        }
+        if ctx.params.continue_from:
+            extra["continueFrom"] = ctx.params.continue_from
         return VideoPipelineOutput(
             mp4_path=None,
             frame_previews=previews,
-            extra={
-                "stubbed": True,
-                "method": method_label,
-                "jobId": ctx.job_id,
-                "frameCount": video_params.frame_count(ctx.params),
-            },
+            extra=extra,
         )
 
     return execute
@@ -214,9 +257,3 @@ def diffusers_video_available() -> bool:
         return True
     except Exception:
         return False
-
-
-def select_executor(method: str, real: Optional[VideoExecuteFn] = None) -> VideoExecuteFn:
-    if real is not None and diffusers_video_available():  # pragma: no cover - GPU only
-        return real
-    return stub_execute(method)

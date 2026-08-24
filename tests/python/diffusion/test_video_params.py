@@ -76,6 +76,25 @@ def test_parse_rejects_duration_out_of_range():
         video_params.parse("text2video", _base_request(durationSeconds=11))
 
 
+def test_parse_accepts_continue_from_on_a_segment():
+    parsed = video_params.parse(
+        "text2video",
+        _base_request(
+            continueFrom={
+                "priorJobId": "video-1",
+                "segmentIndex": 1,
+                "segmentCount": 3,
+            }
+        ),
+    )
+    assert parsed.continue_from["priorJobId"] == "video-1"
+
+
+def test_parse_audio2video_requires_photo_and_audio():
+    with pytest.raises(video_params.VideoParamsError, match="sourceImage"):
+        video_params.parse("audio2video", _base_request(confirmLocalAvatar=True))
+
+
 def test_parse_rejects_invalid_sampler():
     with pytest.raises(video_params.VideoParamsError, match="invalid sampler"):
         video_params.parse("text2video", _base_request(sampler="xyz"))

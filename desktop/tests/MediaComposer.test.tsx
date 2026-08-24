@@ -55,4 +55,52 @@ describe("MediaComposer", () => {
     fireEvent.keyDown(ta, { key: "Enter" });
     expect(onSubmit).toHaveBeenCalledWith("hi", []);
   });
+
+  it("on focus plays the surface beam; streaming plays a traveling beam", () => {
+    const { rerender } = render(<MediaComposer onSubmit={vi.fn()} />);
+    const beam = screen.getByTestId("media-composer-beam");
+    expect(beam).toHaveAttribute("data-beam-playing", "false");
+    fireEvent.focus(screen.getByTestId("media-composer-textarea"));
+    expect(beam).toHaveAttribute("data-beam-playing", "true");
+    expect(screen.queryByTestId("media-composer-submit-metal")).toBeNull();
+    // v2.2.3 Phase 2 (2.2): a pillar submitAccentVar must NOT tint the beam --
+    // the beam is always the brand cyan.
+    rerender(<MediaComposer onSubmit={vi.fn()} streaming submitAccentVar="--accent-image" />);
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-playing", "true");
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+  });
+
+  // v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface, sits inside
+  // the outer composer box, and the send icon is neutral fg, not a pillar hue.
+  it("wraps the inner typing surface with the beam, not the outer box", () => {
+    render(<MediaComposer onSubmit={vi.fn()} submitAccentVar="--accent-image" />);
+    const beam = screen.getByTestId("media-composer-beam");
+    const outer = screen.getByTestId("media-composer");
+    const surface = screen.getByTestId("media-composer-surface");
+    expect(beam.contains(surface)).toBe(true);
+    expect(outer.contains(beam)).toBe(true);
+    expect(beam.contains(outer)).toBe(false);
+    expect(beam).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+    const submit = screen.getByTestId("media-composer-submit");
+    expect(submit.style.color).toBe("var(--fg-0)");
+  });
+
+  it("uses an icon send with aria-label and no MetalAccent box", () => {
+    render(<MediaComposer onSubmit={vi.fn()} submitLabel="Generate" />);
+    const submit = screen.getByTestId("media-composer-submit");
+    expect(submit).toHaveAttribute("aria-label", "Generate");
+    expect(submit.querySelector("svg")).not.toBeNull();
+    const caption = Array.from(submit.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent?.trim())
+      .join("");
+    expect(caption).toBe("");
+    expect(submit.closest("[data-testid='media-composer-submit-metal']")).toBeNull();
+    const surface = screen.getByTestId("media-composer-surface");
+    const actions = screen.getByTestId("media-composer-actions");
+    expect(surface.contains(actions)).toBe(true);
+    expect(actions.contains(screen.getByTestId("media-composer-add"))).toBe(true);
+    expect(actions.contains(submit)).toBe(true);
+  });
 });

@@ -85,3 +85,7 @@ Both the PyQt `ConstellationBackground(QWidget)` and the React `<ConstellationBa
 | Mono | `--font-mono`: `"JetBrains Mono", "SF Mono", Consolas, ...` | `FONT_MONO`: `Consolas` (win) / `SF Mono` (mac) / `Ubuntu Mono` (linux) |
 
 Inter + JetBrains Mono are bundled into the frozen installer in Phase 3 (T306) for typography parity; until then the platform fallbacks above apply.
+
+## 6. Motion tokens (added in v1.17.0)
+
+The interaction-motion token group (durations, easings, state-accent aliases, recede opacities) lives in the same `desktop/src/styles/tokens.css` file and is documented in [v1.17 design tokens](../v1.17/design-tokens.md). The v1.9 glow layer is unchanged.

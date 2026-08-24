@@ -6,6 +6,8 @@ import {
   clearInvokeOverride,
   setInvokeOverride,
 } from "../src/lib/ipc";
+import { createInMemoryDocumentClient } from "../src/modules/chat/documentClient";
+import { PERSISTENCE_KEYS } from "../src/lib/persistence";
 
 interface InvokeArgs {
   method: string;
@@ -95,13 +97,17 @@ function makeFakeInvoke() {
 }
 
 describe("CodingPage", () => {
+  let fake: ReturnType<typeof makeFakeInvoke>;
+
   beforeEach(() => {
-    const fake = makeFakeInvoke();
+    window.localStorage.setItem(PERSISTENCE_KEYS.codingWorkspacePath, "C:\\work\\project");
+    fake = makeFakeInvoke();
     setInvokeOverride(async (_cmd, args) => fake.invoke("ipc_call", args ?? {}));
   });
 
   afterEach(() => {
     clearInvokeOverride();
+    window.localStorage.clear();
   });
 
   it("renders the model selector and the chat empty state by default", () => {
@@ -117,6 +123,84 @@ describe("CodingPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
     });
+    expect(fake.calls.find((call) => call.method === "coding.session.start")?.params).toMatchObject({
+      workspacePath: "C:\\work\\project",
+    });
+  });
+
+  it("refuses to start a session until a workspace is supplied", async () => {
+    window.localStorage.removeItem(PERSISTENCE_KEYS.codingWorkspacePath);
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    expect(await screen.findByTestId("coding-error")).toHaveTextContent(
+      "Choose a workspace folder",
+    );
+    expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
+  });
+
+  it("persists and displays the selected workspace in the coding header", async () => {
+    render(<CodingPage />);
+    const input = screen.getByTestId("coding-workspace-path") as HTMLInputElement;
+    expect(input.value).toBe("C:\\work\\project");
+    await userEvent.clear(input);
+    await userEvent.type(input, "D:\\projects\\client");
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.codingWorkspacePath)).toBe(
+      "D:\\projects\\client",
+    );
+  });
+
+  it("does not start or send until a conflicting active model switch is approved", async () => {
+    render(
+      <CodingPage
+        hostVramFreeGB={1}
+        activeSchedulerJob={{
+          id: "video-job",
+          moduleId: "video",
+          jobType: "text2video",
+          modelId: "wan2.1-t2v-1.3b",
+          estimatedVramGB: 5.5,
+          startedAt: 1,
+        }}
+      />,
+    );
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    expect(await screen.findByTestId("coding-model-switch-dialog")).toBeInTheDocument();
+    expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
+    expect(fake.calls.some((call) => call.method === "coding.session.sendMessage")).toBe(false);
+    await userEvent.click(screen.getByTestId("coding-model-switch-dialog-switch"));
+    await waitFor(() =>
+      expect(fake.calls.some((call) => call.method === "coding.session.sendMessage")).toBe(true),
+    );
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+  });
+
+  it("shows the working orb while a coding turn is in flight", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fake = makeFakeInvoke();
+    setInvokeOverride(async (_cmd, args) => {
+      const a = args as unknown as InvokeArgs;
+      if (a.method === "coding.session.sendMessage") {
+        await gate;
+      }
+      return fake.invoke("ipc_call", args ?? {});
+    });
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    const orb = await screen.findByRole("img", { name: /agent working/i });
+    expect(orb).toHaveAttribute("data-agent-activity", "coding-tool-use");
+    expect(screen.queryByText("Generating...")).toBeNull();
+    expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+    release();
+    await waitFor(() => {
+      expect(screen.queryByTestId("message-pending-coding-pending")).toBeNull();
+    });
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
   });
 
   it("renders the Memory panel when the Memory tab is selected", async () => {
@@ -141,8 +225,31 @@ describe("CodingPage", () => {
   });
 
   it("model select changes the modelId before a session starts", async () => {
-    render(<CodingPage />);
+    const modelsClient = {
+      async list() {
+        return [
+          {
+            id: "gemma4:e4b",
+            displayName: "Gemma 4 E4B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+          {
+            id: "qwen2.5-coder:7b",
+            displayName: "Qwen 2.5 Coder 7B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+        ];
+      },
+    };
+    render(<CodingPage modelsClient={modelsClient} />);
     const select = screen.getByTestId("coding-model-select") as HTMLSelectElement;
+    await waitFor(() => {
+      expect([...select.options].map((o) => o.value)).toContain("qwen2.5-coder:7b");
+    });
     await userEvent.selectOptions(select, "qwen2.5-coder:7b");
     expect(select.value).toBe("qwen2.5-coder:7b");
   });
@@ -163,5 +270,180 @@ describe("CodingPage", () => {
     await waitFor(() => expect(screen.getByTestId("memory-panel")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("coding-tab-chat"));
     expect(screen.getByTestId("coding-chat")).toBeInTheDocument();
+  });
+
+  it("does not show a pink Agentic AI Coding heading or harness badges", async () => {
+    render(<CodingPage />);
+    expect(screen.queryByText("Agentic AI Coding")).toBeNull();
+    expect(screen.queryByTestId("coding-model-select-harness")).toBeNull();
+    expect(screen.queryByTestId("coding-model-select-tool-calling")).toBeNull();
+  });
+
+  it("still shows the user prompt when the selected model is not installed", async () => {
+    fake = makeFakeInvoke();
+    setInvokeOverride(async (_cmd, args) => {
+      const a = args as { method?: string; params?: Record<string, unknown> };
+      if (a.method === "models.list") {
+        return { models: [] };
+      }
+      return fake.invoke("ipc_call", args ?? {});
+    });
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hi");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hi");
+    });
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent(/is not installed/i);
+  });
+
+  // v2.2.3 Phase 2: the MetalAccent ring was deliberately replaced by the
+  // glass treatment -- no `-metal` wrapper remains around New session.
+  it("shows a glass New session control after a session starts and clears the transcript", async () => {
+    render(<CodingPage />);
+    expect(screen.queryByTestId("coding-new-session")).toBeNull();
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+    });
+    const neu = screen.getByTestId("coding-new-session");
+    expect(neu.closest("[data-testid$='-metal']")).toBeNull();
+    expect(screen.getByTestId("coding-cancel").closest("[data-testid$='-metal']")).toBeNull();
+    await userEvent.click(neu);
+    await waitFor(() => {
+      expect(screen.queryByTestId("coding-new-session")).toBeNull();
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
+    });
+  });
+
+  it("parses an attached PDF without invoking the coding model", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "rapidocr",
+            text: "INVOICE 12345",
+            markdown: null,
+            pageCount: 1,
+            pages: [{ index: 0, text: "INVOICE 12345" }],
+          },
+        })}
+      />,
+    );
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["%PDF-1.7"], "doc.pdf", { type: "application/pdf" }),
+    );
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => expect(screen.getByText(/INVOICE 12345/)).toBeInTheDocument());
+    expect(screen.getByText(/Parsed with rapidocr/)).toBeInTheDocument();
+    expect(fake.calls.filter((c) => c.method === "coding.session.sendMessage")).toHaveLength(0);
+    expect(fake.calls.filter((c) => c.method === "coding.session.start")).toHaveLength(0);
+  });
+
+  it("parses a dropped Word file without invoking the coding model", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "docx",
+            text: "FROM WORD",
+            markdown: "FROM WORD",
+            pageCount: 1,
+            pages: [{ index: 0, text: "FROM WORD" }],
+          },
+        })}
+      />,
+    );
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["PK"], "notes.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+    );
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => expect(screen.getByText(/FROM WORD/)).toBeInTheDocument());
+    expect(fake.calls.filter((c) => c.method === "coding.session.sendMessage")).toHaveLength(0);
+  });
+
+  it("keeps a typed question as a follow-up hint instead of sending it with the parse", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "stub",
+            text: "parsed text",
+            markdown: null,
+            pageCount: 1,
+            pages: [{ index: 0, text: "parsed text" }],
+          },
+        })}
+      />,
+    );
+    await user.type(screen.getByTestId("coding-input-textarea"), "summarize this");
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["%PDF-1.7"], "doc.pdf", { type: "application/pdf" }),
+    );
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() =>
+      expect(screen.getByText(/Ask a follow-up question/)).toBeInTheDocument(),
+    );
+    expect(fake.calls.filter((c) => c.method === "coding.session.sendMessage")).toHaveLength(0);
+  });
+
+  it("sends a follow-up text turn to the coding model after a parse", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "stub",
+            text: "parsed text",
+            markdown: null,
+            pageCount: 1,
+            pages: [{ index: 0, text: "parsed text" }],
+          },
+        })}
+      />,
+    );
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["%PDF-1.7"], "doc.pdf", { type: "application/pdf" }),
+    );
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => expect(screen.getByText(/parsed text/)).toBeInTheDocument());
+    await user.type(screen.getByTestId("coding-input-textarea"), "what is the total");
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() =>
+      expect(fake.calls.some((c) => c.method === "coding.session.sendMessage")).toBe(true),
+    );
+  });
+
+  it("shows SidecarDownBanner when the sidecar is down and keeps the composer", async () => {
+    render(
+      <CodingPage
+        sidecarStatus={{
+          pollMs: 0,
+          debounceMs: 1,
+          fetchFn: async () => ({
+            running: false,
+            nodePath: "C:/Nexus/runtime/node/node.exe",
+            nodeSource: "runtime-config",
+            scriptPath: "C:/Nexus/sidecar/dist/main.js",
+            failure: "sidecar-exited:-1073741510",
+            stderrTail: [],
+            candidatesRejected: [],
+          }),
+        }}
+      />,
+    );
+    expect(await screen.findByTestId("coding-sidecar-down")).toBeInTheDocument();
+    expect(screen.getByTestId("coding-input")).toBeInTheDocument();
   });
 });

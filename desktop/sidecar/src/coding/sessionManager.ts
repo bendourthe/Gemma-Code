@@ -37,6 +37,7 @@ interface SessionRecord {
 
 export class CodingSessionManager {
   private readonly _sessions = new Map<string, SessionRecord>();
+  private readonly _locks = new Map<string, Promise<void>>();
   private readonly _now: () => Date;
   private readonly _idFactory: () => string;
   private readonly _store: SessionStore | undefined;
@@ -113,6 +114,13 @@ export class CodingSessionManager {
   }
 
   async sendMessage(
+    sessionId: string,
+    message: string,
+  ): Promise<readonly CodingSessionEventT[]> {
+    return this._withSessionLock(sessionId, () => this._sendMessageUnlocked(sessionId, message));
+  }
+
+  private async _sendMessageUnlocked(
     sessionId: string,
     message: string,
   ): Promise<readonly CodingSessionEventT[]> {
@@ -196,6 +204,19 @@ export class CodingSessionManager {
   /** Test surface: count of live sessions. */
   size(): number {
     return this._sessions.size;
+  }
+
+  private async _withSessionLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this._locks.get(sessionId) ?? Promise.resolve();
+    const run = prev.then(fn, fn);
+    this._locks.set(
+      sessionId,
+      run.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    return run;
   }
 
   private _requireSession(id: string, method: string): SessionRecord {

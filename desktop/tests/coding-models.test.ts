@@ -49,10 +49,25 @@ describe("model catalog (derived from core/registry/ModelCatalog)", () => {
 
   it("requireModel throws on unknown ids", () => {
     expect(() => requireModel("not-a-model")).toThrow(/Unknown model id/);
+    expect(() => requireModel("not-a-model")).toThrow(/Known aliases/);
+  });
+
+  it("requireModel resolves gemma-4-12b-it-gguf via alias to gemma4:12b", () => {
+    const fromCatalog = requireModel("gemma-4-12b-it-gguf");
+    const fromTag = requireModel("gemma4:12b");
+    expect(fromCatalog).toEqual(fromTag);
+    expect(fromCatalog.id).toBe("gemma4:12b");
+    expect(fromCatalog.codingAvailable).toBe(false);
+  });
+
+  it("requireModel still accepts coding id gemma4:e4b", () => {
+    const entry = requireModel("gemma4:e4b");
+    expect(entry.id).toBe("gemma4:e4b");
+    expect(entry.codingAvailable).toBe(true);
   });
 
   it("covers each ModelFamily at least once", () => {
     const families = new Set(SIDECAR_MODELS.map((m) => m.family));
-    expect(families).toEqual(new Set(["gemma", "llama", "qwen", "deepseek"]));
+    expect(families).toEqual(new Set(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes", "muse-glimmer", "nemotron-lightning", "gpt-oss"]));
   });
 });

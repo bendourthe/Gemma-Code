@@ -50,11 +50,12 @@ describe("createServingRuntime", () => {
     expect(status.token.length).toBeGreaterThan(0);
   });
 
-  it("sync() opens no listener while the opt-in is off", async () => {
+  it("sync() binds JSON CLI even while the Local API opt-in is off", async () => {
     const runtime = makeRuntime();
     const status = await runtime.sync();
-    expect(status.running).toBe(false);
-    expect(runtime.gateway.boundPort).toBeNull();
+    expect(status.enabled).toBe(false);
+    expect(status.running).toBe(true);
+    expect(runtime.gateway.boundPort).toBeGreaterThan(0);
   });
 
   it("setEnabled(true) persists the opt-in and starts listening", async () => {
@@ -67,13 +68,14 @@ describe("createServingRuntime", () => {
     expect(runtime.gateway.boundPort).toBeGreaterThan(0);
   });
 
-  it("setEnabled(false) stops the listener and persists the opt-out", async () => {
+  it("setEnabled(false) turns off /v1 but keeps the JSON CLI listener", async () => {
     const settings = new InMemorySettingsStore();
     const runtime = makeRuntime(settings);
     await runtime.setEnabled(true);
     const status = await runtime.setEnabled(false);
-    expect(status.running).toBe(false);
-    expect(runtime.gateway.running).toBe(false);
+    expect(status.enabled).toBe(false);
+    expect(status.running).toBe(true);
+    expect(runtime.gateway.running).toBe(true);
     expect(await settings.get<boolean>(SERVING_KEYS.enabled)).toBe(false);
   });
 
@@ -143,12 +145,75 @@ describe("serving.* IPC handlers", () => {
       { enabled: false },
       ctxWith(runtime),
     )) as ServingStatusResponseT;
-    expect(off.running).toBe(false);
+    expect(off.enabled).toBe(false);
+    expect(off.running).toBe(true);
   });
 
   it("serving.setEnabled rejects a non-boolean payload", async () => {
     await expect(
       dispatch("serving.setEnabled", { enabled: "yes" }, ctxWith(makeRuntime())),
     ).rejects.toThrow();
+  });
+
+  it("acp.setEnabled binds the shared listener and serves POST /acp", async () => {
+    const runtime = createServingRuntime({
+      settings: new InMemorySettingsStore(),
+      env: { NEXUS_SERVING_PORT: "0" },
+      models: {
+        service: { list: async () => [] },
+        installer: {},
+      } as unknown as NonNullable<Parameters<typeof createServingRuntime>[0]>["models"],
+      log: () => {},
+      acpLlm: {
+        async checkHealth() {
+          return true;
+        },
+        async listModels() {
+          return [];
+        },
+        async *streamChat() {
+          yield { message: { role: "assistant", content: "ok" }, done: true };
+        },
+      },
+    });
+    runtimes.push(runtime);
+    const on = (await dispatch("acp.setEnabled", { enabled: true }, ctxWith(runtime))) as {
+      enabled: boolean;
+      running: boolean;
+      endpoint: string;
+      token: string;
+    };
+    expect(on.enabled).toBe(true);
+    expect(on.running).toBe(true);
+    const res = await fetch(on.endpoint, {
+      method: "POST",
+      headers: { authorization: `Bearer ${on.token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: 1 },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { result: { protocolVersion: number } }).result.protocolVersion).toBe(1);
+
+    const models = await fetch(`http://127.0.0.1:${runtime.gateway.boundPort}/v1/models`, {
+      headers: { authorization: `Bearer ${on.token}` },
+    });
+    expect(models.status).toBe(404);
+
+    const servingStatus = await runtime.status();
+    expect(servingStatus.enabled).toBe(false);
+    expect(servingStatus.running).toBe(true);
+
+    const status = (await dispatch("acp.status", {}, ctxWith(runtime))) as {
+      enabled: boolean;
+      running: boolean;
+      endpoint: string;
+    };
+    expect(status.enabled).toBe(true);
+    expect(status.running).toBe(true);
+    expect(status.endpoint).toBe(on.endpoint);
   });
 });

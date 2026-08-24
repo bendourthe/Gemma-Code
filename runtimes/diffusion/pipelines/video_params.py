@@ -3,12 +3,17 @@
 The video pipelines share most of the image-side knobs (modelId / prompt /
 negative / width / height / steps / cfgScale / sampler / seed) plus three
 video-only fields: `durationSeconds`, `fps`, and `mode` (text2video vs
-image2video). For image2video, a `sourceImage` is also required.
+image2video vs audio2video). For image2video, a `sourceImage` is also
+required. For audio2video, `sourceImage` + `sourceAudio` +
+`confirmLocalAvatar` are required. Continuation segments may carry
+`continueFrom`.
 
 This module mirrors the shape of `params.py` but with stricter ranges
-matched to the v1.0.0 single-GPU ceiling per the Phase 7 plan:
+matched to the v1.0.0 single-GPU ceiling per the Phase 7 plan, plus the
+v2.0.0 continuation / avatar exceptions:
 
-    - durationSeconds: 1 - 10
+    - durationSeconds: 1 - 10 (text2video / image2video per segment)
+                       1 - 60 (audio2video, matching a spoken take)
     - fps:             12 / 16 / 24 only
     - resolution:      480p (854 x 480) or 720p (1280 x 720)
 
@@ -22,7 +27,12 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 
-_VALID_VIDEO_MODES = {"text2video", "image2video"}
+_VALID_VIDEO_MODES = {"text2video", "image2video", "audio2video"}
+_MAX_DURATION_BY_MODE = {
+    "text2video": 10,
+    "image2video": 10,
+    "audio2video": 60,
+}
 _VALID_FPS = {12, 16, 24}
 # v1.1.0 Phase 13.1 -- `flow-dpm-solver` joins the allowed video samplers
 # so the SANA-Video 2B "Fast 720p" preset round-trips through the same
@@ -59,6 +69,12 @@ class VideoParams:
     seed: int
     latent_preview: bool
     source_image: Optional[str] = None
+    source_audio: Optional[str] = None
+    confirm_local_avatar: bool = False
+    weight_repo: Optional[str] = None
+    diffusion_tier: Optional[str] = None
+    vram_gb: Optional[float] = None
+    continue_from: Optional[dict[str, Any]] = None
 
 
 def _require_str(d: Mapping[str, Any], key: str, default: Optional[str] = None) -> str:
@@ -109,9 +125,10 @@ def parse(mode: str, request: Mapping[str, Any]) -> VideoParams:
             f"invalid resolution {width}x{height}; allowed: 854x480, 1280x720"
         )
     duration = _require_int(request, "durationSeconds")
-    if duration < 1 or duration > 10:
+    max_duration = _MAX_DURATION_BY_MODE[mode]
+    if duration < 1 or duration > max_duration:
         raise VideoParamsError(
-            f"durationSeconds must be between 1 and 10, got {duration}"
+            f"durationSeconds must be between 1 and {max_duration}, got {duration}"
         )
     fps = _require_int(request, "fps")
     if fps not in _VALID_FPS:
@@ -120,8 +137,29 @@ def parse(mode: str, request: Mapping[str, Any]) -> VideoParams:
     if steps < 1 or steps > 150:
         raise VideoParamsError(f"steps must be between 1 and 150, got {steps}")
     source_image: Optional[str] = None
+    source_audio: Optional[str] = None
     if mode == "image2video":
         source_image = _require_str(request, "sourceImage")
+    if mode == "audio2video":
+        source_image = _require_str(request, "sourceImage")
+        source_audio = _require_str(request, "sourceAudio")
+        if request.get("confirmLocalAvatar") is not True:
+            raise VideoParamsError("confirmLocalAvatar must be true for audio2video")
+    continue_from = request.get("continueFrom")
+    if continue_from is not None and not isinstance(continue_from, dict):
+        raise VideoParamsError("continueFrom must be an object")
+    vram_raw = request.get("vramGB")
+    vram_gb: Optional[float] = None
+    if vram_raw is not None:
+        if isinstance(vram_raw, bool) or not isinstance(vram_raw, (int, float)):
+            raise VideoParamsError("vramGB must be number")
+        vram_gb = float(vram_raw)
+    weight_repo = request.get("weightRepo")
+    if weight_repo is not None and not isinstance(weight_repo, str):
+        raise VideoParamsError("weightRepo must be string")
+    diffusion_tier = request.get("diffusionTier")
+    if diffusion_tier is not None and not isinstance(diffusion_tier, str):
+        raise VideoParamsError("diffusionTier must be string")
     return VideoParams(
         model_id=_require_str(request, "modelId"),
         mode=mode,
@@ -137,6 +175,12 @@ def parse(mode: str, request: Mapping[str, Any]) -> VideoParams:
         seed=_require_int(request, "seed"),
         latent_preview=bool(request.get("latentPreview", True)),
         source_image=source_image,
+        source_audio=source_audio,
+        confirm_local_avatar=request.get("confirmLocalAvatar") is True,
+        weight_repo=weight_repo,
+        diffusion_tier=diffusion_tier,
+        vram_gb=vram_gb,
+        continue_from=continue_from,
     )
 
 

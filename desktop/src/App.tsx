@@ -1,24 +1,41 @@
-import { useEffect, useMemo, useState } from "react";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { ModuleErrorBoundary } from "./components/ModuleErrorBoundary";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
+import { ReadyOverlay } from "./components/ReadyOverlay";
+import { useReadyGate } from "./lib/readyGate";
 import { Dashboard } from "./pages/Dashboard";
-import { ModulePlaceholder } from "./pages/ModulePlaceholder";
 import { StyleguidePage } from "./pages/Styleguide";
 import { CodingPage } from "./modules/coding/CodingPage";
 import { ChatPage } from "./modules/chat/ChatPage";
 import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { VideoLabPage } from "./modules/video/VideoLabPage";
+import { classifyDiffusionTier } from "../../core/config/DiffusionTier";
+import { createIpcChatMemoryHub } from "./modules/chat/memoryIpcClient";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
 import { createIpcModelsClient } from "./pages/settings/ipcModelsClient";
 import { createIpcServingClient } from "./pages/settings/ipcServingClient";
+import { createIpcFineTuningClient } from "./pages/settings/ipcFineTuningClient";
+import { createIpcAuditClient } from "./pages/settings/ipcAuditClient";
+import { createIpcMcpRegistryClient } from "./pages/settings/ipcMcpRegistryClient";
+import { createIpcAskInboxClient } from "./pages/inbox/ipcAskInboxClient";
+import { AskInboxPanel } from "./pages/inbox/AskInboxPanel";
 import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
-import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
+import { createLiveTelemetryStream } from "./lib/liveTelemetry";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
+import { ipcCall } from "./lib/ipc";
+import { MotionActivityProvider, useMotionActivity } from "./motion";
+import {
+  fetchSchedulerSnapshot,
+  type ResidencySessionMemory,
+  type SchedulerActiveJob,
+} from "./shared/models/schedulerResidency";
 
 export interface AppProps {
   // Test seam: callers may inject a fake telemetry stream.
@@ -41,18 +58,54 @@ const modelsClient = createIpcModelsClient();
 // the real sidecar `serving.*` IPC (status + enable/disable of the loopback
 // OpenAI/Anthropic gateway). Constructed once at module load.
 const servingClient = createIpcServingClient();
+const fineTuningClient = createIpcFineTuningClient();
+const auditClient = createIpcAuditClient();
+const mcpClient = createIpcMcpRegistryClient();
+const askInboxClient = createIpcAskInboxClient();
+const chatMemoryHub = createIpcChatMemoryHub();
+
+async function sampleChatVideoFrames(dataUrl: string): Promise<{ frames: string[]; notice?: string }> {
+  const reply = await ipcCall<{ frames: string[]; notice?: string }>("media.sampleVideoFrames", { dataUrl });
+  if (!reply.ok) {
+    return { frames: [], notice: "Video was not sent: frame sampling is unavailable. Attach a still image instead." };
+  }
+  return reply.value;
+}
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
+  return (
+    <MotionActivityProvider>
+      <AppLayout telemetryStream={telemetryStream} />
+    </MotionActivityProvider>
+  );
+}
+
+function AppLayout({ telemetryStream }: AppProps): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
   const [hostVramGB, setHostVramGB] = useState<number | null>(null);
+  const [hostVramFreeGB, setHostVramFreeGB] = useState<number | null>(null);
+  const [activeSchedulerJob, setActiveSchedulerJob] = useState<SchedulerActiveJob | null>(null);
+  const residencyMemory = useRef<ResidencySessionMemory>(new Set()).current;
   const navigate = useNavigate();
+  // v2.2.3 Phase 1 (1.1): the error boundary is keyed by pathname so a crashed
+  // module remounts cleanly when the user switches to another route.
+  const location = useLocation();
+  const { isAmbientReceded } = useMotionActivity();
+  const ready = useReadyGate();
 
   useEffect(() => {
     if (telemetryStream !== undefined) {
       setStream(telemetryStream);
       return;
     }
-    const created = createMockTelemetryStream({ intervalMs: 2000 });
+    // v2.2.0 Phase 2 (2.4): poll the sidecar for REAL GPU telemetry. The mock
+    // stream stays available behind an explicit dev flag, but it must never be
+    // the shipped default -- it reported a loaded model and GPU load on hosts
+    // where neither existed.
+    const useMock = import.meta.env?.VITE_NEXUS_MOCK_TELEMETRY === "1";
+    const created = useMock
+      ? createMockTelemetryStream({ intervalMs: 2000 })
+      : createLiveTelemetryStream({ intervalMs: 2000 });
     setStream(created);
     return () => created.stop();
   }, [telemetryStream]);
@@ -61,8 +114,27 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
     if (!stream) return;
     return stream.subscribe((sample) => {
       if (typeof sample.vramTotalGB === "number") setHostVramGB(sample.vramTotalGB);
+      setHostVramFreeGB(
+        typeof sample.vramFreeGB === "number" && Number.isFinite(sample.vramFreeGB)
+          ? sample.vramFreeGB
+          : null,
+      );
     });
   }, [stream]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async (): Promise<void> => {
+      const snapshot = await fetchSchedulerSnapshot();
+      if (!cancelled) setActiveSchedulerJob(snapshot?.active ?? null);
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   // Fixed-viewport shell: the title bar is fixed chrome and the content row
   // scrolls internally. The ambient radial-glow + constellation backdrop sits
@@ -82,7 +154,14 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
 
   return (
     <div data-testid="app-root" style={layoutStyle}>
-      <div className="nexus-app-backdrop" data-testid="app-backdrop" aria-hidden />
+      <div
+        className={["nexus-app-backdrop", isAmbientReceded ? "nexus-ambient-recede" : ""]
+          .filter(Boolean)
+          .join(" ")}
+        data-testid="app-backdrop"
+        data-ambient-receded={isAmbientReceded ? "true" : "false"}
+        aria-hidden
+      />
       <ConstellationBackground opacity={0.5} zIndex={0} data-testid="app-constellation" />
       <TitleBar />
       <div
@@ -95,7 +174,19 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
           zIndex: 1,
         }}
       >
-        <Sidebar />
+        {/*
+          v2.2.0 Phase 6 (6.2): GPU telemetry moved from a fixed
+          bottom-right dock (which covered Send / Generate on every page)
+          into the sidebar footer.
+        */}
+        <Sidebar askInboxClient={askInboxClient} telemetryStream={stream} />
+        <ReadyOverlay
+          phase={ready.phase}
+          status={ready.status}
+          restarting={ready.restarting}
+          restartError={ready.restartError}
+          onRestart={() => void ready.restart()}
+        />
         <main
           style={{
             display: "flex",
@@ -105,20 +196,77 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
             position: "relative",
           }}
         >
+          {/*
+            v2.2.3 Phase 1 (1.1): a module crash degrades to an in-pane error
+            instead of blanking the whole app -- desktop/src had no error
+            boundary anywhere before this.
+          */}
+          <ModuleErrorBoundary key={location.pathname}>
           <Routes>
-            <Route path="/" element={<Dashboard telemetryStream={stream} />} />
+            {/*
+              v2.2.4 Phase 1 (1.1): first launch and `/` land on Chatbot.
+              Dashboard stays reachable at /dashboard for tests and deep
+              links, but it is not the first-run landing. Last-module restore
+              is handled in main.tsx via normalizeActiveRoute.
+            */}
+            <Route path="/" element={<Navigate to="/chatbot" replace />} />
+            <Route
+              path="/dashboard"
+              element={<Dashboard telemetryStream={stream} askInboxClient={askInboxClient} />}
+            />
             <Route
               path="/chatbot"
-              element={<ChatPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+              element={
+                <ChatPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  memoryHub={chatMemoryHub}
+                  sampleVideoFrames={sampleChatVideoFrames}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
+                />
+              }
             />
-            <Route path="/coding" element={<CodingPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />} />
+            <Route
+              path="/coding"
+              element={
+                <CodingPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
+                />
+              }
+            />
             <Route
               path="/images"
-              element={<ImageStudioPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+              element={
+                <ImageStudioPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
+                />
+              }
             />
             <Route
               path="/videos"
-              element={<VideoLabPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+              element={
+                <VideoLabPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  vramGB={hostVramGB ?? 0}
+                  diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
+                  resolveMp4Url={convertFileSrc}
+                />
+              }
+            />
+            <Route
+              path="/inbox"
+              element={<AskInboxPanel client={askInboxClient} />}
             />
             <Route
               path="/settings"
@@ -128,32 +276,26 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
                   skillsClient={skillsClient}
                   skillOptimizerClient={skillOptimizerClient}
                   servingClient={servingClient}
+                  fineTuningClient={fineTuningClient}
+                  auditClient={auditClient}
+                  mcpClient={mcpClient}
                   hostVramGB={hostVramGB}
                 />
               }
             />
-            <Route
-              path="/profile"
-              element={
-                <ModulePlaceholder
-                  moduleId="coding"
-                  message="Profile editor placeholder. Reads ~/.nexus/profile.json once Phase 2 lands the storage migration."
-                />
-              }
-            />
+            {/*
+              v2.2.0 Phase 7 (7.3) / Phase 6 (6.3): the User Profile page was a
+              placeholder that never read a profile, and Ask inbox moved to the
+              sidebar bell. Both redirect so old links and shortcuts still land
+              somewhere real instead of on an empty screen.
+            */}
+            <Route path="/profile" element={<Navigate to="/settings" replace />} />
+            <Route path="/inbox" element={<Navigate to="/settings" replace />} />
             <Route path="/_styleguide" element={<StyleguidePage />} />
           </Routes>
-          <DockMount stream={stream} />
+          </ModuleErrorBoundary>
         </main>
       </div>
     </div>
   );
-}
-
-function DockMount({ stream }: { stream: TelemetryStream | null }): JSX.Element | null {
-  const location = useLocation();
-  // The Dashboard hosts the widget inline; every other module page gets
-  // the floating dock so telemetry is always visible.
-  if (location.pathname === "/" || location.pathname === "/_styleguide") return null;
-  return <LocalModelStatusDock stream={stream} />;
 }

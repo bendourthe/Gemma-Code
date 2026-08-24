@@ -85,6 +85,30 @@ def test_build_workflow_includes_resolution():
     assert workflow["height"] == 720
 
 
+def test_build_workflow_for_audio2video_embeds_provenance():
+    request = {
+        "modelId": "longcat-video-avatar-1.5",
+        "prompt": "talk",
+        "negativePrompt": "",
+        "width": 854,
+        "height": 480,
+        "durationSeconds": 4,
+        "fps": 24,
+        "steps": 8,
+        "cfgScale": 3.5,
+        "sampler": "euler_a",
+        "seed": 1,
+        "sourceImage": "data:image/png;base64,AAAA",
+        "sourceAudio": "data:audio/wav;base64,BBBB",
+        "confirmLocalAvatar": True,
+    }
+    params = video_params.parse("audio2video", request)
+    workflow = video_workflow_metadata.build_workflow(params, "2026-08-19T00:00:00Z")
+    assert workflow["mode"] == "audio2video"
+    assert workflow["provenance"]["neverLeftDevice"] is True
+    assert workflow["sourceAudioHash"]
+
+
 def test_build_workflow_carries_seed_and_sampler():
     workflow = video_workflow_metadata.build_workflow(
         _params("text2video", seed=42, sampler="dpmpp_2m"),

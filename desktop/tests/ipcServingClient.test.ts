@@ -47,6 +47,39 @@ describe("createIpcServingClient", () => {
     expect(calls).toContainEqual({ method: "serving.setEnabled", params: { enabled: true } });
   });
 
+  it("acpStatus maps acp.status", async () => {
+    const acp = {
+      enabled: true,
+      running: true,
+      host: "127.0.0.1",
+      port: 11500,
+      endpoint: "http://127.0.0.1:11500/acp",
+      token: "tok",
+    };
+    stub((m) => {
+      if (m === "acp.status") return acp;
+      throw new Error(m);
+    });
+    expect(await createIpcServingClient().acpStatus()).toEqual(acp);
+  });
+
+  it("setAcpEnabled sends the flag to acp.setEnabled", async () => {
+    const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
+    stub((method, params) => {
+      calls.push({ method, params });
+      return {
+        enabled: true,
+        running: true,
+        host: "127.0.0.1",
+        port: 11500,
+        endpoint: "http://127.0.0.1:11500/acp",
+        token: "tok",
+      };
+    });
+    await createIpcServingClient().setAcpEnabled(true);
+    expect(calls).toContainEqual({ method: "acp.setEnabled", params: { enabled: true } });
+  });
+
   it("surfaces an IPC failure as a thrown Error", async () => {
     setInvokeOverride(async () => {
       throw new Error("sidecar down");

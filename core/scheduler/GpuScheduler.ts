@@ -2,10 +2,11 @@
  * v1.0.0 Phase 8.1 -- GpuScheduler.
  *
  * Cross-module FIFO GPU job queue. The four Nexus pillars (Coding, Chat,
- * Image, Video) all contend for a single consumer-class GPU; this scheduler
- * serializes their requests so two pipelines never race for VRAM. The
- * scheduler is a shared-core service: any pillar that needs GPU time
- * `enqueue()`s a `GpuJob` and receives a `JobHandle`.
+ * Image, Video) plus the Fine-tuning trainer all contend for a single
+ * consumer-class GPU; this scheduler serializes their requests so two
+ * pipelines never race for VRAM. The scheduler is a shared-core service:
+ * any pillar that needs GPU time `enqueue()`s a `GpuJob` and receives a
+ * `JobHandle`.
  *
  * Foreground-module-wins: callers tell the scheduler which module the user
  * is currently looking at via `setForegroundModule(id)`. Pending jobs whose
@@ -48,8 +49,13 @@
  */
 
 import type { TelemetryBus } from "../telemetry/TelemetryBus.js";
+import { conservativeResidentVramGb } from "../registry/moeFootprint.js";
+import {
+  evaluateModelSwap,
+  type ModelSwapDecision,
+} from "./modelSwap.js";
 
-export type GpuModuleId = "coding" | "chat" | "image" | "video";
+export type GpuModuleId = "coding" | "chat" | "image" | "video" | "tuning";
 
 export type JobPriority = "foreground" | "background";
 
@@ -112,6 +118,15 @@ export interface SchedulerSnapshot {
 
 export type VramProvider = () => Promise<number> | number;
 
+export interface RoutingSwapRequest {
+  readonly sessionId: string;
+  readonly fromModelId: string;
+  readonly toModelId: string;
+  readonly fromVramGB: number;
+  readonly toVramGB: number;
+  readonly workerResident?: boolean;
+}
+
 export interface GpuSchedulerOptions {
   readonly telemetry: TelemetryBus;
   /** Returns free VRAM in GB. CPU-only hosts may return system RAM analog. */
@@ -122,6 +137,11 @@ export interface GpuSchedulerOptions {
   readonly idGenerator?: () => string;
   /** Override for the clock (tests). */
   readonly now?: () => number;
+  /**
+   * v2.1.0 Phase 2 -- coalesce routing swap requests for the same session
+   * that arrive within this many ms (anti-thrash). 0 disables batching.
+   */
+  readonly swapBatchWindowMs?: number;
 }
 
 export class InsufficientVramError extends Error {
@@ -151,6 +171,13 @@ export class JobCancelledError extends Error {
 
 /** Default hard cap on how many models may ever be co-resident in one panel. */
 export const DEFAULT_PANEL_SIZE_CAP = 3;
+
+/**
+ * v1.18.0 Phase 3 (LG-A3) -- conservative residency GB for panel / job
+ * estimates. Re-exported so scheduler callers thread `totalParams` through the
+ * same path that never substitutes active MoE compute for resident footprint.
+ */
+export { conservativeResidentVramGb };
 
 /** One member of a panel: a model id, its VRAM estimate, and its work. */
 export interface PanelMemberJob {
@@ -240,10 +267,16 @@ export class GpuScheduler {
   private readonly _vramProvider: VramProvider;
   private readonly _idGenerator: () => string;
   private readonly _now: () => number;
+  private readonly _swapBatchWindowMs: number;
   private _queue: QueueEntry[] = [];
   private _active: QueueEntry | null = null;
   private _foregroundModule: GpuModuleId | null;
   private _pumping = false;
+  private _lastFreeVramGB: number | null = null;
+  private readonly _swapBatch = new Map<
+    string,
+    { readonly at: number; readonly decision: ModelSwapDecision }
+  >();
 
   constructor(opts: GpuSchedulerOptions) {
     this._telemetry = opts.telemetry;
@@ -251,10 +284,76 @@ export class GpuScheduler {
     this._idGenerator = opts.idGenerator ?? defaultId;
     this._now = opts.now ?? (() => Date.now());
     this._foregroundModule = opts.foregroundModule ?? null;
+    this._swapBatchWindowMs = Math.max(0, opts.swapBatchWindowMs ?? 50);
   }
 
   get foregroundModule(): GpuModuleId | null {
     return this._foregroundModule;
+  }
+
+  /**
+   * v2.1.0 Phase 2 -- consult live VRAM (or the last sampled value) before
+   * honoring a routing model swap. Batches near-simultaneous requests for the
+   * same session. Never drops the request: a no-fit result is `deferred`.
+   *
+   * DEVIATION: this is a cost model, not an Ollama load/unload. keepWorkerResident
+   * is advisory for the caller; prefetch of predicted swaps is not implemented.
+   */
+  evaluateRoutingSwap(req: RoutingSwapRequest): ModelSwapDecision {
+    const now = this._now();
+    const batched = this._swapBatch.get(req.sessionId);
+    if (
+      this._swapBatchWindowMs > 0 &&
+      batched &&
+      now - batched.at <= this._swapBatchWindowMs
+    ) {
+      this._publishSwap(req, batched.decision, true);
+      return batched.decision;
+    }
+
+    let free = this._lastFreeVramGB;
+    try {
+      const sampled = this._vramProvider();
+      if (typeof sampled === "number" && Number.isFinite(sampled)) {
+        free = sampled;
+        this._lastFreeVramGB = sampled;
+      }
+    } catch {
+      free = this._lastFreeVramGB;
+    }
+
+    const activeModule = this._active?.job.moduleId ?? null;
+    const decision = evaluateModelSwap({
+      fromVramGB: req.fromVramGB,
+      toVramGB: req.toVramGB,
+      freeVramGB: free,
+      activeModule,
+      diffusionActive: activeModule === "image" || activeModule === "video",
+      workerResident: req.workerResident,
+    });
+    this._swapBatch.set(req.sessionId, { at: now, decision });
+    this._publishSwap(req, decision, false);
+    return decision;
+  }
+
+  private _publishSwap(
+    req: RoutingSwapRequest,
+    decision: ModelSwapDecision,
+    batched: boolean,
+  ): void {
+    this._telemetry.publish({
+      kind: "scheduler.swap",
+      source: "gpu-scheduler",
+      payload: {
+        sessionId: req.sessionId,
+        fromModelId: req.fromModelId,
+        toModelId: req.toModelId,
+        outcome: decision.outcome,
+        reason: decision.reason,
+        keepWorkerResident: decision.keepWorkerResident,
+        batched,
+      },
+    });
   }
 
   /**
@@ -283,6 +382,7 @@ export class GpuScheduler {
    */
   async enqueue(job: GpuJob): Promise<JobHandle> {
     const freeGB = await Promise.resolve(this._vramProvider());
+    this._lastFreeVramGB = freeGB;
     if (job.estimatedVramGB > freeGB) {
       const err = new InsufficientVramError(job.estimatedVramGB, freeGB);
       this._publish("job.failed", {

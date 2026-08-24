@@ -103,4 +103,33 @@ describe("CodingSessionManager", () => {
     expect(reply.sessionId).toMatch(/[0-9a-f-]{8,}/);
     expect(reply.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
+
+  it("serializes concurrent sendMessage on the same session", async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((r) => {
+      releaseFirst = r;
+    });
+    let started = 0;
+    const mgr = new CodingSessionManager({
+      now: () => new Date("2026-05-17T11:00:00Z"),
+      idFactory: () => "sess-lock",
+      agentRunner: async (input) => {
+        started += 1;
+        order.push(`start:${input.message}`);
+        if (started === 1) await firstGate;
+        order.push(`end:${input.message}`);
+        return [{ kind: "done", finishReason: "stop" }];
+      },
+    });
+    const { sessionId } = mgr.start({ modelId: "gemma4:e4b" });
+    const a = mgr.sendMessage(sessionId, "one");
+    const b = mgr.sendMessage(sessionId, "two");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(order).toEqual(["start:one"]);
+    releaseFirst();
+    await Promise.all([a, b]);
+    expect(order).toEqual(["start:one", "end:one", "start:two", "end:two"]);
+    expect(mgr.list().sessions[0]?.messageCount).toBe(2);
+  });
 });

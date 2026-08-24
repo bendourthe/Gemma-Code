@@ -14,6 +14,12 @@ import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
 import { matchesSecretPath } from "../../modules/coding/utils/secretPaths.js";
 import { evaluateDeny, parsePermissionsDeny, type DenyList, type DenyRule } from "../../core/storage/PermissionsDeny.js";
+import {
+  describeSandbox,
+  isExecSandboxEnabled,
+} from "../../modules/coding/sandbox/index.js";
+import { originForTool } from "../../modules/coding/guardrails/toolResultOrigin.js";
+import { getSettings } from "../../modules/coding/config/settings.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
 // diff-preview in `plan` mode. The centralized gate is skipped for these
@@ -37,6 +43,7 @@ const DENY_SUBJECT_PARAM: Readonly<Record<string, string>> = {
   edit_file: "path",
   create_file: "path",
   delete_file: "path",
+  browser_navigate: "url",
 };
 
 /**
@@ -386,12 +393,24 @@ export class ToolRegistry {
 
     if (
       this._confirmationGate &&
-      shouldRequireConfirmation(call.tool, this._permissionOverrides) &&
+      shouldRequireConfirmation(
+        call.tool,
+        this._permissionOverrides,
+        getSettings().securityPosture,
+      ) &&
       !handlesOwnConfirmation
     ) {
       const tier = getPermissionTier(call.tool, this._permissionOverrides);
       const warning = tier === PermissionTier.DANGEROUS
-        ? getDangerousWarning(call.tool, call.parameters)
+        ? getDangerousWarning(
+            call.tool,
+            call.parameters,
+            call.tool === "run_terminal"
+              ? describeSandbox({
+                  enabled: isExecSandboxEnabled(getSettings().execSandbox),
+                }).summary
+              : undefined,
+          )
         : `Tool "${call.tool}" requires confirmation.`;
       const approved = await this._confirmationGate.request(
         call.id,
@@ -427,15 +446,16 @@ export class ToolRegistry {
 
     try {
       const result = await handler.execute(call.parameters);
+      const stamped = { ...result, origin: result.origin ?? originForTool(call.tool) };
 
       // Apply universal byte-cap to successful outputs so the conversation
       // transcript can never receive an oversized payload, even if downstream
       // compression or redirection is disabled.
-      let bounded = result;
+      let bounded = stamped;
       if (result.success && result.output.length > 0) {
         const capped = applyByteCap(result.output, call.tool, maxBytes);
         if (capped.truncated) {
-          bounded = { ...result, output: capped.output };
+          bounded = { ...stamped, output: capped.output };
         }
       }
 

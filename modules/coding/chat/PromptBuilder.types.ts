@@ -40,6 +40,12 @@ export interface PromptContext {
    * host opts in by resolving and passing this through.
    */
   readonly languageRules?: string;
+  /**
+   * v1.19.1 Phase 2.9 -- extra names from the live ToolRegistry that are not
+   * in `enabledTools`. The assembler emits a stub so a registered test tool
+   * cannot be missing from the prompt.
+   */
+  readonly registeredToolNames?: readonly string[];
 }
 
 /** A candidate section for inclusion in the system prompt. */

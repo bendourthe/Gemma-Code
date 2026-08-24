@@ -9,7 +9,8 @@
 //
 // Workspace: the agent's file/terminal tools are scoped to the session's
 // workspace path when the frontend supplies one (start-request `workspacePath`),
-// otherwise NEXUS_WORKSPACE, otherwise the sidecar cwd.
+// otherwise an explicit runner workspace or NEXUS_WORKSPACE. There is no cwd
+// fallback because the packaged sidecar directory is not a user project.
 //
 // This module lives under desktop/ (excluded from the dependency-cruiser
 // boundary check), so importing the concrete Ollama client here is permitted --
@@ -17,13 +18,14 @@
 
 import { createHeadlessOllamaClient } from "../../../../modules/coding/llm/headlessOllamaClient.js";
 import type { LLMClient } from "../../../../modules/coding/llm/types.js";
-import {
-  createHeadlessTools,
-  type HeadlessTool,
-} from "../../../../modules/coding/runtime/headlessTools.js";
+import type { HeadlessDocumentParser, HeadlessTool } from "../../../../modules/coding/runtime/headlessTools.js";
+import { createSidecarHeadlessTools } from "./sidecarHeadlessTools.js";
 import { HeadlessAgentSession } from "../../../../modules/coding/runtime/HeadlessAgentSession.js";
+import { createHookBus, type HookBus } from "../../../../core/lifecycle/HookBus.js";
 import type { CodingSessionEventT } from "../protocol.js";
 import type { SidecarModelEntry } from "./models.js";
+import { runEnrichedHeadlessSession } from "./headlessRunEnrichment.js";
+import { isAbsolute } from "node:path";
 
 export interface AgentRunnerInput {
   readonly sessionId: string;
@@ -40,20 +42,33 @@ export type AgentRunner = (input: AgentRunnerInput) => Promise<readonly CodingSe
 export interface HeadlessAgentRunnerOptions {
   /** Override the LLM port (tests inject a scripted client; default: Ollama). */
   readonly llm?: LLMClient;
-  /** Override the tool set (default: the full headless tool set). */
+  /** Override the tool set (default: the sidecar headless tool set). */
   readonly tools?: HeadlessTool[];
-  /** Default working directory when a session supplies none (default: NEXUS_WORKSPACE or cwd). */
+  /** Default working directory when a session supplies none (default: NEXUS_WORKSPACE). */
   readonly workspace?: string;
   /** Extra base instructions folded into the system prompt. */
   readonly systemInstructions?: string;
+  /** v1.20.0 Phase 1 (A1): forwarded when the default tool set is used. */
+  readonly documentParser?: HeadlessDocumentParser;
+  readonly parseDocumentEnabled?: boolean;
+  readonly catalogDir?: string;
+  readonly hookBus?: HookBus;
+  readonly log?: (message: string) => void;
 }
 
-function resolveWorkspace(perSession: string | undefined, explicit: string | undefined): string {
-  if (perSession && perSession.length > 0) return perSession;
-  if (explicit && explicit.length > 0) return explicit;
-  const env = process.env["NEXUS_WORKSPACE"];
-  if (env && env.length > 0) return env;
-  return process.cwd();
+export function resolveWorkspace(
+  perSession: string | undefined,
+  explicit: string | undefined,
+): string {
+  const selected = perSession?.trim() || explicit?.trim() || process.env["NEXUS_WORKSPACE"]?.trim();
+  if (!selected) throw new Error("workspacePath is required for a coding session");
+  if (!isAbsolute(selected)) {
+    throw new Error("workspacePath must be an absolute path");
+  }
+  if (selected.split(/[\\/]/).includes("..")) {
+    throw new Error("workspacePath must not contain parent traversal");
+  }
+  return selected;
 }
 
 /**
@@ -67,52 +82,70 @@ export function createHeadlessAgentRunner(
   options: HeadlessAgentRunnerOptions = {},
 ): AgentRunner {
   const llm = options.llm ?? createHeadlessOllamaClient();
-  const tools = options.tools ?? createHeadlessTools();
+  const tools =
+    options.tools ??
+    createSidecarHeadlessTools({
+      documentParser: options.documentParser,
+      parseDocumentEnabled: options.parseDocumentEnabled,
+    });
   const session = new HeadlessAgentSession(llm, tools);
+  const hookBus = options.hookBus ?? createHookBus();
 
   return async (input) => {
     const events: CodingSessionEventT[] = [];
     let toolSeq = 0;
     let lastCallId = "";
-    const workspace = resolveWorkspace(input.workspacePath, options.workspace);
-
-    const result = await session.run({
-      task: input.message,
-      workdir: workspace,
-      model: input.model.id,
-      systemInstructions: options.systemInstructions,
-      signal: input.signal,
-      onEvent: (event) => {
-        switch (event.kind) {
-          case "token":
-            events.push({ kind: "token", text: event.text });
-            break;
-          case "toolCall": {
-            toolSeq += 1;
-            lastCallId = `${input.sessionId}:tc-${toolSeq}`;
-            events.push({ kind: "toolCallHeader", callId: lastCallId, name: event.name });
-            events.push({
-              kind: "toolCallArgDelta",
-              callId: lastCallId,
-              delta: JSON.stringify(event.args),
-            });
-            break;
+    try {
+      const workspace = resolveWorkspace(input.workspacePath, options.workspace);
+      const result = await runEnrichedHeadlessSession({
+        session,
+        sessionId: input.sessionId,
+        message: input.message,
+        workspacePath: workspace,
+        model: input.model.id,
+        ...(options.systemInstructions
+          ? { baseSystemInstructions: options.systemInstructions }
+          : {}),
+        ...(options.catalogDir ? { catalogDir: options.catalogDir } : {}),
+        hookBus,
+        ...(options.log ? { log: options.log } : {}),
+        ...(input.signal ? { signal: input.signal } : {}),
+        onEvent: (event) => {
+          switch (event.kind) {
+            case "token":
+              events.push({ kind: "token", text: event.text });
+              break;
+            case "toolCall": {
+              toolSeq += 1;
+              lastCallId = `${input.sessionId}:tc-${toolSeq}`;
+              events.push({ kind: "toolCallHeader", callId: lastCallId, name: event.name });
+              events.push({
+                kind: "toolCallArgDelta",
+                callId: lastCallId,
+                delta: JSON.stringify(event.args),
+              });
+              break;
+            }
+            case "toolResult":
+              events.push({
+                kind: "toolCallComplete",
+                callId: lastCallId,
+                result: event.output,
+              });
+              break;
+            case "done":
+              break;
           }
-          case "toolResult":
-            events.push({
-              kind: "toolCallComplete",
-              callId: lastCallId,
-              result: event.output,
-            });
-            break;
-          case "done":
-            // The trailing done event is appended below with the final reason.
-            break;
-        }
-      },
-    });
-
-    events.push({ kind: "done", finishReason: result.finishReason });
+        },
+      });
+      events.push({ kind: "done", finishReason: result.finishReason });
+    } catch (error) {
+      events.push({
+        kind: "token",
+        text: `Could not run coding session: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      events.push({ kind: "done", finishReason: "error" });
+    }
     return events;
   };
 }

@@ -11,6 +11,7 @@ from nexus_installer.engine.model_puller import (
     _PROGRESS_RE,
     ModelPuller,
     clean_terminal_text,
+    summarize_pull_failure,
 )
 from nexus_installer.installer_state import InstallerState
 
@@ -108,6 +109,36 @@ class TestModelPullerExecution:
             result = puller.pull(state, MagicMock(), MagicMock())
         assert result is False
         assert "manifest" in puller.last_error
+
+    def test_pull_failure_prefers_newer_version_over_download_url(self) -> None:
+        state = InstallerState(selected_model="gemma4:12b")
+        proc = _mock_proc(
+            b"Error: pull model manifest: 412:\n"
+            b"The model you are attempting to pull requires a newer version of Ollama.\n"
+            b"Please download the latest version at:\n"
+            b"https://ollama.com/download\n",
+            returncode=1,
+        )
+        with patch(
+            "nexus_installer.engine.model_puller.subprocess.Popen",
+            return_value=proc,
+        ):
+            puller = ModelPuller()
+            result = puller.pull(state, MagicMock(), MagicMock())
+        assert result is False
+        assert "newer version" in puller.last_error.lower()
+        assert puller.last_error != "https://ollama.com/download"
+
+    def test_summarize_pull_failure_skips_bare_url(self) -> None:
+        reason = summarize_pull_failure(
+            [
+                "Error: pull model manifest: 412:",
+                "The model you are attempting to pull requires a newer version of Ollama.",
+                "https://ollama.com/download",
+            ],
+            1,
+        )
+        assert "newer version" in reason.lower()
 
     def test_pull_command_not_found(self) -> None:
         state = InstallerState(selected_model="gemma4:e2b")

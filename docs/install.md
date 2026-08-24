@@ -78,10 +78,58 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
 
+## After you install (v1.20.0)
+
+- **Document attach**: Chat and Coding accept PDF, images, Word, PowerPoint, and Excel. Parsed text is shown locally; it does not auto-enter a prompt. First file only this cycle.
+- **`parse_document`**: off until you set `nexus.coding.parseDocument.enabled` (VS Code) or `NEXUS_PARSE_DOCUMENT=1` / `~/.nexus/settings.json` (sidecar). CONFIRM still wraps the tool. Office files do not need RapidOCR or Unlimited-OCR.
+- **No Docling**: layout-aware Docling was deferred (DF-5). Portable OCR requirements still exclude torch.
+
+## After you install (v1.19.2)
+
+- **Hermes 3**: `hermes3:8b` is an Agentic catalog pick (Ollama library). Enable `nexus.coding.harnessSelector.enabled` to apply `hermes-agentic` (llama3-json). The live coding loop still parses Gemma XML (DF-3). `hermes3:70b` is listed but is not a recommended default.
+- **Inkling-Small**: hidden unless the patient tier is on (`nexus.llm.patientTier.enabled` or installer `NEXUS_PATIENT_TIER=1`). 74.8 GB GGUF, Apache-2.0, text-only at this quant (DF-2). Never auto-selected.
+- **Weight variants**: models with `weights.variants` install one official line. Override with `NEXUS_WEIGHTS_VARIANT=<variant-id>`. Unofficial quants are rejected. sha256 still required.
+- **Patient-tier copy**: warning floor is ~0.03 tok/s. `nexus.llm.patientTier.ramPreset` (`laptop` / `workstation` / `max`) is expectation copy; Nexus does not bundle the offload runtime.
+
+## After you install (v1.19.1)
+
+- **Security posture**: Settings > Security, or `"nexus.coding.securityPosture"`. Default `standard`. `unattended` skips CONFIRM-tier prompts only; `run_terminal` still confirms; hard-denied commands (`rm -rf`, `git push --force`, `DROP TABLE`) never run. This is not a no-floor mode.
+- **LoopGuards**: auto-mode stops after five identical consecutive tool calls, an error burst, a bounded extra-call queue, or 60 iterations. Headless sidecar does not yet construct LoopGuards (DF-3).
+- **watch_path / hash_file**: read-only workspace tools. Paths outside the project root are rejected.
+- **Hub skills**: grounded-citation, persona-card, and avatar-prep prose live on Nexus-Hub branch `feat/v1.19.1-skill-native-wins`. Merge that branch, then `nexus skills sync --apply` (DF-2). Mapping: [skill-native-adoptions-v1.19.1.md](reference/skill-native-adoptions-v1.19.1.md).
+
+## After you install (v1.19.0)
+
+- **LFM2.5-2.6B**: on CPU and 8 GB agentic recommended lists as `lfm2.5:2.6b`. The installer pulls it through Ollama from `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M`. The card shows LFM Open License v1.0 (USD 10M commercial cap) as a use restriction, not a download gate.
+- **8B-A1B is not in the catalog.** A quality-per-GB bake-off vs Qwen 14B and DeepSeek 16B was not completed; the row stays out until a dated local table shows a win.
+- **Harness**: if you enable the existing `nexus.coding.harnessSelector.enabled` toggle, LFM uses the `lfm-agentic` profile. The live coding loop still parses Gemma XML (DF-6); listing the model does not by itself execute pythonic tool calls.
+
+## After you install (v1.18.0)
+
+- **llama.cpp on loopback**: Nexus does not bundle llama.cpp. If you already run `llama-server` on `127.0.0.1`, register it as `nexus.llm.localAdapters` and set `nexus.llm.backend` to the manifest name. Recipe: [llamacpp-loopback-adapter.md](reference/llamacpp-loopback-adapter.md). This does not enable the patient-tier catalog gate.
+- **Skill-native mappings**: morning-brief *content* is the Hub `agent-presets` `morning-briefing` preset; browser GUI QA is Hub `browser-testing-with-devtools`. No new skill ships in this repo. See [skill-native-adoptions-v1.18.md](reference/skill-native-adoptions-v1.18.md).
+- **Harness selector**: off by default. Enable `nexus.coding.harnessSelector.enabled` to apply a per-model scaffold overlay (prompt style, thinking mode, system-prompt budget). Inspect or switch with `/harness`. Named profiles are documented in [low-cost-model-optimization.md](reference/low-cost-model-optimization.md).
+- **Catalog governance**: the desktop model picker badges models with in-repo `toolCallingVerified` provenance. MoE rows may list `activeParams` / `totalParams`; harness compute uses active params when present, residency never substitutes active for total. Unsloth UD / MXFP4-style labels are recognized as extreme-low-bit and stay blocked (`EXTREME_LOW_BIT_MIN_OLLAMA_VERSION` remains `999.0.0`).
+- **MCP per-tool deny**: Settings > MCP lets you deny individual tools on allowed servers. Denies only tighten Hub policy; a toggle cannot enable a dropped server or a policy-denied tool. Persisted at `.nexus/mcp-tool-deny.json`.
+- **Exec sandbox**: off by default (`nexus.coding.execSandbox`; sidecar `NEXUS_EXEC_SANDBOX=1`). When on, `run_terminal` is wrapped in Seatbelt (macOS), Landlock+seccomp (Linux, needs python3), or a Windows job object. Off or missing backend prints **unconfined**. Windows does not kernel-enforce filesystem or network.
+- **ACP agent**: same Settings > Local API server section, separate toggle (`nexus.acp.enabled` or `NEXUS_ACP_ENABLED=1`). Uses the shared loopback listener and token at `POST /acp`. Off by default. Unattended CONFIRM/DANGEROUS calls park in Ask inbox.
+- **Ask inbox and scheduler**: Admin > Ask inbox lists parked approvals. Approve replays the permission gate. The built-in morning-brief schedule is off until you enable it in that panel. There is no auto-approve path.
+
+## After you install (v2.0.0)
+
+- **Chat vision and voice**: image attach in Local Chatbot is on only for models whose catalog `modalities` include `image` (for example Gemma 4 12B IT GGUF). Audio files and the composer mic transcribe on-device after you install **faster-whisper-large-v3**. The Voice loop checkbox is off by default; turn it on for push-to-talk or VAD, and install **kokoro-82m** to hear replies. No image or audio bytes leave the machine.
+- **Coding browser tools**: `browser_navigate` / `browser_click` / `browser_type` / `browser_aria_snapshot` / `browser_close` run in an isolated `~/.nexus/browser-profiles/` directory, never your logged-in Chrome. Every call is DANGEROUS and confirms. Install a local Chromium with `npx playwright@1.55.0 install chromium` if you want live pages; CI uses HTML fixtures only. See [browser-surface-security.md](v2/v2.0/browser-surface-security.md).
+- **Video Lab continuation and avatar**: a requested duration longer than the tier clip chains segments in the timeline (prototype seams; not a measured Wan 2.2 quality claim). Talking-head (`audio2video`) is `diffusion-pro` only: install **longcat-video-avatar-1.5** (official Meituan INT8, sha256-pinned), tick the local-generation checkbox, and attach a photo plus audio. Those bytes stay on the device. Below-tier hosts do not see the control.
+
+## After you install (v1.17.0)
+
+The desktop shell now uses orbs, a surface-liveness beam, and a metal ring on Send / Generate / New session. If your OS has reduced-motion enabled, every effect **halts** (static fallbacks) instead of slowing down. Tokens: [design-tokens.md](v1/v1.17/design-tokens.md).
+
 ## After you install (v1.16.0)
 
 - **Local API server**: off by default. In Nexus, open Settings > Local API server, turn it on, and copy the base URL plus token into Claude Code / Codex / Cursor. The server binds loopback only and serves model inference, never files or tools. See [README](../README.md#local-api-server-opt-in).
-- **Document parsing**: Settings > Models, install **RapidOCR PP-OCRv4** (CPU, every OS) and optionally **Unlimited-OCR 3B** (NVIDIA). Then attach a PDF or image in Local Chatbot. Neither model is auto-installed.
+- **ACP agent** (v1.18.0): same Settings section, separate toggle. Uses the same loopback listener and token at `POST /acp`. Off by default. Unattended confirmations park in the ask inbox (or fail-closed if no inbox is configured).
+- **Document parsing**: Settings > Models, install **RapidOCR PP-OCRv4** (CPU, every OS) and optionally **Unlimited-OCR 3B** (NVIDIA) for PDFs and images. Word, PowerPoint, and Excel (`.docx` / `.pptx` / `.xlsx`) parse with native libraries and do not require those OCR models or Docling. Attach in Local Chatbot or Agentic AI Coding. Parsed text is shown in the thread and is not auto-sent to a model. Neither OCR model is auto-installed.
 - **MLX on Apple Silicon**: Nexus does not bundle MLX. Register an existing loopback server as described in [MLX via localAdapters](v1/v1.16/guides/mlx-via-local-adapters.md).
 
 ## Uninstalling

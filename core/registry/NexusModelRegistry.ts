@@ -75,6 +75,18 @@ export interface ListedModel {
   readonly sizeBytes?: number;
   readonly vramGB?: number;
   readonly license?: string;
+  /**
+   * v1.19.0 Phase 1 -- catalog `task` (chat | agentic | image | ...). Surfaced
+   * so pickers can show the Agentic-tab entry without re-reading the catalog.
+   */
+  readonly task?: ModelSpec["task"];
+  /** v1.19.0 Phase 1 -- first-party license page linked from the use-restriction. */
+  readonly licenseUrl?: string;
+  /**
+   * v1.19.0 Phase 1 -- ungated commercial-use restriction copy. Absent on
+   * entries that have no extra restriction beyond `license`.
+   */
+  readonly licenseNote?: string;
   readonly tags?: readonly string[];
   readonly absPath?: string;
   /**
@@ -83,6 +95,36 @@ export interface ListedModel {
    * models accept native image input without re-reading the catalog.
    */
   readonly multimodal?: boolean;
+  /**
+   * v1.18.0 Phase 3 (OW-A4) -- catalog `toolCallingVerified`. Absent means
+   * unverified (conservative default).
+   */
+  readonly toolCallingVerified?: boolean;
+  /** v1.18.0 Phase 3 (OW-A4) -- provenance tooltip for the verified badge. */
+  readonly toolCallingBenchmark?: ModelSpec["toolCallingBenchmark"];
+  /** v1.18.0 Phase 3 (LG-A3) -- MoE active params in billions, when declared. */
+  readonly activeParams?: number;
+  /** v1.18.0 Phase 3 (LG-A3) -- MoE total / resident params in billions. */
+  readonly totalParams?: number;
+  /**
+   * v2.0.0 Phase 1 -- catalog `modalities` so Chat can gate image/audio
+   * attachments without a second catalog round-trip.
+   */
+  readonly modalities?: ModelSpec["modalities"];
+  /** v2.1.0 Phase 4 -- chat vision flag from the catalog. */
+  readonly vision?: boolean;
+  /** v2.1.0 Phase 4 -- visual-token budget from the catalog. */
+  readonly visualTokenBudget?: ModelSpec["visualTokenBudget"];
+  /** v2.2.4 Phase 5 -- installer card copy. */
+  readonly description?: string;
+  readonly strengths?: readonly string[];
+  readonly whyRecommended?: string;
+  readonly differentiators?: string;
+  readonly agentic?: boolean;
+  /** v2.2.5 Phase 3 -- installer card chips. */
+  readonly origin?: string;
+  readonly releaseDate?: string;
+  readonly uncensored?: boolean;
 }
 
 export interface ListFilter {
@@ -170,8 +212,26 @@ export class NexusModelRegistry {
         sizeBytes: manifest.sizeBytes,
         vramGB: manifest.vramGb ?? spec?.vramGB,
         license: manifest.license ?? spec?.license,
+        task: spec?.task,
+        licenseUrl: spec?.licenseUrl,
+        licenseNote: spec?.licenseNote,
         tags: manifest.tags ?? spec?.tags,
         multimodal: spec?.multimodal,
+        toolCallingVerified: spec?.toolCallingVerified,
+        toolCallingBenchmark: spec?.toolCallingBenchmark,
+        activeParams: spec?.activeParams,
+        totalParams: spec?.totalParams,
+        modalities: spec?.modalities,
+        vision: spec?.vision,
+        visualTokenBudget: spec?.visualTokenBudget,
+        description: spec?.description,
+        strengths: spec?.strengths,
+        whyRecommended: spec?.whyRecommended,
+        differentiators: spec?.differentiators,
+        agentic: spec?.agentic,
+        origin: spec?.origin,
+        releaseDate: spec?.releaseDate,
+        uncensored: spec?.uncensored,
       });
     }
 
@@ -189,8 +249,26 @@ export class NexusModelRegistry {
         sizeBytes: spec.sizeGB !== undefined ? Math.round(spec.sizeGB * 1024 * 1024 * 1024) : undefined,
         vramGB: spec.vramGB,
         license: spec.license,
+        task: spec.task,
+        licenseUrl: spec.licenseUrl,
+        licenseNote: spec.licenseNote,
         tags: spec.tags,
         multimodal: spec.multimodal,
+        toolCallingVerified: spec.toolCallingVerified,
+        toolCallingBenchmark: spec.toolCallingBenchmark,
+        activeParams: spec.activeParams,
+        totalParams: spec.totalParams,
+        modalities: spec.modalities,
+        vision: spec.vision,
+        visualTokenBudget: spec.visualTokenBudget,
+        description: spec.description,
+        strengths: spec.strengths,
+        whyRecommended: spec.whyRecommended,
+        differentiators: spec.differentiators,
+        agentic: spec.agentic,
+        origin: spec.origin,
+        releaseDate: spec.releaseDate,
+        uncensored: spec.uncensored,
       });
     }
 

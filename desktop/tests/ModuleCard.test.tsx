@@ -30,7 +30,7 @@ function renderCard() {
 describe("ModuleCard", () => {
   it("renders title, subtitle, body, cta, preview slot", () => {
     renderCard();
-    expect(screen.getByText("Agentic AI Coding")).toBeInTheDocument();
+    expect(screen.getByText("Agents")).toBeInTheDocument();
     expect(screen.getByText("Multi-LLM coding partner")).toBeInTheDocument();
     expect(screen.getByText("Plan, edit, test, ship.")).toBeInTheDocument();
     expect(screen.getByTestId("module-card-coding-cta")).toHaveTextContent("Open Code Assistant");

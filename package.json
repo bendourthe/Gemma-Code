@@ -2,7 +2,7 @@
   "name": "nexus-coding",
   "displayName": "Nexus Code",
   "description": "Nexus Agentic AI Coding module. Local agentic coding assistant powered by Gemma 4 / Llama 3 and other open-source LLMs via Ollama. (Formerly Gemma Code. The package name, publisher, command IDs, and view container were renamed to `nexus-coding` / `nexus.coding.*` in v1.1.0; the legacy `gemma-code.*` command IDs continue to fire via the runtime compat shim until v1.2.0, and legacy settings keys remain resolvable via the v1.0.0 SettingsCompat shim.)",
-  "version": "1.16.0",
+  "version": "2.2.5",
   "publisher": "nexus-coding",
   "license": "MIT",
   "icon": "assets/icon.png",
@@ -222,6 +222,23 @@
           "default": "ask",
           "description": "When to prompt for confirmation before running terminal commands or editing files (v1.0.0; legacy `gemma-code.toolConfirmationMode`)."
         },
+        "nexus.coding.securityPosture": {
+          "type": "string",
+          "enum": [
+            "strict",
+            "standard",
+            "unattended"
+          ],
+          "default": "standard",
+          "description": "v1.19.1 Phase 2.5 -- named security-posture dial. Strict confirms more and screens all tool output. Standard is the existing default. Unattended skips CONFIRM-tier prompts so long-running jobs can proceed; DANGEROUS tools still confirm and hard-denied commands never run. This is not a no-floor mode."
+        },
+        "nexus.coding.compactionUserMessageTail": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "v1.19.1 Phase 2.4 -- number of recent human user messages EmergencyTrim must keep even under aggressive compaction."
+        },
         "nexus.coding.maxAgentIterations": {
           "type": "number",
           "default": 20,
@@ -273,10 +290,15 @@
           "default": [],
           "description": "v1.4.0 Phase 2 (A5) -- exact environment-variable names that are allowed to pass through to run_terminal child processes even when they would otherwise be scrubbed by `nexus.coding.terminalEnvScrub`. Use this to opt a specific secret-bearing variable back in for a command that genuinely needs it."
         },
+        "nexus.coding.execSandbox": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.18.0 Phase 6 (OI-A1) -- wrap run_terminal in an OS process sandbox (macOS Seatbelt, Linux Landlock+seccomp, Windows job object + restricted token). Off by default. When off, or when the host cannot apply the OS backend, the command still runs under the existing confirmation/denylist/env-scrub guardrails and the UI and logs state unconfined (never silently unconfined). Headless/sidecar hosts honor NEXUS_EXEC_SANDBOX=1 as the same switch. Network is denied inside the sandbox when confinement applies; Windows does not kernel-enforce filesystem or network (partial, documented)."
+        },
         "nexus.coding.parseDocument.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "v1.16.0 Phase 4 (adoption item A6) -- expose the `parse_document` agent tool, which reads a workspace PDF or image as text using the local document-OCR model. Off by default; with the toggle off the tool is not registered at all, so it costs no prompt budget and spawns no runtime. Requires a document model (Settings > Models)."
+          "description": "v1.20.0 -- expose the `parse_document` agent tool, which reads a workspace PDF, image, or Office file as text. Off by default; with the toggle off the tool is not registered. PDF/image still need a document OCR model (Settings > Models). .docx / .pptx / .xlsx parse without those models. Sidecar hosts honor NEXUS_PARSE_DOCUMENT=1 or nexus.coding.parseDocument.enabled in ~/.nexus/settings.json."
         },
         "nexus.coding.parseDocument.memoryIngest.enabled": {
           "type": "boolean",
@@ -306,17 +328,27 @@
         "nexus.coding.harnessSelector.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "v1.12.0 Phase 1 (adoption-ecosystem-2026-07 H1) -- enable the per-model harness selector: it derives a capability tier (weak/mid/strong) for the active local model from its catalog size/tags and applies a scaffold profile (prompt style, thinking mode, system-prompt budget) tuned for that tier, so small/quantized models get more explicit guidance. Off by default: per the no-degradation gate, default-on flips only when the harness A/B (decideHarnessDefault) shows the selected scaffold beats the one-size default for a weak model on the golden split; that live A/B has not been measured here, so the selector ships opt-in. Reverse-engineered from the Open Interpreter / Codex-fork per-model harness thesis; no external code imported."
+          "description": "v1.18.0 Phase 2 (OI-A5) -- enable the per-model harness selector: it derives a capability tier (weak/mid/strong) and a named family profile (concise-loop, plan-first, structured-edit, minimal, plus the tier scaffolds) for the active local model and applies that overlay (prompt style, thinking mode, system-prompt budget). Inspect or switch with /harness. Off by default: per the no-degradation gate, default-on flips only when the harness A/B (decideHarnessDefault) shows the selected scaffold beats the one-size default for a weak model on the golden split; that live A/B has not been measured here, so the selector ships opt-in. Reverse-engineered from the per-model harness thesis; no external code imported."
         },
         "nexus.llm.patientTier.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "v1.12.0 Phase 4 (adoption-ecosystem-2026-07 E1) -- enable the disk-offload 'patient' inference tier: a large open MoE (e.g. GLM-5.2) streamed off disk via a user-registered local llama.cpp flash-MoE offload adapter on a modest/no-GPU host. Off by default and BELOW the single-GPU ceiling: generation is non-interactive (~0.05-2 tokens/sec), so a much larger per-request timeout (nexus.llm.patientTier.timeoutMs) applies and a latency warning is surfaced. Enable only when you have pointed nexus.llm.backend at a slow disk-offload backend and accept minutes-to-hours responses for async/batch work."
+          "description": "v1.12.0 Phase 4 (adoption-ecosystem-2026-07 E1) -- enable the disk-offload 'patient' inference tier: a large open MoE streamed off disk via a user-registered local llama.cpp flash-MoE offload adapter on a modest/no-GPU host. Off by default and BELOW the single-GPU ceiling: trillion-class models have been measured at roughly 0.03 tokens/sec (~32 seconds/token laptop, ~19-21 seconds/token server), so a much larger per-request timeout (nexus.llm.patientTier.timeoutMs) applies and a latency warning is surfaced. Enable only when you have pointed nexus.llm.backend at a slow disk-offload backend and accept minutes-to-hours responses for async/batch work. Nexus does not bundle the offload runtime."
         },
         "nexus.llm.patientTier.timeoutMs": {
           "type": "number",
           "default": 3600000,
           "description": "v1.12.0 Phase 4 (E1) -- per-request LLM timeout (ms) applied when nexus.llm.patientTier.enabled is on. Defaults to 1 hour so a sub-1-tok/s disk-offload run is not aborted by the interactive nexus.llm.requestTimeout default. Never shorter than nexus.llm.requestTimeout."
+        },
+        "nexus.llm.patientTier.ramPreset": {
+          "type": "string",
+          "enum": [
+            "laptop",
+            "workstation",
+            "max"
+          ],
+          "default": "laptop",
+          "description": "v1.19.2 -- RAM-budget expectation preset for the patient tier. Laptop: ~32 s/token at ~8.24 GB peak RSS. Workstation: ~21 s/token. Max: ~19 s/token at ~224 GB peak RSS. Numbers are independently measured on a trillion-class disk-offload MoE and seeded as honest floors. Activation of this setting does not resize expert caches or grant Nexus an offload runtime -- actual cache sizing lives in the user-registered llama.cpp-lineage adapter. Changing the preset only changes the expectation copy shown in settings."
         },
         "nexus.memory.enabled": {
           "type": "boolean",

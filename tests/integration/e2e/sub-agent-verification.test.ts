@@ -2,7 +2,7 @@
  * E2E: sub-agent activation rules.
  *
  * Verifies that ToolActivationRules correctly scope sub-agent tool access
- * and enforce the 15-tool cap. Full sub-agent runs require Ollama and are
+ * and enforce the 20-tool cap. Full sub-agent runs require Ollama and are
  * covered in unit tests.
  */
 
@@ -48,7 +48,7 @@ describe("e2e: sub-agent tool activation", () => {
     expect(result.disabledTools.has("fetch_page")).toBe(false);
   });
 
-  it("15-tool cap is applied when catalog exceeds 15 entries", () => {
+  it("20-tool cap is applied when catalog exceeds 20 entries", () => {
     const base = TOOL_CATALOG.map(toDynamicMetadata);
     const padded: DynamicToolMetadata[] = [
       ...base,
@@ -66,7 +66,7 @@ describe("e2e: sub-agent tool activation", () => {
       totalToolCount: padded.length,
     });
     const enabled = enabledNames(padded, result);
-    expect(enabled.length).toBeLessThanOrEqual(15);
+    expect(enabled.length).toBeLessThanOrEqual(20);
   });
 
   it("network unavailable disables fetch_page and web_search", () => {

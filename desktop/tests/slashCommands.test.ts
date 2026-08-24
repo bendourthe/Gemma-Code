@@ -19,6 +19,7 @@ describe("slash command catalog", () => {
         "curate",
         "trace",
         "thinking-mode",
+        "harness",
         "skill-metrics",
         "memory",
         "recall",

@@ -11,8 +11,11 @@
  */
 
 import { useMemo, useState } from "react";
+import { Button, Select, Switch, TextField } from "../../components/ui";
 import type { ControlNetRef, LoraRef } from "./diffusionClient";
+import { foldModelId } from "../../../../core/registry/modelAliases";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
+import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
 
 export interface PromptFormValues {
   readonly prompt: string;
@@ -27,6 +30,10 @@ export interface PromptFormValues {
   readonly fastPreview: boolean;
   readonly loras: readonly LoraRef[];
   readonly controlNet?: ControlNetRef;
+  readonly maxCacheVramGB: number;
+  readonly maxCacheRamGB: number;
+  readonly workingMemReserveGB: number;
+  readonly layerStreaming: boolean;
 }
 
 export interface ImagePromptFormProps {
@@ -108,6 +115,8 @@ export function visibleResolutions(tier: DiffusionTierId): readonly ResolutionOp
   return RESOLUTION_OPTIONS.filter((opt) => !opt.requires || tierMeets(tier, opt.requires));
 }
 
+const LOW_BUDGET = defaultMemoryBudget("diffusion-low");
+
 export const DEFAULT_FORM_VALUES: PromptFormValues = {
   prompt: "",
   negativePrompt: "",
@@ -120,6 +129,10 @@ export const DEFAULT_FORM_VALUES: PromptFormValues = {
   seed: 0,
   fastPreview: false,
   loras: [],
+  maxCacheVramGB: LOW_BUDGET.maxCacheVramGB,
+  maxCacheRamGB: LOW_BUDGET.maxCacheRamGB,
+  workingMemReserveGB: LOW_BUDGET.workingMemReserveGB,
+  layerStreaming: LOW_BUDGET.layerStreaming,
 };
 
 export function ImagePromptForm({
@@ -134,6 +147,7 @@ export function ImagePromptForm({
 }: ImagePromptFormProps): JSX.Element {
   const [values, setValues] = useState<PromptFormValues>({
     ...DEFAULT_FORM_VALUES,
+    ...defaultMemoryBudget(diffusionTier),
     ...initial,
   });
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -141,6 +155,24 @@ export function ImagePromptForm({
   const selectedResolutionValue = `${values.width}x${values.height}`;
   const selectedResolutionTooHigh = !allowedResolutions.some(
     (r) => r.value === selectedResolutionValue,
+  );
+  const budgetCheck = useMemo(
+    () =>
+      validateMemoryBudget({
+        budget: {
+          maxCacheVramGB: values.maxCacheVramGB,
+          maxCacheRamGB: values.maxCacheRamGB,
+          workingMemReserveGB: values.workingMemReserveGB,
+          layerStreaming: values.layerStreaming,
+        },
+        modelMinVramGB: 4,
+      }),
+    [
+      values.maxCacheVramGB,
+      values.maxCacheRamGB,
+      values.workingMemReserveGB,
+      values.layerStreaming,
+    ],
   );
 
   function update<K extends keyof PromptFormValues>(key: K, value: PromptFormValues[K]): void {
@@ -214,29 +246,29 @@ export function ImagePromptForm({
             i
           </span>
         </span>
-        <textarea
-          data-testid="image-prompt"
+        <TextField
+          multiline
+          testId="image-prompt"
           rows={4}
           value={values.prompt}
           disabled={disabled}
-          onChange={(e) => update("prompt", e.target.value)}
-          style={{ width: "100%" }}
+          onChange={(v) => update("prompt", v)}
         />
       </label>
       <label>
         <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>Negative Prompt</span>
-        <textarea
-          data-testid="image-negative-prompt"
+        <TextField
+          multiline
+          testId="image-negative-prompt"
           rows={2}
           value={values.negativePrompt}
           disabled={disabled}
-          onChange={(e) => update("negativePrompt", e.target.value)}
-          style={{ width: "100%" }}
+          onChange={(v) => update("negativePrompt", v)}
         />
       </label>
       <label>
         <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>Model</span>
-        <select
+        <Select
           data-testid="image-model"
           value={values.modelId}
           disabled={disabled}
@@ -247,11 +279,11 @@ export function ImagePromptForm({
               {m.displayName}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label>
         Resolution
-        <select
+        <Select
           data-testid="image-resolution"
           value={selectedResolutionValue}
           disabled={disabled}
@@ -270,7 +302,7 @@ export function ImagePromptForm({
               {r.label}
             </option>
           ))}
-        </select>
+        </Select>
         {selectedResolutionTooHigh && (
           <span
             data-testid="image-resolution-tier-hint"
@@ -288,58 +320,58 @@ export function ImagePromptForm({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)" }}>
         <label>
           Width
-          <input
-            data-testid="image-width"
+          <TextField
+            testId="image-width"
             type="number"
             min={64}
             max={4096}
             step={8}
-            value={values.width}
+            value={String(values.width)}
             disabled={disabled}
-            onChange={(e) => update("width", Number(e.target.value))}
+            onChange={(v) => update("width", Number(v))}
           />
         </label>
         <label>
           Height
-          <input
-            data-testid="image-height"
+          <TextField
+            testId="image-height"
             type="number"
             min={64}
             max={4096}
             step={8}
-            value={values.height}
+            value={String(values.height)}
             disabled={disabled}
-            onChange={(e) => update("height", Number(e.target.value))}
+            onChange={(v) => update("height", Number(v))}
           />
         </label>
         <label>
           Steps
-          <input
-            data-testid="image-steps"
+          <TextField
+            testId="image-steps"
             type="number"
             min={1}
             max={150}
-            value={values.steps}
+            value={String(values.steps)}
             disabled={disabled}
-            onChange={(e) => update("steps", Number(e.target.value))}
+            onChange={(v) => update("steps", Number(v))}
           />
         </label>
         <label>
           CFG
-          <input
-            data-testid="image-cfg"
+          <TextField
+            testId="image-cfg"
             type="number"
             min={0}
             max={30}
             step={0.1}
-            value={values.cfgScale}
+            value={String(values.cfgScale)}
             disabled={disabled}
-            onChange={(e) => update("cfgScale", Number(e.target.value))}
+            onChange={(v) => update("cfgScale", Number(v))}
           />
         </label>
         <label>
           Sampler
-          <select
+          <Select
             data-testid="image-sampler"
             value={values.sampler}
             disabled={disabled}
@@ -350,62 +382,59 @@ export function ImagePromptForm({
                 {s}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           Seed
-          <input
-            data-testid="image-seed"
+          <TextField
+            testId="image-seed"
             type="number"
             min={0}
-            value={values.seed}
+            value={String(values.seed)}
             disabled={disabled}
-            onChange={(e) => update("seed", Number(e.target.value))}
+            onChange={(v) => update("seed", Number(v))}
           />
         </label>
       </div>
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          fontSize: "var(--text-xs)",
-          color: "var(--fg-muted)",
-        }}
-      >
-        <input
-          data-testid="image-fast-preview-toggle"
-          type="checkbox"
-          checked={values.fastPreview}
-          disabled={disabled}
-          onChange={(e) => update("fastPreview", e.target.checked)}
-        />
-        <span>
-          Fast Preview <em>(1-step Sana-Sprint, ~0.5 s)</em>
-        </span>
-        {values.fastPreview && (
-          <span
-            data-testid="image-fast-preview-model"
-            style={{ marginLeft: "auto", color: "var(--accent, #10b981)" }}
-          >
-            using {fastPreviewModelId}
+      <Switch
+        testId="image-fast-preview-toggle"
+        checked={values.fastPreview}
+        disabled={disabled}
+        onChange={(on) => update("fastPreview", on)}
+        label={
+          <span>
+            Fast Preview <em>(1-step Sana-Sprint, ~0.5 s)</em>
+            {values.fastPreview ? (
+              <span
+                data-testid="image-fast-preview-model"
+                style={{ marginLeft: "var(--space-2)", color: "var(--accent, #10b981)" }}
+              >
+                using {fastPreviewModelId}
+              </span>
+            ) : null}
           </span>
-        )}
-      </label>
-      <details
-        data-testid="image-advanced"
-        open={advancedOpen}
-        onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
-      >
-        <summary>Advanced (LoRAs, ControlNet)</summary>
+        }
+      />
+      <div>
+        <Button
+          type="button"
+          variant="ghost"
+          testId="image-advanced"
+          aria-expanded={advancedOpen}
+          disabled={disabled}
+          onClick={() => setAdvancedOpen((v) => !v)}
+        >
+          Advanced (LoRAs, ControlNet)
+        </Button>
+        {advancedOpen ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
           <div>
-            <button data-testid="image-add-lora" type="button" onClick={addLora} disabled={disabled}>
+            <Button testId="image-add-lora" type="button" onClick={addLora} disabled={disabled}>
               + LoRA
-            </button>
+            </Button>
             {values.loras.map((lora, i) => (
               <div key={`lora-${i}`} data-testid={`image-lora-${i}`} style={{ display: "flex", gap: "var(--space-2)" }}>
-                <select
+                <Select
                   data-testid={`image-lora-id-${i}`}
                   value={lora.id}
                   onChange={(e) => updateLora(i, { id: e.target.value })}
@@ -415,38 +444,36 @@ export function ImagePromptForm({
                       {l.displayName}
                     </option>
                   ))}
-                </select>
-                <input
-                  data-testid={`image-lora-weight-${i}`}
+                </Select>
+                <TextField
+                  testId={`image-lora-weight-${i}`}
                   type="number"
                   step={0.05}
                   min={-2}
                   max={2}
-                  value={lora.weight}
-                  onChange={(e) => updateLora(i, { weight: Number(e.target.value) })}
+                  value={String(lora.weight)}
+                  onChange={(v) => updateLora(i, { weight: Number(v) })}
                 />
-                <button
+                <Button
                   type="button"
-                  data-testid={`image-lora-remove-${i}`}
+                  variant="ghost"
+                  testId={`image-lora-remove-${i}`}
                   onClick={() => removeLora(i)}
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
           </div>
-          <label>
-            <input
-              data-testid="image-controlnet-toggle"
-              type="checkbox"
-              checked={Boolean(values.controlNet)}
-              onChange={(e) => toggleControlNet(e.target.checked)}
-            />
-            Enable ControlNet
-          </label>
+          <Switch
+            testId="image-controlnet-toggle"
+            checked={Boolean(values.controlNet)}
+            onChange={(on) => toggleControlNet(on)}
+            label="Enable ControlNet"
+          />
           {values.controlNet && (
             <div data-testid="image-controlnet-fields" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-              <select
+              <Select
                 data-testid="image-controlnet-model"
                 value={values.controlNet.modelId}
                 onChange={(e) =>
@@ -458,8 +485,8 @@ export function ImagePromptForm({
                     {c.displayName}
                   </option>
                 ))}
-              </select>
-              <select
+              </Select>
+              <Select
                 data-testid="image-controlnet-preprocessor"
                 value={values.controlNet.preprocessor}
                 onChange={(e) =>
@@ -473,11 +500,68 @@ export function ImagePromptForm({
                 <option value="pose">Pose</option>
                 <option value="depth">Depth</option>
                 <option value="none">None</option>
-              </select>
+              </Select>
             </div>
           )}
+          <div data-testid="image-memory-budget" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <strong>VRAM budget</strong>
+            <label>
+              max cache VRAM (GB)
+              <TextField
+                testId="image-max-cache-vram"
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={String(values.maxCacheVramGB)}
+                disabled={disabled}
+                onChange={(v) => update("maxCacheVramGB", Number(v))}
+              />
+            </label>
+            <label>
+              max cache RAM (GB)
+              <TextField
+                testId="image-max-cache-ram"
+                type="number"
+                min={1}
+                step={1}
+                value={String(values.maxCacheRamGB)}
+                disabled={disabled}
+                onChange={(v) => update("maxCacheRamGB", Number(v))}
+              />
+            </label>
+            <label>
+              working reserve (GB)
+              <TextField
+                testId="image-working-reserve"
+                type="number"
+                min={0}
+                step={0.5}
+                value={String(values.workingMemReserveGB)}
+                disabled={disabled}
+                onChange={(v) => update("workingMemReserveGB", Number(v))}
+              />
+            </label>
+            <Switch
+              testId="image-layer-streaming"
+              checked={values.layerStreaming}
+              disabled={disabled}
+              onChange={(on) => update("layerStreaming", on)}
+              label="Layer streaming (complete a previously too-small VRAM load)"
+            />
+            {!budgetCheck.ok ? (
+              <p data-testid="image-budget-error" style={{ color: "var(--accent-danger, #f87171)", margin: 0 }}>
+                {budgetCheck.errors.join(" ")}
+              </p>
+            ) : null}
+            {budgetCheck.warnings.map((warning) => (
+              <p key={warning} data-testid="image-budget-warning" style={{ color: "var(--fg-muted)", margin: 0 }}>
+                {warning}
+              </p>
+            ))}
+          </div>
         </div>
-      </details>
+        ) : null}
+      </div>
     </form>
   );
 }
@@ -493,7 +577,7 @@ export function valuesToBaseRequest(
   const effectiveSteps = merged.fastPreview ? 1 : merged.steps;
   const effectiveSampler = merged.fastPreview ? "flow-dpm-solver" : merged.sampler;
   const out: Record<string, unknown> = {
-    modelId: effectiveModelId,
+    modelId: foldModelId(effectiveModelId),
     prompt: merged.prompt,
     negativePrompt: merged.negativePrompt || undefined,
     width: merged.width,
@@ -505,6 +589,10 @@ export function valuesToBaseRequest(
     batchSize: 1,
     latentPreview: true,
     loras: [...merged.loras],
+    maxCacheVramGB: merged.maxCacheVramGB,
+    maxCacheRamGB: merged.maxCacheRamGB,
+    workingMemReserveGB: merged.workingMemReserveGB,
+    layerStreaming: merged.layerStreaming,
   };
   if (merged.controlNet) {
     out.controlNet = { ...merged.controlNet };

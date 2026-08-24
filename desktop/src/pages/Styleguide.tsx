@@ -1,3 +1,7 @@
+import { useState } from "react";
+import { useActiveMotionSurface } from "../motion";
+import { Button, SearchInput, Select, Switch, TextField } from "../components/ui";
+
 // Token inspection page. Used to visually verify the design tokens during
 // dev. Linked from the router as `/_styleguide`.
 
@@ -117,6 +121,77 @@ export function StyleguidePage(): JSX.Element {
           ))}
         </div>
       </section>
+
+      <section data-testid="styleguide-controls">
+        <h2 style={{ fontSize: "var(--text-lg)" }}>Controls</h2>
+        <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)", marginTop: 0 }}>
+          Shared primitives used by every Settings tab. Native elements, restyled.
+        </p>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "var(--space-3)",
+            alignItems: "flex-end",
+            maxWidth: 720,
+          }}
+        >
+          <label style={{ flex: "1 1 140px" }}>
+            <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>
+              Select
+            </span>
+            <Select data-testid="styleguide-select" defaultValue="a" aria-label="Styleguide select">
+              <option value="a">Filter A</option>
+              <option value="b">Filter B</option>
+            </Select>
+          </label>
+          <label style={{ flex: "1 1 160px" }}>
+            <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>
+              Search
+            </span>
+            <SearchInput testId="styleguide-search" value="" onChange={() => undefined} placeholder="Search" label="Styleguide search" />
+          </label>
+          <label style={{ flex: "1 1 160px" }}>
+            <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>
+              Text field
+            </span>
+            <TextField testId="styleguide-text" value="" onChange={() => undefined} placeholder="Skill id" label="Styleguide text" />
+          </label>
+          <Button testId="styleguide-button">Preview</Button>
+          <Switch checked={false} onChange={() => undefined} label="Example switch" testId="styleguide-switch" />
+        </div>
+      </section>
+
+      <RecedeReference />
+    </section>
+  );
+}
+
+/**
+ * Phase 1 reference integration for recede-when-active. Production surfaces
+ * adopt the primitive in Phase 5; this toggle proves the ambient glow
+ * recedes and restores without layout shift.
+ */
+function RecedeReference(): JSX.Element {
+  const [active, setActive] = useState(false);
+  useActiveMotionSurface("styleguide-reference", active);
+  return (
+    <section data-testid="recede-reference">
+      <h2 style={{ fontSize: "var(--text-lg)" }}>Motion recede</h2>
+      <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)", marginTop: 0 }}>
+        Reference surface for the recede-when-active primitive. Activating an
+        effect dims the ambient glow; deactivating restores it.
+      </p>
+      <Button
+        testId="recede-reference-toggle"
+        aria-pressed={active}
+        onClick={() => setActive((value) => !value)}
+        style={{
+          background: active ? "var(--accent-chatbot-soft)" : "var(--bg-2)",
+        }}
+      >
+        {active ? "Active effect on" : "Active effect off"}
+      </Button>
     </section>
   );
 }

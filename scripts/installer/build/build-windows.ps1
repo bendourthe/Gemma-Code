@@ -23,13 +23,32 @@ $InstallerRoot = Split-Path -Parent $PSScriptRoot
 $RepoRoot = (Resolve-Path "$InstallerRoot\..\..").Path
 $DistDir  = Join-Path $RepoRoot "dist"
 
-Write-Host "[1/4] Installing build dependencies..." -ForegroundColor Cyan
+Write-Host "[1/5] Installing build dependencies..." -ForegroundColor Cyan
 Push-Location $InstallerRoot
 uv sync --quiet
 uv pip install pyinstaller --quiet
 Pop-Location
 
-Write-Host "[2/4] Locating artifacts..." -ForegroundColor Cyan
+# v2.2.0 Phase 8 (DF-7) / v2.2.5 Phase 5: build the bundled Nexus-Hub
+# catalog snapshot from the LATEST tag. A stale local catalog (the 3.12.0
+# class) fails the snapshot job; the installer still builds and syncs latest
+# at install time. Do not embed a frozen snapshot.
+Write-Host "[2/5] Building Nexus-Hub catalog snapshot..." -ForegroundColor Cyan
+$HubCatalog = Join-Path $env:USERPROFILE ".nexus-ai\catalog"
+$SnapshotOut = Join-Path $PSScriptRoot "hub-snapshot"
+if (Test-Path $HubCatalog) {
+    python (Join-Path $PSScriptRoot "build-hub-snapshot.py") --catalog $HubCatalog --out $SnapshotOut
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Snapshot pack refused (catalog is not latest, or latest tag unresolved). Clearing any stale snapshot." -ForegroundColor Yellow
+        if (Test-Path $SnapshotOut) { Remove-Item $SnapshotOut -Recurse -Force }
+    } else {
+        Write-Host "  Snapshot built from $HubCatalog"
+    }
+} else {
+    Write-Host "  No local catalog at $HubCatalog; installer will sync at install time." -ForegroundColor Yellow
+}
+
+Write-Host "[3/5] Locating artifacts..." -ForegroundColor Cyan
 $Version = (Get-Content "$RepoRoot\package.json" | ConvertFrom-Json).version
 Write-Host "  Version: $Version"
 # vsce emits nexus-coding-*.vsix (the root package name); the legacy
@@ -55,11 +74,25 @@ if ($Vsix) {
 # bundle is embedded in the onefile instead. FAIL CLOSED: the bundle version
 # must equal the product version (COORD.2), and a missing bundle stops the
 # build -- a NexusSetup.exe without the desktop app is not shippable.
-$DesktopBundle = Join-Path $RepoRoot "desktop\src-tauri\target\release\bundle\nsis\Nexus AI Studio_${Version}_x64-setup.exe"
-if (-not (Test-Path $DesktopBundle)) {
+#
+# Search order:
+#   1. Local `tauri build` output (productName + version).
+#   2. Canonical release artifact name next to the repo root (release.yml
+#      downloads desktop-bundle-windows here).
+#   3. A desktop-bundle-windows/ folder from actions/download-artifact.
+$BundleCandidates = @(
+    (Join-Path $RepoRoot "desktop\src-tauri\target\release\bundle\nsis\Nexus AI Studio_${Version}_x64-setup.exe"),
+    (Join-Path $RepoRoot "Nexus-Desktop_${Version}_x64-setup.exe"),
+    (Join-Path $RepoRoot "desktop-bundle-windows\Nexus-Desktop_${Version}_x64-setup.exe")
+)
+$DesktopBundle = $BundleCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $DesktopBundle) {
     Write-Host "ERROR: desktop bundle not found for product version ${Version}:" -ForegroundColor Red
-    Write-Host "  $DesktopBundle" -ForegroundColor Red
+    foreach ($candidate in $BundleCandidates) {
+        Write-Host "  $candidate" -ForegroundColor Red
+    }
     Write-Host "  Build it first: cd desktop; npm run build:shell" -ForegroundColor Red
+    Write-Host "  Or download the desktop-bundle-windows artifact next to package.json." -ForegroundColor Red
     exit 1
 }
 $PayloadDir = Join-Path $InstallerRoot "build\desktop-payload"
@@ -78,7 +111,7 @@ Write-Host "  Desktop bundle staged: $(Split-Path $DesktopBundle -Leaf) (sha256 
 
 # The onefile is written straight to the repo-root dist/ (gitignored) so the
 # canonical local output is easy to find -- no deep pyqt/dist + hand-copy.
-Write-Host "[3/4] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan
+Write-Host "[4/5] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 Push-Location $InstallerRoot
 
@@ -121,7 +154,7 @@ if (-not (Test-Path $ExePath)) {
     exit 1
 }
 
-Write-Host "[4/4] Build output:" -ForegroundColor Cyan
+Write-Host "[5/5] Build output:" -ForegroundColor Cyan
 $FileSize = (Get-Item $ExePath).Length / 1MB
 $Hash = (Get-FileHash $ExePath -Algorithm SHA256).Hash
 Write-Host "  File: $ExePath"

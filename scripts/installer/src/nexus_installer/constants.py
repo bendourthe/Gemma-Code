@@ -83,6 +83,9 @@ PROVIDER_COLORS: dict[str, str] = {
     "Lightricks": "#fb923c",  # orange
     "OpenAI": "#34d399",  # emerald
     "Nomic AI": "#2dd4bf",  # teal
+    "Liquid AI": "#38bdf8",  # sky
+    "Nous Research": "#c084fc",  # purple
+    "Thinking Machines": "#f97316",  # orange-red
     "Community": PROVIDER_FALLBACK,  # slate (fallback)
 }
 
@@ -94,6 +97,9 @@ FAMILY_TO_PUBLISHER: dict[str, str] = {
     "llama": "Meta",
     "musicgen": "Meta",
     "qwen": "Alibaba",
+    "qwen3.5": "Alibaba",
+    "qwen3-coder": "Alibaba",
+    "qwen3-embedding": "Alibaba",
     "wan": "Alibaba",
     "deepseek": "DeepSeek",
     "nomic": "Nomic AI",
@@ -105,8 +111,15 @@ FAMILY_TO_PUBLISHER: dict[str, str] = {
     "sana": "NVIDIA",
     "ltx": "Lightricks",
     "whisper": "OpenAI",
+    "gpt-oss": "OpenAI",
+    "embeddinggemma": "Google",
     "kokoro": "Community",
     "piper": "Community",
+    "lfm2.5": "Liquid AI",
+    "hermes": "Nous Research",
+    "inkling": "Thinking Machines",
+    "muse-glimmer": "Meta",
+    "nemotron-lightning": "NVIDIA",
 }
 
 

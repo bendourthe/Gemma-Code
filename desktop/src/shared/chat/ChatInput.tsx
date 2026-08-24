@@ -1,9 +1,12 @@
 /**
- * v1.0.0 Phase 4.4 -- shared chat input.
+ * v1.0.0 Phase 4.4 -- shared text-only chat input.
  *
  * Multi-line textarea with Enter-to-send / Shift+Enter newline. Slash-command
- * autocomplete is layered on top by the Coding module via the dedicated
- * `CodingInput` wrapper; the Chat module uses this bare-bones input.
+ * autocomplete is layered on top by the Coding module via `CodingInput`.
+ *
+ * RETAINED, NOT DEAD (v1.17.0 Phase 6): ChatPage mounts `MediaComposer` (attachments
+ * + streaming beam). This control still carries the Phase 4 metal ring and is
+ * unit-tested. Delete only if the text-only send contract is retired.
  */
 
 import {
@@ -12,6 +15,8 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from "react";
+import { MetalAccent } from "../../components/MetalAccent";
+import { metalTokenFromCssVar } from "../../components/metalGl";
 
 export interface ChatInputProps {
   disabled?: boolean;
@@ -65,15 +70,22 @@ export function ChatInput({
         rows={rows}
         style={textareaStyle}
       />
-      <button
-        type="button"
-        data-testid="chat-input-submit"
-        disabled={disabled || value.trim().length === 0}
-        onClick={submit}
-        style={submitStyle(submitAccentVar)}
+      <MetalAccent
+        accentToken={metalTokenFromCssVar(submitAccentVar)}
+        surfaceId="chat-send"
+        data-testid="chat-input-submit-metal"
+        style={{ alignSelf: "flex-end" }}
       >
-        Send
-      </button>
+        <button
+          type="button"
+          data-testid="chat-input-submit"
+          disabled={disabled || value.trim().length === 0}
+          onClick={submit}
+          style={submitStyle(submitAccentVar)}
+        >
+          Send
+        </button>
+      </MetalAccent>
       {/* v1.9.0 Phase 9 (T033) -- accuracy disclaimer under the shared composer;
           appears under both the chat and coding composers (which wrap this). */}
       <p data-testid="chat-input-disclaimer" style={disclaimerStyle}>
@@ -104,7 +116,6 @@ const textareaStyle: CSSProperties = {
 
 function submitStyle(accentVar: string): CSSProperties {
   return {
-    alignSelf: "flex-end",
     padding: "var(--space-2) var(--space-4)",
     backgroundColor: `var(${accentVar})`,
     color: "var(--bg-0)",

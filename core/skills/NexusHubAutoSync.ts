@@ -13,6 +13,13 @@
 
 export const NEXUS_HUB_SYNC_TASK_ID = "nexus.skills.nexus-hub-sync";
 
+/**
+ * v2.2.0 Phase 3 (3.2): the persisted opt-in key, exported so the sidecar's
+ * `skills.autoSync.*` IPC and `codingBootstrap` agree on ONE key. The Settings
+ * toggle previously reported a hardcoded `false` and wrote nowhere (NHC.P6.C).
+ */
+export const NEXUS_HUB_AUTO_SYNC_SETTING_KEY = "nexus.skills.autoSync.nexus-hub";
+
 /** Production cadence: 7 days. */
 export const NEXUS_HUB_SYNC_CADENCE_MS = 7 * 24 * 60 * 60_000;
 

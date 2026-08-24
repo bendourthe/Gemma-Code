@@ -17,16 +17,25 @@
 // `Gemma4ToolFormat.parseToolCalls` accepts the model's calls unchanged.
 // ---------------------------------------------------------------------------
 
-import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 
 import { redactSecrets } from "../../../core/observability/redactSecrets.js";
+import { classifyEditApply, noopEditMessage } from "../../../src/tools/handlers/editNoop.js";
+import { nearMissToken } from "../../../src/tools/handlers/nearMiss.js";
 import {
   type HeadlessGuardOptions,
   screenHeadlessCall,
 } from "./headlessGuards.js";
+import { createHeadlessBrowserTools } from "../browser/headless.js";
+import type { BrowserDriver } from "../browser/types.js";
+import {
+  deriveDefaultPolicy,
+  isExecSandboxEnabled,
+  spawnSandboxed,
+} from "../sandbox/index.js";
 
 /** Max bytes returned to the model from a single read / terminal capture. */
 export const HEADLESS_OUTPUT_BYTE_CAP = 64 * 1024;
@@ -105,12 +114,39 @@ export interface HeadlessToolOptions {
    */
   readonly guards?: HeadlessGuardOptions;
   /**
-   * v1.16.0 Phase 4 (A6): document-OCR parser. Omit and `parse_document` is not
-   * registered at all, so a host with no document runtime simply lacks the tool.
-   * RETAINED, NOT DEAD (Phase 6): no host currently supplies this option
-   * (known gap LSO.P4.B). Delete only if that gap is closed as won't-do.
+   * v1.16.0 Phase 4 (A6) / v1.20.0 Phase 1 (A1): document-OCR parser. Omit and
+   * `parse_document` is not registered. Sidecar ACP/scheduler/coding hosts
+   * supply this through `createSidecarHeadlessTools` when the flag is on.
    */
   readonly documentParser?: HeadlessDocumentParser;
+  /**
+   * v1.20.0 Phase 1 (A1): when false, `parse_document` is not registered even
+   * if `documentParser` is present. Flag wins over presence. Default is
+   * "register if a parser was supplied" so existing tests keep working.
+   */
+  readonly parseDocumentEnabled?: boolean;
+  /**
+   * v1.18.0 Phase 6 (OI-A1): wrap the default `run_terminal` exec in the OS
+   * sandbox. `NEXUS_EXEC_SANDBOX` still overrides. Injected `exec` is unchanged
+   * so tests keep a fake process.
+   */
+  readonly execSandbox?: boolean;
+  /**
+   * v2.0.0 Phase 2: isolated-profile browser tools. Off by default so the
+   * canonical file-tool list stays unchanged; the sidecar coding host opts in.
+   */
+  readonly browserEnabled?: boolean;
+  /** Injected driver (tests). Production uses InMemory under Vitest, Playwright otherwise. */
+  readonly browserDriver?: BrowserDriver;
+  /**
+   * v1.20 DF-1 -- optional memory writer for parse_document ingest. Sidecar
+   * uses an in-process store (not a second SQLite).
+   */
+  readonly ingestToMemory?: (input: {
+    text: string;
+    sourcePath: string;
+    engine: string;
+  }) => Promise<{ stored: boolean; reason?: string }>;
 }
 
 /** Upper bound on pages per call, mirroring the VS Code tool. */
@@ -188,37 +224,59 @@ function fail(error: string): HeadlessToolResult {
   return { success: false, output: "", error };
 }
 
-/** Default terminal executor: spawn through the platform shell, scoped to cwd. */
-const defaultExec: HeadlessExec = (command, cwd, signal, timeoutMs) =>
-  new Promise<HeadlessExecOutcome>((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const child = spawn(command, [], { cwd, shell: true, signal });
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        child.kill();
-        resolve({ code: null, stdout, stderr: `${stderr}\n[timed out after ${timeoutMs}ms]` });
-      }
-    }, timeoutMs);
-    child.stdout?.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-    child.stderr?.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-    child.on("error", (err: Error) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        resolve({ code: null, stdout, stderr: `${stderr}${err.message}` });
-      }
+/** Default terminal executor: spawn through the OS sandbox abstraction. */
+function createDefaultExec(enabled: boolean): HeadlessExec {
+  return (command, cwd, signal, timeoutMs) =>
+    new Promise<HeadlessExecOutcome>((resolve) => {
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const { child, report } = spawnSandboxed({
+        command,
+        cwd,
+        env: process.env,
+        signal,
+        enabled,
+        policy: deriveDefaultPolicy(cwd),
+      });
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          child.kill();
+          resolve({
+            code: null,
+            stdout,
+            stderr: `${stderr}\n[timed out after ${timeoutMs}ms]\n[${report.summary}]`,
+          });
+        }
+      }, timeoutMs);
+      child.stdout?.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+      child.stderr?.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
+      child.on("error", (err: Error) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve({
+            code: null,
+            stdout,
+            stderr: `${stderr}${err.message}\n[${report.summary}]`,
+          });
+        }
+      });
+      child.on("close", (code: number | null) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          const banner = `\n[${report.summary}]`;
+          resolve({
+            code,
+            stdout,
+            stderr: `${stderr}${banner}`,
+          });
+        }
+      });
     });
-    child.on("close", (code: number | null) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        resolve({ code, stdout, stderr });
-      }
-    });
-  });
+}
 
 // --- the tool set ----------------------------------------------------------
 
@@ -228,7 +286,7 @@ const defaultExec: HeadlessExec = (command, cwd, signal, timeoutMs) =>
  * through the injected `exec` (default: a real shell scoped to `cwd`).
  */
 export function createHeadlessTools(options: HeadlessToolOptions = {}): HeadlessTool[] {
-  const exec = options.exec ?? defaultExec;
+  const exec = options.exec ?? createDefaultExec(isExecSandboxEnabled(options.execSandbox));
   const cap = options.byteCap ?? HEADLESS_OUTPUT_BYTE_CAP;
 
   const readFile: HeadlessTool = {
@@ -299,9 +357,13 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
         const oldText = asString(args, "old_text");
         const newText = asString(args, "new_text");
         const current = await fsp.readFile(abs, "utf8");
-        const idx = current.indexOf(oldText);
-        if (idx === -1) return fail("old_text not found in file.");
-        const next = current.slice(0, idx) + newText + current.slice(idx + oldText.length);
+        const kind = classifyEditApply(current, oldText, newText);
+        if (kind === "missing") return fail("old_text not found in file.");
+        if (kind === "ambiguous") return fail("old_text appears more than once; pass more context.");
+        if (kind === "noop") {
+          return ok(noopEditMessage(toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)));
+        }
+        const next = current.slice(0, current.indexOf(oldText)) + newText + current.slice(current.indexOf(oldText) + oldText.length);
         await fsp.writeFile(abs, next, "utf8");
         return ok(`edited ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
       } catch (err) {
@@ -381,7 +443,40 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
           }
         };
         await walk(root);
-        return ok(hits.length ? capBytes(hits.join("\n"), cap) : "(no matches)");
+        if (hits.length) return ok(capBytes(hits.join("\n"), cap));
+        const token = nearMissToken(pattern);
+        if (token && token !== pattern) {
+          const probes: string[] = [];
+          const walkProbes = async (dir: string): Promise<void> => {
+            const entries = await fsp.readdir(dir, { withFileTypes: true });
+            for (const e of entries) {
+              if (probes.length >= 5) return;
+              const abs = path.join(dir, e.name);
+              if (e.isDirectory()) {
+                if (e.name === "node_modules" || e.name === ".git") continue;
+                await walkProbes(abs);
+              } else if (e.isFile()) {
+                let text: string;
+                try {
+                  text = await fsp.readFile(abs, "utf8");
+                } catch {
+                  continue;
+                }
+                const rel = toPosix(path.relative(ctx.workdir, abs));
+                const idx = text.toLowerCase().indexOf(token.toLowerCase());
+                if (idx >= 0) {
+                  const line = text.slice(0, idx).split(/\r?\n/).length;
+                  probes.push(`${rel}:${line}: near-miss for ${token}`);
+                }
+              }
+            }
+          };
+          await walkProbes(root);
+          if (probes.length) {
+            return ok(capBytes(`(no matches)\nnear_misses:\n${probes.join("\n")}`, cap));
+          }
+        }
+        return ok("(no matches)");
       } catch (err) {
         return fail(err instanceof Error ? err.message : String(err));
       }
@@ -460,6 +555,17 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
             `Parsed "${asString(args, "path")}" with ${parsed.engine} (${parsed.pageCount} page(s)) but found no text.`,
           );
         }
+        if (options.ingestToMemory) {
+          try {
+            await options.ingestToMemory({
+              text: redactSecrets(body),
+              sourcePath: asString(args, "path"),
+              engine: parsed.engine,
+            });
+          } catch {
+            /* ingest is best-effort; parse still succeeds */
+          }
+        }
         return ok(
           capBytes(
             `Parsed "${asString(args, "path")}" with ${parsed.engine} (${parsed.pageCount} page(s)):\n\n` +
@@ -467,6 +573,74 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
             cap,
           ),
         );
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const hashFile: HeadlessTool = {
+    name: "hash_file",
+    description: "SHA-256 of a file relative to the working directory.",
+    parameters: { path: { type: "string", description: "File path.", required: true } },
+    async execute(args, ctx) {
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const bytes = await fsp.readFile(abs);
+        const hash = createHash("sha256").update(bytes).digest("hex");
+        return ok(
+          JSON.stringify({
+            path: toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs),
+            algorithm: "sha256",
+            hash,
+            bytes: bytes.byteLength,
+          }),
+        );
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const watchPath: HeadlessTool = {
+    name: "watch_path",
+    description: "Watch a path inside the working directory for a bounded interval.",
+    parameters: {
+      path: { type: "string", description: "File or directory path.", required: true },
+      timeout_ms: { type: "number", description: "Wait at most this many ms (default 8000).", required: false },
+    },
+    async execute(args, ctx) {
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const rawTimeout = args["timeout_ms"];
+        const timeoutMs =
+          typeof rawTimeout === "number" && Number.isFinite(rawTimeout)
+            ? Math.min(30_000, Math.max(50, Math.floor(rawTimeout)))
+            : 8_000;
+        const events: Array<{ type: string; filename: string | null }> = [];
+        await new Promise<void>((resolve) => {
+          let watcher: fs.FSWatcher;
+          try {
+            watcher = fs.watch(abs, { persistent: false }, (eventType, filename) => {
+              events.push({ type: eventType, filename: filename === null ? null : String(filename) });
+            });
+          } catch (err) {
+            events.push({ type: "error", filename: (err as Error).message });
+            resolve();
+            return;
+          }
+          const timer = setTimeout(() => {
+            watcher.close();
+            resolve();
+          }, timeoutMs);
+          watcher.on("error", (err) => {
+            events.push({ type: "error", filename: err.message });
+            clearTimeout(timer);
+            watcher.close();
+            resolve();
+          });
+        });
+        return ok(JSON.stringify({ path: asString(args, "path"), timeout_ms: timeoutMs, events }));
       } catch (err) {
         return fail(err instanceof Error ? err.message : String(err));
       }
@@ -482,7 +656,14 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     listDirectory,
     grep,
     runTerminal,
-    ...(options.documentParser ? [parseDocument] : []),
+    hashFile,
+    watchPath,
+    ...(options.documentParser && options.parseDocumentEnabled !== false ? [parseDocument] : []),
+    ...(options.browserEnabled
+      ? createHeadlessBrowserTools(
+          options.browserDriver ? { driver: options.browserDriver } : undefined,
+        )
+      : []),
   ];
 
   // v1.16.0 Phase 4 (A6): wrap EVERY tool in the permission-tier + secret-path

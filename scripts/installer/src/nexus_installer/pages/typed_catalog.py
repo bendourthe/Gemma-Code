@@ -29,9 +29,10 @@ the protocol-routed model step consumes, keeps the legacy single
 from __future__ import annotations
 
 import contextlib
+import html
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -199,6 +200,17 @@ class CatalogModel:
     family: str = ""
     # v1.12.0 Phase 3 (Q1) -- GGUF quant label; BitNet-class values gate the tier.
     quant: str = ""
+    # v1.19.0 Phase 1 -- ungated use-restriction copy + first-party license URL.
+    license_note: str = ""
+    license_url: str = ""
+    requires_license: bool = False
+    # v2.1.0 Phase 1 -- hide-below VRAM floor (GB). 0 means no floor.
+    hide_below_vram_gb: int = 0
+    # v2.1.0 Phase 1 -- minimum Ollama version, empty when ungated.
+    min_ollama_version: str = ""
+    role: str = ""
+    # v1.18 DF-6 -- optional chip; omitted JSON keeps this False (no "unverified" pill).
+    tool_calling_verified: bool = False
 
     @property
     def is_text_model(self) -> bool:
@@ -206,14 +218,14 @@ class CatalogModel:
 
     @property
     def is_required(self) -> bool:
-        """The embedding model is required by the semantic memory layer.
+        """Nomic Embed Text is required by the semantic memory layer.
 
-        v1.9.0 Phase 4 (T403): nomic-embed is the de-facto required model, so
-        its card gets a Required badge and a locked-on checkbox. Derived from
-        the task rather than a schema field -- the memory layer needs *an*
-        embedding model, and there is exactly one embed entry.
+        v1.9.0 Phase 4 (T403): its card gets a Required badge and a locked-on
+        checkbox. Later embedders (EmbeddingGemma, Qwen3-Embedding) are the
+        same task but stay opt-in because swapping the default invalidates
+        the on-disk memory index.
         """
-        return self.task == "embed"
+        return self.id == "nomic-embed-text"
 
     @property
     def guardrails_label(self) -> str:
@@ -302,9 +314,29 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 guardrails=str(entry.get("guardrails") or ""),
                 family=str(entry.get("family") or ""),
                 quant=quant,
+                license_note=str(entry.get("licenseNote") or ""),
+                license_url=str(entry.get("licenseUrl") or ""),
+                requires_license=bool(entry.get("requiresLicense")),
+                hide_below_vram_gb=_coerce_int(entry.get("hideBelowVramGB")),
+                min_ollama_version=str(entry.get("minOllamaVersion") or ""),
+                role=str(entry.get("role") or ""),
+                tool_calling_verified=bool(entry.get("toolCallingVerified")),
             )
         )
     return models
+
+
+def _release_ordinal(value: str) -> int:
+    """YYYYMMDD integer for newest-first sort; missing/invalid dates sort last."""
+    text = (value or "").strip()
+    parts = text.split("-")
+    try:
+        year = int(parts[0])
+        month = int(parts[1]) if len(parts) > 1 else 0
+        day = int(parts[2]) if len(parts) > 2 else 0
+        return year * 10000 + month * 100 + day
+    except (TypeError, ValueError):
+        return 0
 
 
 def _is_over_budget(model: CatalogModel, host_vram_gb: int, gpu_vendor: str) -> bool:
@@ -342,6 +374,11 @@ def compatibility_badge(
         return (
             f"Requires {model.required_ram_gb} GB RAM (you have {total_ram_gb})",
             WARNING,
+        )
+    if model.min_ollama_version:
+        return (
+            f"Requires Ollama {model.min_ollama_version}+",
+            SUCCESS,
         )
     return "Compatible", SUCCESS
 
@@ -540,6 +577,10 @@ class _ModelCard(QWidget):
         chip_row.setContentsMargins(28, 2, 0, 0)
         if model.origin:
             chip_row.addWidget(_pill(f"Origin: {model.origin}"))
+        if model.tool_calling_verified:
+            chip_row.addWidget(
+                _pill("Tool calling verified", color=accent, border=accent)
+            )
         if model.is_text_model:
             agentic_color = accent if model.agentic else TEXT_MUTED
             chip_row.addWidget(
@@ -572,6 +613,30 @@ class _ModelCard(QWidget):
             chip_row.addWidget(_pill(f"Released {model.release_date[:7]}"))
         chip_row.addStretch()
         layout.addLayout(chip_row)
+
+        # v1.19.0 Phase 1: ungated commercial-use restriction (not a download
+        # gate). Rendered on the card so the cap cannot be silently dropped.
+        if model.license_note:
+            escaped = html.escape(model.license_note)
+            if model.license_url:
+                href = html.escape(model.license_url, quote=True)
+                escaped = (
+                    f'{escaped} <a href="{href}" style="color: {accent};">'
+                    "License text</a>"
+                )
+            note = QLabel(
+                f'<span style="color: {accent}; font-weight: 600;">'
+                f"Use restriction:</span> {escaped}"
+            )
+            note.setObjectName("licenseNote")
+            note.setTextFormat(Qt.TextFormat.RichText)
+            note.setOpenExternalLinks(True)
+            note.setWordWrap(True)
+            note.setStyleSheet(
+                f"color: {TEXT_BODY}; font-size: {FS_CAPTION}px; "
+                f"background: transparent;"
+            )
+            layout.addWidget(note)
 
         # --- Why this one (recommended picks only) ---
         if recommended and model.why_recommended:
@@ -805,6 +870,7 @@ class TypedCatalogPage(QWidget):
         host_vram_gb: int,
         gpu_vendor: str,
         defaults: set[str] | None = None,
+        recommend_order: Sequence[str] | None = None,
     ) -> list[CatalogModel]:
         """Collapse a tab to one best-fitting model per family.
 
@@ -814,16 +880,29 @@ class TypedCatalogPage(QWidget):
         (highest-VRAM) fitting variant. Other fitting variants are hidden; every
         variant that needs more VRAM than the GPU has is shown disabled/grayed;
         a family with no fitting variant shows its smallest one, grayed. Enabled
-        rows come first (recommended before the rest, most-capable first), then
-        the over-budget rows.
+        rows come first: required, then pre-ticked defaults, then the rest of
+        this tier's recommended.json list (recommendation order), then newest
+        release, then most-capable. Over-budget rows follow.
         """
         defaults = defaults or set()
+        rec_rank = {
+            model_id: index for index, model_id in enumerate(recommend_order or ())
+        }
 
         def vram(m: CatalogModel) -> float:
             return float(m.required_vram_gb)
 
+        def recommend_group(m: CatalogModel) -> int:
+            if m.id in defaults:
+                return 0
+            if m.id in rec_rank:
+                return 1
+            return 2
+
         by_family: dict[str, list[CatalogModel]] = {}
         for model in self._models_for_section(section_key):
+            if model.hide_below_vram_gb > 0 and host_vram_gb < model.hide_below_vram_gb:
+                continue
             by_family.setdefault(model.family or model.id, []).append(model)
 
         enabled: list[CatalogModel] = []
@@ -844,7 +923,16 @@ class TypedCatalogPage(QWidget):
                 # No variant fits: show the smallest so the family still appears.
                 disabled.append(min(members, key=lambda m: (vram(m), m.display_name)))
 
-        enabled.sort(key=lambda m: (m.id not in defaults, -vram(m), m.display_name))
+        enabled.sort(
+            key=lambda m: (
+                not m.is_required,
+                recommend_group(m),
+                rec_rank.get(m.id, 10_000),
+                -_release_ordinal(m.release_date),
+                -vram(m),
+                m.display_name,
+            )
+        )
         disabled.sort(key=lambda m: (vram(m), m.display_name))
         return enabled + disabled
 
@@ -877,8 +965,14 @@ class TypedCatalogPage(QWidget):
         layout.setSpacing(8)
 
         gpu_vendor = state.gpu_vendor or "none"
+        tier = resolve_tier(state.vram_mb, gpu_vendor)
+        recommend_order = list(self._matrix.get(tier, {}).get(section_key, []))
         models = self._sorted_section_models(
-            section_key, host_vram_gb, gpu_vendor, defaults
+            section_key,
+            host_vram_gb,
+            gpu_vendor,
+            defaults,
+            recommend_order,
         )
 
         if not models:

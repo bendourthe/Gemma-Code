@@ -4,11 +4,14 @@
  * (`skills.status`), the latest upstream release (`skills.upstreamLatest`), and
  * a one-click resync (`skills.sync`, which runs `NexusHubSyncer.sync`).
  *
- * Full skill listing + management (enable/disable, quarantine approval,
- * divergence preference) is a separate SkillCatalog IPC surface not wired in
- * this plan (NHC.P6.B), so `list()` is empty and the mutation methods reject.
- * The weekly auto-sync toggle is likewise not yet wired to a settings IPC
- * (NHC.P6.C); it reports disabled.
+ * v2.2.0 Phase 3 (3.2) closes NHC.P6.B and NHC.P6.C: `list()` now reads the
+ * installed catalog through `skills.list`, and the weekly auto-sync toggle is
+ * backed by a persisted setting (`skills.autoSync.*`) that `codingBootstrap`
+ * already honors when registering the idle worker.
+ *
+ * Enable/disable and quarantine approval remain unimplemented server-side, so
+ * they still reject with a clear message rather than shipping dead buttons -
+ * the UI hides those affordances.
  */
 
 import { ipcCall } from "../../lib/ipc";
@@ -21,6 +24,10 @@ interface SkillsStatusDto {
 }
 interface SkillsUpstreamDto {
   latestTag: string | null;
+}
+interface SkillsListDto {
+  skills: SkillRowDto[];
+  error: string | null;
 }
 interface SkillsSyncDto {
   tag: string;
@@ -36,23 +43,39 @@ const NOT_WIRED =
 export function createIpcSkillsClient(): SkillsSettingsClient {
   return {
     async list(): Promise<readonly SkillRowDto[]> {
-      // Read-only update-detection surface; full catalog listing is deferred.
-      return [];
+      const reply = await ipcCall<SkillsListDto>("skills.list", {});
+      if (!reply.ok) throw new Error(reply.message);
+      if (reply.value.error) {
+        // The catalog exists but could not be parsed: surface it rather than
+        // rendering an empty page that implies nothing is installed.
+        throw new Error(`catalog unreadable: ${reply.value.error}`);
+      }
+      return reply.value.skills;
     },
     async activeTag(): Promise<string | null> {
       const reply = await ipcCall<SkillsStatusDto>("skills.status", {});
-      return reply.ok ? reply.value.installedVersion : null;
+      // v2.2.0 Phase 2 (2.2): do NOT swallow the IPC error. Returning null on
+      // failure made a dead backend indistinguishable from an unsynced
+      // catalog, so the page told the user to press "Sync now" -- which could
+      // never work, because the very same backend performs the sync. Null now
+      // means only "the backend answered and no catalog version is installed".
+      if (!reply.ok) throw new Error(reply.message);
+      return reply.value.installedVersion;
     },
     async upstreamLatestTag(): Promise<string | null> {
       const reply = await ipcCall<SkillsUpstreamDto>("skills.upstreamLatest", {});
+      // Upstream lookup is best-effort by design (offline / rate-limited hosts
+      // report "unknown"), so this one stays non-throwing.
       return reply.ok ? reply.value.latestTag : null;
     },
     async autoSyncEnabled(): Promise<boolean> {
-      // Not wired to a settings IPC yet, and the weekly idle worker is not live.
-      return false;
+      const reply = await ipcCall<{ enabled: boolean }>("skills.autoSync.get", {});
+      if (!reply.ok) throw new Error(reply.message);
+      return reply.value.enabled;
     },
-    async setAutoSyncEnabled(): Promise<void> {
-      // No-op until the settings IPC + live idle-scheduler wiring land.
+    async setAutoSyncEnabled(enabled: boolean): Promise<void> {
+      const reply = await ipcCall<{ enabled: boolean }>("skills.autoSync.set", { enabled });
+      if (!reply.ok) throw new Error(reply.message);
     },
     async syncNow(): Promise<{ tag: string; applied: boolean; summary: string }> {
       const reply = await ipcCall<SkillsSyncDto>("skills.sync", {});

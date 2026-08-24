@@ -38,7 +38,18 @@ TIER_ORDER: tuple[str, ...] = ("cpu", "8", "12", "16", "24")
 GPU_TIERS: tuple[int, ...] = (24, 16, 12, 8)
 
 # Selection order also defines the id order written to the installer state.
-SECTION_ORDER: tuple[str, ...] = ("chat", "agentic", "embed", "image", "video", "audio")
+# v2.2.3 Phase 7 (7.1): document OCR joined as a multi-pick section so the
+# Document tab pre-ticks a default (RapidOCR on low tiers, Unlimited-OCR 3B
+# on GPU tiers that fit it).
+SECTION_ORDER: tuple[str, ...] = (
+    "chat",
+    "agentic",
+    "embed",
+    "image",
+    "video",
+    "audio",
+    "document",
+)
 
 # Sections that must always contribute at least one model.
 GUARANTEED_SECTIONS: tuple[str, ...] = ("chat", "agentic")

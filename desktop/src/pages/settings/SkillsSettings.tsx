@@ -18,6 +18,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { Button, Switch } from "../../components/ui";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
 
 import type { SkillRecord, SkillNamespace } from "../../../../core/skills/SkillCatalog";
 import type { ScanResult } from "../../../../core/skills/PromptInjectionScanner";
@@ -59,6 +62,11 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
   const [autoSync, setAutoSync] = useState<boolean>(false);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  // v2.2.0 Phase 2 (2.2): "not yet synced" used to render whenever the IPC
+  // call failed, telling the user to press a Sync button that the same dead
+  // backend would have to service. Branch the backend-down case out.
+  const sidecar = useSidecarStatus();
+  const backendDown = sidecar.isDown || isBackendDownMessage(error);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +131,12 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
       );
       await refresh();
     } catch (e) {
-      setError(messageFor(e));
+      const msg = messageFor(e);
+      setError(
+        /sidecar response timeout/i.test(msg)
+          ? "Hub fetch did not finish. Check the network and retry Update now. The sidecar is still running."
+          : msg,
+      );
     } finally {
       setSyncing(false);
     }
@@ -184,30 +197,42 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
         </div>
       </header>
 
-      {!loading && activeTag === null && (
+      {backendDown && (
+        <SidecarDownBanner
+          status={sidecar.status}
+          restarting={sidecar.restarting}
+          restartError={sidecar.restartError}
+          onRestart={() => void sidecar.restart()}
+          context="The Nexus-Hub catalog cannot be read or synced."
+          testId="skills-sidecar-down"
+        />
+      )}
+      {!loading && !backendDown && activeTag === null && (
         <div data-testid="skills-not-synced" style={bannerStyle}>
           The Nexus-Hub catalog is not yet synced.{" "}
-          <button
+          <Button
             type="button"
-            data-testid="skills-sync-empty"
+            testId="skills-sync-empty"
             onClick={handleSyncNow}
             disabled={syncing}
+            busy={syncing}
           >
             {syncing ? "Syncing..." : "Sync now"}
-          </button>
+          </Button>
         </div>
       )}
       {!loading && activeTag !== null && upstreamTag !== null && upstreamTag !== activeTag && (
         <div data-testid="skills-update-available" style={bannerStyle}>
           Update available: {activeTag} to {upstreamTag}.{" "}
-          <button
+          <Button
             type="button"
-            data-testid="skills-update-now"
+            testId="skills-update-now"
             onClick={handleSyncNow}
             disabled={syncing}
+            busy={syncing}
           >
             {syncing ? "Updating..." : "Update now"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -216,23 +241,21 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
       </div>
 
       <div style={controlsRowStyle}>
-        <button
+        <Button
           type="button"
-          data-testid="skills-sync-now"
+          testId="skills-sync-now"
           onClick={handleSyncNow}
           disabled={syncing}
+          busy={syncing}
         >
           {syncing ? "Syncing..." : "Sync now"}
-        </button>
-        <label data-testid="skills-auto-sync-label" style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)" }}>
-          <input
-            type="checkbox"
-            data-testid="skills-auto-sync"
-            checked={autoSync}
-            onChange={(e) => void handleAutoSyncToggle(e.target.checked)}
-          />
-          Auto-sync weekly (idle time)
-        </label>
+        </Button>
+        <Switch
+          testId="skills-auto-sync"
+          checked={autoSync}
+          onChange={(next) => void handleAutoSyncToggle(next)}
+          label="Auto-update to latest Nexus-Hub release"
+        />
         {syncStatus && (
           <span data-testid="skills-sync-status" style={{ color: "var(--fg-muted)" }}>
             {syncStatus}
@@ -359,23 +382,23 @@ function StandardRow({ item, onToggleActive, onDivergedPreference }: StandardRow
       </div>
       <div style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}>
         {item.diverged && item.provenance.source !== "builtin" && (
-          <button
+          <Button
             type="button"
-            data-testid={`skills-set-default-${item.id}`}
+            testId={`skills-set-default-${item.id}`}
             onClick={() =>
               onDivergedPreference(item.provenance.source === "nexus-hub" ? "nexus-hub" : "user")
             }
           >
             Use as default
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           type="button"
-          data-testid={`skills-toggle-${item.id}`}
+          testId={`skills-toggle-${item.id}`}
           onClick={onToggleActive}
         >
           {item.active ? "Disable" : "Enable"}
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -405,13 +428,13 @@ function QuarantineRow({ item, onApprove }: QuarantineRowProps): JSX.Element {
           </div>
         ))}
       </div>
-      <button
+      <Button
         type="button"
-        data-testid={`skills-approve-${item.id}`}
+        testId={`skills-approve-${item.id}`}
         onClick={onApprove}
       >
         Review and approve
-      </button>
+      </Button>
     </>
   );
 }

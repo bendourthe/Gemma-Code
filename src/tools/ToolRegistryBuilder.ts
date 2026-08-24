@@ -13,6 +13,7 @@ import {
   ListDirectoryTool,
   GrepCodebaseTool,
 } from "./handlers/filesystem.js";
+import { WatchPathTool, HashFileTool } from "./handlers/observe.js";
 // v0.9.0 Phase 6.6 (from v0.8.0 known-gaps 10.O.Q) -- the tier `confirm` /
 // `dangerous` handler modules below are loaded lazily via `await import()`
 // inside the factories passed to `registerLazy()`. They are only resolved
@@ -113,6 +114,8 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   );
   registry.register("list_directory", new ListDirectoryTool(gate, secretPathDenyExtra));
   registry.register("grep_codebase", new GrepCodebaseTool(gate, secretPathDenyExtra));
+  registry.register("watch_path", new WatchPathTool());
+  registry.register("hash_file", new HashFileTool());
 
   // Tier `confirm` -- lazy. write/edit/create/delete tools only fire on a
   // user-confirmed edit, so importing them at boot is wasted work for the
@@ -147,6 +150,26 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   registry.registerLazy("fetch_page", async () => {
     const mod = await import("./handlers/webSearch.js");
     return new mod.FetchPageTool();
+  });
+  registry.registerLazy("browser_navigate", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserNavigateTool();
+  });
+  registry.registerLazy("browser_click", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserClickTool();
+  });
+  registry.registerLazy("browser_type", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserTypeTool();
+  });
+  registry.registerLazy("browser_aria_snapshot", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserAriaSnapshotTool();
+  });
+  registry.registerLazy("browser_close", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserCloseTool();
   });
 
   if (opts.compress) {
@@ -261,6 +284,11 @@ export function listLazyToolNames(): readonly string[] {
     "run_terminal",
     "web_search",
     "fetch_page",
+    "browser_navigate",
+    "browser_click",
+    "browser_type",
+    "browser_aria_snapshot",
+    "browser_close",
   ];
 }
 
@@ -273,6 +301,8 @@ export function listEagerToolNames(): readonly string[] {
     "read_file",
     "list_directory",
     "grep_codebase",
+    "watch_path",
+    "hash_file",
     // compress_range / compress_message / update_todos are wired only when
     // the optional `compress` / `todos` options are passed; they are still
     // imported eagerly when present because the prompt builder needs them.

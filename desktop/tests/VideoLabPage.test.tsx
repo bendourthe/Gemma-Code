@@ -15,11 +15,12 @@ function videoModels(): { list: () => Promise<ListedModelDto[]> } {
   return {
     list: async () => [
       {
-        id: "ltx-video",
-        displayName: "LTX-Video",
+        id: "wan2.1-t2v-1.3b",
+        displayName: "Wan 2.1 T2V 1.3B",
         type: "video",
         installed: true,
         source: "registry",
+        vramGB: 5.5,
       },
     ],
   };
@@ -71,7 +72,35 @@ describe("VideoLabPage (chat)", () => {
     const media = await screen.findByTestId(/^message-media-/);
     expect(media.getAttribute("src")).toBe("mock:///tmp/clip.mp4");
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
-    expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("ltx-video");
+    expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
+  });
+
+  it("does not generate until a conflicting active model switch is approved", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        hostVramFreeGB={1}
+        activeSchedulerJob={{
+          id: "coding-job",
+          moduleId: "coding",
+          jobType: "agent-turn",
+          modelId: "qwen2.5-coder:14b",
+          estimatedVramGB: 9,
+          startedAt: 1,
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    expect(await screen.findByTestId("model-switch-dialog")).toBeInTheDocument();
+    expect(client.lastRequest).toBeNull();
+    fireEvent.click(screen.getByTestId("model-switch-dialog-switch"));
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("text2video"));
+    expect(screen.queryByTestId("model-switch-dialog")).toBeNull();
   });
 
   it("an attached image routes to image2video with the source image", async () => {
@@ -143,6 +172,8 @@ describe("VideoLabPage (chat)", () => {
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
+    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId(/^message-media-/));
     await waitFor(() =>
       expect(container.querySelector('[data-testid^="video-copyworkflow-"]')).not.toBeNull(),
     );
@@ -168,5 +199,187 @@ describe("VideoLabPage (chat)", () => {
       target: { value: "__get_more_models__" },
     });
     expect(onGetMoreModels).toHaveBeenCalled();
+  });
+
+  it("shows the shaping orb while a clip is pending", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    const orb = await screen.findByRole("img", { name: /agent shaping/i });
+    expect(orb).toHaveAttribute("data-agent-activity", "video-generation");
+    expect(orb).toHaveAttribute("data-orb-size", "hero");
+    expect(screen.getByText("Shaping...")).toBeInTheDocument();
+    expect(screen.queryByText("Generating...")).toBeNull();
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+  });
+
+  it("turns a complete event without an mp4 path into a written failure", async () => {
+    const client = new InMemoryVideoClient();
+    render(<VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-video-1", [{ kind: "complete", jobId: "mem-video-1" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByText(/Generation failed/)).toBeInTheDocument());
+    expect(screen.queryByTestId(/^video-actions-/)).toBeNull();
+    expect(screen.queryByTestId(/^message-media-/)).toBeNull();
+  });
+
+  it("hides generated-video actions when the browser cannot decode the asset", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        resolveMp4Url={(path) => `mock://${path}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    const media = await screen.findByTestId(/^message-media-/);
+    fireEvent.error(media);
+    await waitFor(() => expect(screen.queryByTestId(/^video-actions-/)).toBeNull());
+    expect(screen.getByText(/could not be displayed/)).toBeInTheDocument();
+  });
+
+  it("chains continuation segments when duration exceeds the tier clip", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={10}
+        initialValues={{ durationSeconds: 12, clipSeconds: 4 }}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/a.mp4" },
+    ]);
+    client.scriptEvents("mem-video-2", [
+      { kind: "complete", jobId: "mem-video-2", mp4Path: "/tmp/b.mp4" },
+    ]);
+    client.scriptEvents("mem-video-3", [
+      { kind: "complete", jobId: "mem-video-3", mp4Path: "/tmp/c.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "long take" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(80);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(client.requests.length).toBe(3));
+    expect(client.requests[0]?.request.durationSeconds).toBe(4);
+    expect(client.requests[1]?.request.continueFrom).toMatchObject({
+      priorJobId: "mem-video-1",
+      segmentIndex: 1,
+    });
+  });
+
+  it("blocks avatar mode below diffusion-pro", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={10}
+        diffusionTier="diffusion-mid"
+        vramGB={12}
+      />,
+    );
+    expect(screen.queryByTestId("video-avatar-confirm")).toBeNull();
+  });
+
+  it("runs audio2video on a confirmed diffusion-pro host", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={10}
+        diffusionTier="diffusion-pro"
+        vramGB={24}
+      />,
+    );
+    fireEvent.click(screen.getByText("Advanced settings"));
+    fireEvent.click(screen.getByTestId("video-avatar-confirm"));
+    const png = new File(["x"], "face.png", { type: "image/png" });
+    const wav = new File(["y"], "line.wav", { type: "audio/wav" });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("media-composer-file"), {
+        target: { files: [png, wav] },
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-1")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/avatar.mp4" },
+    ]);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("audio2video"));
+    expect(
+      (client.lastRequest?.request as { confirmLocalAvatar?: boolean }).confirmLocalAvatar,
+    ).toBe(true);
+  });
+
+  it("timeline comments round-trip into the next generation prompt", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        resolveMp4Url={(p) => `mock://${p}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    const add = await screen.findByTestId(/-add-comment$/);
+    await act(async () => {
+      fireEvent.click(add);
+    });
+    client.scriptEvents("mem-video-2", [
+      { kind: "complete", jobId: "mem-video-2", mp4Path: "/tmp/clip2.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "again" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() =>
+      expect((client.lastRequest?.request as { prompt: string }).prompt).toMatch(/Frame notes:/),
+    );
   });
 });

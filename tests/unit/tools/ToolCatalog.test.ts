@@ -3,18 +3,20 @@ import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
 import { TOOL_NAMES } from "../../../src/tools/types.js";
 
 describe("TOOL_CATALOG", () => {
-  it("contains exactly 25 entries (advertised tools only)", () => {
+  it("contains exactly 27 entries (advertised tools only)", () => {
     // v0.7.0 Phase 3 added compress_range + compress_message, both
     // permission-tier 0 model-callable compression tools.
     // v0.7.0 Phase 4.4 added update_todos, also permission-tier 0.
     // v1.2.0 Phase 3.5 added 9 codegraph_* tools (search / context / trace /
     // callers / callees / impact / node / explore / files); they ride the
-    // 15-tool cap as trim candidates after MCP tools.
+    // 20-tool cap as trim candidates after MCP tools.
     // v1.2.0 Phase 6.2 added 2 lsp_* tools (lsp_definition, lsp_references);
     // they share the permission-tier 0 + trim-candidate posture with the
     // codegraph surface.
     // v1.16.0 Phase 4 (A6) added parse_document.
-    expect(TOOL_CATALOG).toHaveLength(25);
+    // v1.19.1 Phase 2.8 added watch_path + hash_file.
+    // v2.0.0 Phase 2 added five browser_* tools (DANGEROUS, specialty-trimmed).
+    expect(TOOL_CATALOG).toHaveLength(32);
   });
 
   it("every entry name matches a value from TOOL_NAMES", () => {
@@ -35,8 +37,13 @@ describe("TOOL_CATALOG", () => {
     }
   });
 
-  it("every entry has at least one parameter defined", () => {
+  it("every entry has at least one parameter defined, except snapshot/close", () => {
+    const zeroParamOk = new Set(["browser_aria_snapshot", "browser_close"]);
     for (const tool of TOOL_CATALOG) {
+      if (zeroParamOk.has(tool.name)) {
+        expect(Object.keys(tool.parameters).length).toBe(0);
+        continue;
+      }
       expect(Object.keys(tool.parameters).length).toBeGreaterThan(0);
     }
   });

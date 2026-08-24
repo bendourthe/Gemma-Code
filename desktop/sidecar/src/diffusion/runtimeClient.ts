@@ -40,6 +40,7 @@ export interface DiffusionRuntimeClient {
   call<T = unknown>(method: string, params: Record<string, unknown>): Promise<T>;
   drainEvents(jobId: string): readonly DiffusionEvent[];
   shutdown(): Promise<void>;
+  lastStderr?(): string;
 }
 
 interface PendingRequest {
@@ -59,6 +60,7 @@ export class InMemoryDiffusionRuntime implements DiffusionRuntimeClient {
   private readonly responses = new Map<string, unknown>();
   private readonly errors = new Map<string, string>();
   private readonly events = new Map<string, DiffusionEvent[]>();
+  readonly calls: Array<{ method: string; params: Record<string, unknown> }> = [];
 
   setResponse(method: string, value: unknown): void {
     this.responses.set(method, value);
@@ -76,7 +78,12 @@ export class InMemoryDiffusionRuntime implements DiffusionRuntimeClient {
     this.events.set(event.jobId, queue);
   }
 
-  async call<T = unknown>(method: string, _params: Record<string, unknown>): Promise<T> {
+  lastStderr(): string {
+    return "";
+  }
+
+  async call<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
+    this.calls.push({ method, params });
     const err = this.errors.get(method);
     if (err) {
       throw new Error(err);
@@ -124,6 +131,7 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
   private readonly events = new Map<string, DiffusionEvent[]>();
   private nextId = 1;
   private readonly requestTimeoutMs: number;
+  private stderrTail = "";
 
   constructor(private readonly options: ChildProcessRuntimeOptions = {}) {
     this.requestTimeoutMs = options.requestTimeoutMs ?? 60_000;
@@ -141,6 +149,13 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
     };
     const child = spawnFn(command, args, spawnOpts) as ChildProcessWithoutNullStreams;
     this.child = child;
+    this.stderrTail = "";
+    if (child.stderr) {
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk: string) => {
+        this.stderrTail = (this.stderrTail + chunk).slice(-32_768);
+      });
+    }
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
     this.rl = rl;
     rl.on("line", (line: string) => this.handleLine(line));
@@ -220,6 +235,10 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
     const queue = this.events.get(jobId) ?? [];
     this.events.delete(jobId);
     return queue;
+  }
+
+  lastStderr(): string {
+    return this.stderrTail;
   }
 
   async shutdown(): Promise<void> {

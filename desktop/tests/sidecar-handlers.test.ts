@@ -54,6 +54,9 @@ describe("sidecar handlers", () => {
           // v1.16.0 Phase 1 wired the local serving-gateway control surface.
           "serving.status",
           "serving.setEnabled",
+          // v1.18.0 Phase 5 wired ACP on the shared control surface.
+          "acp.status",
+          "acp.setEnabled",
           // v1.16.0 Phase 2 wired per-model inference analytics.
           "metrics.inference",
           // v1.16.0 Phase 3 wired the document-OCR surface.
@@ -61,6 +64,10 @@ describe("sidecar handlers", () => {
           "ocr.parseDocument",
           "ocr.job.drainEvents",
           "ocr.job.cancel",
+          // v2.0.0 Phase 1 wired local STT/TTS.
+          "audio.health",
+          "audio.transcribe",
+          "audio.speak",
           "coding.session.start",
           "coding.session.sendMessage",
           "coding.session.cancel",
@@ -72,6 +79,8 @@ describe("sidecar handlers", () => {
           // v1.7.0 wired the Local Chatbot Explorer surface.
           "chat.session.start",
           "chat.session.sendMessage",
+          "memory.episodic.record",
+          "memory.episodic.search",
           // v1.5.0 Phase 5 wired the credential-vault surface.
           "credentials.status",
           "credentials.list",
@@ -84,12 +93,63 @@ describe("sidecar handlers", () => {
           "diffusion.img2img",
           "diffusion.inpaint",
           "diffusion.outpaint",
+          "diffusion.segment",
           "diffusion.job.drainEvents",
           "diffusion.workflow.extract",
           // v1.0.0 Phase 7 wired the video surface.
           "diffusion.video.text2video",
           "diffusion.video.image2video",
+          "diffusion.video.audio2video",
           "diffusion.video.workflow.extract",
+          "generation.queue.list",
+          "generation.queue.enqueue",
+          "generation.queue.cancel",
+          "generation.queue.reorder",
+          "generation.queue.pendingCount",
+          "generation.scheduler.snapshot",
+          // v2.1.0 Phase 5 wired the Unsloth Core fine-tuning pillar.
+          "tuning.status",
+          "tuning.provision",
+          "tuning.preflight",
+          "tuning.dataset.build",
+          "tuning.job.start",
+          "tuning.job.list",
+          "tuning.job.cancel",
+          "tuning.models.list",
+          // v2.1.0 Phase 6 wired the signed local audit log.
+          "audit.list",
+          "audit.status",
+          "media.sampleVideoFrames",
+          "coding.parseDocument.status",
+          "coding.parseDocument.setEnabled",
+          // v2.2.0 Phase 2 (2.4) wired real GPU telemetry (poll-based; the
+          // telemetry.subscribe push channel stays unimplemented).
+          "gpu.sample",
+          // v2.2.0 Phase 3 wired real skills listing, the auto-sync setting,
+          // and hub command discovery for the Agentic composer.
+          "skills.list",
+          "skills.autoSync.get",
+          "skills.autoSync.set",
+          "commands.list",
+          // v2.2.0 Phase 5 wired chat persistence and auto-titling.
+          "chat.explorer.tree",
+          "chat.explorer.createFolder",
+          "chat.explorer.renameFolder",
+          "chat.explorer.moveFolder",
+          "chat.explorer.deleteFolder",
+          "chat.explorer.createChat",
+          "chat.explorer.renameChat",
+          "chat.explorer.moveChat",
+          "chat.explorer.deleteChat",
+          "chat.explorer.setPersona",
+          "chat.explorer.appendMessage",
+          "chat.explorer.listMessages",
+          "chat.explorer.search",
+          "chat.generateTitle",
+          // v2.2.0 Phase 8 (DF-16) wired local data export / import.
+          "data.categories",
+          "data.export",
+          "data.import",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",
@@ -97,6 +157,18 @@ describe("sidecar handlers", () => {
           // v1.12.0 EM.P2.A wired the skill-optimizer preview/apply surface.
           "skills.optimize.preview",
           "skills.optimize.apply",
+          // v1.18.0 Phase 3 wired per-tool MCP registry deny.
+          "mcp.registry.list",
+          "mcp.registry.setToolDenied",
+          "mcp.list",
+          "mcp.invoke",
+          // v1.18.0 Phase 4 wired the ask inbox + local scheduler.
+          "ask.inbox.list",
+          "ask.inbox.approve",
+          "ask.inbox.deny",
+          "ask.inbox.pendingCount",
+          "ask.scheduler.list",
+          "ask.scheduler.setEnabled",
         ].includes(m),
     );
     for (const m of unimplemented) {
@@ -111,6 +183,53 @@ describe("sidecar handlers", () => {
 
   it("handlers covers every declared method", () => {
     for (const m of IPC_METHODS) expect(typeof handlers[m]).toBe("function");
+  });
+
+  it("routes episodic record and search through the injected chat-memory seam", async () => {
+    const recorded: Array<{ id: string; content: string }> = [];
+    const ctx = makeCtx();
+    ctx.chatMemory = {
+      record: async (input) => {
+        recorded.push({ id: input.id, content: input.content });
+        return { ok: true };
+      },
+      search: async (input) => ({
+        hits: [
+          {
+            id: "m1",
+            content: `matched ${input.query}`,
+            source: "chat-turn",
+            capturedAt: "2026-08-23T00:00:00.000Z",
+            scopeId: input.scopeId ?? null,
+          },
+        ],
+      }),
+    };
+    expect(
+      await dispatch(
+        "memory.episodic.record",
+        { id: "turn-1", content: "remember me", source: "chat-turn", scopeId: "work" },
+        ctx,
+      ),
+    ).toEqual({ ok: true });
+    expect(recorded).toEqual([{ id: "turn-1", content: "remember me" }]);
+    expect(
+      await dispatch(
+        "memory.episodic.search",
+        { query: "remember", limit: 3, scopeId: "work" },
+        ctx,
+      ),
+    ).toEqual({
+      hits: [
+        {
+          id: "m1",
+          content: "matched remember",
+          source: "chat-turn",
+          capturedAt: "2026-08-23T00:00:00.000Z",
+          scopeId: "work",
+        },
+      ],
+    });
   });
 
   it("models.* route to the injected runtime (v1.15.0 Phase 4)", async () => {
@@ -131,11 +250,16 @@ describe("sidecar handlers", () => {
         drain: () => ({ events: [{ kind: "complete", id: "a" }], done: true }),
         cancel: () => {},
       },
+      // v2.2.0 Phase 1 (1.1): models.list surfaces catalog health.
+      catalogStatus: "ok",
     } as unknown as HandlerContext["models"];
 
-    expect(await dispatch("models.list", {}, ctx)).toEqual({
-      models: [{ id: "a", displayName: "A", installed: true, source: "registry" }],
-    });
+    expect(await dispatch("models.list", {}, ctx)).toEqual(
+      expect.objectContaining({
+        models: [{ id: "a", displayName: "A", installed: true, source: "registry" }],
+        catalogStatus: "ok",
+      }),
+    );
     expect(await dispatch("models.diskUsage", {}, ctx)).toEqual({
       usedBytes: 5,
       freeBytes: null,
@@ -150,6 +274,25 @@ describe("sidecar handlers", () => {
     expect(await dispatch("models.install.cancel", { jobId: "job:a" }, ctx)).toEqual({
       ok: true,
     });
+  });
+
+  it("mcp.registry.list returns a servers array (v1.18.0 Phase 3)", async () => {
+    const listed = (await dispatch("mcp.registry.list", {}, makeCtx())) as {
+      servers: unknown[];
+    };
+    expect(Array.isArray(listed.servers)).toBe(true);
+  });
+
+  it("mcp.list returns exposed registry tools and mcp.invoke is fail-closed", async () => {
+    const listed = (await dispatch("mcp.list", {}, makeCtx())) as { tools: unknown[] };
+    expect(Array.isArray(listed.tools)).toBe(true);
+    const invoked = (await dispatch(
+      "mcp.invoke",
+      { name: "demo/tool", args: {} },
+      makeCtx(),
+    )) as { ok: boolean; error: string | null };
+    expect(invoked.ok).toBe(false);
+    expect(invoked.error).toMatch(/no stdio harness/i);
   });
 
   describe("coding session lifecycle", () => {
@@ -245,12 +388,21 @@ describe("sidecar handlers", () => {
         ok: true,
         offloadStrategy: "model_cpu_offload",
         extra: { frameCount: 96 },
+        mp4Path: "/tmp/clip.mp4",
       });
       (runtime as unknown as {
         setResponse: (method: string, value: unknown) => void;
       }).setResponse("diffusion.video.image2video", {
         ok: true,
         offloadStrategy: "sequential_cpu_offload",
+        mp4Path: "/tmp/i2v.mp4",
+      });
+      (runtime as unknown as {
+        setResponse: (method: string, value: unknown) => void;
+      }).setResponse("diffusion.video.audio2video", {
+        ok: true,
+        offloadStrategy: "sequential_cpu_offload",
+        mp4Path: "/tmp/a2v.mp4",
       });
       return createHandlerContext(
         { pid: 1, platform: process.platform },
@@ -298,7 +450,7 @@ describe("sidecar handlers", () => {
       )) as { jobId: string; mode: string; offloadStrategy?: string };
       expect(result.jobId).toMatch(/^video-/);
       expect(result.mode).toBe("text2video");
-      expect(result.offloadStrategy).toBe("model_cpu_offload");
+      // Offload strategy arrives on drainEvents after pumpOnce, not on accept.
     });
 
     it("diffusion.video.image2video requires sourceImage", async () => {
@@ -340,6 +492,55 @@ describe("sidecar handlers", () => {
         ctx,
       )) as { mode: string };
       expect(result.mode).toBe("image2video");
+    });
+
+    it("diffusion.video.audio2video requires confirmation and a photo plus audio", async () => {
+      await expect(
+        dispatch(
+          "diffusion.video.audio2video",
+          {
+            modelId: "longcat-video-avatar-1.5",
+            prompt: "talk",
+            width: 854,
+            height: 480,
+            durationSeconds: 4,
+            fps: 24,
+            steps: 30,
+            cfgScale: 3.5,
+            seed: 7,
+            sourceImage: "data:image/png;base64,AAAA",
+            sourceAudio: "data:audio/wav;base64,BBBB",
+          },
+          videoCtx(),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("diffusion.video.audio2video accepts a confirmed diffusion-pro request", async () => {
+      const ctx = videoCtx();
+      const result = (await dispatch(
+        "diffusion.video.audio2video",
+        {
+          modelId: "longcat-video-avatar-1.5",
+          prompt: "talk",
+          width: 854,
+          height: 480,
+          durationSeconds: 4,
+          fps: 24,
+          steps: 30,
+          cfgScale: 3.5,
+          seed: 7,
+          sourceImage: "data:image/png;base64,AAAA",
+          sourceAudio: "data:audio/wav;base64,BBBB",
+          confirmLocalAvatar: true,
+          diffusionTier: "diffusion-pro",
+          vramGB: 24,
+          weightRepo: "meituan-longcat/LongCat-Video-Avatar-1.5",
+        },
+        ctx,
+      )) as { mode: string; provenance?: { neverLeftDevice?: boolean } };
+      expect(result.mode).toBe("audio2video");
+      expect(result.provenance?.neverLeftDevice).toBe(true);
     });
 
     it("diffusion.video.workflow.extract returns null when ffprobe finds no comment", async () => {

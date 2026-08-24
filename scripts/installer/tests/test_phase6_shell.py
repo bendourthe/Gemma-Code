@@ -223,6 +223,27 @@ class TestShellNavigation:
         pages[win.installing_page_index].finish(True)
         assert win.footer.next_button.isEnabled()
 
+    def test_finish_success_auto_advances_to_complete(self, qt_app: object) -> None:
+        # v2.2.3 Phase 7 (7.3): once the install finishes successfully the
+        # wizard advances to Complete on its own (deferred via singleShot),
+        # and the stepper unpins so Complete is the current step.
+        win, pages = _build_window(qt_app)
+        last = len(pages) - 1
+        win.switch_page(win.installing_page_index)
+        pages[win.installing_page_index].finish(True)
+        qt_app.processEvents()
+        assert win.current_index == last
+        assert win.step_indicator.current_step == last
+
+    def test_finish_failure_does_not_auto_advance(self, qt_app: object) -> None:
+        # v2.2.3 Phase 7 (7.3): a user cancel / engine failure (finished(False))
+        # stays on Installing -- the outcome must not be presented as success.
+        win, pages = _build_window(qt_app)
+        win.switch_page(win.installing_page_index)
+        pages[win.installing_page_index].finish(False)
+        qt_app.processEvents()
+        assert win.current_index == win.installing_page_index
+
     def test_footer_cancel_shown_during_install_removed_on_finish(
         self, qt_app: object
     ) -> None:

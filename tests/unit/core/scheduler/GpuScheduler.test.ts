@@ -70,6 +70,15 @@ describe("GpuScheduler", () => {
     await expect(handle.completion).resolves.toBe("done:txt2img");
   });
 
+  it("accepts a fine-tuning job as a fifth GPU consumer", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 24 });
+    const handle = await sched.enqueue(
+      makeJob({ moduleId: "tuning", jobType: "qlora", estimatedVramGB: 16, id: "ft-1" }),
+    );
+    await expect(handle.completion).resolves.toBe("done:qlora");
+    expect(handle.moduleId).toBe("tuning");
+  });
+
   it("serializes jobs FIFO (single-GPU ceiling)", async () => {
     const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 16 });
     const order: string[] = [];

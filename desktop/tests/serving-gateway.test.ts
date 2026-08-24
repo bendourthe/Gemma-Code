@@ -109,6 +109,14 @@ afterEach(async () => {
 });
 
 describe("ServingGateway lifecycle", () => {
+  it("binds for JSON CLI when serving and ACP are off", async () => {
+    const gateway = new ServingGateway({ listInstalled: async () => INSTALLED, log: () => {} });
+    started.push(gateway);
+    await gateway.start(config({ enabled: false, jsonCliEnabled: true }));
+    expect(gateway.running).toBe(true);
+    expect(gateway.boundPort).toBeGreaterThan(0);
+  });
+
   it("binds no port when the opt-in is disabled", async () => {
     const gateway = new ServingGateway({ listInstalled: async () => INSTALLED, log: () => {} });
     started.push(gateway);

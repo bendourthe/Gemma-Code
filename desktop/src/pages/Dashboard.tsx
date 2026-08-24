@@ -16,15 +16,19 @@ import { TopBar } from "../components/TopBar";
 import type { TelemetryStream } from "../components/LocalModelStatus.types";
 import { readProfileSync } from "../lib/profile";
 import { ipc } from "../lib/ipc";
-import type { ChatExplorerClient } from "../modules/chat/chatExplorerClient";
+import type { SyncChatExplorerClient } from "../modules/chat/chatExplorerClient";
 import type { MemorySearchAdapter } from "../components/TopBar";
+import type { AskInboxClient } from "./inbox/askInboxTypes";
+import { useAskInboxPendingCount } from "./inbox/useAskInboxPendingCount";
 
 interface DashboardProps {
   telemetryStream: TelemetryStream | null;
   recentProjects?: ReadonlyArray<{ name: string; model: string; updated: string }>;
   /** Phase 4.5: search backends. Tests can inject mocks. */
-  chatClient?: ChatExplorerClient;
+  chatClient?: SyncChatExplorerClient;
   memoryAdapter?: MemorySearchAdapter;
+  /** v1.18.0 Phase 4 -- parked-approval count for the chrome bell. */
+  askInboxClient?: AskInboxClient;
 }
 
 const FALLBACK_PROJECTS = [
@@ -37,10 +41,12 @@ export function Dashboard({
   recentProjects = FALLBACK_PROJECTS,
   chatClient,
   memoryAdapter,
+  askInboxClient,
 }: DashboardProps): JSX.Element {
   const navigate = useNavigate();
   const profile = useMemo(() => readProfileSync(), []);
   const [pingResult, setPingResult] = useState<string | null>(null);
+  const pendingCount = useAskInboxPendingCount(askInboxClient);
 
   useEffect(() => {
     setPingResult(null);
@@ -108,8 +114,9 @@ export function Dashboard({
             extraButtons={
               <button
                 type="button"
-                aria-label="Notifications"
+                aria-label="Ask inbox"
                 data-testid="dashboard-bell"
+                onClick={() => navigate("/inbox")}
                 style={{
                   position: "relative",
                   background: "transparent",
@@ -121,16 +128,23 @@ export function Dashboard({
                 <span
                   aria-hidden
                   data-testid="dashboard-bell-badge"
+                  data-pending-count={pendingCount}
                   style={{
                     position: "absolute",
                     top: 0,
                     right: 0,
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
+                    minWidth: pendingCount > 0 ? 14 : 8,
+                    height: pendingCount > 0 ? 14 : 8,
+                    borderRadius: 8,
                     backgroundColor: "var(--status-err)",
+                    fontSize: 9,
+                    lineHeight: "14px",
+                    textAlign: "center",
+                    color: "var(--fg-0)",
                   }}
-                />
+                >
+                  {pendingCount > 0 ? pendingCount : null}
+                </span>
               </button>
             }
             onSettingsClick={() => navigate("/settings")}

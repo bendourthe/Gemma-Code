@@ -63,6 +63,11 @@ jobs:
           npx vsce package --no-dependencies
 
       - name: Build installer (PyInstaller onefile + AppImage)
+        env:
+          # ubuntu-latest runners have no usable /dev/fuse; build-linux.sh
+          # also sets this, but keep it on the job so a stale script still
+          # has a chance.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: bash scripts/installer/build/build-linux.sh
 
       - name: Upload artifact

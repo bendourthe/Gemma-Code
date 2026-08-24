@@ -49,6 +49,20 @@ def build_workflow(
     }
     if params.source_image is not None:
         workflow["sourceImageHash"] = _short_hash(params.source_image)
+    if params.source_audio is not None:
+        workflow["sourceAudioHash"] = _short_hash(params.source_audio)
+    if params.mode == "audio2video":
+        workflow["provenance"] = {
+            "generatedBy": "nexus",
+            "local": True,
+            "neverLeftDevice": True,
+            "weightRepo": params.weight_repo or "meituan-longcat/LongCat-Video-Avatar-1.5",
+            "weightVariant": "int8",
+            "modelId": params.model_id,
+        }
+    if params.continue_from:
+        workflow["continueFrom"] = params.continue_from
+        workflow["conditionedOnPriorEndingFrames"] = True
     return workflow
 
 

@@ -84,6 +84,25 @@ describe("McpManager", () => {
     expect(registry.has("mcp:test-server/search" as McpToolName)).toBe(true);
   });
 
+  it("does not register a user-denied tool (v1.18.0 Phase 3 OW-A5)", async () => {
+    const configJson = JSON.stringify({ servers: [TEST_CONFIG] });
+    const denyJson = JSON.stringify({
+      version: 1,
+      servers: { "test-server": { deniedTools: ["search"] } },
+    });
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockImplementation((p) => {
+      return String(p).includes("mcp-tool-deny.json") ? denyJson : configJson;
+    });
+
+    const registry = new ToolRegistry();
+    const manager = new McpManager(registry, "/workspace");
+    await manager.initialize();
+
+    expect(registry.has("mcp:test-server/search" as McpToolName)).toBe(false);
+    expect(manager.getAllToolMetadata()).toEqual([]);
+  });
+
   it("getAllToolMetadata() returns DynamicToolMetadata for connected tools", async () => {
     const configJson = JSON.stringify({ servers: [TEST_CONFIG] });
     vi.mocked(fs.existsSync).mockReturnValue(true);

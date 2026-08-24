@@ -78,4 +78,34 @@ describe("createIpcModelsClient", () => {
     await handle.done;
     expect(progress).toEqual([{ id: "m", bytes: 50, total: 100 }]);
   });
+
+  it("install rejects when a drain event is an error", async () => {
+    stub((method) => {
+      if (method === "models.install") return { jobId: "job-err" };
+      if (method === "models.install.drainEvents") {
+        return { events: [{ kind: "error", id: "m", message: "disk full" }], done: false };
+      }
+      throw new Error(method);
+    });
+    const handle = createIpcModelsClient().install("m", () => {});
+    await expect(handle.done).rejects.toThrow(/disk full/);
+  });
+
+  it("install cancel aborts a running job", async () => {
+    const calls: string[] = [];
+    stub((method) => {
+      calls.push(method);
+      if (method === "models.install") return { jobId: "job-c" };
+      if (method === "models.install.drainEvents") {
+        return { events: [{ kind: "progress", id: "m", bytes: 1, total: 10 }], done: false };
+      }
+      if (method === "models.install.cancel") return { ok: true };
+      throw new Error(method);
+    });
+    const handle = createIpcModelsClient().install("m", () => {});
+    await new Promise((r) => setTimeout(r, 500));
+    handle.cancel();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls).toContain("models.install.cancel");
+  });
 });

@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
+import { useMotionActivity, useReducedMotion } from "../motion";
 import {
   type ConstellationNode,
   clampDpr,
   computeNodeCount,
   createNodes,
   drawFrame,
-  prefersReducedMotion,
   stepNodes,
 } from "./constellation";
 
@@ -22,7 +22,9 @@ export interface ConstellationBackgroundProps {
  * Full-viewport animated constellation background (v1.9.0 T203). Ported from
  * the north-star guide's canvas routine via the pure `./constellation` engine.
  *
- * - Honors `prefers-reduced-motion`: renders a single static frame, no loop.
+ * - Honors `prefers-reduced-motion` via `useReducedMotion`: renders a single
+ *   static frame, no loop.
+ * - Recedes (opacity token) when a surface registers an active effect.
  * - Pauses the animation when the tab/window is hidden and resumes on show.
  * - Caps devicePixelRatio at 2 to bound fill cost on hi-DPI displays.
  * - `pointer-events: none` + `aria-hidden`: purely decorative, never blocks UI.
@@ -34,7 +36,12 @@ export function ConstellationBackground({
   ...rest
 }: ConstellationBackgroundProps): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const reduce = useReducedMotion();
+  const { isAmbientReceded } = useMotionActivity();
   const testId = rest["data-testid"] ?? "constellation";
+  const classes = ["nexus-constellation", isAmbientReceded ? "nexus-ambient-recede" : "", className]
+    .filter(Boolean)
+    .join(" ");
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -47,7 +54,6 @@ export function ConstellationBackground({
     let dpr = 1;
     let raf = 0;
     let disposed = false;
-    const reduce = prefersReducedMotion();
 
     const resize = (): void => {
       dpr = clampDpr(window.devicePixelRatio || 1);
@@ -108,14 +114,16 @@ export function ConstellationBackground({
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [reduce]);
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
       data-testid={testId}
-      className={className}
+      data-reduced-motion={reduce ? "true" : "false"}
+      data-ambient-receded={isAmbientReceded ? "true" : "false"}
+      className={classes}
       style={{
         position: "fixed",
         inset: 0,
@@ -123,7 +131,7 @@ export function ConstellationBackground({
         height: "100%",
         zIndex,
         pointerEvents: "none",
-        opacity,
+        opacity: isAmbientReceded ? "var(--motion-recede-opacity)" : opacity,
       }}
     />
   );

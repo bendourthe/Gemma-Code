@@ -5,7 +5,7 @@
  */
 
 import { ipcCall } from "../../lib/ipc";
-import type { ServingClient, ServingStatusDto } from "./servingTypes";
+import type { AcpStatusDto, ServingClient, ServingStatusDto } from "./servingTypes";
 
 export function createIpcServingClient(): ServingClient {
   return {
@@ -17,6 +17,18 @@ export function createIpcServingClient(): ServingClient {
 
     async setEnabled(enabled: boolean): Promise<ServingStatusDto> {
       const reply = await ipcCall<ServingStatusDto>("serving.setEnabled", { enabled });
+      if (!reply.ok) throw new Error(reply.message);
+      return reply.value;
+    },
+
+    async acpStatus(): Promise<AcpStatusDto> {
+      const reply = await ipcCall<AcpStatusDto>("acp.status", {});
+      if (!reply.ok) throw new Error(reply.message);
+      return reply.value;
+    },
+
+    async setAcpEnabled(enabled: boolean): Promise<AcpStatusDto> {
+      const reply = await ipcCall<AcpStatusDto>("acp.setEnabled", { enabled });
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;
     },

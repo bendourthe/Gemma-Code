@@ -235,6 +235,11 @@ export interface SsrfFetchOptions extends RequestInit {
    * the request is aborted and an error is thrown. Defaults to 5 MB.
    */
   readonly maxBodyBytes?: number;
+  /**
+   * v1.19.1 Phase 2.7 -- injectable fetch (tests pin DNS rebinding). Defaults
+   * to global fetch. Not forwarded into the RequestInit rest.
+   */
+  readonly fetchImpl?: typeof fetch;
 }
 
 /** Default body-size cap for `fetchWithSsrfGuard`. */
@@ -316,6 +321,11 @@ async function _enforceBodyCap(
  * SSRF check. Uses `redirect: "manual"` so each 3xx hop is inspected. The
  * final response body is bounded to `maxBodyBytes` (default 5 MB) to prevent
  * memory-exhaustion DoS via crafted large responses.
+ *
+ * v1.19.1 Phase 2.7 -- DNS pinning: resolve the hostname once, validate every
+ * address, then connect to the first public IP rather than re-resolving the
+ * name at connect time (closes the DNS-rebinding TOCTOU). Redirect hops are
+ * pinned independently with their own single lookup.
  */
 export async function fetchWithSsrfGuard(
   initialUrl: string,
@@ -326,21 +336,26 @@ export async function fetchWithSsrfGuard(
     lookup,
     deniedDestinations,
     maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
+    fetchImpl,
     ...fetchInit
   } = init;
+  const doFetch = fetchImpl ?? fetch;
 
   let url = initialUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (await isSsrfBlocked(url, { lookup, deniedDestinations })) {
+    const pinned = await pinValidatedUrl(url, { lookup, deniedDestinations });
+    if (!pinned) {
       throw new Error(`URL is blocked by SSRF check: "${url}"`);
     }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const headers = mergeHostHeader(fetchInit.headers, pinned.hostHeader);
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await doFetch(pinned.fetchUrl, {
         ...fetchInit,
+        headers,
         redirect: "manual",
         signal: controller.signal,
       });
@@ -363,4 +378,67 @@ export async function fetchWithSsrfGuard(
   }
 
   throw new Error(`Too many redirects (>${MAX_REDIRECTS}) starting from "${initialUrl}"`);
+}
+
+function mergeHostHeader(
+  existing: HeadersInit | undefined,
+  host: string,
+): Headers {
+  const headers = new Headers(existing);
+  if (!headers.has("host") && !headers.has("Host")) {
+    headers.set("Host", host);
+  }
+  return headers;
+}
+
+/**
+ * Resolve `rawUrl` once, reject if any address is private, and return a
+ * fetch URL whose hostname is the first public IP plus the original Host
+ * header value. Returns null when the URL is blocked.
+ */
+export async function pinValidatedUrl(
+  rawUrl: string,
+  options?: SsrfCheckOptions,
+): Promise<{ fetchUrl: string; hostHeader: string; pinnedIp: string } | null> {
+  if (isSsrfBlockedSync(rawUrl, options)) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (isLiteralIp(host)) {
+    if (isBlockedIp(host)) return null;
+    return { fetchUrl: rawUrl, hostHeader: parsed.host, pinnedIp: host };
+  }
+
+  const lookup = options?.lookup ?? defaultDnsLookup;
+  let addresses: readonly string[];
+  try {
+    addresses = await lookup(host);
+  } catch {
+    return null;
+  }
+  if (addresses.length === 0) return null;
+  for (const ip of addresses) {
+    if (isBlockedIp(ip)) return null;
+  }
+  const pinnedIp = addresses[0]!;
+
+  const pinned = new URL(rawUrl);
+  pinned.hostname = pinnedIp;
+  return {
+    fetchUrl: pinned.toString(),
+    hostHeader: parsed.host,
+    pinnedIp,
+  };
+}
+
+function isLiteralIp(host: string): boolean {
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return true;
+  if (host.includes(":")) return true;
+  return false;
 }

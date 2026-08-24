@@ -7,6 +7,7 @@ import {
   isExtremeLowBitSpec,
   parseOllamaVersion,
   runtimeSupportsExtremeLowBit,
+  ollamaVersionAtLeast,
 } from "../../../../core/registry/extremeLowBit.js";
 
 function spec(overrides: Partial<ModelSpec>): ModelSpec {
@@ -33,6 +34,23 @@ describe("extremeLowBit -- quant classification (Q1)", () => {
     expect(isExtremeLowBitQuant("BF16")).toBe(false);
     expect(isExtremeLowBitQuant(undefined)).toBe(false);
   });
+
+  it("classifies Unsloth UD / MXFP4-style labels as extreme-low-bit (v1.18 LG-A2)", () => {
+    expect(isExtremeLowBitQuant("UD-IQ1_S")).toBe(true);
+    expect(isExtremeLowBitQuant("UD-IQ1_M")).toBe(true);
+    expect(isExtremeLowBitQuant("UD-IQ2_XXS")).toBe(true);
+    expect(isExtremeLowBitQuant("ud-iq2_m")).toBe(true);
+    expect(isExtremeLowBitQuant("UD-Q2_K_XL")).toBe(true);
+    expect(isExtremeLowBitQuant("MXFP4_MOE")).toBe(true);
+    expect(isExtremeLowBitQuant("UD-IQ2_XS")).toBe(true);
+  });
+
+  it("unknown labels stay fail-closed (not treated as a supported new tier)", () => {
+    expect(isExtremeLowBitQuant("Q5_K_M")).toBe(false);
+    expect(isExtremeLowBitQuant("mystery-quant")).toBe(false);
+    expect(EXTREME_LOW_BIT_MIN_OLLAMA_VERSION).toBe("999.0.0");
+    expect(runtimeSupportsExtremeLowBit("0.32.0")).toBe(false);
+  });
 });
 
 describe("extremeLowBit -- runtime probe (EM007)", () => {
@@ -51,6 +69,13 @@ describe("extremeLowBit -- runtime probe (EM007)", () => {
     expect(runtimeSupportsExtremeLowBit(EXTREME_LOW_BIT_MIN_OLLAMA_VERSION)).toBe(true);
     const [maj] = parseOllamaVersion(EXTREME_LOW_BIT_MIN_OLLAMA_VERSION) ?? [0, 0, 0];
     expect(runtimeSupportsExtremeLowBit(`${maj + 1}.0.0`)).toBe(true);
+  });
+  it("ollamaVersionAtLeast compares catalog min versions (v2.1.0)", () => {
+    expect(ollamaVersionAtLeast("0.32.9", "0.32.9")).toBe(true);
+    expect(ollamaVersionAtLeast("0.33.0", "0.32.9")).toBe(true);
+    expect(ollamaVersionAtLeast("0.32.8", "0.32.9")).toBe(false);
+    expect(ollamaVersionAtLeast(null, "0.32.9")).toBe(false);
+    expect(ollamaVersionAtLeast("0.32.7", "nope")).toBe(true);
   });
 });
 

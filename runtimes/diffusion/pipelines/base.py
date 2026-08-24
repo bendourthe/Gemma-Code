@@ -17,12 +17,21 @@ callback (no torch import).
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 
-from .. import device
+from .. import budget, device
 from . import params, workflow_metadata
+
+
+class RuntimeNotReady(RuntimeError):
+    """GPU, weights, or diffusion deps are missing. Fail before a fake complete."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.error = "runtime-not-ready"
 
 
 @dataclass(frozen=True)
@@ -66,7 +75,25 @@ class PipelineRunner:
         except params.ParamsError as exc:
             return {"ok": False, "error": "invalid-params", "message": str(exc)}
         info = device.detect()
-        decision = device.choose_offload(info.vram_free_gb, self.model_size_gb)
+        if parsed.max_cache_vram_gb is not None:
+            mem = budget.MemoryBudget(
+                max_cache_vram_gb=parsed.max_cache_vram_gb,
+                max_cache_ram_gb=parsed.max_cache_ram_gb or parsed.max_cache_vram_gb,
+                working_mem_reserve_gb=parsed.working_mem_reserve_gb or 0,
+                layer_streaming=parsed.layer_streaming,
+            )
+            ok, errors, _warnings = budget.validate_budget(mem, self.model_size_gb)
+            if not ok:
+                return {
+                    "ok": False,
+                    "error": "invalid-params",
+                    "message": "; ".join(errors),
+                }
+        decision = device.choose_offload(
+            info.vram_free_gb,
+            self.model_size_gb,
+            layer_streaming=parsed.layer_streaming,
+        )
         if decision.strategy == "insufficient_vram":
             return {
                 "ok": False,
@@ -81,6 +108,12 @@ class PipelineRunner:
         )
         try:
             output = self.execute(ctx)
+        except RuntimeNotReady as exc:
+            return {
+                "ok": False,
+                "error": getattr(exc, "error", "runtime-not-ready"),
+                "message": str(exc),
+            }
         except Exception as exc:  # noqa: BLE001 - surface as JSON-RPC error
             return {
                 "ok": False,
@@ -158,7 +191,47 @@ def diffusers_available() -> bool:
         return False
 
 
+def allow_stub() -> bool:
+    """True in pytest and when an operator explicitly opts into stub PNGs."""
+    flag = os.environ.get("NEXUS_DIFFUSION_ALLOW_STUB", "").strip().lower()
+    if flag in {"1", "true", "yes"}:
+        return True
+    return bool(os.environ.get("PYTEST_CURRENT_TEST"))
+
+
+def fail_closed_execute(mode_label: str) -> ExecuteFn:
+    """Refuse to complete with a decorative 1x1 PNG on a real host."""
+
+    def execute(_ctx: ExecutionContext) -> PipelineOutput:
+        raise RuntimeNotReady(
+            "image runtime is not ready: GPU or diffusion weights unavailable"
+        )
+
+    return execute
+
+
+def can_run_real() -> bool:
+    if not diffusers_available():
+        return False
+    try:
+        import torch  # type: ignore[import-not-found]
+
+        if getattr(torch, "cuda", None) and torch.cuda.is_available():
+            return True
+    except Exception:
+        return False
+    flag = os.environ.get("NEXUS_DIFFUSION_ALLOW_CPU", "").strip().lower()
+    return flag in {"1", "true", "yes"}
+
+
 def select_executor(mode: str, real: Optional[ExecuteFn] = None) -> ExecuteFn:
-    if real is not None and diffusers_available():  # pragma: no cover - GPU only
-        return real
-    return stub_execute(mode)
+    """Pick real / stub / fail-closed at call time, not at import time."""
+
+    def dispatch(ctx: ExecutionContext) -> PipelineOutput:
+        if real is not None and can_run_real():  # pragma: no cover - GPU only
+            return real(ctx)
+        if allow_stub():
+            return stub_execute(mode)(ctx)
+        return fail_closed_execute(mode)(ctx)
+
+    return dispatch

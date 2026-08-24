@@ -16,28 +16,28 @@ export interface ModuleDescriptor {
 export const MODULES: Record<ModuleId, ModuleDescriptor> = {
   chatbot: {
     id: "chatbot",
-    label: "Local Chatbot",
+    label: "Chatbot",
     route: "/chatbot",
     accentVar: "--accent-chatbot",
     accentSoftVar: "--accent-chatbot-soft",
   },
   coding: {
     id: "coding",
-    label: "Agentic AI Coding",
+    label: "Agents",
     route: "/coding",
     accentVar: "--accent-coding",
     accentSoftVar: "--accent-coding-soft",
   },
   image: {
     id: "image",
-    label: "Image Studio",
+    label: "Images",
     route: "/images",
     accentVar: "--accent-image",
     accentSoftVar: "--accent-image-soft",
   },
   video: {
     id: "video",
-    label: "Video Lab",
+    label: "Videos",
     route: "/videos",
     accentVar: "--accent-video",
     accentSoftVar: "--accent-video-soft",

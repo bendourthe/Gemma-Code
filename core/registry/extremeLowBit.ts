@@ -28,13 +28,34 @@ export const EXTREME_LOW_BIT_QUANTS: readonly string[] = [
   "I2_S",
   "1bit",
   "ternary",
+  // v1.18.0 Phase 3 (LG-A2) -- Unsloth UD dynamic / MXFP4-style labels. Recognizing
+  // these lets the gate REASON about them (and block them while EM.P3 is closed).
+  "UD-IQ1_S",
+  "UD-IQ1_M",
+  "UD-IQ2_XXS",
+  "UD-IQ2_M",
+  "UD-Q2_K_XL",
+  "MXFP4_MOE",
 ];
 
-/** True when `quant` names a BitNet-class ternary / 1-bit type. */
+/**
+ * Prefixes that also classify as extreme-low-bit so UD-IQ2_* / MXFP4_* family
+ * variants the catalog has not enumerated yet are still gated, not silently
+ * treated as ordinary 4-bit-and-up.
+ */
+const EXTREME_LOW_BIT_PREFIXES: readonly string[] = [
+  "ud-iq1",
+  "ud-iq2",
+  "ud-q2",
+  "mxfp4",
+];
+
+/** True when `quant` names a BitNet-class ternary / 1-bit / UD-dynamic type. */
 export function isExtremeLowBitQuant(quant: string | undefined): boolean {
   if (!quant) return false;
   const q = quant.toLowerCase();
-  return EXTREME_LOW_BIT_QUANTS.some((known) => known.toLowerCase() === q);
+  if (EXTREME_LOW_BIT_QUANTS.some((known) => known.toLowerCase() === q)) return true;
+  return EXTREME_LOW_BIT_PREFIXES.some((prefix) => q === prefix || q.startsWith(`${prefix}_`) || q.startsWith(`${prefix}-`));
 }
 
 /**
@@ -77,6 +98,22 @@ export function runtimeSupportsExtremeLowBit(ollamaVersion: string | null | unde
   const v = parseOllamaVersion(ollamaVersion);
   const min = parseOllamaVersion(EXTREME_LOW_BIT_MIN_OLLAMA_VERSION);
   if (!v || !min) return false;
+  return gte(v, min);
+}
+
+/**
+ * v2.1.0 Phase 1 -- compare a detected Ollama version against a catalog
+ * `minOllamaVersion`. Returns false when `current` is missing or unparseable
+ * (fail-closed for runtime hide). A malformed `minimum` does not hide.
+ */
+export function ollamaVersionAtLeast(
+  current: string | null | undefined,
+  minimum: string,
+): boolean {
+  const min = parseOllamaVersion(minimum);
+  if (!min) return true;
+  const v = parseOllamaVersion(current);
+  if (!v) return false;
   return gte(v, min);
 }
 

@@ -1,3 +1,324 @@
+# Unreleased
+
+Post-cut work on `develop` after tag `v2.2.5`. No version bump. No retag.
+
+# [2.2.5](https://github.com/bendourthe/Nexus-AI/compare/v2.1.0...v2.2.5) (2026-08-23)
+
+Field-repair cycle after the v2.1.0 cut (plans v2.2.0 through v2.2.5, one tag). Local-only. Packaged Explorer soak and live GPU generate remain unproven (DF-2, DF-4). The installer desktop pin stays `v2.1.0` until this tag's bundle assets attach.
+
+This release changes no opt-in capability, installer flag, or host surface.
+
+
+### Features
+
+* **v2.2:** repair sidecar packaging so the Node backend can start, and show every installed model honestly ([bd63e52](https://github.com/bendourthe/Nexus-AI/commit/bd63e52), [972ccd0](https://github.com/bendourthe/Nexus-AI/commit/972ccd0), [6362a90](https://github.com/bendourthe/Nexus-AI/commit/6362a90))
+* **v2.2:** provision the Nexus-Hub harness in-app and persist chats with auto-titles and a rebuilt composer ([8bacbd2](https://github.com/bendourthe/Nexus-AI/commit/8bacbd2), [1c4e49d](https://github.com/bendourthe/Nexus-AI/commit/1c4e49d))
+* **v2.2:** switch models on submit with a single-GPU occupancy policy, not on tab click ([056dab4](https://github.com/bendourthe/Nexus-AI/commit/056dab4), [25a94f7](https://github.com/bendourthe/Nexus-AI/commit/25a94f7), [6310721](https://github.com/bendourthe/Nexus-AI/commit/6310721))
+* **v2.2:** modernize the shell and Settings, retire User Profile, and add local data transfer ([530d5c2](https://github.com/bendourthe/Nexus-AI/commit/530d5c2), [0a22f53](https://github.com/bendourthe/Nexus-AI/commit/0a22f53), [06a8f3a](https://github.com/bendourthe/Nexus-AI/commit/06a8f3a))
+* **v2.2.3:** glass chrome, durable chat memory, occupancy on submit, and a workspace-aware Hub harness ([a443f07](https://github.com/bendourthe/Nexus-AI/commit/a443f07), [6fbcd1c](https://github.com/bendourthe/Nexus-AI/commit/6fbcd1c), [8af593a](https://github.com/bendourthe/Nexus-AI/commit/8af593a))
+* **v2.2.4:** open Chatbot on cold start, bind pickers to this-install snapshot, and show the user bubble before residency errors ([a7d8f43](https://github.com/bendourthe/Nexus-AI/commit/a7d8f43), [7f71bc7](https://github.com/bendourthe/Nexus-AI/commit/7f71bc7), [793b08a](https://github.com/bendourthe/Nexus-AI/commit/793b08a))
+* **v2.2.4:** compact studio media, rebuild Settings Models as the installer catalog, and let Hub update finish without raising every RPC timeout ([ecf8c35](https://github.com/bendourthe/Nexus-AI/commit/ecf8c35), [0077ac6](https://github.com/bendourthe/Nexus-AI/commit/0077ac6), [fd82255](https://github.com/bendourthe/Nexus-AI/commit/fd82255))
+* **v2.2.5:** fold catalog model ids onto Ollama tags before chat start ([8290192](https://github.com/bendourthe/Nexus-AI/commit/8290192))
+* **v2.2.5:** fail closed when diffusion cannot return usable bytes ([5cd6892](https://github.com/bendourthe/Nexus-AI/commit/5cd6892))
+* **v2.2.5:** match Settings Models scroll, badges, and installer chips ([37953b9](https://github.com/bendourthe/Nexus-AI/commit/37953b9))
+* **v2.2.5:** add chat row icons and a chats-pane collapse pill ([bb8561e](https://github.com/bendourthe/Nexus-AI/commit/bb8561e))
+* **v2.2.5:** pack and test Hub latest instead of a frozen 3.12.0 snapshot ([bea7594](https://github.com/bendourthe/Nexus-AI/commit/bea7594))
+* add Qwen 3.5 4B/9B, gpt-oss 20B, Qwen3-Coder 30B, EmbeddingGemma, and Qwen3-Embedding 0.6B to the installer catalog
+* drop pre-2025 installer-catalog opt-ins that are not required or recommended, retire Qwen 2.5 Coder / DeepSeek Coder V2, and sort remaining cards by recommendation then newest release then capability
+
+
+### Bug Fixes
+
+* **v2.1:** close remaining code-completeable known-gaps without claiming live GPU passes ([c366700](https://github.com/bendourthe/Nexus-AI/commit/c366700))
+* **v2.2.3:** make studio generation honest and repair chat explorer startup ([d072d04](https://github.com/bendourthe/Nexus-AI/commit/d072d04), [b6bf877](https://github.com/bendourthe/Nexus-AI/commit/b6bf877))
+* **v2.2.4:** treat unknown models as missing; do not invent Compatible or a default `gemma4:e4b` fallback ([b6c535e](https://github.com/bendourthe/Nexus-AI/commit/b6c535e))
+* **v2.2.5:** include `catalog.json` in the core TypeScript project ([2884710](https://github.com/bendourthe/Nexus-AI/commit/2884710))
+* show the Nexus mark on the Windows installer taskbar instead of the generic exe icon
+* upgrade the installer Ollama pin to v0.32.15 so Gemma 4 12B can pull (HTTP 412 on older hosts)
+* look up the Windows desktop binary in `%LOCALAPPDATA%\\Nexus AI Studio` (Tauri productName) instead of `%LOCALAPPDATA%\\Nexus\\Nexus.exe`
+
+
+### Documentation
+
+* **v2.2.5:** reconcile known-gaps and CI for first-successful-generation ([e07cfb5](https://github.com/bendourthe/Nexus-AI/commit/e07cfb5))
+* track v2.2.6 session-memory and v2.2.7 context-meter plans (not started) ([6f17a4e](https://github.com/bendourthe/Nexus-AI/commit/6f17a4e))
+
+Plans: [v2.2.0](docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [v2.2.4](docs/v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [v2.2.5](docs/v2/v2.2/plans/v2.2.5-first-successful-generation.md). Gaps: [docs/v2/v2.2/known-gaps.md](docs/v2/v2.2/known-gaps.md).
+
+# [2.1.0](https://github.com/bendourthe/Nexus-AI/compare/v2.0.0...v2.1.0) (2026-08-20)
+
+
+### Features
+
+* **v2.1.0:** add Muse Glimmer and Nemotron Lightning catalog and harness profiles ([d467e88](https://github.com/bendourthe/Nexus-AI/commit/d467e88))
+* **v2.1.0:** add cheap-first worker-to-strong routing with GPU swap gates ([081d222](https://github.com/bendourthe/Nexus-AI/commit/081d222))
+* **v2.1.0:** embed generation provenance and persist the studio queue ([2421139](https://github.com/bendourthe/Nexus-AI/commit/2421139))
+* **v2.1.0:** add catalog vision budgets and SAM2 replace-the-X editing ([c831a54](https://github.com/bendourthe/Nexus-AI/commit/c831a54))
+* **v2.1.0:** add license-gated Unsloth Core fine-tuning pillar ([1797afb](https://github.com/bendourthe/Nexus-AI/commit/1797afb))
+* **v2.1.0:** add signed audit log, JSON CLI, and diffusion VRAM knobs ([33f32b3](https://github.com/bendourthe/Nexus-AI/commit/33f32b3))
+
+
+### Bug Fixes
+
+* **v2.1.0:** close code-completeable known-gaps without claiming live GPU passes ([04900fe](https://github.com/bendourthe/Nexus-AI/commit/04900fe))
+
+
+### Documentation
+
+* **v2.1.0:** reconcile known-gaps and document CI hardware gates ([d22cc48](https://github.com/bendourthe/Nexus-AI/commit/d22cc48))
+
+Open local-AI wave. Local-only after weight download. `localEval.status` is `not_run`; `recommended.json` is unchanged. Plan: [v2.1.0](docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md).
+
+
+### Opt-in surfaces
+
+#### Local fine-tuning (Settings > Fine-tuning)
+
+- Activation: Settings > Fine-tuning, then Provision. Default is off (`opt_in=False`; not on the installer `chain_for`). Live GPU train also needs `NEXUS_TUNING_LIVE=1`.
+- Validation: after provision, Settings shows provision status ready (or unsupported with a reason). A stub job (`--stub`) completes without a GPU. `NEXUS_TUNING_LIVE=1` is required for a real Unsloth train.
+- Rollback: do not provision. If already provisioned, leave the venv unused; jobs are cancelled from the Fine-tuning tab. Unsloth Studio/CLI extras are never installed.
+- Authority: this does not add training to the default installer, does not import GGUF into Ollama unless you opt in, does not skip `redactSecrets` on datasets, and does not make zoo AGPL (zoo is LGPL).
+- Docs: [README](README.md#whats-new-in-v210), [docs/v2/v2.1/development/unsloth-license-boundary.md](docs/v2/v2.1/development/unsloth-license-boundary.md), [docs/v2/v2.1/known-gaps.md](docs/v2/v2.1/known-gaps.md).
+
+#### JSON CLI loopback (`/nexus/*`)
+
+- Activation: start the desktop sidecar. JSON CLI binds `127.0.0.1:11500` (or `NEXUS_SERVING_PORT`) even when Settings > Local API server is off. OpenAI `/v1` stays off until that toggle is on. Auth is `nexus.serving.token`, `--token`, or `NEXUS_SERVING_TOKEN`.
+- Validation: `nexus models list` returns JSON, or `curl -H "Authorization: Bearer <token>" http://127.0.0.1:11500/nexus/models`. Schema errors exit 2 with no HTTP call.
+- Rollback: quit the app (no extra port once the sidecar stops). Local API `/v1` is a separate toggle and can stay off.
+- Authority: loopback only, bearer required. This does not enable `/v1` completions, does not bind a non-loopback host, and does not skip ConfirmationGate on coding tools invoked through `nexus session send`.
+- Docs: [docs/v2/v2.1/development/json-cli.md](docs/v2/v2.1/development/json-cli.md).
+
+#### parse_document Settings checkbox
+
+- Activation: Settings > Security, **Enable parse_document for coding sessions**, which writes `nexus.coding.parseDocument.enabled` in `~/.nexus/settings.json`. Env `NEXUS_PARSE_DOCUMENT=1` still wins. Default is false.
+- Validation: with the box on, `coding.parseDocument.status` returns `{ enabled: true }` and the agent tool is registered. With it off, the tool is absent.
+- Rollback: uncheck the box or set the key to false / `NEXUS_PARSE_DOCUMENT=0`. No extra files are written.
+- Authority: this only registers the governed agent tool. It does not install Docling, does not skip CONFIRM or secret redaction, and does not ingest into a sidecar MemoryStore (VS Code ingest remains a second flag).
+- Docs: [docs/v1/v1.20/known-gaps.md](docs/v1/v1.20/known-gaps.md).
+
+# [2.0.0](https://github.com/bendourthe/Nexus-AI/compare/v1.20.0...v2.0.0) (2026-08-20)
+
+
+### Features
+
+* **v2.0.0:** add Chat vision routing, local STT, and an offline voice loop ([4767689](https://github.com/bendourthe/Nexus-AI/commit/4767689))
+* **v2.0.0:** add DANGEROUS isolated-profile browser tools for the coding agent ([30fbcaa](https://github.com/bendourthe/Nexus-AI/commit/30fbcaa))
+* **v2.0.0:** add Video Lab clip continuation and a gated local avatar mode ([59440cb](https://github.com/bendourthe/Nexus-AI/commit/59440cb))
+* **v2.0.0:** add ProjectScope, durable sandbox, and advisory memory kinds ([21089c8](https://github.com/bendourthe/Nexus-AI/commit/21089c8))
+
+
+### Documentation
+
+* **v2.0.0:** reconcile known-gaps and document CI hardware gates ([07ec7be](https://github.com/bendourthe/Nexus-AI/commit/07ec7be))
+
+This is the convergence cut of the v1.18-v2.0 plan family. Earlier changelog sections already record [v1.18.0](#1180) (harness, ask inbox, ACP, OS sandbox), [v1.19.0](#1190) (LFM2.5-2.6B), [v1.19.1](#1191) (loop guards and posture dial), [v1.19.2](#1192) (modalities, Hermes, Inkling), and [v1.20.0](#1200) (document ingest). Plans: [v1.18.0](docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md), [v1.19.0](docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md), [v1.19.1](docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md), [v1.19.2](docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md), [v2.0.0](docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md).
+
+
+### Opt-in surfaces
+
+#### Chat voice loop (Local Chatbot "Voice loop" checkbox)
+
+- Activation: in Local Chatbot Explorer, check **Voice loop**. Default is off. Install catalog models `faster-whisper-large-v3` (STT) and `kokoro-82m` (TTS) through the installer for live engines. CI uses `NEXUS_AUDIO_STUB=1`.
+- Validation: with the box on, the capture indicator reads "Recording -- microphone is open" while PTT or VAD is capturing. With the box off, PTT and VAD controls stay disabled.
+- Rollback: uncheck **Voice loop**. The reducer resets. Installed weights stay on disk until you remove them.
+- Authority: this only opens the local mic-to-STT-to-TTS loop. It does not send audio off-device, does not enable coding tools, does not skip secret redaction on transcripts, and does not register a network port.
+- Docs: [README](README.md#whats-new-in-v200), [docs/v2/v2.0/known-gaps.md](docs/v2/v2.0/known-gaps.md) (DF-1, DF-3, DF-4).
+
+#### Coding browser tools (local Playwright)
+
+- Activation: the five `browser_*` tools are DANGEROUS and always confirm. Live Chromium is a local install: `npx playwright@1.55.0 install chromium`. There is no package.json Playwright dependency. Sidecar headless registers the family when `browserEnabled` is true (sidecar default).
+- Validation: a confirmed `browser_navigate` to a local HTML file plus `browser_aria_snapshot` returns labelled `[origin:browser_snapshot]` text. Without Playwright, CI still passes on `InMemoryBrowser`. Set `NEXUS_BROWSER_PLAYWRIGHT=1` for the live skip-gated tests.
+- Rollback: do not approve the DANGEROUS prompt. Uninstall Playwright/Chromium if you installed them. Isolated profiles live under `~/.nexus/browser-profiles/` and are not your default Chrome/Edge profile.
+- Authority: this does not grant the user's logged-in browser, does not lower PermissionTiers, does not auto-approve, and does not treat page content as instructions (snapshots are screened).
+- Docs: [docs/v2/v2.0/browser-surface-security.md](docs/v2/v2.0/browser-surface-security.md), [docs/v2/v2.0/ci-hardware-gates.md](docs/v2/v2.0/ci-hardware-gates.md).
+
+#### Video Lab local talking-head (`longcat-video-avatar-1.5`)
+
+- Activation: Hardware class `diffusion-pro` (about 20 GB+ VRAM), install catalog id `longcat-video-avatar-1.5` (official `meituan-longcat` INT8, sha256-pinned), attach a photo plus audio, and check **Generate talking-head locally. Photo and audio never leave this device.** IPC field `confirmLocalAvatar` must be true.
+- Validation: below `diffusion-pro` the checkbox is hidden and `diffusion.video.audio2video` is refused. With confirm false the request is rejected. Workflow JSON records `provenance.neverLeftDevice`.
+- Rollback: uncheck the confirm box; do not install the weights. Delete `~/.nexus/models/weights/longcat-video-avatar-1.5/` if already pulled. Continuation (clip chaining) is separate and does not require this catalog id.
+- Authority: this does not upload photo or audio, does not enable community FP8 re-quants, does not vendor LongCat DiT Python (DF-8 stub until a scanned import), and does not skip the VRAM floor.
+- Docs: [README](README.md#whats-new-in-v200), [docs/v2/v2.0/known-gaps.md](docs/v2/v2.0/known-gaps.md) (DF-8, DF-9).
+
+# [1.20.0](https://github.com/bendourthe/Nexus-AI/compare/v1.19.2...v1.20.0) (2026-08-19)
+
+
+
+### Features
+
+* **v1.20.0:** wire parse_document on sidecar and VS Code hosts ([318e944](https://github.com/bendourthe/Nexus-AI/commit/318e944))
+* **v1.20.0:** add magic-byte document router and native Office ingest ([374f227](https://github.com/bendourthe/Nexus-AI/commit/374f227))
+* **v1.20.0:** let Coding attach and parse documents like Chat ([a20c21a](https://github.com/bendourthe/Nexus-AI/commit/a20c21a))
+
+
+### Bug Fixes
+
+* **ci:** stop Linux hash_file mkdir on /workspace and key uv cache on pyproject.toml ([756153f](https://github.com/bendourthe/Nexus-AI/commit/756153f))
+
+
+### Documentation
+
+* **v1.20.0:** add Docling comparison and document-ingest plan ([a472acd](https://github.com/bendourthe/Nexus-AI/commit/a472acd))
+* **v1.20.0:** defer Docling layout engine after incomplete OCR bake-off ([c4530f5](https://github.com/bendourthe/Nexus-AI/commit/c4530f5))
+* **v1.20.0:** close document-ingest cycle with known-gaps and CI notes ([b24b319](https://github.com/bendourthe/Nexus-AI/commit/b24b319))
+
+
+### Opt-in surfaces
+
+#### parse_document agent tool (`nexus.coding.parseDocument.enabled`)
+
+- Activation: set `"nexus.coding.parseDocument.enabled": true` in VS Code settings, or `NEXUS_PARSE_DOCUMENT=1` for sidecar/ACP/scheduler, or the same JSON key in `~/.nexus/settings.json`. Default is false. Optional memory ingest is a second flag: `"nexus.coding.parseDocument.memoryIngest.enabled": true` (VS Code + MemoryStore only).
+- Validation: with the tool flag on, a coding agent can call `parse_document` on a workspace PDF, image, or Office file and the tool appears in the catalog. With the flag off, `get_tool_schema` / the tool list omit it. Chat and Coding file attach still work without this flag.
+- Rollback: set the setting to false or `NEXUS_PARSE_DOCUMENT=0`. The tool is unregistered on the next session. No extra files are written. Memory rows already stored stay until you delete them.
+- Authority: this only registers the governed agent tool. It does not install Docling, does not add torch to the portable OCR venv, does not open a network port, does not auto-prompt parsed text into a model, and does not skip CONFIRM / secret redaction / inbound classification. Chat and Coding attach are separate UI paths and are not this flag.
+- Docs: [README](README.md#whats-new-in-v1200), [ARCHITECTURE.md](ARCHITECTURE.md#document-ingest-v1200), [docs/v1/v1.20/known-gaps.md](docs/v1/v1.20/known-gaps.md).
+
+# [1.19.2](https://github.com/bendourthe/Nexus-AI/compare/v1.19.1...v1.19.2) (2026-08-19)
+
+
+### Features
+
+* **v1.19.2:** add Hermes, Inkling, modalities, and weight variants ([17a0206](https://github.com/bendourthe/Nexus-AI/commit/17a0206))
+
+
+### Opt-in surfaces
+
+#### Weights variant override (`NEXUS_WEIGHTS_VARIANT`)
+
+- Activation: set env `NEXUS_WEIGHTS_VARIANT` to a catalog variant id (for example `gguf-ud-iq1-s`), or the installer `weights_variant` field. Default is the entry's `defaultVariant` or a VRAM-aware official pick.
+- Validation: install a model that declares `weights.variants` and confirm only that variant's files land under `~/.nexus/models/weights/<id>/`. An unofficial variant is rejected.
+- Rollback: unset `NEXUS_WEIGHTS_VARIANT`. Already-downloaded files stay on disk until you delete them.
+- Authority: this only chooses which official file set the puller verifies. It does not admit community quants, does not skip sha256, does not enable the patient tier, and does not open a network port beyond the existing Hugging Face install channel.
+- Docs: [README](README.md#whats-new-in-v1192), [ARCHITECTURE.md](ARCHITECTURE.md#catalog-expansion-and-patient-tier-calibration-v1192).
+
+#### Patient-tier RAM preset (`nexus.llm.patientTier.ramPreset`)
+
+- Activation: set `"nexus.llm.patientTier.ramPreset": "laptop" | "workstation" | "max"` in settings. Default is `laptop`.
+- Validation: the settings description shows that preset's expected s/token. It does not change adapter config.
+- Rollback: set the setting back to `"laptop"`. No files outside settings are written.
+- Authority: this is expectation copy only. It does not bundle or configure the llama.cpp offload runtime, does not download Inkling, and does not raise permission tiers.
+- Docs: [README](README.md#whats-new-in-v1192), [docs/v1/v1.19/known-gaps.md](docs/v1/v1.19/known-gaps.md) (v1.19.2 DF-4).
+
+# [1.19.1](https://github.com/bendourthe/Nexus-AI/compare/v1.19.0...v1.19.1) (2026-08-19)
+
+
+### Features
+
+* **v1.19.1:** Hub skill-native wins: grounded citations, persona cards, avatar-prep and transcript-reasoning (Phase 1) ([3f68051](https://github.com/bendourthe/Nexus-AI/commit/3f68051))
+* **v1.19.1:** harden agent loop, denials, posture, and provenance (Phase 2) ([ddbb258](https://github.com/bendourthe/Nexus-AI/commit/ddbb258))
+
+
+### Opt-in surfaces
+
+#### Security posture dial (`nexus.coding.securityPosture`)
+
+- Activation: set `"nexus.coding.securityPosture": "strict" | "standard" | "unattended"` in settings, or the matching VS Code / desktop Security tab control. Default is `standard`.
+- Validation: with Standard, CONFIRM-tier tools still prompt. With Unattended, a CONFIRM-tier tool proceeds without that prompt, but `run_terminal` (DANGEROUS) still prompts and `rm -rf /` is still blocked. With Strict, more prompts and all tool output is screened.
+- Rollback: set the setting back to `"standard"`. No files outside settings are written.
+- Authority: this only changes confirmation frequency and screening strictness. It does not drop the PermissionTiers floor, does not allow hard-denied commands, does not auto-approve DANGEROUS tools, and does not open a network port. Unattended is not a no-floor mode.
+- Docs: [README](README.md#whats-new-in-v1191), [ARCHITECTURE.md](ARCHITECTURE.md#agent-loop-and-guardrail-hardening-v1191-phase-2).
+
+# [1.19.0](https://github.com/bendourthe/Nexus-AI/compare/v1.18.0...v1.19.0) (2026-08-19)
+
+
+### Features
+
+* **v1.19.0:** LFM2.5-2.6B as the low-VRAM Agentic catalog pick (Phase 1) ([58e2293](https://github.com/bendourthe/Nexus-AI/commit/58e2293))
+* **v1.19.0:** LFM-aware harness profile and pythonic tool parser (Phase 2) ([6a8e3f0](https://github.com/bendourthe/Nexus-AI/commit/6a8e3f0))
+
+
+### Bug Fixes
+
+* **sandbox:** parse Seatbelt profiles and stage one Linux bundle ([f8c619e](https://github.com/bendourthe/Nexus-AI/commit/f8c619e))
+* **ci:** unblock CI sandbox tests and catalog sync ([afcb0b8](https://github.com/bendourthe/Nexus-AI/commit/afcb0b8))
+
+
+### Documentation
+
+* **v1.19.0:** decline LFM2.5-8B-A1B until a local quality-per-GB win ([9f89f6d](https://github.com/bendourthe/Nexus-AI/commit/9f89f6d))
+
+
+### Continuous Integration
+
+* **v1.19.0:** path-filter installer tests and run desktop vitest on develop ([976cee5](https://github.com/bendourthe/Nexus-AI/commit/976cee5))
+
+
+### Opt-in surfaces
+
+This release changes no opt-in capability, installer flag, or host surface.
+
+# [1.18.0](https://github.com/bendourthe/Nexus-AI/compare/v1.17.0...v1.18.0) (2026-08-17)
+
+
+### Features
+
+* **v1.18.0:** Hub skill-native mappings and llama.cpp loopback recipe (Phase 1) ([147cc39](https://github.com/bendourthe/Nexus-AI/commit/147cc39))
+* **v1.18.0:** live harness selector with named family profiles (Phase 2) ([6666a74](https://github.com/bendourthe/Nexus-AI/commit/6666a74))
+* **v1.18.0:** catalog tool-calling flags, MoE schema, and MCP tool deny (Phase 3) ([12fe79f](https://github.com/bendourthe/Nexus-AI/commit/12fe79f))
+* **v1.18.0:** persistent ask inbox and local agent-run scheduler (Phase 4) ([ca02605](https://github.com/bendourthe/Nexus-AI/commit/ca02605))
+* **v1.18.0:** loopback ACP agent on the shared serving control surface (Phase 5) ([9d88233](https://github.com/bendourthe/Nexus-AI/commit/9d88233))
+* **v1.18.0:** OS process sandbox around `run_terminal` (Phase 6) ([8ac11ee](https://github.com/bendourthe/Nexus-AI/commit/8ac11ee))
+
+
+### Bug Fixes
+
+* **desktop:** use a c-string literal for LoadLibraryA so Windows clippy is clean ([f27bc65](https://github.com/bendourthe/Nexus-AI/commit/f27bc65))
+* **ci:** attach release assets by waiting for the desktop bundle and running appimagetool without FUSE ([6e601d2](https://github.com/bendourthe/Nexus-AI/commit/6e601d2))
+* **sandbox:** alias macOS `/var` and `/private/var` firmlink twins in writable roots so Seatbelt allows in-scope writes on GitHub runners
+* **ci:** restore the skill-native "no new skill" phrase, probe live sandbox mode in the classifier test, and regenerate `docs/index.md`
+* **sandbox:** drop invalid `network-outbound*` / `mach-register` Seatbelt ops that made sandbox-exec exit 65 before the child ran
+* **ci:** stage one Linux `.deb` / AppImage when the cargo cache leaves multiple bundle versions
+
+
+### Opt-in surfaces
+
+#### Per-model harness selector (`nexus.coding.harnessSelector.enabled`)
+
+- Activation: set `"nexus.coding.harnessSelector.enabled": true` in settings, or the matching VS Code setting. Default is false (`HARNESS_SELECTOR_SHIPPED_DEFAULT`).
+- Validation: with the toggle on, send `/harness` in a coding session and confirm a named profile (plan-first, structured-edit, concise-loop, or minimal) is reported for the active model. With the toggle off, `/harness` reports the selector is disabled and prompt knobs match settings.
+- Rollback: set the setting to false. Overlays stop applying; no files outside settings are written.
+- Authority: this only changes prompt-scaffold knobs (style, thinking mode, system-prompt budget). It does not download models, raise permission tiers, auto-approve tools, or open a network port.
+- Docs: [README](README.md#whats-new-in-v1180), [docs/reference/low-cost-model-optimization.md](docs/reference/low-cost-model-optimization.md).
+
+#### ACP agent (`nexus.acp.enabled`)
+
+- Activation: Settings > Local API server, enable the ACP toggle, or set `"nexus.acp.enabled": true`, or `NEXUS_ACP_ENABLED=1`. Reuses `nexus.serving.token`. Default off.
+- Validation: with ACP on, Settings shows the shared loopback listener and `POST /acp`. `curl -i http://127.0.0.1:11500/acp` without a bearer token returns 401. With the toggle off and serving off, nothing listens on that port.
+- Rollback: turn the ACP toggle off, or set `"nexus.acp.enabled": false`. The ACP mount goes away. If serving is also off, the listener stops. The token remains in `~/.nexus/settings.json` until you delete `nexus.serving.token`.
+- Authority: ACP is loopback JSON-RPC only. Enabling it does not turn on OpenAI/Anthropic inference routes, does not auto-approve tools, and does not expose the filesystem. Unattended CONFIRM/DANGEROUS calls park in the ask inbox (or fail-closed if no inbox is configured).
+- Docs: [README](README.md#local-api-server-opt-in), [docs/install.md](docs/install.md#after-you-install-v1180).
+
+#### Exec sandbox (`nexus.coding.execSandbox`)
+
+- Activation: set `"nexus.coding.execSandbox": true`, or `NEXUS_EXEC_SANDBOX=1` for the sidecar. Default off.
+- Validation: run a `run_terminal` command and confirm the UI or logs say `confined` (macOS with sandbox-exec, Linux with Landlock+python3) or `partial` (Windows). With the setting off, they say `unconfined`.
+- Rollback: set the setting to false or `NEXUS_EXEC_SANDBOX=0`. The next command is unconfined under the existing confirmation, denylist, and env-scrub guards. No extra artifacts to delete.
+- Authority: this confines `run_terminal` spawn only. It does not skip confirmation, denylists, or the ask inbox. Windows does not kernel-enforce filesystem or network. Off or a missing backend is loud unconfined, never silent.
+- Docs: [README](README.md#whats-new-in-v1180), [docs/v1/v1.18/known-gaps.md](docs/v1/v1.18/known-gaps.md) (DF-11).
+
+#### Scheduled agent runs (`ask.scheduler.setEnabled`)
+
+- Activation: desktop Admin > Ask inbox, enable a listed schedule (the built-in morning brief starts off). Equivalent IPC: `ask.scheduler.setEnabled`. Persist file: `~/.nexus/agent-schedules.json`.
+- Validation: the Ask inbox panel shows the schedule as enabled. After a fire, consequential tools appear as pending asks in the same panel (they do not run silently).
+- Rollback: disable the schedule in the panel, or set `enabled` to false in `~/.nexus/agent-schedules.json`. Disabling does not delete parked asks or `~/.nexus/ask-inbox.json`.
+- Authority: enabling a schedule does not auto-approve CONFIRM or DANGEROUS tools, does not raise permission tiers, and does not bind a network port. Every wake checkpoints git and parks asks. Morning-brief content stays the Hub `agent-presets` / `morning-briefing` preset.
+- Docs: [README](README.md#ask-inbox-and-scheduled-runs-opt-in), [docs/reference/skill-native-adoptions-v1.18.md](docs/reference/skill-native-adoptions-v1.18.md).
+
+# [1.17.0](https://github.com/bendourthe/Nexus-AI/compare/v1.16.0...v1.17.0) (2026-08-16)
+
+
+### Features
+
+* **v1.17.0:** shared motion primitives and agent-state orbs (Phases 1-2) ([6f69324](https://github.com/bendourthe/Nexus-AI/commit/6f69324))
+* **v1.17.0:** surface-liveness beam on composers, dock, and canvas frame (Phase 3) ([05d27f3](https://github.com/bendourthe/Nexus-AI/commit/05d27f3))
+* **v1.17.0:** hero-action metal ring on send, Generate, and New session (Phase 4) ([210b7a6](https://github.com/bendourthe/Nexus-AI/commit/210b7a6))
+* **v1.17.0:** one primary motion per surface (Phase 5) ([b28915a](https://github.com/bendourthe/Nexus-AI/commit/b28915a))
+
+
+### Opt-in surfaces
+
+This release changes no opt-in capability, installer flag, or host surface.
+
 # [1.16.0](https://github.com/bendourthe/Nexus-AI/compare/v1.15.0...v1.16.0) (2026-08-16)
 
 

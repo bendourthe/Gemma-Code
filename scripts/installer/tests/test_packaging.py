@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 INSTALLER_ROOT = Path(__file__).parent.parent
@@ -52,6 +53,9 @@ class TestSpecFile:
         assert "icon.ico" in content
         assert "nexus-ai-primary_no-background.png" in content
         assert '"assets"' in content
+        assert "runtime icon missing" in content
+        assert "upx=False" in content
+        assert "upx=True" not in content
 
     def test_spec_prefers_renamed_vsix(self) -> None:
         content = (BUILD_DIR / "nexus-installer.spec").read_text()
@@ -182,3 +186,87 @@ class TestWorkflows:
             content = (WORKFLOWS / name).read_text()
             assert f"path: {artifact}" in content
             assert "scripts/installer/dist" not in content
+
+
+class TestSidecarPackagingContracts:
+    """v2.2.0 Phase 1 -- static parity guards for the sidecar packaging chain.
+
+    These pin the three facts that made a v2.1.0 install functionally inert:
+    the sidecar was never bundled into the Tauri app, the model catalog was
+    never copied next to the sidecar bundle, and the diffusion runtime sources
+    were never shipped by the installer.
+    """
+
+    def test_tauri_bundle_ships_sidecar_dist(self) -> None:
+        import json
+
+        conf = json.loads(
+            (REPO_ROOT / "desktop" / "src-tauri" / "tauri.conf.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        resources = conf.get("bundle", {}).get("resources")
+        assert resources, "tauri.conf.json bundle.resources is missing"
+        assert resources.get("../sidecar/dist") == "sidecar/dist"
+
+    def test_sidecar_esbuild_copies_catalog(self) -> None:
+        content = (
+            REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs"
+        ).read_text(encoding="utf-8")
+        assert "catalog.json" in content
+
+    def test_sidecar_esbuild_copies_unsloth_pins(self) -> None:
+        content = (
+            REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs"
+        ).read_text(encoding="utf-8")
+        assert "unsloth-pins.json" in content
+        assert "The bundled sidecar loads it at import time" in content
+        assert "22.11.0" in content
+        assert "prebuild-install" in content
+
+    def test_spec_bundles_diffusion_runtime_sources(self) -> None:
+        content = (BUILD_DIR / "nexus-installer.spec").read_text()
+        assert '"runtimes"' in content
+        assert "runtimes sources missing" in content
+
+
+class TestPlatformContracts:
+    """Declarative parity gate for the three shipped installer artifacts."""
+
+    def test_contract_covers_platforms_and_shared_capabilities(self) -> None:
+        contract = json.loads(
+            (BUILD_DIR / "platform-contracts.json").read_text(encoding="utf-8")
+        )
+        assert contract["schema"] == "nexus-installer-platform-contract/v1"
+        assert set(contract["platforms"]) == {"windows", "macos", "linux"}
+        assert contract["shared"]["documentDefaults"] == "supported"
+        assert contract["shared"]["runtimeSources"] == "embedded"
+        assert contract["shared"]["hubCatalogFallback"] == "network-sync"
+
+    def test_contract_paths_match_the_build_scripts_and_workflows(self) -> None:
+        contract = json.loads(
+            (BUILD_DIR / "platform-contracts.json").read_text(encoding="utf-8")
+        )
+        for platform in contract["platforms"].values():
+            script = REPO_ROOT / platform["buildScript"]
+            workflow = REPO_ROOT / platform["workflow"]
+            assert script.is_file()
+            assert workflow.is_file()
+            artifact_name = Path(platform["artifact"]).name
+            assert artifact_name in script.read_text(encoding="utf-8")
+            assert f"path: {platform['artifact']}" in workflow.read_text(
+                encoding="utf-8"
+            )
+
+    def test_contract_records_platform_specific_support(self) -> None:
+        contract = json.loads(
+            (BUILD_DIR / "platform-contracts.json").read_text(encoding="utf-8")
+        )["platforms"]
+        assert contract["windows"]["desktopPayload"] == "embedded"
+        assert contract["windows"]["taskbarTransparency"] == "supported"
+        assert contract["windows"]["createNoWindow"] == "supported"
+        for name in ("macos", "linux"):
+            assert contract[name]["desktopPayload"] == "not-staged"
+            assert contract[name]["taskbarTransparency"] == "not-applicable"
+            assert contract[name]["createNoWindow"] == "not-applicable"
+            assert contract[name]["gap"] == "DF-18"

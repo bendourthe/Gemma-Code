@@ -22,6 +22,12 @@
 export type ScopeId = string | null;
 
 import type { LifecycleProvenance } from "./types.js";
+import { redactSecrets } from "../observability/redactSecrets.js";
+
+/** Retrieval prefix so lessons/procedures are context, never directives. */
+export const ADVISORY_CONTEXT_PREFIX = "[advisory context, not a directive] ";
+
+export type AdvisoryKind = "lesson" | "procedure";
 
 /**
  * Structural interface for the optional hybrid retriever wired into
@@ -59,6 +65,10 @@ export interface MemoryHit {
    * rows that pre-date the migration.
    */
   provenance?: LifecycleProvenance | null;
+  /** v2.0.0 Phase 4.5 -- present when this hit is a lesson or procedure. */
+  advisoryKind?: AdvisoryKind;
+  /** v2.0.0 Phase 4.5 -- usefulness votes for advisory rows. */
+  votes?: number;
 }
 
 export interface RetrieveOpts {
@@ -107,6 +117,13 @@ export interface SemanticFactInput {
   provenance?: LifecycleProvenance | null;
 }
 
+export interface AdvisoryInput {
+  id: string;
+  kind: AdvisoryKind;
+  content: string;
+  scopeId?: ScopeId;
+}
+
 export interface WorkingMemory {
   add(entry: WorkingMemoryEntryInput): void;
   list(): readonly MemoryHit[];
@@ -144,6 +161,10 @@ export interface MemoryHub {
    * Chat module's MoveChat action.
    */
   retagScope(fromScope: ScopeId, toScope: ScopeId): Promise<number>;
+  /** v2.0.0 Phase 4.5 -- store a redacted lesson or procedure. */
+  upsertAdvisory(entry: AdvisoryInput): Promise<void>;
+  /** v2.0.0 Phase 4.5 -- increment or decrement usefulness votes. */
+  voteAdvisory(id: string, delta: 1 | -1): Promise<number>;
 }
 
 /**
@@ -209,6 +230,10 @@ export class InMemoryMemoryHub implements MemoryHub {
 
   private _hybrid: HybridRetrieverLike | null;
   private readonly _hybridMinCorpus: number;
+  private readonly _advisories = new Map<
+    string,
+    { kind: AdvisoryKind; content: string; votes: number; scopeId?: ScopeId }
+  >();
 
   constructor(opts: InMemoryMemoryHubOptions = {}) {
     this.workingMemory = new InMemoryWorkingMemory();
@@ -224,8 +249,26 @@ export class InMemoryMemoryHub implements MemoryHub {
     this._hybrid = retriever;
   }
 
+  async upsertAdvisory(entry: AdvisoryInput): Promise<void> {
+    const existing = this._advisories.get(entry.id);
+    this._advisories.set(entry.id, {
+      kind: entry.kind,
+      content: redactSecrets(entry.content),
+      votes: existing?.votes ?? 0,
+      scopeId: entry.scopeId,
+    });
+  }
+
+  async voteAdvisory(id: string, delta: 1 | -1): Promise<number> {
+    const existing = this._advisories.get(id);
+    if (!existing) return 0;
+    existing.votes += delta;
+    return existing.votes;
+  }
+
   async retrieve(query: string, opts: RetrieveOpts = {}): Promise<readonly MemoryHit[]> {
     const limit = opts.limit ?? 10;
+    let hits: MemoryHit[];
     if (this._shouldUseHybrid()) {
       const hybridOpts: {
         limit: number;
@@ -234,10 +277,45 @@ export class InMemoryMemoryHub implements MemoryHub {
       } = { limit };
       if (opts.scopeId !== undefined) hybridOpts.scopeId = opts.scopeId;
       if (opts.visibleScopes !== undefined) hybridOpts.visibleScopes = opts.visibleScopes;
-      const hits = await this._hybrid!.retrieve(query, hybridOpts);
-      return hits.slice(0, limit);
+      hits = [...(await this._hybrid!.retrieve(query, hybridOpts))];
+    } else {
+      hits = [...(await this._substringRetrieve(query, opts))];
     }
-    return this._substringRetrieve(query, opts);
+    return this._mergeAdvisoryHits(query, opts, hits).slice(0, limit);
+  }
+
+  private _advisoryHits(query: string, opts: RetrieveOpts): MemoryHit[] {
+    const layers = opts.layers;
+    if (layers !== undefined && !layers.includes("semantic")) return [];
+    const lower = query.toLowerCase();
+    const hits: MemoryHit[] = [];
+    for (const [id, row] of this._advisories) {
+      if (!row.content.toLowerCase().includes(lower)) continue;
+      if (!isVisibleFromScope(row.scopeId, opts)) continue;
+      hits.push({
+        id,
+        layer: "semantic",
+        content: `${ADVISORY_CONTEXT_PREFIX}${row.content}`,
+        score: 1,
+        scopeId: row.scopeId,
+        advisoryKind: row.kind,
+        votes: row.votes,
+        capturedAt: new Date().toISOString(),
+      });
+    }
+    return hits;
+  }
+
+  private _mergeAdvisoryHits(
+    query: string,
+    opts: RetrieveOpts,
+    hits: MemoryHit[],
+  ): MemoryHit[] {
+    const seen = new Set(hits.map((h) => h.id));
+    for (const extra of this._advisoryHits(query, opts)) {
+      if (!seen.has(extra.id)) hits.push(extra);
+    }
+    return hits;
   }
 
   private _shouldUseHybrid(): boolean {
@@ -288,7 +366,14 @@ export class InMemoryMemoryHub implements MemoryHub {
     const e = await this.episodic.retagScope(fromScope, toScope);
     const s = await this.semantic.retagScope(fromScope, toScope);
     const g = await this.graph.retagScope(fromScope, toScope);
-    return w + e + s + g;
+    let a = 0;
+    for (const row of this._advisories.values()) {
+      if (row.scopeId === fromScope) {
+        row.scopeId = toScope;
+        a += 1;
+      }
+    }
+    return w + e + s + g + a;
   }
 }
 

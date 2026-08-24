@@ -9,7 +9,7 @@ keyed by the canonical method id.
 from __future__ import annotations
 
 from runtimes.diffusion import registry
-from runtimes.diffusion.pipelines import video_image2video, video_text2video
+from runtimes.diffusion.pipelines import video_image2video, video_text2video, video_audio2video
 
 
 def test_register_installs_text2video_handler():
@@ -26,10 +26,18 @@ def test_register_installs_image2video_handler():
     assert callable(handlers["diffusion.video.image2video"])
 
 
+def test_register_installs_audio2video_handler():
+    handlers: dict = {}
+    video_audio2video.register(handlers)
+    assert "diffusion.video.audio2video" in handlers
+    assert callable(handlers["diffusion.video.audio2video"])
+
+
 def test_registry_module_paths_include_video_pipelines():
     paths = registry._PIPELINE_MODULES
     assert "runtimes.diffusion.pipelines.video_text2video" in paths
     assert "runtimes.diffusion.pipelines.video_image2video" in paths
+    assert "runtimes.diffusion.pipelines.video_audio2video" in paths
 
 
 def test_register_pipeline_handlers_includes_video_methods():
@@ -37,6 +45,7 @@ def test_register_pipeline_handlers_includes_video_methods():
     registry.register_pipeline_handlers(handlers)
     assert "diffusion.video.text2video" in handlers
     assert "diffusion.video.image2video" in handlers
+    assert "diffusion.video.audio2video" in handlers
 
 
 def test_video_handler_returns_ok_envelope_for_valid_request(tmp_path, monkeypatch):

@@ -97,7 +97,9 @@ class TestChainFor:
         )
         assert chain[0] == "cpu-only"
 
-    def test_no_chain_includes_the_retired_devai_hub_provisioner(self) -> None:
+    def test_unsloth_appended_only_when_opted_in(self) -> None:
+        assert "unsloth" not in chain_for(_profile())
+        assert chain_for(_profile(), include_unsloth=True)[-1] == "unsloth"
         # v1.10.0 Phase 5: the bundled-baseline provisioner is removed; no host
         # chain may still reference it.
         for profile in (

@@ -70,13 +70,33 @@ export interface NexusSettings {
   parseDocumentEnabled: boolean;
   /** v1.16.0 Phase 4 (A6): store parsed-document text in memory. Default false. */
   parseDocumentMemoryIngestEnabled: boolean;
+  /**
+   * v1.18.0 Phase 6 (OI-A1): wrap `run_terminal` in an OS process sandbox.
+   * Off by default (rollout). When off, or when the OS backend is missing,
+   * execution stays on the pre-existing guardrails and the UI/logs state
+   * "unconfined".
+   */
+  execSandbox: boolean;
   inboundClassifierEnabled: boolean;
   inboundClassifierDeepScan: boolean;
+  /**
+   * v1.19.1 Phase 2.5 -- named security-posture dial. Composes confirmation
+   * frequency and inbound screening over the existing permission-tier floor.
+   * Default `standard`. Unattended never auto-approves DANGEROUS tools.
+   */
+  securityPosture: "strict" | "standard" | "unattended";
+  /** v1.19.1 Phase 2.4 -- last N human user messages EmergencyTrim must keep. */
+  compactionUserMessageTail: number;
   swarmOrchestrationEnabled: boolean;
   panelRoutingEnabled: boolean;
   harnessSelectorEnabled: boolean;
   patientTierEnabled: boolean;
   patientTierTimeoutMs: number;
+  /**
+   * v1.19.2 -- RAM-budget expectation preset for the patient tier. Copy only:
+   * changing this does not reconfigure the user-registered offload adapter.
+   */
+  patientTierRamPreset: "laptop" | "workstation" | "max";
   memorySnapshotMode: "frozen" | "live";
   /**
    * LLM backend selector. Known values are `ollama` | `lmstudio` | `auto`;
@@ -264,9 +284,19 @@ export function getSettings(): NexusSettings {
       "nexus.coding.inboundClassifier.enabled",
       true,
     ),
+    execSandbox: c.get<boolean>("nexus.coding.execSandbox", false),
     inboundClassifierDeepScan: c.get<boolean>(
       "nexus.coding.inboundClassifier.deepScan",
       false,
+    ),
+    securityPosture: (() => {
+      const raw = c.get<string>("nexus.coding.securityPosture", "standard");
+      return raw === "strict" || raw === "unattended" ? raw : "standard";
+    })(),
+    compactionUserMessageTail: clamp(
+      c.get<number>("nexus.coding.compactionUserMessageTail", 3),
+      1,
+      20,
     ),
     swarmOrchestrationEnabled: c.get<boolean>(
       "nexus.coding.swarmOrchestration.enabled",
@@ -282,6 +312,10 @@ export function getSettings(): NexusSettings {
       "nexus.llm.patientTier.timeoutMs",
       3_600_000,
     ),
+    patientTierRamPreset: (() => {
+      const raw = c.get<string>("nexus.llm.patientTier.ramPreset", "laptop");
+      return raw === "workstation" || raw === "max" ? raw : "laptop";
+    })(),
     memorySnapshotMode: (() => {
       const raw = c.get<string>("nexus.memory.snapshotMode", "frozen");
       return raw === "live" ? "live" : "frozen";

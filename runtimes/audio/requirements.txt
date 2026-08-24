@@ -1,0 +1,16 @@
+# v2.0.0 Phase 1 -- Nexus local STT/TTS runtime dependencies.
+#
+# CI does NOT install this file. tests/python/audio run health/version plus
+# NEXUS_AUDIO_STUB=1 transcribe/speak without faster-whisper or Kokoro.
+# A host that wants live STT/TTS installs these into the audio/diffusion
+# venv after pulling catalog weights `faster-whisper-large-v3` and
+# `kokoro-82m` via Settings > Models. Do not add a download path here.
+
+# Local speech-to-text. CTranslate2 backend; loads from the catalog weights dir.
+faster-whisper>=1.1.0
+
+# Local text-to-speech. StyleTTS-class Kokoro pipeline.
+kokoro>=0.9.0
+
+# PCM helper for the live speak() path.
+numpy>=1.26.0

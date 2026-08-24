@@ -12,14 +12,41 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Download, FileJson, ImagePlus } from "lucide-react";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { Button } from "../../components/ui";
+import {
+  isBackendDownMessage,
+  isSidecarFailureMessage,
+  useSidecarStatus,
+} from "../../lib/sidecarStatus";
+import { useModelResidency } from "../../shared/models/useModelResidency";
+import {
+  busyContextFromScheduler,
+  modelVramEstimate,
+  residentModelsFromScheduler,
+  type ResidencySessionMemory,
+  type SchedulerActiveJob,
+} from "../../shared/models/schedulerResidency";
+import {
+  ModelSwitchChip,
+  ModelSwitchDialog,
+} from "../../shared/models/ModelSwitchDialog";
 
-import { MediaComposer, MessageBubble, type ChatMessage } from "../../shared/chat";
+import { MediaComposer, MessageList, type ChatMessage } from "../../shared/chat";
+import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
 import {
   SETTINGS_MODELS_PATH,
   GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
+import {
+  ownedIdSet,
+  readFavorite,
+  resolveDefaultId,
+  type SelectionSnapshot,
+} from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
@@ -30,11 +57,20 @@ import {
   valuesToBaseRequest,
 } from "./ImagePromptForm";
 import { inferImageIntent } from "./intent";
+import { MaskEditor } from "./MaskEditor";
+import { parseReplaceIntent, inpaintPromptFor } from "../../../../core/image/replaceIntent";
 import {
   type DiffusionClient,
   type ProgressEvent,
   createIpcDiffusionClient,
 } from "./diffusionClient";
+import { RecallActions, applyImageRecall, type RecallMode } from "../../shared/studio/RecallActions";
+import { GenerationQueueBar } from "../../shared/studio/GenerationQueueBar";
+import {
+  createIpcGenerationQueueClient,
+  type GenerationQueueClient,
+} from "../../shared/studio/generationQueueClient";
+import type { GenerationJob } from "../../../../core/generations/GenerationQueue";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_FORM_VALUES.modelId,
@@ -56,15 +92,30 @@ const DEFAULT_CONTROLNETS = [
 export interface ImageStudioPageProps {
   readonly client?: DiffusionClient;
   /** Models client for the installed image-model selector. */
-  readonly modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
+  readonly modelsClient?: {
+    list(): Promise<readonly ListedModelDto[]>;
+    lastSelection?: SelectionSnapshot | null;
+  };
   /** Test seam: drain interval (ms). Defaults to 100ms. */
   readonly drainIntervalMs?: number;
   /** Test seam: clipboard adapter. Defaults to navigator.clipboard. */
   readonly clipboard?: { writeText: (value: string) => Promise<void> };
+  /** v2.1.0 Phase 3 -- generation queue. Tests inject an in-memory client. */
+  readonly queueClient?: GenerationQueueClient;
   /** Invoked by the selector's "Get more models" entry (App wires navigation). */
   readonly onGetMoreModels?: () => void;
   /** Resolved DiffusionTier so the Advanced panel can gate 2K/4K. */
   readonly diffusionTier?: DiffusionTierId;
+  /**
+   * v2.2.0 Phase 4 (4.3): free VRAM in GB for the switch policy. `undefined`
+   * (the default) means telemetry is unreadable, which the policy treats as
+   * "ask the user" rather than guessing a fit. App wiring supplies the live
+   * value from the telemetry stream.
+   */
+  readonly hostVramFreeGB?: number | null;
+  /** The scheduler's active job, so the policy knows what would be evicted. */
+  readonly activeSchedulerJob?: SchedulerActiveJob | null;
+  readonly residencyMemory?: ResidencySessionMemory;
 }
 
 let messageSeq = 0;
@@ -80,16 +131,52 @@ export function ImageStudioPage({
   clipboard,
   onGetMoreModels,
   diffusionTier = "diffusion-low",
+  hostVramFreeGB,
+  activeSchedulerJob,
+  residencyMemory,
+  queueClient: queueOverride,
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
+  const [queueClient] = useState<GenerationQueueClient>(
+    () => queueOverride ?? createIpcGenerationQueueClient(),
+  );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
+  // v2.2.0 Phase 2 (2.2): distinguish "the backend is down" from "you have no
+  // image models". The pre-v2.2.0 catch-all reported the latter for both.
+  const [listFailure, setListFailure] = useState<string | null>(null);
+  const sidecar = useSidecarStatus();
+  // v2.2.0 Phase 4 (4.3): single-GPU switch policy. Classification happens
+  // on SUBMIT only -- mounting this route must never change residency.
+  const residency = useModelResidency({ rememberedPairs: residencyMemory });
+  // Holds the prompt whose submit opened the confirm dialog, so answering
+  // "Switch now" resumes the SAME request instead of losing it.
+  const pendingPromptRef = useRef<{ text: string; attachments: readonly string[] }>({
+    text: "",
+    attachments: [],
+  });
+  const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
+  const [formEpoch, setFormEpoch] = useState(0);
+  const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
+  const [workflowByMessage, setWorkflowByMessage] = useState<Record<string, Record<string, unknown>>>({});
+  const [paintedMask, setPaintedMask] = useState<string | null>(null);
+  const [pendingReplace, setPendingReplace] = useState<{
+    assistantId: string;
+    sourceImage: string;
+    base: Parameters<DiffusionClient["txt2img"]>[0];
+    candidates: readonly { label: string; maskPngBase64: string }[];
+  } | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> raw png
+
+  useEffect(() => {
+    if (pendingReplace) setAdvancedOpen(true);
+  }, [pendingReplace]);
 
   const isGenerating = activeJob !== null;
 
@@ -102,21 +189,42 @@ export function ImageStudioPage({
     void (async () => {
       try {
         const all = await source.list();
-        const image = installedModelsForType(all, "image");
+        const snap = source.lastSelection ?? null;
+        const image = installedModelsForType(all, "image", ownedIdSet(snap)).filter(
+          (m) => !m.tags?.includes("utility"),
+        );
         if (cancelled) return;
         const first = image[0];
         if (first) {
           setModels(image);
-          setSelectedModelId(first.id);
+          const next = resolveDefaultId(image, {
+            favorite: readFavorite("image"),
+            recommended: snap?.recommendedByTask.image ?? null,
+          });
+          setSelectedModelId(next || first.id);
           setNoneInstalled(false);
+          setListFailure(null);
         } else {
-          setModels([FALLBACK_MODEL]);
+          setModels([]);
           setNoneInstalled(true);
+          setListFailure(null);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          setModels([FALLBACK_MODEL]);
-          setNoneInstalled(true);
+          const message = err instanceof Error ? err.message : String(err);
+          const backendFailed = isSidecarFailureMessage(message);
+          // Sidecar-down is unknown, not empty. Never show a fake installed SANA.
+          if (backendFailed) {
+            setModels([]);
+            setNoneInstalled(false);
+            setListFailure(message);
+          } else {
+            // ipc-unavailable (Vite / Vitest): keep a local fallback so the
+            // composer still has a model id, without claiming none-installed.
+            setModels([FALLBACK_MODEL]);
+            setNoneInstalled(false);
+            setListFailure(null);
+          }
         }
       }
     })();
@@ -140,22 +248,63 @@ export function ImageStudioPage({
         } else if (event.kind === "complete") {
           done = true;
           const png = event.png ?? "";
+          if (!isUsableImageBase64(png)) {
+            outputs.current.delete(messageId);
+            setWorkflowByMessage((prev) => {
+              const next = { ...prev };
+              delete next[messageId];
+              return next;
+            });
+            patchMessage(messageId, {
+              pending: false,
+              progress: undefined,
+              media: undefined,
+              content: "Generation failed: image generation completed without image bytes.",
+            });
+            continue;
+          }
           outputs.current.set(messageId, png);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
-            media: png ? { kind: "image", src: `data:image/png;base64,${png}` } : undefined,
+            media: { kind: "image", src: `data:image/png;base64,${png}` },
+          });
+          void client.extractWorkflow(png).then((wf) => {
+            if (wf && typeof wf === "object") {
+              setWorkflowByMessage((prev) => ({
+                ...prev,
+                [messageId]: wf as Record<string, unknown>,
+              }));
+            }
           });
         } else if (event.kind === "error") {
           done = true;
+          outputs.current.delete(messageId);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
+            media: undefined,
             content: `Generation failed: ${event.message ?? "unknown error"}`,
           });
         }
       }
       return { done };
+    },
+    [patchMessage, client],
+  );
+
+  const handleMediaError = useCallback(
+    (message: ChatMessage): void => {
+      outputs.current.delete(message.id);
+      setWorkflowByMessage((prev) => {
+        const next = { ...prev };
+        delete next[message.id];
+        return next;
+      });
+      patchMessage(message.id, {
+        media: undefined,
+        content: "Generation failed: generated image could not be displayed.",
+      });
     },
     [patchMessage],
   );
@@ -192,10 +341,61 @@ export function ImageStudioPage({
     };
   }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setInterval(() => {
+      void queueClient.list().then((jobs) => {
+        if (!cancelled) setQueueJobs(jobs);
+      }).catch(() => undefined);
+    }, Math.max(drainIntervalMs, 200));
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [queueClient, drainIntervalMs]);
+
   const handleSubmit = useCallback(
-    async (text: string, attachments: readonly string[]): Promise<void> => {
+    async (
+      text: string,
+      attachments: readonly string[],
+      residencyApproved = false,
+    ): Promise<void> => {
       if (isGenerating) return;
-      const intent = inferImageIntent({ text, attachments, mask: null });
+      // v2.2.0 Phase 4: ask the policy before doing GPU work. A `confirm`
+      // verdict opens the dialog and returns; the user's answer re-enters
+      // this path. Everything else proceeds immediately.
+      if (!residencyApproved) {
+        const selected = models.find((m) => m.id === selectedModelId);
+        const verdict = residency.request({
+          targetModelId: selectedModelId,
+          targetVramGB: modelVramEstimate(selected?.vramGB),
+          requestingModule: "image",
+          resident: residentModelsFromScheduler(activeSchedulerJob),
+          freeVramGB: hostVramFreeGB ?? null,
+          activeJob: busyContextFromScheduler(activeSchedulerJob),
+          installed: Boolean(selected?.installed),
+        });
+        if (verdict.kind === "confirm") {
+          pendingPromptRef.current = { text, attachments };
+          return;
+        }
+        if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: nextId("assistant"),
+              role: "assistant",
+              content:
+                verdict.kind === "not-installed"
+                  ? `${selectedModelId} is not installed. Install it in Settings > Models.`
+                  : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
+            },
+          ]);
+          return;
+        }
+      }
+      const replace = attachments.length > 0 ? parseReplaceIntent(text) : null;
+      const intent = inferImageIntent({ text, attachments, mask: paintedMask });
       const userMsg: ChatMessage = {
         id: nextId("user"),
         role: "user",
@@ -208,15 +408,57 @@ export function ImageStudioPage({
         role: "assistant",
         content: "",
         pending: true,
+        activity: "image-generation",
       };
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
       const base = valuesToBaseRequest(values, {
-        prompt: intent.prompt,
+        prompt: replace ? inpaintPromptFor(replace) : intent.prompt,
         modelId: selectedModelId,
       }) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
 
       try {
+        if (replace && attachments[0]) {
+          const sourceImage = attachments[0].includes(",")
+            ? attachments[0].slice(attachments[0].indexOf(",") + 1)
+            : attachments[0];
+          const seg = await client.segment({
+            sourceImage,
+            phrase: replace.object,
+            hint: { text: replace.object },
+          });
+          if (!seg.ok || !seg.candidates || seg.candidates.length === 0) {
+            patchMessage(assistantId, {
+              pending: false,
+              content:
+                seg.message ??
+                "Could not find a mask for that object. Paint a mask to continue, or install sam2:hiera-tiny.",
+            });
+            return;
+          }
+          if (seg.candidates.length > 1) {
+            patchMessage(assistantId, {
+              pending: false,
+              content: `Several matches for "${replace.object}". Tap a candidate to inpaint it, or paint a mask.`,
+            });
+            setPendingReplace({
+              assistantId,
+              sourceImage,
+              base,
+              candidates: seg.candidates,
+            });
+            return;
+          }
+          const mask = seg.candidates[0]?.maskPngBase64 ?? "";
+          const accepted = await client.inpaint({
+            ...base,
+            sourceImage,
+            mask,
+          });
+          setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
+          return;
+        }
+
         let accepted;
         if (intent.mode === "txt2img") {
           accepted = await client.txt2img(base);
@@ -244,7 +486,7 @@ export function ImageStudioPage({
         });
       }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage],
+    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask],
   );
 
   const onSelectModel = useCallback(
@@ -256,6 +498,21 @@ export function ImageStudioPage({
       setSelectedModelId(id);
     },
     [onGetMoreModels],
+  );
+
+  const pickCandidate = useCallback(
+    async (maskPngBase64: string): Promise<void> => {
+      if (!pendingReplace) return;
+      const accepted = await client.inpaint({
+        ...pendingReplace.base,
+        sourceImage: pendingReplace.sourceImage,
+        mask: maskPngBase64,
+      });
+      patchMessage(pendingReplace.assistantId, { pending: true, content: "" });
+      setActiveJob({ jobId: accepted.jobId, messageId: pendingReplace.assistantId });
+      setPendingReplace(null);
+    },
+    [client, pendingReplace, patchMessage],
   );
 
   async function copyWorkflow(messageId: string): Promise<void> {
@@ -273,6 +530,20 @@ export function ImageStudioPage({
     }
   }
 
+  async function copyImage(messageId: string): Promise<void> {
+    const png = outputs.current.get(messageId);
+    if (!png) return;
+    const src = `data:image/png;base64,${png}`;
+    const adapter = clipboard ?? (typeof navigator !== "undefined" ? navigator.clipboard : null);
+    try {
+      if (adapter && typeof adapter.writeText === "function") {
+        await adapter.writeText(src);
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
   function downloadImage(messageId: string): void {
     const png = outputs.current.get(messageId);
     if (!png || typeof document === "undefined") return;
@@ -285,6 +556,13 @@ export function ImageStudioPage({
   function useAsSource(messageId: string): void {
     const png = outputs.current.get(messageId);
     if (png) setSeededAttachment(`data:image/png;base64,${png}`);
+  }
+
+  function recall(messageId: string, mode: RecallMode): void {
+    const wf = workflowByMessage[messageId];
+    if (!wf) return;
+    setValues((prev) => ({ ...prev, ...applyImageRecall(prev, wf, mode) }));
+    setFormEpoch((n) => n + 1);
   }
 
   const selectorModels = useMemo(
@@ -316,7 +594,7 @@ export function ImageStudioPage({
           disabled={isGenerating}
           testId="image-model-select"
         />
-        {noneInstalled && (
+        {noneInstalled && !backendDown && (
           <button
             type="button"
             data-testid="image-get-more-models"
@@ -330,6 +608,32 @@ export function ImageStudioPage({
           models settings
         </a>
       </header>
+      {residency.pending && (
+        <ModelSwitchDialog
+          pending={residency.pending}
+          onResolve={(resolution) => {
+            const resolved = residency.resolvePending(resolution);
+            if (resolved && resolved.kind !== "confirm") {
+              // The user agreed: re-enter the submit path with consent applied.
+              const resumed = pendingPromptRef.current;
+              pendingPromptRef.current = { text: "", attachments: [] };
+              void handleSubmit(resumed.text, resumed.attachments, true);
+            }
+          }}
+          onExpire={() => residency.dismissPending()}
+        />
+      )}
+      <ModelSwitchChip switching={residency.switching} />
+      {backendDown && (
+        <SidecarDownBanner
+          status={sidecar.status}
+          restarting={sidecar.restarting}
+          restartError={sidecar.restartError}
+          onRestart={() => void sidecar.restart()}
+          context="Image models cannot be listed."
+          testId="image-sidecar-down"
+        />
+      )}
 
       <div
         data-testid="image-history"
@@ -340,37 +644,90 @@ export function ImageStudioPage({
             Describe an image to generate it, or drop an image and ask to edit, extend, or vary it.
           </p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {messages.map((m) => (
-              <li key={m.id}>
-                <MessageBubble message={m} enableTools={false} />
-                {m.role === "assistant" && m.media && (
-                  <div
-                    data-testid={`image-actions-${m.id}`}
-                    style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
+          <MessageList
+            messages={messages}
+            enableTools={false}
+            onMediaError={handleMediaError}
+            renderAfter={(m) =>
+              m.role === "assistant" && m.media ? (
+                <div
+                  data-testid={`image-actions-${m.id}`}
+                  style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
+                >
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Download"
+                    title="Download"
+                    data-testid={`image-download-${m.id}`}
+                    onClick={() => downloadImage(m.id)}
                   >
-                    <button type="button" data-testid={`image-download-${m.id}`} onClick={() => downloadImage(m.id)}>
-                      Download
-                    </button>
-                    <button type="button" data-testid={`image-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
-                      Copy Workflow
-                    </button>
-                    <button type="button" data-testid={`image-usesource-${m.id}`} onClick={() => useAsSource(m.id)}>
-                      Use as Source
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                    <Download size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Copy image"
+                    title="Copy image"
+                    data-testid={`image-copyimage-${m.id}`}
+                    onClick={() => void copyImage(m.id)}
+                  >
+                    <Copy size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              ) : null
+            }
+            renderPreviewExtra={(m) =>
+              m.role === "assistant" && m.media ? (
+                <>
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Copy Workflow"
+                    title="Copy Workflow"
+                    data-testid={`image-copyworkflow-${m.id}`}
+                    onClick={() => void copyWorkflow(m.id)}
+                  >
+                    <FileJson size={16} aria-hidden="true" />
+                  </button>
+                  <RecallActions
+                    messageId={m.id}
+                    testIdPrefix="image"
+                    hasWorkflow={Boolean(workflowByMessage[m.id])}
+                    onRecall={(mode) => recall(m.id, mode)}
+                  />
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Use as Source"
+                    title="Use as Source"
+                    data-testid={`image-usesource-${m.id}`}
+                    onClick={() => useAsSource(m.id)}
+                  >
+                    <ImagePlus size={16} aria-hidden="true" />
+                  </button>
+                </>
+              ) : null
+            }
+          />
         )}
       </div>
 
       <div style={{ padding: "var(--space-3) var(--space-4)", borderTop: "1px solid var(--border-1)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <details data-testid="image-advanced-settings">
-          <summary style={{ cursor: "pointer", color: "var(--fg-muted)" }}>Advanced settings</summary>
+        <div>
+          <Button
+            type="button"
+            variant="ghost"
+            testId="image-advanced-settings"
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen((v) => !v)}
+          >
+            Advanced settings
+          </Button>
+          {advancedOpen ? (
           <div style={{ marginTop: "var(--space-2)" }}>
             <ImagePromptForm
+              key={formEpoch}
               initial={values}
               availableModels={models.map((m) => ({ id: m.id, displayName: m.displayName }))}
               availableLoras={DEFAULT_LORAS}
@@ -379,13 +736,74 @@ export function ImageStudioPage({
               disabled={isGenerating}
               diffusionTier={diffusionTier}
             />
+            {seededAttachment ? (
+              <div data-testid="image-mask-layer">
+                <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+                  Paint a mask on the source image (Advanced). The next Generate uses inpaint.
+                </p>
+                <MaskEditor
+                  sourceImage={seededAttachment}
+                  width={values.width}
+                  height={values.height}
+                  onMaskChange={setPaintedMask}
+                />
+              </div>
+            ) : null}
+            {pendingReplace ? (
+              <div data-testid="image-sam-candidates" style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                {pendingReplace.candidates.map((c) => (
+                  <Button
+                    key={c.label}
+                    type="button"
+                    variant="ghost"
+                    testId={`image-sam-candidate-${c.label}`}
+                    disabled={isGenerating}
+                    onClick={() => void pickCandidate(c.maskPngBase64)}
+                  >
+                    {c.label}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <Button
+              type="button"
+              testId="image-seed-sweep"
+              disabled={isGenerating}
+              onClick={() => {
+                void queueClient.enqueue({
+                  pillar: "image",
+                  jobType: "txt2img",
+                  parameters: { ...values, prompt: values.prompt || "batch" },
+                  priority: "batch",
+                  batchSpec: { kind: "seed-range", start: values.seed, end: values.seed + 2 },
+                }).then((jobs) => setQueueJobs((prev) => [...prev, ...jobs]));
+              }}
+            >
+              Queue seed sweep
+            </Button>
+            <GenerationQueueBar
+              jobs={queueJobs}
+              onCancel={(id) => {
+                void queueClient.cancel(id).then(() =>
+                  queueClient.list().then(setQueueJobs),
+                );
+              }}
+              onReorder={(ids) => {
+                void queueClient.reorder(ids).then(() =>
+                  queueClient.list().then(setQueueJobs),
+                );
+              }}
+            />
           </div>
-        </details>
+          ) : null}
+        </div>
         <MediaComposer
           disabled={isGenerating}
           onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
           submitAccentVar="--accent-image"
+          submitLabel="Generate"
           seededAttachment={seededAttachment}
+          streaming={isGenerating}
         />
       </div>
     </section>

@@ -375,5 +375,6 @@ describe("v0.8.0 SKILL.md schema extension", () => {
     expect(commit?.version).toBe("1.0.0");
     expect(commit?.platforms.length).toBeGreaterThan(0);
     expect(commit?.metadata.tags.length).toBeGreaterThan(0);
+    expect(loader.getSkill("training-recipe")?.name).toBe("training-recipe");
   });
 });

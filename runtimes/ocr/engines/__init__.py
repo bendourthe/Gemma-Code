@@ -1,1 +1,1 @@
-"""OCR engine implementations. See `base.py` for the shared contract."""
+"""OCR and native Office engines. See `base.py` for resolve_engine / resolve_office_engine."""

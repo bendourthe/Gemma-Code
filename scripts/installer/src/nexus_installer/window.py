@@ -12,8 +12,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 
-from PyQt5.QtCore import QEvent, Qt, pyqtSignal
-from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import QEvent, Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -41,7 +40,6 @@ from nexus_installer.constants import (
 )
 from nexus_installer.engine.install_guard import evaluate_install_guard
 from nexus_installer.installer_state import InstallerState
-from nexus_installer.registry_paths import resolve_window_icon
 from nexus_installer.theme import generate_stylesheet
 from nexus_installer.widgets.background import BackgroundWidget
 from nexus_installer.widgets.footer import Footer
@@ -49,6 +47,7 @@ from nexus_installer.widgets.header import HEADER_STEP_PX, Header
 from nexus_installer.widgets.sidebar import Sidebar
 from nexus_installer.widgets.step_indicator import StepIndicator
 from nexus_installer.widgets.title_bar import TitleBar
+from nexus_installer.widgets.win_titlebar import build_window_icon
 
 #: Window title / OS taskbar caption (T304).
 WINDOW_TITLE = "Nexus AI Studio"
@@ -98,9 +97,9 @@ class InstallerWindow(QMainWindow):
         self.setWindowTitle(WINDOW_TITLE)
         # Set the window icon explicitly (not only app-wide) so the taskbar
         # button reliably shows the Nexus mark in the frozen build (T018).
-        _icon_path = resolve_window_icon()
-        if _icon_path is not None:
-            self.setWindowIcon(QIcon(str(_icon_path)))
+        _window_icon = build_window_icon()
+        if _window_icon is not None:
+            self.setWindowIcon(_window_icon)
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
         self.setStyleSheet(generate_stylesheet())
@@ -320,7 +319,10 @@ class InstallerWindow(QMainWindow):
         # The stepper + step counter track the wizard's real progress. While an
         # install is running they stay pinned to the Installing step even when
         # the user is reviewing an earlier (locked) page via the sidebar.
-        progress_index = self.installing_page_index if self._install_active else index
+        # v2.2.3 Phase 7 (7.3): once the install has finished the pin is lifted
+        # so Complete becomes the current step after the auto-advance.
+        pinned = self._install_active and not self._install_finished
+        progress_index = self.installing_page_index if pinned else index
         self._step_indicator.set_current(progress_index)
         self._set_step_display(progress_index)
 
@@ -416,10 +418,24 @@ class InstallerWindow(QMainWindow):
         self._refresh_navigation()
         self._refresh_footer()
 
-    def _on_install_finished(self, _success: bool = True) -> None:
+    def _on_install_finished(self, success: bool = True) -> None:
         self._install_finished = True
         self._refresh_navigation()
         self._refresh_footer()
+        # v2.2.3 Phase 7 (7.3): a successful install auto-advances to the
+        # Complete page -- no extra Next once every phase card is Done. A user
+        # cancel / engine failure (finished(False)) stays on Installing so the
+        # outcome is not presented as success. Deferred via singleShot so the
+        # page swap never reparents widgets while the finished signal is still
+        # being delivered.
+        if success:
+            QTimer.singleShot(0, self._advance_to_complete)
+
+    def _advance_to_complete(self) -> None:
+        """Deferred jump to the Complete page after a successful install."""
+        last = len(self._pages) - 1
+        if last >= 0 and self._install_finished and self._current_index != last:
+            self.switch_page(last)
 
     def _apply_install_lock(self) -> None:
         """Put every choice page into read-only mode (best-effort, T602)."""

@@ -46,6 +46,15 @@ class TestVsCodeExtensionPage:
         page._checkbox.setChecked(False)
         assert state.install_vscode_extension is False
 
+    def test_unsloth_checkbox_is_off_and_sets_state(self, qt_app) -> None:
+        state = InstallerState()
+        page = VsCodeExtensionPage(state, detect_fn=lambda: None)
+        assert page._unsloth.isChecked() is False
+        assert state.install_unsloth is False
+        page._unsloth.setChecked(True)
+        assert state.install_unsloth is True
+        assert "LGPL" in page._unsloth.text()
+
     def test_candidates_include_known_clis(self) -> None:
         assert "code" in VSCODE_CLI_CANDIDATES
         assert "cursor" in VSCODE_CLI_CANDIDATES

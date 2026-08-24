@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CodingInput } from "../src/modules/coding/CodingInput";
+
+function file(name: string, type: string): File {
+  return new File(["x"], name, { type });
+}
 
 describe("CodingInput", () => {
   it("submits on Send button click", async () => {
@@ -9,7 +13,7 @@ describe("CodingInput", () => {
     render(<CodingInput onSubmit={onSubmit} />);
     await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hi agent");
     await userEvent.click(screen.getByTestId("coding-input-submit"));
-    expect(onSubmit).toHaveBeenCalledWith("Hi agent");
+    expect(onSubmit).toHaveBeenCalledWith("Hi agent", []);
   });
 
   it("submits on Enter (without Shift) and clears the input", async () => {
@@ -17,7 +21,7 @@ describe("CodingInput", () => {
     render(<CodingInput onSubmit={onSubmit} />);
     const ta = screen.getByTestId("coding-input-textarea") as HTMLTextAreaElement;
     await userEvent.type(ta, "Run /plan{Enter}");
-    expect(onSubmit).toHaveBeenCalledWith("Run /plan");
+    expect(onSubmit).toHaveBeenCalledWith("Run /plan", []);
     expect(ta.value).toBe("");
   });
 
@@ -62,5 +66,110 @@ describe("CodingInput", () => {
     render(<CodingInput disabled onSubmit={vi.fn()} />);
     expect(screen.getByTestId("coding-input-textarea")).toBeDisabled();
     expect(screen.getByTestId("coding-input-submit")).toBeDisabled();
+  });
+
+  it("on focus plays the surface beam; streaming plays a traveling beam", async () => {
+    const { rerender } = render(<CodingInput onSubmit={vi.fn()} />);
+    const beam = screen.getByTestId("coding-composer-beam");
+    expect(beam).toHaveAttribute("data-beam-playing", "false");
+    await userEvent.click(screen.getByTestId("coding-input-textarea"));
+    expect(beam).toHaveAttribute("data-beam-playing", "true");
+    expect(screen.queryByTestId("coding-input-submit-metal")).toBeNull();
+    rerender(<CodingInput onSubmit={vi.fn()} streaming />);
+    expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+    expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-playing", "true");
+  });
+
+  // v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface in brand
+  // cyan (never the coding pink), and the send icon is neutral fg.
+  it("wraps the inner typing surface with a brand-cyan beam", () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    const beam = screen.getByTestId("coding-composer-beam");
+    const surface = screen.getByTestId("coding-input-surface");
+    expect(beam.contains(surface)).toBe(true);
+    expect(beam.contains(screen.getByTestId("coding-input"))).toBe(false);
+    expect(beam).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+    expect(screen.getByTestId("coding-input-submit").style.color).toBe("var(--fg-0)");
+  });
+
+  it("groups + and icon send inside the surface with no Send caption", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    const surface = screen.getByTestId("coding-input-surface");
+    const send = screen.getByTestId("coding-input-submit");
+    expect(surface.contains(screen.getByTestId("coding-input-add"))).toBe(true);
+    expect(surface.contains(send)).toBe(true);
+    expect(send).toHaveAttribute("aria-label", "Send");
+    expect(send.querySelector("svg")).not.toBeNull();
+    const caption = Array.from(send.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent?.trim())
+      .join("");
+    expect(caption).toBe("");
+    expect(send.closest("[data-testid='coding-input-submit-metal']")).toBeNull();
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "/pl");
+    expect(screen.getByTestId("slash-plan").closest("[data-testid$='-metal']")).toBeNull();
+  });
+
+  it("accepts a dropped PDF and enables send without typed text", async () => {
+    const onSubmit = vi.fn();
+    render(<CodingInput onSubmit={onSubmit} />);
+    await userEvent.upload(
+      screen.getByTestId("coding-input-file"),
+      file("doc.pdf", "application/pdf"),
+    );
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+    expect(screen.getByTestId("coding-input-submit")).not.toBeDisabled();
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [text, attachments] = onSubmit.mock.calls[0] as [string, string[]];
+    expect(text).toBe("");
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]).toContain("base64,");
+  });
+
+  it("accepts a Word file on the shared document accept list", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    await userEvent.upload(
+      screen.getByTestId("coding-input-file"),
+      file(
+        "notes.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+  });
+
+  it("drops a PDF onto the composer", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    fireEvent.drop(screen.getByTestId("coding-input"), {
+      dataTransfer: {
+        files: [file("scan.pdf", "application/pdf")],
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+  });
+
+  it("pastes a clipboard image as an attachment", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    const ta = screen.getByTestId("coding-input-textarea");
+    const image = file("clip.png", "image/png");
+    fireEvent.paste(ta, {
+      clipboardData: {
+        items: [
+          {
+            kind: "file",
+            type: "image/png",
+            getAsFile: () => image,
+          },
+        ],
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId("coding-input-thumb-0")).toBeInTheDocument());
+  });
+
+  it("still shows slash suggestions when the value starts with /", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "/rec");
+    expect(screen.getByTestId("coding-input-suggestions")).toBeInTheDocument();
   });
 });

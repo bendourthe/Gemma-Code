@@ -31,6 +31,12 @@ v1.13.0 Phase 1 (installer reliability):
   current credentials, so the puller stops immediately with a clear message
   instead of burning its 3-attempt retry budget on an un-authable request;
   5xx / network / timeout errors stay retryable with resume + backoff.
+
+v1.19.2 Phase 1: a catalog entry may declare official `weights.variants`
+(fp16/int8/fp8/GGUF), each with its own file list and per-file sha256.
+Selection is hardware-aware with an explicit override
+(`InstallerState.weights_variant` / `NEXUS_WEIGHTS_VARIANT`). Unofficial
+community re-quantizations are rejected at parse time.
 """
 
 from __future__ import annotations
@@ -55,7 +61,16 @@ from nexus_installer.engine.hf_auth import (
 )
 from nexus_installer.installer_state import InstallerState
 
-__all__ = ["HF_TOKEN_ENV_VARS", "discover_hf_token", "hf_token_from_env"]
+__all__ = [
+    "HF_TOKEN_ENV_VARS",
+    "MODEL_ID_MARKER",
+    "WEIGHTS_VARIANT_ENV",
+    "discover_hf_token",
+    "hf_token_from_env",
+    "load_weights_manifest",
+    "select_weights_variant",
+    "write_model_id_marker",
+]
 
 # Bind httpx's exception classes at import time so the `except` clauses below
 # stay valid even when a test patches the module reference `httpx` with a mock:
@@ -111,6 +126,34 @@ class WeightsFile:
         return self.sha256 == PLACEHOLDER_SHA256
 
 
+# v1.19.2 -- official precision lines only. Community re-quantizations are
+# rejected at parse time (LongCat comparison N2).
+OFFICIAL_PRECISIONS = frozenset({"fp16", "bf16", "fp8", "int8", "gguf"})
+# Higher quality first. Used when hardware-aware selection picks among fitting
+# official variants.
+PRECISION_QUALITY_RANK = {
+    "fp16": 0,
+    "bf16": 1,
+    "fp8": 2,
+    "int8": 3,
+    "gguf": 4,
+}
+WEIGHTS_VARIANT_ENV = "NEXUS_WEIGHTS_VARIANT"
+
+
+@dataclass(frozen=True)
+class WeightsVariant:
+    """One official precision-variant file set."""
+
+    id: str
+    precision: str
+    official: bool
+    files: tuple[WeightsFile, ...]
+    size_gb: float
+    vram_gb: float | None
+    quant: str | None = None
+
+
 @dataclass(frozen=True)
 class WeightsManifest:
     """Parsed weights manifest of one huggingface catalog entry."""
@@ -124,6 +167,7 @@ class WeightsManifest:
     # `sha256` values are still placeholders, and it is mandatory for a model
     # that ships executable code (trust_remote_code).
     revision: str = HF_DEFAULT_REVISION
+    variant_id: str | None = None
 
     @property
     def is_pinned(self) -> bool:
@@ -137,6 +181,23 @@ def safe_dir_name(model_id: str) -> str:
     keep the two in sync.
     """
     return _SAFE_DIR_CHAR_RE.sub("-", model_id)
+
+
+# v2.2.0 Phase 2 (2.1): marker file naming the true catalog id, read by the
+# app's installed-probe (`core/registry/installedProbe.ts`). Keep the name in
+# sync with `MODEL_ID_MARKER` in `desktop/sidecar/src/models/modelsService.ts`.
+MODEL_ID_MARKER = ".nexus-model-id"
+
+
+def write_model_id_marker(model_dir: Path, model_id: str, log: LogFn) -> bool:
+    """Write `.nexus-model-id` inside a verified weights dir. Best-effort."""
+    try:
+        (model_dir / MODEL_ID_MARKER).write_text(f"{model_id}\n", encoding="utf-8")
+        return True
+    except OSError as exc:
+        # Non-fatal: the probe falls back to sanitized directory-name matching.
+        log(f"Could not write the model-id marker for {model_id}: {exc}", "warn")
+        return False
 
 
 def default_models_root() -> Path:
@@ -174,45 +235,9 @@ def _validate_sha256(digest: object, path: str) -> str:
     return digest
 
 
-def load_weights_manifest(entry: dict[str, object]) -> WeightsManifest:
-    """Parse a catalog entry into a `WeightsManifest`.
-
-    Entries without an explicit `weights` block fall back to a single-file
-    manifest derived from `source.url` (older catalog snapshots), keeping
-    the puller usable across catalog drift.
-    """
-    model_id = entry.get("id")
-    if not isinstance(model_id, str) or not model_id:
-        raise ManifestError("catalog entry has no id")
-    source = entry.get("source")
-    if not isinstance(source, dict):
-        raise ManifestError(f"{model_id}: catalog entry has no source")
-    if source.get("protocol") != "huggingface":
-        raise ManifestError(f"{model_id}: source.protocol is not huggingface")
-    repo = source.get("repo")
-    if not isinstance(repo, str) or not repo:
-        raise ManifestError(f"{model_id}: huggingface source has no repo")
-
-    raw_files: list[object] = []
-    weights = entry.get("weights")
-    if isinstance(weights, dict):
-        files_value = weights.get("files")
-        if not isinstance(files_value, list) or not files_value:
-            raise ManifestError(f"{model_id}: weights manifest has no files")
-        raw_files = list(files_value)
-    else:
-        url = source.get("url")
-        if not isinstance(url, str) or HF_URL_MARKER not in url:
-            raise ManifestError(
-                f"{model_id}: no weights manifest and no derivable source.url"
-            )
-        raw_files = [
-            {
-                "path": url.split(HF_URL_MARKER, 1)[1],
-                "sha256": source.get("sha256", PLACEHOLDER_SHA256),
-            }
-        ]
-
+def _parse_weights_files(
+    model_id: str, raw_files: list[object]
+) -> tuple[WeightsFile, ...]:
     files: list[WeightsFile] = []
     for raw in raw_files:
         if not isinstance(raw, dict):
@@ -226,9 +251,198 @@ def load_weights_manifest(entry: dict[str, object]) -> WeightsManifest:
                 sha256=_validate_sha256(raw.get("sha256"), path),
             )
         )
+    if not files:
+        raise ManifestError(f"{model_id}: weights file list is empty")
+    return tuple(files)
+
+
+def _parse_weights_variants(
+    model_id: str, raw_variants: object
+) -> tuple[WeightsVariant, ...]:
+    if not isinstance(raw_variants, list) or not raw_variants:
+        raise ManifestError(f"{model_id}: weights.variants must be a non-empty list")
+    variants: list[WeightsVariant] = []
+    seen: set[str] = set()
+    for raw in raw_variants:
+        if not isinstance(raw, dict):
+            raise ManifestError(f"{model_id}: malformed weights variant entry")
+        variant_id = raw.get("id")
+        if not isinstance(variant_id, str) or not variant_id.strip():
+            raise ManifestError(f"{model_id}: weights variant is missing id")
+        if variant_id in seen:
+            raise ManifestError(
+                f"{model_id}: duplicate weights variant id {variant_id}"
+            )
+        seen.add(variant_id)
+        if raw.get("official") is not True:
+            raise ManifestError(
+                f"{model_id}: variant {variant_id} is not official; unvetted "
+                "community quantizations are not eligible"
+            )
+        precision = raw.get("precision")
+        if not isinstance(precision, str) or precision not in OFFICIAL_PRECISIONS:
+            raise ManifestError(
+                f"{model_id}: variant {variant_id} has invalid precision {precision!r}"
+            )
+        files_value = raw.get("files")
+        if not isinstance(files_value, list):
+            raise ManifestError(f"{model_id}: variant {variant_id} has no files")
+        size_value = raw.get("sizeGB")
+        size_gb = float(size_value) if isinstance(size_value, (int, float)) else 0.0
+        vram_value = raw.get("vramGB")
+        vram_gb = float(vram_value) if isinstance(vram_value, (int, float)) else None
+        quant_value = raw.get("quant")
+        quant = quant_value if isinstance(quant_value, str) and quant_value else None
+        variants.append(
+            WeightsVariant(
+                id=variant_id,
+                precision=precision,
+                official=True,
+                files=_parse_weights_files(model_id, list(files_value)),
+                size_gb=size_gb,
+                vram_gb=vram_gb,
+                quant=quant,
+            )
+        )
+    return tuple(variants)
+
+
+def select_weights_variant(
+    variants: tuple[WeightsVariant, ...],
+    *,
+    override: str | None = None,
+    default_id: str | None = None,
+    vram_gb: float | None = None,
+) -> WeightsVariant:
+    """Pick one official precision variant.
+
+    Explicit override (installer state / NEXUS_WEIGHTS_VARIANT) wins. Otherwise
+    a catalog defaultVariant that still fits the host VRAM is used. Otherwise
+    the highest-quality official variant that fits detected VRAM (or the
+    smallest if none declare a VRAM need).
+    """
+    if not variants:
+        raise ManifestError("no official weights variants to select")
+    if override:
+        for variant in variants:
+            if variant.id == override or variant.precision == override:
+                return variant
+            if variant.quant and variant.quant.lower() == override.lower():
+                return variant
+        known = ", ".join(v.id for v in variants)
+        raise ManifestError(
+            f"weights variant {override!r} is not an official declared variant "
+            f"(known: {known})"
+        )
+    if default_id:
+        for variant in variants:
+            if variant.id != default_id:
+                continue
+            if vram_gb is None or variant.vram_gb is None or variant.vram_gb <= vram_gb:
+                return variant
+            break
+    fitting = [
+        v
+        for v in variants
+        if vram_gb is None or v.vram_gb is None or v.vram_gb <= vram_gb
+    ]
+    pool = fitting if fitting else list(variants)
+    return min(
+        pool,
+        key=lambda v: (
+            PRECISION_QUALITY_RANK.get(v.precision, 99),
+            v.size_gb if v.size_gb > 0 else 1e12,
+        ),
+    )
+
+
+def resolve_weights_variant_override(state: InstallerState) -> str | None:
+    """Explicit user override from installer state, then the env var."""
+    if state.weights_variant.strip():
+        return state.weights_variant.strip()
+    env = os.environ.get(WEIGHTS_VARIANT_ENV, "").strip()
+    return env or None
+
+
+def resolve_host_vram_gb(state: InstallerState) -> float | None:
+    """Detected GPU VRAM in GB, or None when unknown / CPU-only."""
+    if state.vram_mb <= 0:
+        return None
+    return state.vram_mb / 1024.0
+
+
+def load_weights_manifest(
+    entry: dict[str, object],
+    *,
+    variant_override: str | None = None,
+    vram_gb: float | None = None,
+) -> WeightsManifest:
+    """Parse a catalog entry into a `WeightsManifest`.
+
+    Entries without an explicit `weights` block fall back to a single-file
+    manifest derived from `source.url` (older catalog snapshots), keeping
+    the puller usable across catalog drift.
+
+    When `weights.variants` is present, the puller selects one official
+    precision line (explicit override, then hardware-aware default) and
+    downloads that file set only.
+    """
+    model_id = entry.get("id")
+    if not isinstance(model_id, str) or not model_id:
+        raise ManifestError("catalog entry has no id")
+    source = entry.get("source")
+    if not isinstance(source, dict):
+        raise ManifestError(f"{model_id}: catalog entry has no source")
+    if source.get("protocol") != "huggingface":
+        raise ManifestError(f"{model_id}: source.protocol is not huggingface")
+    repo = source.get("repo")
+    if not isinstance(repo, str) or not repo:
+        raise ManifestError(f"{model_id}: huggingface source has no repo")
 
     size_gb = entry.get("sizeGB")
     size = float(size_gb) if isinstance(size_gb, (int, float)) else 0.0
+    variant_id: str | None = None
+    files: tuple[WeightsFile, ...]
+
+    weights = entry.get("weights")
+    if (
+        isinstance(weights, dict)
+        and isinstance(weights.get("variants"), list)
+        and weights.get("variants")
+    ):
+        variants = _parse_weights_variants(model_id, weights.get("variants"))
+        default_id = weights.get("defaultVariant")
+        default = default_id if isinstance(default_id, str) else None
+        selected = select_weights_variant(
+            variants,
+            override=variant_override,
+            default_id=default,
+            vram_gb=vram_gb,
+        )
+        files = selected.files
+        variant_id = selected.id
+        if selected.size_gb > 0:
+            size = selected.size_gb
+    elif isinstance(weights, dict):
+        files_value = weights.get("files")
+        if not isinstance(files_value, list) or not files_value:
+            raise ManifestError(f"{model_id}: weights manifest has no files")
+        files = _parse_weights_files(model_id, list(files_value))
+    else:
+        url = source.get("url")
+        if not isinstance(url, str) or HF_URL_MARKER not in url:
+            raise ManifestError(
+                f"{model_id}: no weights manifest and no derivable source.url"
+            )
+        files = _parse_weights_files(
+            model_id,
+            [
+                {
+                    "path": url.split(HF_URL_MARKER, 1)[1],
+                    "sha256": source.get("sha256", PLACEHOLDER_SHA256),
+                }
+            ],
+        )
 
     # v1.16.0 Phase 3 (A5): honour a pinned commit sha. A malformed value is a
     # hard error rather than a silent fall back to `main` -- silently unpinning
@@ -251,9 +465,10 @@ def load_weights_manifest(entry: dict[str, object]) -> WeightsManifest:
     return WeightsManifest(
         model_id=model_id,
         repo=repo,
-        files=tuple(files),
+        files=files,
         size_gb=size,
         revision=revision,
+        variant_id=variant_id,
     )
 
 
@@ -287,7 +502,11 @@ class HFWeightsPuller:
         progress = progress or (lambda _pct: None)
 
         try:
-            manifest = load_weights_manifest(entry)
+            manifest = load_weights_manifest(
+                entry,
+                variant_override=resolve_weights_variant_override(state),
+                vram_gb=resolve_host_vram_gb(state),
+            )
         except ManifestError as exc:
             log(f"Invalid weights manifest: {exc}", "error")
             return False
@@ -322,9 +541,11 @@ class HFWeightsPuller:
             return False
 
         total = len(manifest.files)
+        variant_note = f", variant {manifest.variant_id}" if manifest.variant_id else ""
         log(
             f"Downloading {manifest.model_id} ({total} file(s), "
-            f"~{manifest.size_gb:.1f} GB) from huggingface.co/{manifest.repo}...",
+            f"~{manifest.size_gb:.1f} GB{variant_note}) "
+            f"from huggingface.co/{manifest.repo}...",
             "info",
         )
         for index, weights_file in enumerate(manifest.files):
@@ -342,6 +563,12 @@ class HFWeightsPuller:
                 manifest, weights_file, dest, log, file_progress, token
             ):
                 return False
+
+        # v2.2.0 Phase 2 (2.1): stamp the true catalog id inside the weights
+        # dir. The directory name is `safe_dir_name(id)`, so an id containing
+        # ":" or "/" cannot be recovered from the path alone; the app's probe
+        # prefers this marker over directory-name matching.
+        write_model_id_marker(model_dir, manifest.model_id, log)
 
         progress(1.0)
         log(f"Model {manifest.model_id} downloaded and verified.", "success")

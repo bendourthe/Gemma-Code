@@ -35,6 +35,7 @@ def test_build_workflow_carries_request_fields():
     assert workflow["prompt"] == "a watercolor fox"
     assert workflow["loras"][0]["id"] == "lora:cinematic"
     assert workflow["tool"] == workflow_metadata.RUNTIME_TOOL_NAME
+    assert workflow["schemaVersion"] == 1
 
 
 def test_embed_and_extract_round_trip():
@@ -44,6 +45,9 @@ def test_embed_and_extract_round_trip():
     extracted = workflow_metadata.extract_workflow(embedded)
     assert extracted is not None
     assert extracted["prompt"] == workflow["prompt"]
+    types = [chunk["type"] for chunk in workflow_metadata._read_chunks(embedded)]
+    assert workflow_metadata.ITXT_CHUNK_TYPE in types
+    assert workflow_metadata.TEXT_CHUNK_TYPE in types
 
 
 def test_embed_idempotent():

@@ -22,8 +22,14 @@ describe("isVisionCapableModel", () => {
   it("treats text-only models as non-vision", () => {
     expect(isVisionCapableModel("gemma3:27b")).toBe(false);
     expect(isVisionCapableModel("qwen2.5-coder:7b")).toBe(false);
+    expect(isVisionCapableModel("qwen3-coder:30b")).toBe(false);
     expect(isVisionCapableModel("llama3.1:8b")).toBe(false);
     expect(isVisionCapableModel("deepseek-coder-v2:16b")).toBe(false);
+  });
+
+  it("recognizes Qwen 3.5 library tags as vision-capable", () => {
+    expect(isVisionCapableModel("qwen3.5:4b")).toBe(true);
+    expect(isVisionCapableModel("qwen3.5:9b")).toBe(true);
   });
 
   it("returns false for empty / undefined / null", () => {
@@ -34,9 +40,11 @@ describe("isVisionCapableModel", () => {
 
   // Guard: the runtime name-matcher must agree with the authoritative catalog
   // `multimodal: true` flag so the two sources cannot drift apart.
-  it("agrees with every catalog entry flagged multimodal", async () => {
+  it("agrees with every chat-LLM catalog entry flagged multimodal", async () => {
     const catalog = await loadCatalog();
-    const multimodalSpecs = catalog.models.filter((m) => m.multimodal === true);
+    const multimodalSpecs = catalog.models.filter(
+      (m) => m.multimodal === true && m.task !== "video" && m.type !== "video",
+    );
     expect(multimodalSpecs.length).toBeGreaterThan(0);
     for (const spec of multimodalSpecs) {
       const ref = (spec.source.url ?? "").replace(/^ollama:\/\//, "") || spec.id;

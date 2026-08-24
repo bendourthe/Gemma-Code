@@ -30,6 +30,8 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
   memory/MemoryHub.ts        4-layer memory facade
   memory/chunkers/           AST-aware chunker for memory ingest (v1.2.0 Phase 4)
   memory/PrunedDenseIndex.ts LEANN-derived graph-pruned index (v1.2.0 Phase 4)
+  project/ProjectScope.ts    per-project memory/MCP/skills/permissions (v2.0.0 Phase 4)
+  project/DurableSandbox.ts  project-keyed untrusted exec root (v2.0.0 Phase 4)
   telemetry/TelemetryBus.ts  in-process pub/sub (GPU + module events)
   skills/SkillCatalog.ts     skills: list / load / hot-reload
   storage/                   ~/.nexus/ paths + StorageMigration (Phase 2.2)
@@ -59,10 +61,31 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
                               Rust over JSON-RPC stdio (v1.2.0 Phase 6)
   coding/lsp/LspMcpServer.ts  MCP adapter exposing `lsp_definition` and
                               `lsp_references` tools (v1.2.0 Phase 6)
+  generations/               Image Studio / Video Lab provenance index +
+                              SQLite job queue (`~/.nexus/generations/studio.db`)
+                              (v2.1.0 Phase 3)
+  chat/                      vision flag, visual-token budget, attachment
+                              validation (v2.1.0 Phase 4)
+  image/                     PNG workflow metadata + replace-the-X intent
+                              parser (v2.1.0 Phase 3-4)
+  tuning/                    Unsloth Core pins, dataset builder, QLoRA job
+                              store, eval gate (v2.1.0 Phase 5)
+  audit/                     signed local SQLite audit log + per-actor
+                              Ed25519 keys (v2.1.0 Phase 6)
+  cli/                       headless JSON CLI client over /nexus/*
+                              (v2.1.0 Phase 6)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the
                               one-cycle compat window)
+  coding/autonomy/           AskInbox + AgentRunScheduler (v1.18.0 Phase 4).
+                              Headless/scheduled CONFIRM and DANGEROUS asks
+                              park; approve replays classifyAction +
+                              resolveTier. vscode-free. Morning-brief schedule
+                              is off by default.
+  coding/sandbox/            OS process sandbox for run_terminal (v1.18.0
+                              Phase 6): Seatbelt / Landlock+seccomp / Windows
+                              job object. vscode-free. Off by default.
 
 src/                        VS Code extension TypeScript source (Coding engine
                               host during v1.0.0 compat window)
@@ -173,7 +196,7 @@ This contract documents which module owns which kind of write. It is the spirit 
 
 - **`src/llm/`** is the **only module that may import or call Ollama directly.** Every other module consumes the vendor-neutral port at [src/llm/types.ts](src/llm/types.ts). Baseline exceptions (`EmbeddingClient`, `GemmaCodePanel`, `extension.ts`) are grandfathered with a v0.6.0 ratchet and listed in `configs/dependency-cruiser.cjs`.
 - **`src/storage/`** is the **only module that may open SQLite databases.** Tool handlers, panels, sub-agents, and the agent loop consume `MemoryStore`, `ChatHistoryStore`, `ToolOutputCache`, and `UnifiedMemoryRetriever` as their public APIs.
-- **`src/tools/handlers/`** are the **only modules that perform side-effecting operations** (filesystem mutations, terminal commands, network requests through `web_search` / `fetch_page`). Every handler routes through `pathGuard.ts`, `secretPaths.ts`, and `ConfirmationGate.ts`.
+- **`src/tools/handlers/`** are the **only modules that perform side-effecting operations** (filesystem mutations, terminal commands, network requests through `web_search` / `fetch_page`). Every handler routes through `pathGuard.ts`, `secretPaths.ts`, and `ConfirmationGate.ts`. OS-level confinement for `run_terminal` lives in [`modules/coding/sandbox/`](modules/coding/sandbox/) and is invoked by the terminal handler and the headless sidecar; it never replaces those guardrails.
 - **`src/panels/`** never imports `src/storage/` directly; communication goes through [src/panels/messages.ts](src/panels/messages.ts) so the webview sandbox cannot bypass guardrails. Pre-baseline panels (`GemmaCodePanel`, `SessionListPanel`, `TraceDashboardPanel`) are grandfathered.
 - **Memory writes** are owned by `MemoryStore` and `MemoryConsolidator`; tool handlers must not insert memory rows themselves.
 - **Confirmation prompts** are owned by `ConfirmationGate.ts`; individual tool handlers do not raise prompts of their own.

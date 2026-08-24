@@ -18,14 +18,27 @@ export interface ChatStartResult {
   createdAt: string;
 }
 
+export interface ChatReplayMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface ChatSendResult {
   sessionId: string;
   events: ChatStreamEvent[];
 }
 
 export interface ChatSessionClient {
-  start(input: { modelId: string; title?: string }): Promise<ChatStartResult>;
-  sendMessage(input: { sessionId: string; message: string }): Promise<ChatSendResult>;
+  start(input: {
+    modelId: string;
+    title?: string;
+    history?: readonly ChatReplayMessage[];
+  }): Promise<ChatStartResult>;
+  sendMessage(input: {
+    sessionId: string;
+    message: string;
+    images?: readonly string[];
+  }): Promise<ChatSendResult>;
 }
 
 /** Collapse the streamed token events into the assistant reply text. */
@@ -42,6 +55,7 @@ export function createChatIpcClient(): ChatSessionClient {
       const reply = await ipcCall<ChatStartResult>("chat.session.start", {
         modelId: input.modelId,
         ...(input.title ? { title: input.title } : {}),
+        ...(input.history ? { history: input.history } : {}),
       });
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;
@@ -50,6 +64,7 @@ export function createChatIpcClient(): ChatSessionClient {
       const reply = await ipcCall<ChatSendResult>("chat.session.sendMessage", {
         sessionId: input.sessionId,
         message: input.message,
+        ...(input.images && input.images.length > 0 ? { images: input.images } : {}),
       });
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;

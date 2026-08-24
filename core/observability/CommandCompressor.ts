@@ -23,6 +23,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { nexusHome } from "../storage/paths.js";
+import { redactSecrets } from "./redactSecrets.js";
 
 export type StrategyName =
   | "filter"
@@ -439,7 +440,7 @@ export class CommandCompressor {
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${isoStamp(this._nowFn())}-${slugifyCommand(command)}-${shortHash(command)}.log`;
     const full = path.join(dir, filename);
-    fs.writeFileSync(full, rawOutput, "utf8");
+    fs.writeFileSync(full, redactSecrets(rawOutput), "utf8");
     return full;
   }
 
