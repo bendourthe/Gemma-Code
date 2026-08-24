@@ -8,6 +8,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { ImageStudioPage } from "../src/modules/image/ImageStudioPage";
 import { InMemoryDiffusionClient } from "../src/modules/image/diffusionClient";
 import { InMemoryGenerationQueueClient } from "../src/shared/studio/generationQueueClient";
+import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
@@ -39,6 +40,7 @@ describe("ImageStudioPage (chat)", () => {
     expect(screen.getByTestId("image-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("image-advanced-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
   });
 
   it("drops the four mode tabs", () => {
@@ -399,5 +401,23 @@ describe("ImageStudioPage (chat)", () => {
     await waitFor(() => expect(screen.getByText(/Generation failed/)).toBeInTheDocument());
     expect(screen.queryByTestId(/^image-download-/)).toBeNull();
     expect(screen.queryByTestId(/^message-media-/)).toBeNull();
+  });
+
+  it("lists an injected image session in the history pane", () => {
+    const explorer = new InMemoryStudioExplorerClient("image");
+    explorer.createSession({
+      folderId: null,
+      title: "Fox portrait",
+      modelId: "sana-1.6b-1024",
+    });
+    render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+      />,
+    );
+    expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
+    expect(screen.getByText("Fox portrait")).toBeInTheDocument();
   });
 });

@@ -75,7 +75,32 @@ export interface FolderTreeProps {
   storageAdapter?: ExpandedStorageAdapter;
   /** Default model id used for the "New Chat" context-menu entry. */
   defaultModelId?: string;
+  /**
+   * v2.2.6: Image/Video reuse this tree with session copy. Chatbot keeps
+   * the default strings so existing tests stay stable.
+   */
+  copy?: FolderTreeCopy;
+  /** localStorage key for expanded folders. Defaults to `nexus.chat.expanded`. */
+  storageKey?: string;
 }
+
+export interface FolderTreeCopy {
+  paneTitle: string;
+  newItem: string;
+  emptyCta: string;
+  treeAria: string;
+  loadError: string;
+  emptyHint: string;
+}
+
+export const CHAT_FOLDER_TREE_COPY: FolderTreeCopy = {
+  paneTitle: "Chats",
+  newItem: "New chat",
+  emptyCta: "Start a new chat",
+  treeAria: "Chat folders",
+  loadError: "Could not load chats",
+  emptyHint: "No chats yet.",
+};
 
 export interface ExpandedStorageAdapter {
   read(): readonly string[];
@@ -84,30 +109,32 @@ export interface ExpandedStorageAdapter {
 
 const DEFAULT_STORAGE_KEY = "nexus.chat.expanded";
 
-const defaultStorage: ExpandedStorageAdapter = {
-  read(): readonly string[] {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = window.localStorage.getItem(DEFAULT_STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
-        return parsed as string[];
+function makeDefaultStorage(key: string): ExpandedStorageAdapter {
+  return {
+    read(): readonly string[] {
+      if (typeof window === "undefined") return [];
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
+          return parsed as string[];
+        }
+        return [];
+      } catch {
+        return [];
       }
-      return [];
-    } catch {
-      return [];
-    }
-  },
-  write(ids: readonly string[]): void {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(DEFAULT_STORAGE_KEY, JSON.stringify(ids));
-    } catch {
-      // best-effort
-    }
-  },
-};
+    },
+    write(ids: readonly string[]): void {
+      if (typeof window === "undefined") return;
+      try {
+        window.localStorage.setItem(key, JSON.stringify(ids));
+      } catch {
+        // best-effort
+      }
+    },
+  };
+}
 
 interface ContextMenuState {
   anchorX: number;
@@ -181,8 +208,10 @@ export function FolderTree({
   storageAdapter,
   refreshToken,
   defaultModelId = "gemma4:e4b",
+  copy = CHAT_FOLDER_TREE_COPY,
+  storageKey = DEFAULT_STORAGE_KEY,
 }: FolderTreeProps): JSX.Element {
-  const storage = storageAdapter ?? defaultStorage;
+  const storage = storageAdapter ?? makeDefaultStorage(storageKey);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(storage.read()));
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>("");
@@ -445,7 +474,7 @@ export function FolderTree({
         () =>
           client.createChat({
             folderId,
-            title: "New chat",
+            title: copy.newItem,
             modelId: defaultModelId,
           }),
         (chat) => {
@@ -458,7 +487,7 @@ export function FolderTree({
       );
       closeContextMenu();
     },
-    [client, closeContextMenu, defaultModelId, refresh],
+    [client, closeContextMenu, copy.newItem, defaultModelId, refresh],
   );
 
   const onChangeColor = useCallback(
@@ -534,10 +563,10 @@ export function FolderTree({
             role="status"
             style={{ margin: 0, color: "var(--status-err, #d33)", fontSize: "var(--text-sm)" }}
           >
-            Could not load chats: {loadError}
+            {copy.loadError}: {loadError}
           </p>
         ) : null}
-        <p style={{ margin: 0, color: "var(--fg-muted)" }}>No chats yet.</p>
+        <p style={{ margin: 0, color: "var(--fg-muted)" }}>{copy.emptyHint}</p>
         {/*
           v2.2.0 Phase 8 (DF-12): this used to read "Create your first folder",
           which is why the module appeared to require a folder before it would
@@ -558,7 +587,7 @@ export function FolderTree({
             cursor: "pointer",
           }}
         >
-          Start a new chat
+          {copy.emptyCta}
         </button>
       </div>
     );
@@ -575,7 +604,7 @@ export function FolderTree({
         }}
       >
         <span style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-          Chats
+          {copy.paneTitle}
         </span>
         <span style={{ display: "flex", gap: "var(--space-1)" }}>
           <button
@@ -594,8 +623,8 @@ export function FolderTree({
           <button
             type="button"
             data-testid="folder-tree-new-chat"
-            aria-label="New chat"
-            title="New chat"
+            aria-label={copy.newItem}
+            title={copy.newItem}
             onClick={(e) => {
               e.stopPropagation();
               onCreateChat(null);
@@ -618,13 +647,13 @@ export function FolderTree({
             fontSize: "var(--text-sm)",
           }}
         >
-          Could not load chats: {loadError}
+          {copy.loadError}: {loadError}
         </p>
       ) : null}
 
       <ul
         role="tree"
-        aria-label="Chat folders"
+        aria-label={copy.treeAria}
         style={{ listStyle: "none", padding: 0, margin: 0 }}
       >
         {flat.map((node, idx) => {
@@ -764,7 +793,7 @@ export function FolderTree({
                   onClick={() => onCreateChat(contextMenu.target.id)}
                   style={ctxButtonStyle}
                 >
-                  New chat
+                  {copy.newItem}
                 </button>
               </li>
             </>

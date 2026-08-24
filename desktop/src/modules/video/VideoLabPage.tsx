@@ -70,6 +70,13 @@ import {
   type GenerationQueueClient,
 } from "../../shared/studio/generationQueueClient";
 import type { GenerationJob } from "../../../../core/generations/GenerationQueue";
+import { StudioHistoryPane } from "../../shared/explorer/StudioHistoryPane";
+import {
+  InMemoryStudioExplorerClient,
+  type StudioExplorerClient,
+} from "../../shared/explorer/studioExplorerClient";
+import { createIpcStudioExplorerClient } from "../../shared/explorer/ipcStudioExplorerClient";
+import { tauriAvailable } from "../chat/ipcChatExplorerClient";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_VIDEO_FORM_VALUES.modelId,
@@ -107,6 +114,8 @@ export interface VideoLabPageProps {
   /** The scheduler's active job, so the policy knows what would be evicted. */
   readonly activeSchedulerJob?: SchedulerActiveJob | null;
   readonly residencyMemory?: ResidencySessionMemory;
+  /** v2.2.6: inject a studio explorer (tests). Production uses IPC when Tauri+sidecar are up. */
+  readonly explorerClient?: StudioExplorerClient;
 }
 
 let messageSeq = 0;
@@ -129,6 +138,7 @@ export function VideoLabPage({
   hostVramFreeGB = null,
   activeSchedulerJob = null,
   residencyMemory,
+  explorerClient: explorerClientOverride,
 }: VideoLabPageProps = {}): JSX.Element {
   const tierClip = getDiffusionTierConfig(diffusionTier).video.clipSeconds || 4;
   const canAvatar = avatarAvailable(diffusionTier, vramGB);
@@ -142,6 +152,11 @@ export function VideoLabPage({
   const [listFailure, setListFailure] = useState<string | null>(null);
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
+  const studioClient = useMemo(() => {
+    if (explorerClientOverride) return explorerClientOverride;
+    if (backendDown || !tauriAvailable()) return new InMemoryStudioExplorerClient("video");
+    return createIpcStudioExplorerClient("video");
+  }, [explorerClientOverride, backendDown]);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
@@ -714,6 +729,14 @@ export function VideoLabPage({
         />
       )}
 
+      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
+        <StudioHistoryPane
+          pillar="video"
+          client={studioClient}
+          defaultModelId={selectedModelId}
+          sidecarDown={backendDown}
+        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="video-history"
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
@@ -856,6 +879,8 @@ export function VideoLabPage({
           audioEnabled={canAvatar}
           audioHint="Photo plus audio stay on this device."
         />
+      </div>
+        </div>
       </div>
     </section>
   );

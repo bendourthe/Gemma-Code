@@ -71,6 +71,13 @@ import {
   type GenerationQueueClient,
 } from "../../shared/studio/generationQueueClient";
 import type { GenerationJob } from "../../../../core/generations/GenerationQueue";
+import { StudioHistoryPane } from "../../shared/explorer/StudioHistoryPane";
+import {
+  InMemoryStudioExplorerClient,
+  type StudioExplorerClient,
+} from "../../shared/explorer/studioExplorerClient";
+import { createIpcStudioExplorerClient } from "../../shared/explorer/ipcStudioExplorerClient";
+import { tauriAvailable } from "../chat/ipcChatExplorerClient";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_FORM_VALUES.modelId,
@@ -116,6 +123,8 @@ export interface ImageStudioPageProps {
   /** The scheduler's active job, so the policy knows what would be evicted. */
   readonly activeSchedulerJob?: SchedulerActiveJob | null;
   readonly residencyMemory?: ResidencySessionMemory;
+  /** v2.2.6: inject a studio explorer (tests). Production uses IPC when Tauri+sidecar are up. */
+  readonly explorerClient?: StudioExplorerClient;
 }
 
 let messageSeq = 0;
@@ -135,6 +144,7 @@ export function ImageStudioPage({
   activeSchedulerJob,
   residencyMemory,
   queueClient: queueOverride,
+  explorerClient: explorerClientOverride,
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
   const [queueClient] = useState<GenerationQueueClient>(
@@ -156,6 +166,11 @@ export function ImageStudioPage({
     attachments: [],
   });
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
+  const studioClient = useMemo(() => {
+    if (explorerClientOverride) return explorerClientOverride;
+    if (backendDown || !tauriAvailable()) return new InMemoryStudioExplorerClient("image");
+    return createIpcStudioExplorerClient("image");
+  }, [explorerClientOverride, backendDown]);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -635,6 +650,14 @@ export function ImageStudioPage({
         />
       )}
 
+      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
+        <StudioHistoryPane
+          pillar="image"
+          client={studioClient}
+          defaultModelId={selectedModelId}
+          sidecarDown={backendDown}
+        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="image-history"
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
@@ -805,6 +828,8 @@ export function ImageStudioPage({
           seededAttachment={seededAttachment}
           streaming={isGenerating}
         />
+      </div>
+        </div>
       </div>
     </section>
   );

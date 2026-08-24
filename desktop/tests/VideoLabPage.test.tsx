@@ -7,6 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { VideoLabPage } from "../src/modules/video/VideoLabPage";
 import { InMemoryVideoClient } from "../src/modules/video/videoClient";
+import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
@@ -39,6 +40,7 @@ describe("VideoLabPage (chat)", () => {
     expect(screen.getByTestId("video-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("video-advanced-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("video-history-pane")).toBeInTheDocument();
   });
 
   it("drops the mode select (intent is attachment-inferred)", () => {
@@ -381,5 +383,23 @@ describe("VideoLabPage (chat)", () => {
     await waitFor(() =>
       expect((client.lastRequest?.request as { prompt: string }).prompt).toMatch(/Frame notes:/),
     );
+  });
+
+  it("lists an injected video session in the history pane", () => {
+    const explorer = new InMemoryStudioExplorerClient("video");
+    explorer.createSession({
+      folderId: null,
+      title: "Fox clip",
+      modelId: "wan2.1-t2v-1.3b",
+    });
+    render(
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={videoModels()}
+        explorerClient={explorer}
+      />,
+    );
+    expect(screen.getByTestId("video-history-pane")).toBeInTheDocument();
+    expect(screen.getByText("Fox clip")).toBeInTheDocument();
   });
 });

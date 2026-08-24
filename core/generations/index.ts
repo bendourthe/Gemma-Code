@@ -1,4 +1,22 @@
-export { resolveStudioDbPath, GENERATIONS_DIRNAME, STUDIO_DB_FILENAME } from "./paths.js";
+export {
+  resolveStudioDbPath,
+  resolveSessionsDbPath,
+  GENERATIONS_DIRNAME,
+  STUDIO_DB_FILENAME,
+  SESSIONS_DB_FILENAME,
+} from "./paths.js";
+export { StudioSessionStore } from "./StudioSessionStore.js";
+export type {
+  StudioPillar,
+  StudioFolder,
+  StudioSession,
+  StudioTurn,
+  StudioTreeNode,
+  CreateStudioFolderInput,
+  CreateStudioSessionInput,
+  AppendStudioTurnInput,
+} from "./StudioSessionStore.types.js";
+export { isStudioPillar, STUDIO_PILLARS } from "./StudioSessionStore.types.js";
 export { contentHash } from "./contentHash.js";
 export { redactWorkflow } from "./redactWorkflow.js";
 export {

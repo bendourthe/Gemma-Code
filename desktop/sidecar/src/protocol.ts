@@ -96,6 +96,18 @@ export const IPC_METHODS = [
   "chat.explorer.listMessages",
   "chat.explorer.search",
   "chat.generateTitle",
+  // v2.2.6 Phase 1 -- named Image/Video studio sessions.
+  "studio.session.tree",
+  "studio.session.createFolder",
+  "studio.session.renameFolder",
+  "studio.session.moveFolder",
+  "studio.session.deleteFolder",
+  "studio.session.createSession",
+  "studio.session.renameSession",
+  "studio.session.moveSession",
+  "studio.session.deleteSession",
+  "studio.session.appendTurn",
+  "studio.session.listTurns",
   "data.categories",
   "data.export",
   "data.import",
@@ -715,6 +727,82 @@ export const ChatExplorerSearchRequest = z
   .object({ query: z.string(), limit: z.number().int().positive().optional() })
   .strict();
 export const ChatExplorerSearchResponse = z.object({ hits: z.array(z.unknown()) });
+
+const StudioPillarSchema = z.enum(["image", "video"]);
+export const StudioSessionTreeRequest = z.object({ pillar: StudioPillarSchema }).strict();
+export const StudioSessionTreeResponse = z.object({ tree: z.unknown() });
+export const StudioSessionCreateFolderRequest = z
+  .object({
+    pillar: StudioPillarSchema,
+    parentId: z.string().nullable(),
+    name: z.string().min(1),
+  })
+  .strict();
+export const StudioSessionFolderResponse = z.object({
+  id: z.string(),
+  pillar: StudioPillarSchema,
+  parentId: z.string().nullable(),
+  name: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  color: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+});
+export const StudioSessionRenameFolderRequest = z
+  .object({ id: z.string(), name: z.string().min(1) })
+  .strict();
+export const StudioSessionMoveFolderRequest = z
+  .object({ id: z.string(), parentId: z.string().nullable() })
+  .strict();
+export const StudioSessionIdRequest = z.object({ id: z.string() }).strict();
+export const StudioSessionOkResponse = z.object({ ok: z.literal(true) });
+export const StudioSessionCreateSessionRequest = z
+  .object({
+    pillar: StudioPillarSchema,
+    folderId: z.string().nullable(),
+    title: z.string().min(1),
+    modelId: z.string().min(1),
+  })
+  .strict();
+export const StudioSessionSessionResponse = z.object({
+  id: z.string(),
+  pillar: StudioPillarSchema,
+  folderId: z.string().nullable(),
+  title: z.string(),
+  modelId: z.string(),
+  lastOutputRef: z.string().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  turnCount: z.number(),
+});
+export const StudioSessionRenameSessionRequest = z
+  .object({ id: z.string(), title: z.string().min(1) })
+  .strict();
+export const StudioSessionMoveSessionRequest = z
+  .object({ id: z.string(), folderId: z.string().nullable() })
+  .strict();
+export const StudioSessionAppendTurnRequest = z
+  .object({
+    sessionId: z.string(),
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+    mediaRef: z.string().nullable().optional(),
+  })
+  .strict();
+export const StudioSessionTurnResponse = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  mediaRef: z.string().nullable(),
+  createdAt: z.number(),
+});
+export const StudioSessionListTurnsRequest = z
+  .object({ sessionId: z.string(), limit: z.number().int().positive().optional() })
+  .strict();
+export const StudioSessionListTurnsResponse = z.object({
+  turns: z.array(StudioSessionTurnResponse),
+});
 
 // v2.2.0 Phase 5 (5.3) -- auto-title a chat from its first message.
 export const ChatGenerateTitleRequest = z
@@ -2298,6 +2386,17 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "chat.explorer.listMessages": { request: ChatExplorerListMessagesRequest, response: ChatExplorerListMessagesResponse, implemented: true },
   "chat.explorer.search": { request: ChatExplorerSearchRequest, response: ChatExplorerSearchResponse, implemented: true },
   "chat.generateTitle": { request: ChatGenerateTitleRequest, response: ChatGenerateTitleResponse, implemented: true },
+  "studio.session.tree": { request: StudioSessionTreeRequest, response: StudioSessionTreeResponse, implemented: true },
+  "studio.session.createFolder": { request: StudioSessionCreateFolderRequest, response: StudioSessionFolderResponse, implemented: true },
+  "studio.session.renameFolder": { request: StudioSessionRenameFolderRequest, response: StudioSessionFolderResponse, implemented: true },
+  "studio.session.moveFolder": { request: StudioSessionMoveFolderRequest, response: StudioSessionFolderResponse, implemented: true },
+  "studio.session.deleteFolder": { request: StudioSessionIdRequest, response: StudioSessionOkResponse, implemented: true },
+  "studio.session.createSession": { request: StudioSessionCreateSessionRequest, response: StudioSessionSessionResponse, implemented: true },
+  "studio.session.renameSession": { request: StudioSessionRenameSessionRequest, response: StudioSessionSessionResponse, implemented: true },
+  "studio.session.moveSession": { request: StudioSessionMoveSessionRequest, response: StudioSessionSessionResponse, implemented: true },
+  "studio.session.deleteSession": { request: StudioSessionIdRequest, response: StudioSessionOkResponse, implemented: true },
+  "studio.session.appendTurn": { request: StudioSessionAppendTurnRequest, response: StudioSessionTurnResponse, implemented: true },
+  "studio.session.listTurns": { request: StudioSessionListTurnsRequest, response: StudioSessionListTurnsResponse, implemented: true },
   "data.categories": { request: DataCategoriesRequest, response: DataCategoriesResponse, implemented: true },
   "data.export": { request: DataExportRequest, response: DataExportResponse, implemented: true },
   "data.import": { request: DataImportRequest, response: DataImportResponse, implemented: true },
