@@ -7,15 +7,18 @@
  * (Hi user bubble + send id equals the visible installed model).
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ChatPage } from "../src/modules/chat/ChatPage";
+import { ChatPage, CHATS_PANE_STORAGE_KEY } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
 import { INSTALLED_CHAT_MODELS } from "./installedChatModels";
 
 describe("<ChatPage>", () => {
+  afterEach(() => {
+    window.localStorage.removeItem(CHATS_PANE_STORAGE_KEY);
+  });
   it("renders the empty-state when no chat is active", () => {
     const client = new InMemoryChatExplorerClient();
     render(<ChatPage client={client} />);
@@ -422,5 +425,27 @@ describe("<ChatPage>", () => {
     );
     expect(await screen.findByTestId("chat-sidecar-down")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
+  });
+
+  it("collapses the chats pane to 24px and restores it from the edge pill", () => {
+    window.localStorage.removeItem(CHATS_PANE_STORAGE_KEY);
+    const client = new InMemoryChatExplorerClient();
+    client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    render(<ChatPage client={client} />);
+    const pane = screen.getByTestId("chats-pane");
+    expect(pane.style.width).toBe("280px");
+    expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("chats-pane-collapse-toggle"));
+    expect(screen.getByTestId("chats-pane").style.width).toBe("24px");
+    expect(screen.queryByTestId("folder-tree")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chat-page-empty")).toBeInTheDocument();
+    expect(window.localStorage.getItem(CHATS_PANE_STORAGE_KEY)).toBe("true");
+    const toggle = screen.getByTestId("chats-pane-collapse-toggle");
+    expect(toggle.getAttribute("aria-label")).toMatch(/expand chats/i);
+    expect(toggle.style.minWidth).toBe("24px");
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("chats-pane").style.width).toBe("280px");
+    expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
+    expect(window.localStorage.getItem(CHATS_PANE_STORAGE_KEY)).toBe("false");
   });
 });

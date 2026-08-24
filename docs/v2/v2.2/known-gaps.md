@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.5 Phase 3)
+**Last updated**: 2026-08-23 (v2.2.5 Phase 4)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.5
 
-**Last updated**: 2026-08-23 (Phase 3 - Settings Models installer parity)
+**Last updated**: 2026-08-23 (Phase 4 - Chat explorer chrome)
 
 ### Summary
 
@@ -18,12 +18,12 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 2 | 0 |
-| Bugs / regressions (BG) | 0 | 5 |
+| Bugs / regressions (BG) | 0 | 6 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through BG-47 and BG-49 are closed at unit/integration evidence. Packaged Settings scroll and live Qwen 4B Downloaded after a real installer pull remain unproven. Phases 4-6 still own chat chrome, Hub latest, and remaining BG-43 / BG-48 / BG-50 rows.
+DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through BG-49 are closed at unit/integration evidence. Phases 5-6 still own Hub latest and remaining BG-43 / BG-50 rows.
 
 ### Open this cycle
 
@@ -66,6 +66,12 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through B
 - **Source phase**: v2.2.5 Phase 3
 - **Resolution**: `ListedModelDto` marshals `origin`, `releaseDate`, and `uncensored` from `catalog.json`. Missing origin omits the chip. `uncensored: false` shows Censored.
 - **Evidence**: `desktop/tests/ModelsSettings.test.tsx`.
+
+##### BG-48 - Chat rows hid rename/delete behind right-click and had no chats-pane pill
+
+- **Source phase**: v2.2.5 Phase 4
+- **Resolution**: Each chat row has pencil and trash buttons (`stopPropagation`, delete still confirms). Left-click on the already-selected chat starts inline rename. ChatPage chats aside uses the rail collapse pill, collapses to 24px, and persists `nexus.chat.chatsPaneCollapsed`. Right-click context menu remains.
+- **Evidence**: `desktop/tests/FolderTree.test.tsx`, `desktop/tests/ChatPage.test.tsx`.
 
 ##### BG-49 - Empty diffusion complete looked like a successful generate
 

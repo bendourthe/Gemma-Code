@@ -33,6 +33,8 @@ import {
   ChevronRight,
   FolderPlus,
   MessageCirclePlus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { resolveMaybe, type AsyncChatExplorerClient } from "./chatExplorerClient";
 import type { Chat, Folder, FolderTreeNode } from "./types";
@@ -245,21 +247,7 @@ export function FolderTree({
     [onSelect],
   );
 
-  const handleClick = useCallback(
-    (node: FlatNode) => {
-      if (node.kind === "folder") {
-        if (node.id !== null) toggleExpanded(node.id);
-        selectNode({ kind: "folder", id: node.id });
-        onOpenFolder?.(node.folder ?? null);
-      } else if (node.chat) {
-        selectNode({ kind: "chat", id: node.chat.id });
-        onOpenChat?.(node.chat);
-      }
-    },
-    [onOpenChat, onOpenFolder, selectNode, toggleExpanded],
-  );
-
-  const handleDoubleClick = useCallback((node: FlatNode) => {
+  const startRename = useCallback((node: FlatNode) => {
     if (node.kind === "folder" && node.id !== null) {
       setRenamingId(node.id);
       setRenameValue(node.label);
@@ -268,6 +256,33 @@ export function FolderTree({
       setRenameValue(node.chat.title);
     }
   }, []);
+
+  const handleClick = useCallback(
+    (node: FlatNode) => {
+      if (node.kind === "folder") {
+        if (node.id !== null) toggleExpanded(node.id);
+        selectNode({ kind: "folder", id: node.id });
+        onOpenFolder?.(node.folder ?? null);
+        return;
+      }
+      if (!node.chat) return;
+      const alreadySelected = selected?.kind === "chat" && selected.id === node.chat.id;
+      if (alreadySelected && renamingId === null) {
+        startRename(node);
+        return;
+      }
+      selectNode({ kind: "chat", id: node.chat.id });
+      onOpenChat?.(node.chat);
+    },
+    [onOpenChat, onOpenFolder, renamingId, selected, selectNode, startRename, toggleExpanded],
+  );
+
+  const handleDoubleClick = useCallback(
+    (node: FlatNode) => {
+      startRename(node);
+    },
+    [startRename],
+  );
 
   const commitRename = useCallback(
     (node: FlatNode) => {
@@ -681,6 +696,43 @@ export function FolderTree({
                 ) : (
                   <span style={{ flex: 1, color: "var(--fg-1)" }}>{node.label}</span>
                 )}
+                {node.kind === "chat" && node.chat && !isRenaming ? (
+                  <span
+                    style={{ display: "inline-flex", gap: 2, flex: "0 0 auto" }}
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      data-testid={`tree-rename-${node.chat.id}`}
+                      aria-label={`Rename ${node.label}`}
+                      title="Rename"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startRename(node);
+                      }}
+                      style={iconButtonStyle}
+                    >
+                      <Pencil size={12} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`tree-delete-${node.chat.id}`}
+                      aria-label={`Delete ${node.label}`}
+                      title="Delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDelete({
+                          target: { kind: "chat", id: node.id ?? "" },
+                          label: node.label,
+                        });
+                      }}
+                      style={iconButtonStyle}
+                    >
+                      <Trash2 size={12} aria-hidden />
+                    </button>
+                  </span>
+                ) : null}
               </li>
             );
           })}

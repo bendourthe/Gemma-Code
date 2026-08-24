@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
 import { Breadcrumb } from "./Breadcrumb";
 import { InMemoryChatExplorerClient, resolveMaybe } from "./chatExplorerClient";
@@ -104,6 +105,19 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   source: "registry" as const,
   modalities: ["text"] as const,
 }));
+
+/** v2.2.5 Phase 4 -- chats aside collapse, namespaced away from the main rail. */
+export const CHATS_PANE_STORAGE_KEY = "nexus.chat.chatsPaneCollapsed";
+const CHATS_PANE_WIDTH = 280;
+const CHATS_PANE_COLLAPSED_WIDTH = 24;
+
+function readChatsPaneCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(CHATS_PANE_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
@@ -199,6 +213,7 @@ export function ChatPage({
   const hydrationVersionRef = useRef<Map<string, number>>(new Map());
 
   const [selected, setSelected] = useState<SelectedNode | null>(null);
+  const [chatsCollapsed, setChatsCollapsed] = useState(readChatsPaneCollapsed);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   // Bumped when something outside the rail renames a chat (auto-titling).
   const [treeVersion, setTreeVersion] = useState(0);
@@ -380,6 +395,18 @@ export function ChatPage({
 
   const handleSelect = useCallback((node: SelectedNode) => {
     setSelected(node);
+  }, []);
+
+  const toggleChatsPane = useCallback(() => {
+    setChatsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(CHATS_PANE_STORAGE_KEY, String(next));
+      } catch {
+        /* preference is optional */
+      }
+      return next;
+    });
   }, []);
 
   const handleOpenChat = useCallback((chat: Chat) => {
@@ -966,21 +993,46 @@ export function ChatPage({
       }}
     >
       <aside
+        data-testid="chats-pane"
+        aria-label="Chats"
         style={{
-          width: 280,
+          position: "relative",
+          zIndex: 1,
+          width: chatsCollapsed ? CHATS_PANE_COLLAPSED_WIDTH : CHATS_PANE_WIDTH,
+          flex: `0 0 ${chatsCollapsed ? CHATS_PANE_COLLAPSED_WIDTH : CHATS_PANE_WIDTH}px`,
+          overflow: "visible",
           borderRight: "1px solid var(--border-1)",
           backgroundColor: "var(--bg-1)",
-          overflowY: "auto",
         }}
       >
-        <FolderTree
-          client={client}
-          selected={selected}
-          onSelect={handleSelect}
-          onOpenChat={handleOpenChat}
-          refreshToken={treeVersion}
-          defaultModelId={modelId}
-        />
+        {chatsCollapsed ? null : (
+          <div style={{ height: "100%", overflowY: "auto" }}>
+            <FolderTree
+              client={client}
+              selected={selected}
+              onSelect={handleSelect}
+              onOpenChat={handleOpenChat}
+              refreshToken={treeVersion}
+              defaultModelId={modelId}
+            />
+          </div>
+        )}
+        <button
+          type="button"
+          className="nexus-sidebar-collapse-pill nexus-chats-collapse-pill"
+          data-testid="chats-pane-collapse-toggle"
+          aria-label={chatsCollapsed ? "Expand chats" : "Collapse chats"}
+          aria-expanded={!chatsCollapsed}
+          title={chatsCollapsed ? "Expand chats" : "Collapse chats"}
+          style={{ width: 24, minWidth: 24, minHeight: 24, height: 40 }}
+          onClick={toggleChatsPane}
+        >
+          {chatsCollapsed ? (
+            <ChevronRight size={12} aria-hidden />
+          ) : (
+            <ChevronLeft size={12} aria-hidden />
+          )}
+        </button>
       </aside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, padding: "var(--space-4)", gap: "var(--space-3)" }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)" }}>

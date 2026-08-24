@@ -152,6 +152,14 @@ button {
   border-color: color-mix(in srgb, var(--fg-0) 28%, transparent);
 }
 
+/* v2.2.5 Phase 4 -- chats-pane pill reuses the rail treatment with a 24px
+ * hit target (plan: expand control is at least 24px). */
+.nexus-chats-collapse-pill {
+  width: 24px;
+  min-width: 24px;
+  min-height: 24px;
+}
+
 /* v2.2.3 Phase 2 (2.3) -- shared glass icon button for studio action rows
  * (Download / workflow / recall / use-as-source). Icon-only: the accessible
  * name lives on aria-label + title, never a visible caption. */
