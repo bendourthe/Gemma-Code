@@ -13,6 +13,7 @@
 import { useMemo, useState } from "react";
 import { Button, Select, Switch, TextField } from "../../components/ui";
 import type { ControlNetRef, LoraRef } from "./diffusionClient";
+import { foldModelId } from "../../../../core/registry/modelAliases";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
 
@@ -576,7 +577,7 @@ export function valuesToBaseRequest(
   const effectiveSteps = merged.fastPreview ? 1 : merged.steps;
   const effectiveSampler = merged.fastPreview ? "flow-dpm-solver" : merged.sampler;
   const out: Record<string, unknown> = {
-    modelId: effectiveModelId,
+    modelId: foldModelId(effectiveModelId),
     prompt: merged.prompt,
     negativePrompt: merged.negativePrompt || undefined,
     width: merged.width,

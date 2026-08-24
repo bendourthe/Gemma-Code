@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from . import longcat_avatar, video_base
+from . import longcat_avatar, video_base, real_execute
 from .video_base import VideoExecutionContext, VideoPipelineOutput
 
 # INT8 DiT shards on disk are ~16 GB; plan conservatively so the offload
@@ -18,11 +18,16 @@ from .video_base import VideoExecutionContext, VideoPipelineOutput
 _MODEL_SIZE_GB = 16.0
 
 
+_INNER = video_base.select_executor(
+    "audio2video", real=real_execute.video_execute
+)
+
+
 def _execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
     err = longcat_avatar.preflight(ctx.params)
     if err:
         raise RuntimeError(err)
-    output = video_base.stub_execute("audio2video")(ctx)
+    output = _INNER(ctx)
     extra = dict(output.extra)
     extra["localOnly"] = True
     extra["neverLeftDevice"] = True

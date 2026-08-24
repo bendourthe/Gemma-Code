@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Select, Switch, TextField } from "../../components/ui";
+import { foldModelId } from "../../../../core/registry/modelAliases";
 import { planVideoContinuation } from "../../../../core/video/continuation";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
@@ -488,7 +489,7 @@ export function videoFormToRequest(
   values: VideoFormValues,
 ): Omit<import("./videoClient").VideoBaseRequest, "sourceImage"> {
   return {
-    modelId: values.modelId,
+    modelId: foldModelId(values.modelId),
     prompt: values.prompt,
     negativePrompt: values.negativePrompt || undefined,
     width: values.width,

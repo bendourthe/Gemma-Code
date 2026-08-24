@@ -18,6 +18,12 @@ import {
   extractWorkflow,
   type WorkflowMetadata,
 } from "../../../../core/image/WorkflowMetadata.js";
+import {
+  foldRequestModelId,
+  requireSourceImageBytes,
+  resolveImageMethod,
+} from "./route.js";
+import { requireUsableImagePng } from "./resultGuard.js";
 
 export type DispatcherMode = "txt2img" | "img2img" | "inpaint" | "outpaint";
 
@@ -61,14 +67,22 @@ export async function buildJobRequest(
   client: DiffusionRuntimeClient,
   jobId: string = _jobIdFactory(),
 ): Promise<DispatcherResult> {
-  const payload = { jobId, mode, request };
-  const accepted = (await client.call(mode, payload)) as Partial<DispatcherResult> | null;
+  const folded = foldRequestModelId(request);
+  requireSourceImageBytes(mode, folded);
+  const method = resolveImageMethod(mode, folded["modelId"]);
+  const payload = { jobId, mode, request: folded };
+  const accepted = (await client.call(method, payload)) as
+    | (Partial<DispatcherResult> & { ok?: unknown; error?: unknown; message?: unknown })
+    | null;
+  const pngBase64 = requireUsableImagePng(accepted, client.lastStderr?.() ?? "", (line) => {
+    process.stderr.write(line);
+  });
   return {
     jobId,
     mode,
     offloadStrategy: accepted?.offloadStrategy,
     estimatedSeconds: accepted?.estimatedSeconds,
-    pngBase64: accepted?.pngBase64,
+    pngBase64,
     workflow: accepted?.workflow,
   };
 }

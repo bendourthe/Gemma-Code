@@ -25,7 +25,7 @@ function contextWith(runtime: ReturnType<typeof createDiffusionRuntime>) {
 describe("generation smoke (mocked runtime)", () => {
   it("routes a txt2img request through to the diffusion runtime", async () => {
     const runtime = new InMemoryDiffusionRuntime();
-    runtime.setResponse("txt2img", { jobId: "job-1", accepted: true });
+    runtime.setResponse("sana.txt2img", { jobId: "job-1", accepted: true, pngBase64: "not-checked-at-enqueue" });
     const ctx = contextWith(runtime as unknown as ReturnType<typeof createDiffusionRuntime>);
 
     const reply = (await dispatch(

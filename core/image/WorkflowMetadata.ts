@@ -325,3 +325,14 @@ export function createMinimalPng(): Buffer {
     "base64",
   );
 }
+
+/**
+ * v2.2.5 Phase 2 -- an 8x8 PNG that passes `isUsableImageBase64` (1x1
+ * catalog stubs are treated as generate failures, not pictures).
+ */
+export function createUsablePng(): Buffer {
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAEklEQVR4nGP4z8DwHx9mGBkKAMLXf4HVAzL9AAAAAElFTkSuQmCC",
+    "base64",
+  );
+}

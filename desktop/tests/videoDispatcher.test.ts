@@ -20,6 +20,7 @@ describe("video dispatcher", () => {
       offloadStrategy: "model_cpu_offload",
       estimatedSeconds: 240,
       extra: { frameCount: 96 },
+      mp4Path: "/tmp/clip.mp4",
     });
     const result = await buildVideoJobRequest(
       "text2video",
@@ -39,6 +40,7 @@ describe("video dispatcher", () => {
     runtime.setResponse("diffusion.video.image2video", {
       ok: true,
       offloadStrategy: "sequential_cpu_offload",
+      mp4Path: "/tmp/i2v.mp4",
     });
     const result = await buildVideoJobRequest(
       "image2video",
@@ -53,7 +55,7 @@ describe("video dispatcher", () => {
   it("routes audio2video through the official gate", async () => {
     setVideoJobIdFactory(() => "video-a2v");
     const runtime = new InMemoryDiffusionRuntime();
-    runtime.setResponse("diffusion.video.audio2video", { ok: true });
+    runtime.setResponse("diffusion.video.audio2video", { ok: true, mp4Path: "/tmp/a2v.mp4" });
     const result = await buildVideoJobRequest(
       "audio2video",
       {
@@ -98,6 +100,7 @@ describe("video dispatcher", () => {
     runtime.setResponse("diffusion.video.text2video", {
       ok: true,
       frameCount: 48,
+      mp4Path: "/tmp/top.mp4",
     });
     const result = await buildVideoJobRequest(
       "text2video",
@@ -118,11 +121,19 @@ describe("video dispatcher", () => {
   it("resetVideoJobIdFactory restores the default counter factory", async () => {
     resetVideoJobIdFactory();
     const runtime = new InMemoryDiffusionRuntime();
-    runtime.setResponse("diffusion.video.text2video", {});
+    runtime.setResponse("diffusion.video.text2video", { mp4Path: "/tmp/reset.mp4" });
     const first = await buildVideoJobRequest("text2video", {}, runtime);
     const second = await buildVideoJobRequest("text2video", {}, runtime);
     expect(first.jobId).toMatch(/^video-/);
     expect(second.jobId).toMatch(/^video-/);
     expect(first.jobId).not.toBe(second.jobId);
+  });
+
+  it("treats a missing mp4Path as a typed runtime-not-ready error", async () => {
+    const runtime = new InMemoryDiffusionRuntime();
+    runtime.setResponse("diffusion.video.text2video", { ok: true });
+    await expect(
+      buildVideoJobRequest("text2video", { modelId: "ltx-video" }, runtime),
+    ).rejects.toThrow(/video runtime is not ready/);
   });
 });

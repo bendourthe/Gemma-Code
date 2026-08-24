@@ -11,6 +11,8 @@
  */
 
 import { type DiffusionRuntimeClient } from "./runtimeClient.js";
+import { foldRequestModelId, resolveVideoMethod } from "./route.js";
+import { requireUsableVideoPath } from "./resultGuard.js";
 import { assertAvatarAllowed } from "../../../../core/video/avatarGate.js";
 import {
   buildAvatarProvenance,
@@ -55,12 +57,6 @@ export function resetVideoJobIdFactory(): void {
   };
 }
 
-const METHOD_FOR_MODE: Record<VideoDispatcherMode, string> = {
-  text2video: "diffusion.video.text2video",
-  image2video: "diffusion.video.image2video",
-  audio2video: "diffusion.video.audio2video",
-};
-
 /** Fail closed before enqueue so a talking-head job never sits in the queue un-gated. */
 export function gateAudio2VideoRequest(request: Record<string, unknown>): void {
   const gate = assertAvatarAllowed({
@@ -104,23 +100,30 @@ export async function buildVideoJobRequest(
   if (mode === "audio2video") {
     gateAudio2VideoRequest(request);
   }
-  const payload = { jobId, mode, request };
-  const method = METHOD_FOR_MODE[mode];
+  const folded = foldRequestModelId(request);
+  const payload = { jobId, mode, request: folded };
+  const method = resolveVideoMethod(mode, folded["modelId"]);
   const accepted = (await client.call(method, payload)) as
     | (Partial<VideoDispatcherResult> & {
         extra?: { frameCount?: number };
         workflow?: { provenance?: Record<string, unknown> };
         mp4Path?: string;
+        ok?: unknown;
+        error?: unknown;
+        message?: unknown;
       })
     | null;
-  const provenance = mode === "audio2video" ? audio2videoProvenance(request) : undefined;
+  const mp4Path = requireUsableVideoPath(accepted, client.lastStderr?.() ?? "", (line) => {
+    process.stderr.write(line);
+  });
+  const provenance = mode === "audio2video" ? audio2videoProvenance(folded) : undefined;
   return {
     jobId,
     mode,
     offloadStrategy: accepted?.offloadStrategy,
     estimatedSeconds: accepted?.estimatedSeconds,
     frameCount: accepted?.frameCount ?? accepted?.extra?.frameCount,
-    mp4Path: accepted?.mp4Path,
+    mp4Path,
     workflow: accepted?.workflow as Record<string, unknown> | undefined,
     ...(provenance ? { provenance } : {}),
   };

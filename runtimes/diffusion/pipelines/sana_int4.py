@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from . import base
+from . import base, real_execute
 
 
 # SVDQuant INT4 weights occupy ~1.4 GB on disk; in CUDA the unet at
@@ -58,7 +58,7 @@ def register(handlers: Dict[str, Callable]) -> None:
     """
     runner = base.PipelineRunner(
         mode="txt2img",
-        execute=base.select_executor("sana_int4.txt2img"),
+        execute=base.select_executor("sana_int4.txt2img", real=real_execute.image_execute),
         model_size_gb=_MODEL_SIZE_GB,
     )
     handlers["sana_int4.txt2img"] = lambda params: runner.run(params or {})

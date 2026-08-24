@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Optional
 
-from . import base
+from . import base, real_execute
 
 
 # SANA 1.6B at 1024px occupies ~3.2 GB on disk and ~5-6 GB in CUDA at
@@ -112,12 +112,12 @@ def register(handlers: Dict[str, Callable]) -> None:
     """
     txt_runner = base.PipelineRunner(
         mode="txt2img",
-        execute=base.select_executor("sana.txt2img"),
+        execute=base.select_executor("sana.txt2img", real=real_execute.image_execute),
         model_size_gb=_MODEL_SIZE_GB,
     )
     img_runner = base.PipelineRunner(
         mode="img2img",
-        execute=base.select_executor("sana.img2img"),
+        execute=base.select_executor("sana.img2img", real=real_execute.image_execute),
         model_size_gb=_MODEL_SIZE_GB,
     )
     handlers["sana.txt2img"] = lambda params: txt_runner.run(params or {})

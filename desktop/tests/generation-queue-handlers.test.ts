@@ -180,7 +180,7 @@ describe("generation queue IPC", () => {
 
   it("emits an error event when txt2img completes without image bytes", async () => {
     const runtime = new InMemoryDiffusionRuntime();
-    runtime.setResponse("txt2img", {});
+    runtime.setResponse("sana.txt2img", {});
     const ctx = createHandlerContext(
       { pid: 1, platform: process.platform },
       new CodingSessionManager(),
@@ -204,7 +204,7 @@ describe("generation queue IPC", () => {
     await expect(drainTerminalEvent(ctx, reply.jobId)).resolves.toMatchObject({
       kind: "error",
       jobId: reply.jobId,
-      message: expect.stringMatching(/without image bytes/),
+      message: expect.stringMatching(/runtime is not ready/),
     });
   });
 

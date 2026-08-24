@@ -142,6 +142,8 @@ import {
   extractWorkflowFromBase64Png,
   nextJobId,
 } from "./diffusion/dispatcher.js";
+import { foldRequestModelId } from "./diffusion/route.js";
+import { IMAGE_RUNTIME_NOT_READY, VIDEO_RUNTIME_NOT_READY } from "./diffusion/resultGuard.js";
 import {
   audio2videoProvenance,
   buildVideoJobRequest,
@@ -492,7 +494,7 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
               job.id,
             );
             if (!result.mp4Path) {
-              throw new Error("Video generation completed without an output path.");
+              throw new Error(VIDEO_RUNTIME_NOT_READY);
             }
             if (result.workflow) {
               try {
@@ -519,7 +521,7 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
             job.id,
           );
           if (!result.pngBase64) {
-            throw new Error("Image generation completed without image bytes.");
+            throw new Error(IMAGE_RUNTIME_NOT_READY);
           }
           recordCompletion(studio, {
             kind: "complete",
@@ -548,15 +550,16 @@ async function enqueueInteractive(
   parameters: Record<string, unknown>,
 ): Promise<{ jobId: string; mode: string; provenance?: ReturnType<typeof audio2videoProvenance> }> {
   if (pillar === "video" && jobType === "audio2video") {
-    gateAudio2VideoRequest(parameters);
+    gateAudio2VideoRequest(foldRequestModelId(parameters));
   }
+  const folded = foldRequestModelId(parameters);
   const studio = resolveStudio(ctx);
   const id = pillar === "video" ? nextVideoJobId() : nextJobId();
   studio.queue.enqueue({
     id,
     pillar,
     jobType,
-    parameters,
+    parameters: folded,
     priority: "interactive",
   });
   // Return immediately so the UI can poll drainEvents. pumpOnce still owns
@@ -568,7 +571,7 @@ async function enqueueInteractive(
   });
   const provenance =
     pillar === "video" && jobType === "audio2video"
-      ? audio2videoProvenance(parameters)
+      ? audio2videoProvenance(folded)
       : undefined;
   return { jobId: id, mode: jobType, ...(provenance ? { provenance } : {}) };
 }

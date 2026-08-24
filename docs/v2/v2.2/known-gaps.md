@@ -2,11 +2,52 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.4 Phase 7)
+**Last updated**: 2026-08-23 (v2.2.5 Phase 2)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md)
+
+## v2.2.5
+
+**Last updated**: 2026-08-23 (Phase 2 - diffusion returns bytes)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 2 | 0 |
+| Bugs / regressions (BG) | 0 | 1 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-49 (empty diffusion complete) is closed at unit/integration evidence. Phases 3-6 still own Settings parity, chat chrome, Hub latest, and remaining BG-43+ rows.
+
+### Open this cycle
+
+##### DF-2 - Packaged Explorer launch is unproven
+
+- **Source phase**: carried from v2.2.4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.5-first-successful-generation.md` (Phase 6.2)
+- **Reason**: not_observed != absent. No packaged soak this phase.
+- **Suggested next step**: Launch a packaged Windows build and record Explorer start.
+
+##### DF-4 - Live GPU image/video generate is unproven
+
+- **Source phase**: v2.2.5 Phase 2
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.5-first-successful-generation.md` (Phase 2 field gate)
+- **Reason**: Fail-closed envelopes are unit-proven. An operator GPU generate that paints a SANA image was not recorded this session.
+- **Suggested next step**: Run one Image Studio generate on a host with weights and GPU, or confirm the typed runtime-not-ready string in the UI when GPU is absent.
+
+### Resolved this phase
+
+##### BG-49 - Empty diffusion complete looked like a successful generate
+
+- **Source phase**: v2.2.5 Phase 2
+- **Resolution**: Node result guard rejects empty/1x1/`ok: false` before `complete`. Python production path fail-closes instead of returning a 1x1 stub. SANA catalog ids call `sana.txt2img` / `sana_int4.txt2img` / `sana_sprint.txt2img`.
+- **Evidence**: `desktop/tests/diffusion-resultGuard.test.ts`, `desktop/tests/diffusion-dispatcher.test.ts`, `desktop/tests/diffusion-route.test.ts`, `tests/python/diffusion/test_real_execute.py`.
 
 ## v2.2.4
 

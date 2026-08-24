@@ -388,18 +388,21 @@ describe("sidecar handlers", () => {
         ok: true,
         offloadStrategy: "model_cpu_offload",
         extra: { frameCount: 96 },
+        mp4Path: "/tmp/clip.mp4",
       });
       (runtime as unknown as {
         setResponse: (method: string, value: unknown) => void;
       }).setResponse("diffusion.video.image2video", {
         ok: true,
         offloadStrategy: "sequential_cpu_offload",
+        mp4Path: "/tmp/i2v.mp4",
       });
       (runtime as unknown as {
         setResponse: (method: string, value: unknown) => void;
       }).setResponse("diffusion.video.audio2video", {
         ok: true,
         offloadStrategy: "sequential_cpu_offload",
+        mp4Path: "/tmp/a2v.mp4",
       });
       return createHandlerContext(
         { pid: 1, platform: process.platform },
