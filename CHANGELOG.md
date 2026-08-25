@@ -1,6 +1,40 @@
 # Unreleased
 
-Post-cut work on `develop` after tag `v2.2.5`. No version bump. No retag.
+Post-cut work on `develop` after tag `v2.2.8`. No version bump. No retag.
+
+# [2.2.8](https://github.com/bendourthe/Nexus-AI/compare/v2.2.5...v2.2.8) (2026-08-24)
+
+Working local studio after the v2.2.5 cut (plans v2.2.6 through v2.2.8, one tag). Local-only. Packaged Chatbot `Hi`, live GPU generate, and packaged Hub Active=latest remain unproven (DF-32, DF-4, DF-35). Packaged Explorer launch is observed (DF-2 closed). The installer desktop pin stays `v2.1.0` until this tag's bundle assets attach.
+
+This release changes no opt-in capability, installer flag, or host surface.
+
+
+### Features
+
+* **v2.2.6:** persist Image Studio and Video Lab named sessions with last-output follow-up ([d0f19e3](https://github.com/bendourthe/Nexus-AI/commit/d0f19e3), [df40e38](https://github.com/bendourthe/Nexus-AI/commit/df40e38), [83f50bc](https://github.com/bendourthe/Nexus-AI/commit/83f50bc))
+* **v2.2.6:** restore Agents transcripts on resume and prove Chatbot remount hydration ([6112f6b](https://github.com/bendourthe/Nexus-AI/commit/6112f6b), [fc0ba55](https://github.com/bendourthe/Nexus-AI/commit/fc0ba55))
+* **v2.2.7:** show catalog context windows as `<val>k` chips and persist per-turn token usage ([8cf5a56](https://github.com/bendourthe/Nexus-AI/commit/8cf5a56), [a71f531](https://github.com/bendourthe/Nexus-AI/commit/a71f531))
+* **v2.2.7:** add the composer Context meter, 80% new-session CTA, and transcript date/time/token chrome ([d2893a0](https://github.com/bendourthe/Nexus-AI/commit/d2893a0), [946658b](https://github.com/bendourthe/Nexus-AI/commit/946658b))
+* **v2.2.8:** keep local chat and generate RPCs open past 15s and treat Ollama `gemma4:12b` as Downloaded ([f672d6d](https://github.com/bendourthe/Nexus-AI/commit/f672d6d))
+* **v2.2.8:** share FolderTree history chrome across Chatbot, Agents, Images, and Videos ([f47bc5e](https://github.com/bendourthe/Nexus-AI/commit/f47bc5e))
+* **v2.2.8:** inset the module rail and center composing orbs ([d4c3a42](https://github.com/bendourthe/Nexus-AI/commit/d4c3a42))
+* **v2.2.8:** match Settings Models sort to the installer catalog ([3b557c0](https://github.com/bendourthe/Nexus-AI/commit/3b557c0))
+* **v2.2.8:** apply Hub latest with per-skill quarantine while the injection scanner stays on ([692d068](https://github.com/bendourthe/Nexus-AI/commit/692d068))
+
+
+### Bug Fixes
+
+* **v2.2.6:** prove Chatbot remount hydration and honest save failures ([fc0ba55](https://github.com/bendourthe/Nexus-AI/commit/fc0ba55))
+* **v2.2.8:** remove leftover Agents SessionListPanel now that FolderTree owns history ([86dff64](https://github.com/bendourthe/Nexus-AI/commit/86dff64))
+
+
+### Documentation
+
+* **v2.2.6:** reconcile session-memory layout, known-gaps, and CI ([6fab8d9](https://github.com/bendourthe/Nexus-AI/commit/6fab8d9))
+* **v2.2.7:** reconcile context-meter layout, known-gaps, and CI ([02616e9](https://github.com/bendourthe/Nexus-AI/commit/02616e9))
+* **v2.2.8:** reconcile studio layout, known-gaps, and CI ([86dff64](https://github.com/bendourthe/Nexus-AI/commit/86dff64))
+
+Plans: [v2.2.6](docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md), [v2.2.7](docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md), [v2.2.8](docs/v2/v2.2/plans/v2.2.8-working-local-studio.md). Gaps: [docs/v2/v2.2/known-gaps.md](docs/v2/v2.2/known-gaps.md).
 
 # [2.2.5](https://github.com/bendourthe/Nexus-AI/compare/v2.1.0...v2.2.5) (2026-08-23)
 

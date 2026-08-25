@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, and the current **v2.2.7** field-repair cycle lives under `docs/v2/v2.2/`. See [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, and the current **v2.2.8** field-repair cycle lives under `docs/v2/v2.2/`. See [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, and `docs/v2/v2.2/` for **v2.2.7**).
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, and `docs/v2/v2.2/` for **v2.2.8**).
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: the old `v2.0.0` tag became `v1.6.0`, `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0`, `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. This **v2.0.0** cut is the reserved convergence release (v1.18 plan + v1.19.x subplans + this adoption plan).
 
@@ -110,9 +110,22 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v2.1.0 | Open local-AI wave: Muse Glimmer + Nemotron Lightning catalog/harness, adaptive routing, Image Studio depth, multimodal chat + SAM2, local fine-tuning, hardening | Landed | [docs/v2/v2.1/](docs/v2/v2.1/) |
 | v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion bytes, Settings Models installer parity, chat explorer chrome, Hub latest (not 3.12.0) | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
 | v2.2.6 | Session memory: named Image/Video history, last-output follow-up, Agents resume hydrate, Chatbot remount proof | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
-| v2.2.7 | Context meter and transcript chrome: catalog `<val>k` chips, composer Context pill plus picker, date/time/token bubbles | Landed on develop | [docs/v2/v2.2/](docs/v2/v2.2/) |
+| v2.2.7 | Context meter and transcript chrome: catalog `<val>k` chips, composer Context pill plus picker, date/time/token bubbles | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
+| v2.2.8 | Working local studio: minutes-class chat/generate RPCs, shared FolderTree, installer Models sort, Hub latest with quarantine | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
 
 Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. Deferred work is in that version's `known-gaps.md`.
+
+### What's new in v2.2.8
+
+Minutes-class local inference, one history chrome on all four tabs, installer-identical Models sort, and Hub latest apply with the scanner on. Packaged Chatbot `Hi`, live GPU generate, and packaged Hub Active=latest remain unproven (DF-32, DF-4, DF-35). Packaged Explorer launch is observed (DF-2 closed).
+
+- **Inference that finishes** - `chat.send` / generate RPCs use a minutes-class timeout. `ping` stays 15s. A slow local turn shows Composing or a typed Ollama/runtime error, not `(chat unavailable) sidecar response timeout`. Ollama tag `gemma4:12b` lists as Downloaded for catalog `gemma-4-12b-it-gguf`.
+- **Shared history** - Chatbot, Agents, Images, and Videos use FolderTree at 280px, collapsing to a 56px icon rail. Confirm-delete is rounded and quiet. Agents folders are a local overlay (DF-33).
+- **Chrome** - The module rail has a small top inset. Chat/Agents pending orbs are 48px and centered. Image/Video pending stays hero. The `thinking-orbs` package is not a dependency.
+- **Models identity** - Settings Models and the installer Models tab share collapse/sort (family collapse, hideBelowVram, over-budget last). Compact cards, highlighted Downloaded, picker order from that list.
+- **Hub latest** - High-severity skills quarantine; clean skills apply; Active moves to the fetched tag. `PromptInjectionScanner` stays on. Pack-time snapshots still refuse a stale 3.12.0 catalog.
+
+Known gaps: [docs/v2/v2.2/known-gaps.md](docs/v2/v2.2/known-gaps.md). Plan: [docs/v2/v2.2/plans/v2.2.8-working-local-studio.md](docs/v2/v2.2/plans/v2.2.8-working-local-studio.md).
 
 ### What's new in v2.2.7
 
