@@ -11,10 +11,16 @@
 // never injects skill bodies into a prompt. Full bodies load on invocation.
 
 import { promises as fs } from "node:fs";
+import type { Dirent } from "node:fs";
 import * as path from "node:path";
 
 import { hubLayoutDir, type HubLayoutKey } from "../../../../core/storage/paths.js";
 import { resolveHubLayout } from "../../../../core/storage/hubVersionManifest.js";
+import {
+  HUB_QUARANTINE_INDEX,
+  type HubQuarantineIndex,
+} from "../../../../core/skills/NexusHubSyncer.js";
+import type { ScanResult } from "../../../../core/skills/PromptInjectionScanner.js";
 
 /** One row for Settings > Skills. Mirrors the UI's `SkillRowDto` shape. */
 export interface HubSkillRow {
@@ -29,6 +35,8 @@ export interface HubSkillRow {
     tag?: string;
     contentHash: string;
   };
+  /** Present when this skill was moved to catalog/quarantine/. */
+  quarantine?: ScanResult;
 }
 
 export interface HubCatalogListing {
@@ -80,30 +88,40 @@ async function readSkillsDir(
   source: "nexus-hub" | "user" | "builtin",
   tag: string | null,
 ): Promise<HubSkillRow[]> {
+  const rows = await collectSkillRows(dir, source, tag);
+  rows.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return rows;
+}
+
+async function collectSkillRows(
+  dir: string,
+  source: "nexus-hub" | "user" | "builtin",
+  tag: string | null,
+): Promise<HubSkillRow[]> {
   const rows: HubSkillRow[] = [];
-  let entries: string[];
+  let entries: Dirent[];
   try {
-    entries = (await fs.readdir(dir, { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
+    entries = await fs.readdir(dir, { withFileTypes: true });
   } catch {
     return rows;
   }
   await Promise.all(
-    entries.map(async (name) => {
-      const skillFile = path.join(dir, name, "SKILL.md");
+    entries.map(async (entry) => {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) return;
+      const full = path.join(dir, entry.name);
+      const skillFile = path.join(full, "SKILL.md");
       let content = "";
       try {
         content = await fs.readFile(skillFile, "utf8");
       } catch {
-        // A directory without SKILL.md is not a skill; skip it silently. A
-        // malformed entry must never break the whole listing.
+        // Category folder (no SKILL.md): walk nested Hub layout.
+        rows.push(...(await collectSkillRows(full, source, tag)));
         return;
       }
       const fm = parseSkillFrontmatter(content);
       rows.push({
-        id: source === "builtin" ? name : `${source}/${name}`,
-        displayName: fm.name || name,
+        id: source === "builtin" ? entry.name : `${source}/${entry.name}`,
+        displayName: fm.name || entry.name,
         ...(fm.category ? { category: fm.category } : {}),
         path: skillFile,
         ...(fm.description ? { tags: [fm.description] } : {}),
@@ -116,8 +134,43 @@ async function readSkillsDir(
       });
     }),
   );
-  rows.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return rows;
+}
+
+async function readQuarantinedSkills(
+  catalogDir: string,
+  tag: string | null,
+): Promise<HubSkillRow[]> {
+  const indexPath = path.join(catalogDir, HUB_QUARANTINE_INDEX);
+  let raw: string;
+  try {
+    raw = await fs.readFile(indexPath, "utf8");
+  } catch {
+    return [];
+  }
+  let parsed: HubQuarantineIndex;
+  try {
+    parsed = JSON.parse(raw) as HubQuarantineIndex;
+  } catch {
+    return [];
+  }
+  if (!parsed || !Array.isArray(parsed.skills)) return [];
+  return parsed.skills.map((record) => {
+    const skillFile = path.join(catalogDir, "quarantine", ...record.relPath.split("/"), "SKILL.md");
+    const findings = record.findings ?? [];
+    return {
+      id: `nexus-hub/${record.name}`,
+      displayName: record.name,
+      path: skillFile,
+      active: false,
+      provenance: {
+        source: "nexus-hub" as const,
+        ...(tag ? { tag } : {}),
+        contentHash: shortHash(record.relPath),
+      },
+      quarantine: { decision: "block" as const, findings },
+    };
+  });
 }
 
 export interface ReadHubCatalogOptions {
@@ -152,12 +205,13 @@ export async function readHubCatalog(
   }
 
   const userDir = opts.userDir ?? path.join(path.dirname(catalogDir), "user", "skills");
-  const [hubRows, userRows] = await Promise.all([
+  const [hubRows, userRows, quarantineRows] = await Promise.all([
     readSkillsDir(skillsDir, "nexus-hub", tag),
     readSkillsDir(userDir, "user", null),
+    readQuarantinedSkills(catalogDir, tag),
   ]);
 
-  const rows = [...hubRows, ...userRows];
+  const rows = [...hubRows, ...userRows, ...quarantineRows];
   return {
     rows,
     error,

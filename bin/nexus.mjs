@@ -121,14 +121,18 @@ export async function runSkillsSync(flags, stdout = process.stdout, stderr = pro
   }
   stdout.write(`nexus skills sync: fetched ${result.tag}\n`);
   stdout.write(`  diff: ${mod.summarizeDiff(result.diff)}\n`);
-  if (result.scan.decision === "block") {
+  const quarantined = result.quarantined ?? [];
+  if (quarantined.length > 0) {
     stderr.write(
-      `nexus skills sync: blocked by injection scanner (${result.scan.findings.length} finding(s))\n`,
+      `nexus skills sync: quarantined ${quarantined.length} skill(s); remaining catalog still applied when --apply is set\n`,
     );
-    for (const f of result.scan.findings) {
-      stderr.write(`  [${f.severity}] ${f.source}:${f.line} ${f.ruleId}: ${f.message}\n`);
+    for (const rel of quarantined) {
+      stderr.write(`  quarantine: ${rel}\n`);
     }
-    return 1;
+  } else if (result.scan.decision === "warn") {
+    stderr.write(
+      `nexus skills sync: ${result.scan.findings.length} warning(s) from injection scanner\n`,
+    );
   }
   const mv = result.manifestVerification;
   if (mv.present && mv.mismatched.length > 0) {
@@ -141,17 +145,20 @@ export async function runSkillsSync(flags, stdout = process.stdout, stderr = pro
   } else if (mv.present) {
     stdout.write(`  verified ${mv.checked} file(s) against MANIFEST.sha256\n`);
   }
-  if (result.scan.decision === "warn") {
-    stderr.write(
-      `nexus skills sync: ${result.scan.findings.length} warning(s) from injection scanner\n`,
-    );
-  }
   if (result.applied) {
     stdout.write(`nexus skills sync: applied ${result.tag} -> ${result.activeDir}\n`);
   } else {
     stdout.write(
       `nexus skills sync: preview written to ${result.tmpDir}. Re-run with --apply to activate.\n`,
     );
+  }
+  if (
+    (flags.apply === true || flags.apply === "true") &&
+    !result.applied &&
+    !result.alreadyUpToDate
+  ) {
+    stderr.write("nexus skills sync: apply failed closed\n");
+    return 1;
   }
   return 0;
 }

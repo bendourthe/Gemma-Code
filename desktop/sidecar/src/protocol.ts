@@ -943,6 +943,21 @@ export const SkillsListResponse = z.object({
       path: z.string(),
       tags: z.array(z.string()).optional(),
       active: z.boolean().optional(),
+      quarantine: z
+        .object({
+          decision: z.enum(["block", "warn", "pass"]),
+          findings: z.array(
+            z.object({
+              ruleId: z.string(),
+              severity: z.enum(["high", "medium", "low"]),
+              message: z.string(),
+              source: z.string(),
+              line: z.number(),
+              excerpt: z.string(),
+            }),
+          ),
+        })
+        .optional(),
       provenance: z.object({
         source: z.enum(["builtin", "user", "nexus-hub"]),
         tag: z.string().optional(),
@@ -2118,6 +2133,7 @@ export const SkillsSyncResponse = z
     alreadyUpToDate: z.boolean(),
     blocked: z.boolean(),
     summary: z.string(),
+    quarantinedCount: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type SkillsSyncResponseT = z.infer<typeof SkillsSyncResponse>;

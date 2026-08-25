@@ -18,9 +18,11 @@
  *   6. Cross-verify the cloned files against the Hub's published
  *      `MANIFEST.sha256` -- ADVISORY (does not block; the injection scanner is
  *      the fail-closed gate).
- *   7. If `--apply` (and the scan did not block), atomically swap the staged
+ *   7. High-severity skills are moved to `catalog/quarantine/` (per-skill).
+ *      Clean skills remain. If `--apply`, atomically swap the staged
  *      `catalog/` directory into `~/.nexus-ai/catalog/` and write a deterministic
- *      `nexus-hub-version.json`.
+ *      `nexus-hub-version.json`. A scanner *crash* fails closed and does not
+ *      apply. A scanner *finding* no longer fails the whole bundle.
  *
  * SAFETY (v1.10.0): every destructive operation is scoped to the catalog subtree
  * (`assertScopedCatalogRoot`). The syncer never touches `~/.nexus/` or app data;
@@ -158,6 +160,12 @@ export interface SyncResult {
   /** The catalog root when a catalog is installed; otherwise null. */
   readonly activeDir: string | null;
   /**
+   * Skill directory relPaths (posix, under `skills/`) moved to
+   * `quarantine/` because the scanner returned a high-severity finding.
+   * Empty when nothing was quarantined. Apply still proceeds.
+   */
+  readonly quarantined: readonly string[];
+  /**
    * Index-vs-tree divergence from the Hub's `data/skills.json`. `null` when the
    * bundle ships no index. Never blocks the sync (the on-disk tree is
    * authoritative).
@@ -197,6 +205,27 @@ export const HUB_SPARSE_CHECKOUT_PATHS: readonly string[] = Object.freeze([
 
 export function defaultSkillsRoot(): string {
   return path.join(os.homedir(), ".nexus", "skills");
+}
+
+export const HUB_QUARANTINE_DIR = "quarantine";
+export const HUB_QUARANTINE_INDEX = "quarantine/index.json";
+
+/** One quarantined skill recorded next to the applied catalog. */
+export interface HubQuarantineRecord {
+  readonly relPath: string;
+  readonly name: string;
+  readonly findings: ScanResult["findings"];
+}
+
+export interface HubQuarantineIndex {
+  readonly skills: readonly HubQuarantineRecord[];
+}
+
+let syncFlight: Promise<SyncResult> | null = null;
+
+/** Test-only: drop a leaked in-flight lock so later cases do not share a stale promise. */
+export function resetHubSyncFlightForTests(): void {
+  syncFlight = null;
 }
 
 // v1.10.0 Phase 3: the legacy `~/.nexus/skills/devai-hub/<tag>/` + ACTIVE-pointer
@@ -341,6 +370,15 @@ export function diffManifests(
 /** Render a one-line human-friendly summary (`+12 new, ~3 modified, -1 removed`). */
 export function summarizeDiff(diff: ManifestDiff): string {
   return `+${diff.added.length} new, ~${diff.modified.length} modified, -${diff.removed.length} removed`;
+}
+
+/** Diff counts plus a quarantine suffix when high-severity skills were moved. */
+export function summarizeSyncResult(
+  result: Pick<SyncResult, "diff" | "quarantined">,
+): string {
+  const base = summarizeDiff(result.diff);
+  if (result.quarantined.length === 0) return base;
+  return `${base}; quarantined ${result.quarantined.length}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -649,8 +687,21 @@ export class NexusHubSyncer {
    * Run the full sync pipeline. The default behaviour is "preview-only" (the
    * staging dir is left intact for the user to review). Pass `apply: true` to
    * swap the catalog subtree and write the version manifest.
+   *
+   * Concurrent callers share one in-flight sync (single-flight).
    */
   async sync(options: { tag?: string; apply?: boolean } = {}): Promise<SyncResult> {
+    if (syncFlight) return syncFlight;
+    const tracked = this._syncUnsynchronized(options).finally(() => {
+      if (syncFlight === tracked) syncFlight = null;
+    });
+    syncFlight = tracked;
+    return tracked;
+  }
+
+  private async _syncUnsynchronized(
+    options: { tag?: string; apply?: boolean } = {},
+  ): Promise<SyncResult> {
     const tag = options.tag ?? (await this._deps.resolveLatestTag());
     if (!tag || !/^[A-Za-z0-9._\-+]+$/.test(tag)) {
       throw new Error(`invalid tag: ${tag}`);
@@ -679,6 +730,7 @@ export class NexusHubSyncer {
         alreadyUpToDate: true,
         applied: false,
         activeDir: catalogRootDir,
+        quarantined: [],
         indexConsistency: null,
         manifestVerification: { present: false, checked: 0, mismatched: [] },
       };
@@ -706,10 +758,30 @@ export class NexusHubSyncer {
       tag,
       this._upstream,
     );
-    const scan = scanBundleDir(stagedSkillsDir, this._scanner);
+    let scan: ScanResult;
+    try {
+      scan = scanBundleDir(stagedSkillsDir, this._scanner);
+    } catch (err) {
+      // Scanner crash: fail closed. Do not apply a half-scanned bundle.
+      if (fs.existsSync(tmpDir)) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`injection scanner failed closed: ${detail}`);
+    }
+    let quarantined: readonly string[];
+    try {
+      quarantined = quarantineHighSeveritySkills(stagedCatalogDir, stagedSkillsDir, scan);
+    } catch (err) {
+      if (fs.existsSync(tmpDir)) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`injection scanner failed closed: quarantine move: ${detail}`);
+    }
     const diff = diffManifests(prevManifest, manifest);
     // Supply-chain evidence against the repo-root MANIFEST.sha256. ADVISORY: it
-    // never blocks `--apply` (the injection scanner is the fail-closed gate).
+    // never blocks `--apply` (a scanner *crash* is the fail-closed gate).
     const manifestVerification = verifyReleaseManifest(tmpDir);
     // Record the catalog's declared version (plugin.json) when present, else the tag.
     const version = readPluginVersion(tmpDir) ?? tag;
@@ -718,8 +790,9 @@ export class NexusHubSyncer {
     let appliedActiveDir: string | null = fs.existsSync(installedSkillsDir)
       ? catalogRootDir
       : null;
-    if (options.apply && scan.decision !== "block") {
+    if (options.apply) {
       // Destructive swap, scoped to the catalog subtree ONLY (never app data).
+      // High-severity skills already live under catalog/quarantine/.
       assertScopedCatalogRoot(catalogRootDir);
       if (fs.existsSync(catalogRootDir)) {
         fs.rmSync(catalogRootDir, { recursive: true, force: true });
@@ -742,10 +815,85 @@ export class NexusHubSyncer {
       alreadyUpToDate: false,
       applied,
       activeDir: appliedActiveDir,
+      quarantined,
       indexConsistency,
       manifestVerification,
     };
   }
+}
+
+function containedPath(root: string, candidate: string): boolean {
+  const rel = path.relative(path.resolve(root), path.resolve(candidate));
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+/** Map a scanner source path (posix, relative to `skills/`) to a skill directory. */
+function resolveSkillRelDir(skillsRoot: string, source: string): string | null {
+  const posix = source.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!posix || posix.split("/").includes("..")) return null;
+  let dir = posix.replace(/\/?SKILL\.md$/i, "");
+  if (dir === posix) {
+    dir = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
+  }
+  while (dir) {
+    const abs = path.join(skillsRoot, ...dir.split("/"));
+    if (!containedPath(skillsRoot, abs)) return null;
+    if (fs.existsSync(path.join(abs, "SKILL.md"))) return dir;
+    dir = dir.includes("/") ? dir.slice(0, dir.lastIndexOf("/")) : "";
+  }
+  return null;
+}
+
+/**
+ * Move each skill that has a high-severity finding out of `skills/` into
+ * `catalog/quarantine/<relPath>/` and write `quarantine/index.json`.
+ * Medium/low findings stay enabled. Returns the moved skill-dir relPaths.
+ */
+export function quarantineHighSeveritySkills(
+  stagedCatalogDir: string,
+  stagedSkillsDir: string,
+  scan: ScanResult,
+): string[] {
+  const high = scan.findings.filter((f) => f.severity === "high");
+  if (high.length === 0) return [];
+
+  const findingsBySkill = new Map<string, ScanResult["findings"][number][]>();
+  for (const finding of high) {
+    const rel = resolveSkillRelDir(stagedSkillsDir, finding.source);
+    if (!rel) continue;
+    const list = findingsBySkill.get(rel) ?? [];
+    list.push(finding);
+    findingsBySkill.set(rel, list);
+  }
+
+  const quarantined: string[] = [];
+  const records: HubQuarantineRecord[] = [];
+  const quarantineRoot = path.join(stagedCatalogDir, HUB_QUARANTINE_DIR);
+
+  for (const rel of [...findingsBySkill.keys()].sort()) {
+    const from = path.join(stagedSkillsDir, ...rel.split("/"));
+    const to = path.join(quarantineRoot, ...rel.split("/"));
+    if (!fs.existsSync(from) || !containedPath(stagedSkillsDir, from)) continue;
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.renameSync(from, to);
+    quarantined.push(rel);
+    const name = rel.split("/").filter(Boolean).pop() ?? rel;
+    records.push({
+      relPath: rel,
+      name,
+      findings: findingsBySkill.get(rel) ?? [],
+    });
+  }
+
+  if (records.length > 0) {
+    fs.mkdirSync(quarantineRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(stagedCatalogDir, HUB_QUARANTINE_INDEX),
+      `${JSON.stringify({ skills: records }, null, 2)}\n`,
+      "utf-8",
+    );
+  }
+  return quarantined;
 }
 
 function scanBundleDir(dir: string, scanner: PromptInjectionScanner): ScanResult {

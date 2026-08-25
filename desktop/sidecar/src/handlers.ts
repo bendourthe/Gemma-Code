@@ -133,7 +133,7 @@ import { Buffer } from "node:buffer";
 import {
   NexusHubSyncer,
   defaultDependencies,
-  summarizeDiff,
+  summarizeSyncResult,
 } from "../../../core/skills/NexusHubSyncer.js";
 import { catalogRoot, hubLayoutDir, nexusHome } from "../../../core/storage/paths.js";
 import {
@@ -970,8 +970,9 @@ export const handlers: Record<Method, HandlerFn> = {
       tag: result.tag,
       applied: result.applied,
       alreadyUpToDate: result.alreadyUpToDate,
-      blocked: result.scan.decision === "block",
-      summary: summarizeDiff(result.diff),
+      blocked: !result.applied && !result.alreadyUpToDate,
+      quarantinedCount: result.quarantined.length,
+      summary: summarizeSyncResult(result),
     };
   },
   "skills.status": async (): Promise<SkillsStatusResponseT> => {

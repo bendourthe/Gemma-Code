@@ -11,6 +11,10 @@
 # v2.2.8 Phase 4: scripts/installer/** covers catalog_tab_sort (family
 # collapse + hideBelowVram + over-budget last) dual-asserted against
 # tests/fixtures/v2.2.8-catalog-tab-sort.json. Do not clone Hub.
+# v2.2.8 Phase 5: pack-time stale 3.12.0 refusal is unchanged
+# (test_hub_catalog_provisioner). Install-time --sync-hub-catalog apply with
+# per-skill quarantine lives in sidecar/unit tests, not this pytest job.
+# Do not clone Hub.
 # PRs to main use the same path filter. workflow_dispatch always runs.
 name: Installer tests
 

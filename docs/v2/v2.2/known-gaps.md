@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.8 Phase 4)
+**Last updated**: 2026-08-24 (v2.2.8 Phase 5)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,20 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.8
 
-**Last updated**: 2026-08-24 (Phase 4 - models catalog parity)
+**Last updated**: 2026-08-24 (Phase 5 - Hub latest apply)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 3 | 0 |
+| Deferred (DF) | 4 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Settings Models and the installer Models tab share one collapse/sort contract (hideBelowVram, one best-fit per family, required / recommended / compatible, over-budget last). Settings cards are compact (details disclosure, highlighted Downloaded chip). Packaged Explorer Settings vs installer screenshots remain not_observed (DF-34). The module rail has a small top inset so Chatbot is not flush with the title bar. Chat/Agents pending orbs use the 48px `bubble` preset, centered in the assistant bubble; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Chatbot, Agents, Images, and Videos share FolderTree chrome: 280px expanded, 56px collapsed icon rail (new/folder plus per-session marks), persisted collapse keys, rounded quiet confirm-delete. Agents sessions without sidecar folders render as a flat list; folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-2 close waits for Phase 6 evidence. DF-4 stays open.
+Hub apply now quarantines high-severity skills and still moves Active to the fetched tag (`PromptInjectionScanner` stays on). Pack-time snapshots still refuse a stale 3.12.0 catalog. Packaged Explorer Sync now / Active = GitHub latest remains not_observed (DF-35). Settings Models and the installer Models tab share one collapse/sort contract (hideBelowVram, one best-fit per family, required / recommended / compatible, over-budget last). Settings cards are compact (details disclosure, highlighted Downloaded chip). Packaged Explorer Settings vs installer screenshots remain not_observed (DF-34). The module rail has a small top inset so Chatbot is not flush with the title bar. Chat/Agents pending orbs use the 48px `bubble` preset, centered in the assistant bubble; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Chatbot, Agents, Images, and Videos share FolderTree chrome: 280px expanded, 56px collapsed icon rail (new/folder plus per-session marks), persisted collapse keys, rounded quiet confirm-delete. Agents sessions without sidecar folders render as a flat list; folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-2 close waits for Phase 6 evidence. DF-4 stays open.
 
 ### Open this cycle
 
@@ -48,9 +48,16 @@ Settings Models and the installer Models tab share one collapse/sort contract (h
 - **Reason**: A shared golden fixture dual-asserts installer `collapse_and_sort` and desktop `visibleModelsOnTab`. Compact cards and the Downloaded highlight are unit-proven. A packaged Explorer Settings tab was not screenshotted next to the installer Models tab this phase. not_observed != absent.
 - **Suggested next step**: On the same host, open Settings > Models and the installer Models tab. Confirm Chat order, family collapse, gray over-budget last, and that Gemma 4 12B is Downloaded when `ollama list` has `gemma4:12b`.
 
+##### DF-35 - Packaged Hub apply of GitHub latest remains unproven
+
+- **Source phase**: v2.2.8 Phase 5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 5 Stability Gate)
+- **Reason**: Fixture apply with one planted jailbreak quarantines that skill, keeps clean skills enabled, and writes Active as the fixture tag. The scanner stays on. A packaged Explorer Update now / Sync now against live `bendourthe/Nexus-Hub` `/releases/latest` was not recorded this phase. not_observed != absent.
+- **Suggested next step**: On a packaged Windows build with network, press Update now. Confirm Active matches GitHub latest, the scanner is still on, quarantined skills (if any) are listed and not enabled, and the previous catalog is not left at 3.12.0.
+
 ### Resolved this phase
 
-None. Catalog parity is new this cycle, not a prior BG close.
+None. Hub quarantine apply is new this cycle at unit/integration evidence. Packaged Hub update stays DF-23 (v2.2.4) plus DF-35 (this cycle's Active=latest bar).
 
 ## v2.2.7
 
