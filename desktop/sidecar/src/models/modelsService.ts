@@ -79,6 +79,11 @@ export interface ListedModelDto {
     releaseDate?: string;
     uncensored?: boolean;
     selectedAtInstall?: boolean;
+    /** v2.2.7 Phase 1 -- catalog-reported token window. null, never a default 128000. */
+    contextWindow?: number | null;
+    contextWindowIn?: number | null;
+    contextWindowOut?: number | null;
+    hideBelowVramGB?: number;
   }
 
 export interface DiskUsageDto {
@@ -114,10 +119,12 @@ export async function queryOllamaTags(
   try {
     const res = await fetchFn(`${baseUrl}/api/tags`);
     if (!res.ok) return new Set();
-    const body = (await res.json()) as { models?: Array<{ name?: string }> };
+    const body = (await res.json()) as { models?: Array<{ name?: string; model?: string }> };
     const tags = new Set<string>();
     for (const m of body.models ?? []) {
+      // Recent Ollama builds populate `model`; older ones used `name`.
       if (m.name) tags.add(m.name);
+      if (m.model) tags.add(m.model);
     }
     return tags;
   } catch {
@@ -298,6 +305,10 @@ function toDto(m: ListedModel): ListedModelDto {
     origin: m.origin,
     releaseDate: m.releaseDate,
     uncensored: m.uncensored,
+    contextWindow: m.contextWindow ?? null,
+    contextWindowIn: m.contextWindowIn ?? null,
+    contextWindowOut: m.contextWindowOut ?? null,
+    hideBelowVramGB: m.hideBelowVramGB,
   };
 }
 
@@ -367,7 +378,8 @@ export async function createModelsRuntime(
   opts: { modelsRoot?: string; ollamaBaseUrl?: string; fetchFn?: typeof fetch } = {},
 ): Promise<ModelsRuntime> {
   const modelsRoot = opts.modelsRoot ?? defaultModelsRoot();
-  const ollamaBaseUrl = opts.ollamaBaseUrl ?? DEFAULT_OLLAMA_URL;
+  const envUrl = process.env.NEXUS_OLLAMA_URL?.trim();
+  const ollamaBaseUrl = opts.ollamaBaseUrl ?? (envUrl && envUrl.length > 0 ? envUrl : DEFAULT_OLLAMA_URL);
   const fetchFn = opts.fetchFn ?? fetch;
   const resolved = await resolveCatalog();
   const catalog = resolved.file;

@@ -33,6 +33,7 @@
     "../core/video",
     "../core/config",
     "../core/registry",
+    "../core/chat",
     "../modules/coding/orchestration/HarnessSelector.ts"
   ],
   "exclude": ["node_modules", "src-tauri/target", "sidecar/dist"]

@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { sessionContextUsage } from "../../core/chat/sessionContextUsage";
 import type { LLMClient } from "../../modules/coding/llm/types";
 import { createChatMessageHandler } from "../sidecar/src/chat/chatMessageHandler";
 import { ChatSessionManager } from "../sidecar/src/chat/sessionManager";
@@ -43,6 +44,54 @@ describe("createChatMessageHandler", () => {
       ["Hel", "lo"],
     );
     expect(events.at(-1)).toEqual({ kind: "done", finishReason: "stop" });
+  });
+
+  it("stores Ollama prompt_eval_count and eval_count on the done event", async () => {
+    const llm: LLMClient = {
+      async checkHealth() {
+        return true;
+      },
+      async listModels() {
+        return [];
+      },
+      async *streamChat() {
+        yield { message: { role: "assistant", content: "Hi" }, done: false };
+        yield {
+          message: { role: "assistant", content: "", thinking: "abcd" },
+          done: true,
+          prompt_eval_count: 20,
+          eval_count: 8,
+        };
+      },
+    };
+    const runner = createChatMessageHandler({ llm });
+    const events = await runner({
+      sessionId: "c1",
+      model: requireModel("gemma4:e4b"),
+      messages: [{ role: "user", content: "hi" }],
+    });
+    expect(events.at(-1)).toEqual({
+      kind: "done",
+      finishReason: "stop",
+      inputTokens: 20,
+      reasoningTokens: 1,
+      outputTokens: 8,
+    });
+    const done = events.at(-1);
+    if (!done || done.kind !== "done") throw new Error("expected done event");
+    const summed = sessionContextUsage({
+      turns: [
+        {
+          inputTokens: done.inputTokens,
+          reasoningTokens: done.reasoningTokens,
+          outputTokens: done.outputTokens,
+        },
+      ],
+      contextWindow: 100,
+    });
+    expect(summed.usedTokens).toBe(29);
+    expect(summed.percent).toBeCloseTo(29);
+    expect(summed.estimated).toBe(false);
   });
 
   it("never throws -- an LLM failure becomes a done with an error reason", async () => {

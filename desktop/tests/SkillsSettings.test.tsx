@@ -142,6 +142,26 @@ describe("SkillsSettings", () => {
     );
   });
 
+  it("Sync now with quarantined skills still shows Synced, not blocked", async () => {
+    const client = makeClient(makeRows());
+    client.syncNow = async () => ({
+      tag: "v3.21.0",
+      applied: true,
+      summary: "+8 new, ~0 modified, -0 removed; quarantined 1",
+    });
+    render(<SkillsSettings client={client} />);
+    await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skills-sync-now"));
+    });
+    await waitFor(() => {
+      const status = screen.getByTestId("skills-sync-status").textContent ?? "";
+      expect(status).toContain("Synced v3.21.0");
+      expect(status).toContain("quarantined 1");
+    });
+    expect(screen.queryByRole("alert")?.textContent ?? "").not.toMatch(/blocked/i);
+  });
+
   it("Auto-sync toggle calls setAutoSyncEnabled(true)", async () => {
     const client = makeClient(makeRows());
     const spy = vi.spyOn(client, "setAutoSyncEnabled");

@@ -120,6 +120,76 @@ describe("<ChatPage> transcript durability", () => {
     );
   });
 
+  it("remounts the same chat with both the user prompt and assistant reply", async () => {
+    const client = new PersistentExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Saved" });
+    const chat = client.createChat({ folderId: folder.id, title: "Thread", modelId: "gemma4:e4b" });
+    const user = userEvent.setup();
+    const first = render(
+      <ChatPage client={client} chatSession={successfulSession()} modelsClient={INSTALLED_CHAT_MODELS} />,
+    );
+    await openChat(user, folder.id, chat.id);
+    await waitForInstalledChatModel();
+    await user.type(screen.getByTestId("media-composer-textarea"), "remember this{Enter}");
+    expect(await screen.findByText("remember this")).toBeInTheDocument();
+    expect(await screen.findByText("Persisted reply")).toBeInTheDocument();
+    first.unmount();
+
+    render(<ChatPage client={client} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await openChat(user, folder.id, chat.id);
+    expect(await screen.findByText("remember this")).toBeInTheDocument();
+    expect(await screen.findByText("Persisted reply")).toBeInTheDocument();
+  });
+
+  it("hydrates stored image attachments after remount", async () => {
+    const client = new PersistentExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Saved" });
+    const chat = client.createChat({ folderId: folder.id, title: "Thread", modelId: "gemma4:e4b" });
+    client.seed({
+      id: "img-1",
+      chatId: chat.id,
+      role: "user",
+      content: "see this",
+      attachments: ["data:image/png;base64,AAAA"],
+      createdAt: 1,
+    });
+    const user = userEvent.setup();
+    const first = render(<ChatPage client={client} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await openChat(user, folder.id, chat.id);
+    expect(await screen.findByTestId("message-attachment-img-1-0")).toHaveAttribute(
+      "src",
+      "data:image/png;base64,AAAA",
+    );
+    first.unmount();
+
+    render(<ChatPage client={client} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await openChat(user, folder.id, chat.id);
+    expect(await screen.findByTestId("message-attachment-img-1-0")).toHaveAttribute(
+      "src",
+      "data:image/png;base64,AAAA",
+    );
+  });
+
+  it("does not claim a durable save when appendMessage fails", async () => {
+    const client = new PersistentExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Saved" });
+    const chat = client.createChat({ folderId: folder.id, title: "Thread", modelId: "gemma4:e4b" });
+    client.appendMessage.mockImplementation(() => {
+      throw new Error("disk full");
+    });
+    const user = userEvent.setup();
+    render(
+      <ChatPage client={client} chatSession={successfulSession()} modelsClient={INSTALLED_CHAT_MODELS} />,
+    );
+    await openChat(user, folder.id, chat.id);
+    await waitForInstalledChatModel();
+    await user.type(screen.getByTestId("media-composer-textarea"), "keep locally{Enter}");
+    expect(await screen.findByText("keep locally")).toBeInTheDocument();
+    expect(await screen.findByTestId("chat-transcript-error")).toHaveTextContent(
+      "Message is visible but was not saved",
+    );
+  });
+
   it("replays stored turns when starting a new model session", async () => {
     const client = new PersistentExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Saved" });

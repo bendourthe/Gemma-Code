@@ -57,6 +57,11 @@ export interface ChatMessageRecord {
   content: string;
   attachments: readonly string[];
   createdAt: number;
+  /** v2.2.7 Phase 2 -- null when the backend did not report usage. Never invent 0. */
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
 }
 
 export interface AppendMessageInput {
@@ -67,6 +72,10 @@ export interface AppendMessageInput {
   /** Injected in tests for deterministic ordering. */
   id?: string;
   createdAt?: number;
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
 }
 
 /** Tree node returned by `listTree()`; children are folders, with chats as a sibling list. */

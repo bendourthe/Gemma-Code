@@ -151,6 +151,7 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
 
 export const AGENT_ACTIVITIES: readonly AgentActivity[] = Object.keys(MAPPINGS) as AgentActivity[];
 
-export function resolveAgentState(activity: AgentActivity): AgentStateMapping {
-  return MAPPINGS[activity];
+export function resolveAgentState(activity: AgentActivity | null | undefined): AgentStateMapping {
+  if (activity && activity in MAPPINGS) return MAPPINGS[activity];
+  return MAPPINGS["chat-streaming"];
 }

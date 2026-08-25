@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ipc } from "../../lib/ipc";
+import { formatInferenceError } from "../../lib/inferenceRpcError";
 import type {
   CodingSessionEventT,
   CodingSessionListResponseT,
+  CodingSessionResumeResponseT,
   CodingSessionStartResponseT,
   CodingSessionSummaryT,
   CodingMemorySnapshotResponseT,
@@ -14,12 +16,23 @@ import type {
 } from "../../../sidecar/src/protocol";
 import { CodingInput } from "./CodingInput";
 import { foldModelId } from "../../../../core/registry/modelAliases";
+import { estimateTokens } from "../../../../core/chat/sessionContextUsage";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
 import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
-import { SessionListPanel } from "./panels/SessionListPanel";
-import { MessageList, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
+import { FolderTree, type FolderTreeCopy, type SelectedNode } from "../chat/FolderTree";
+import type { Chat } from "../chat/types";
+import {
+  CollapsibleHistoryAside,
+  usePersistentCollapsed,
+} from "../../shared/explorer/CollapsibleHistoryAside";
+import { CODING_HISTORY_COLLAPSE_KEY } from "../../shared/explorer/historyPaneLayout";
+import {
+  createCodingSessionsAsChatExplorer,
+  createIpcCodingExplorerBackend,
+} from "../../shared/explorer/codingSessionsAsChatExplorer";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   installedForTask,
@@ -62,31 +75,63 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   source: "registry" as const,
 }));
 
+const CODING_FOLDER_TREE_COPY: FolderTreeCopy = {
+  paneTitle: "Sessions",
+  newItem: "New session",
+  emptyCta: "Start a new session",
+  treeAria: "Agent sessions",
+  loadError: "Could not load sessions",
+  emptyHint: "No sessions yet.",
+  itemNoun: "session",
+};
+
 interface Turn {
   id: string;
   prompt: string;
   rendered: RenderedTurn;
   pending?: boolean;
   activity?: AgentActivity;
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
+  createdAt?: string;
 }
 
 function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMessage[] {
   const messages: ChatMessage[] = [];
   for (const turn of turns) {
-    messages.push({ id: `${turn.id}-user`, role: "user", content: turn.prompt });
     messages.push({
-      id: `${turn.id}-assistant`,
-      role: "assistant",
-      content: turn.rendered.text,
-      toolCards: turn.rendered.cards.map((card) => ({
-        callId: card.callId,
-        name: card.name,
-        args: card.args,
-        result: card.result,
-      })),
-      pending: turn.pending,
-      activity: turn.activity,
+      id: `${turn.id}-user`,
+      role: "user",
+      content: turn.prompt,
+      timestamp: turn.createdAt,
+      inputTokens: turn.inputTokens ?? null,
+      tokensEstimated: turn.tokensEstimated,
     });
+    const hasAssistant =
+      Boolean(turn.pending) ||
+      turn.rendered.text.length > 0 ||
+      turn.rendered.cards.length > 0;
+    if (hasAssistant) {
+      messages.push({
+        id: `${turn.id}-assistant`,
+        role: "assistant",
+        content: turn.rendered.text,
+        timestamp: turn.createdAt,
+        toolCards: turn.rendered.cards.map((card) => ({
+          callId: card.callId,
+          name: card.name,
+          args: card.args,
+          result: card.result,
+        })),
+        pending: turn.pending,
+        activity: turn.activity,
+        reasoningTokens: turn.reasoningTokens ?? null,
+        outputTokens: turn.outputTokens ?? null,
+        tokensEstimated: turn.tokensEstimated,
+      });
+    }
   }
   if (busy && !turns.some((turn) => turn.pending)) {
     messages.push({
@@ -98,6 +143,24 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
     });
   }
   return messages;
+}
+
+function usageFromCodingEvents(events: readonly CodingSessionEventT[]): {
+  inputTokens: number | null;
+  reasoningTokens: number | null;
+  outputTokens: number | null;
+} {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event && event.kind === "done") {
+      return {
+        inputTokens: event.inputTokens ?? null,
+        reasoningTokens: event.reasoningTokens ?? null,
+        outputTokens: event.outputTokens ?? null,
+      };
+    }
+  }
+  return { inputTokens: null, reasoningTokens: null, outputTokens: null };
 }
 
 export interface CodingPageProps {
@@ -148,12 +211,19 @@ export function CodingPage({
   const [workspacePath, setWorkspacePath] = useState(
     () => initialWorkspacePath ?? readCodingWorkspacePath() ?? "",
   );
+  const workspacePathRef = useRef(workspacePath);
+  workspacePathRef.current = workspacePath;
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshotT | null>(null);
   const [traceEvents, setTraceEvents] = useState<readonly TraceEventT[]>([]);
   const [sessions, setSessions] = useState<readonly CodingSessionSummaryT[]>([]);
+  const [historyEpoch, setHistoryEpoch] = useState(0);
+  const [historySelected, setHistorySelected] = useState<SelectedNode | null>(null);
+  const { collapsed: historyCollapsed, toggle: toggleHistory } = usePersistentCollapsed(
+    CODING_HISTORY_COLLAPSE_KEY,
+  );
   // v1.16.0 Phase 2.2 -- per-model inference analytics for the Trace tab.
   const [modelMetrics, setModelMetrics] = useState<readonly PerModelMetricSummaryT[]>([]);
   // v1.1.0 Phase 7 -- session-replay state: the active session selected from
@@ -168,6 +238,36 @@ export function CodingPage({
     text: "",
     attachments: [],
   });
+  const modelIdRef = useRef(modelId);
+  modelIdRef.current = modelId;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+  const explorer = useMemo(
+    () => {
+      const ipcBackend = createIpcCodingExplorerBackend();
+      return createCodingSessionsAsChatExplorer({
+        backend: {
+          ...ipcBackend,
+          async deleteSession(id) {
+            await ipcBackend.deleteSession(id);
+            if (sessionIdRef.current === id) {
+              setSessionId(null);
+              setTurns([]);
+            }
+          },
+        },
+        getWorkspacePath: () => workspacePathRef.current,
+        getModelId: () => modelIdRef.current,
+        onSessionCreated: (session) => {
+          setSessionId(session.sessionId);
+          setTab("chat");
+          setHistorySelected({ kind: "chat", id: session.sessionId });
+          setHistoryEpoch((n) => n + 1);
+        },
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -213,6 +313,7 @@ export function CodingPage({
       return null;
     }
     setSessionId(reply.value.sessionId);
+    setHistoryEpoch((n) => n + 1);
     return reply.value.sessionId;
   }, [modelId, sessionId, workspacePath]);
 
@@ -226,6 +327,7 @@ export function CodingPage({
         {
           id: turnId,
           prompt: userContent,
+          createdAt: new Date().toISOString(),
           rendered: { text: "Reading document...", cards: [], done: false },
           pending: true,
           activity: "document-parse",
@@ -314,6 +416,7 @@ export function CodingPage({
               {
                 id: `local-${Date.now()}`,
                 prompt: text,
+                createdAt: new Date().toISOString(),
                 rendered: { text: notice, cards: [], done: true },
               },
             ]);
@@ -338,13 +441,27 @@ export function CodingPage({
           events: CodingSessionEventT[];
         }>("coding.session.sendMessage", { sessionId: id, message: text });
         if (!reply.ok) {
-          setError(`sendMessage failed: ${reply.message}`);
+          setError(`sendMessage failed: ${formatInferenceError(reply.message)}`);
           return;
         }
         const rendered = applyEvents(reply.value.events);
+        const usage = usageFromCodingEvents(reply.value.events);
+        const estimated =
+          usage.inputTokens == null &&
+          usage.reasoningTokens == null &&
+          usage.outputTokens == null;
         setTurns((prev) => [
           ...prev,
-          { id: `${id}-${prev.length}`, prompt: text, rendered },
+          {
+            id: `${id}-${prev.length}`,
+            prompt: text,
+            createdAt: new Date().toISOString(),
+            rendered,
+            inputTokens: estimated ? estimateTokens(text) : usage.inputTokens,
+            reasoningTokens: usage.reasoningTokens,
+            outputTokens: estimated ? estimateTokens(rendered.text) : usage.outputTokens,
+            tokensEstimated: estimated,
+          },
         ]);
       } finally {
         setBusy(false);
@@ -375,6 +492,52 @@ export function CodingPage({
     setBusy(false);
     setError(null);
   }, [sessionId]);
+
+  const reloadSessions = useCallback(async (): Promise<void> => {
+    const reply = await ipc.call<CodingSessionListResponseT>("coding.sessions.list", {});
+    if (reply.ok) setSessions(reply.value.sessions);
+  }, []);
+
+  const handleResume = useCallback(async (id: string): Promise<void> => {
+    setError(null);
+    const reply = await ipc.call<CodingSessionResumeResponseT>("coding.session.resume", {
+      sessionId: id,
+    });
+    if (!reply.ok) {
+      setSessionId(null);
+      setTurns([]);
+      setTab("chat");
+      setError(`Could not resume session: ${reply.message}`);
+      return;
+    }
+    setSessionId(id);
+    if (reply.value.session.modelId) setModelId(reply.value.session.modelId);
+    setHistorySelected({ kind: "chat", id });
+    const restored = reply.value.turns ?? [];
+    if (restored.length > 0) {
+      setTurns(
+        restored.map((turn, index) => ({
+          id: `${id}-${index}`,
+          prompt: turn.prompt,
+          rendered: { text: turn.assistantText, cards: [], done: true },
+          inputTokens: turn.inputTokens ?? null,
+          reasoningTokens: turn.reasoningTokens ?? null,
+          outputTokens: turn.outputTokens ?? null,
+          tokensEstimated: turn.tokensEstimated,
+          createdAt: turn.createdAt,
+        })),
+      );
+    } else {
+      setTurns(
+        reply.value.messages.map((prompt, index) => ({
+          id: `${id}-${index}`,
+          prompt,
+          rendered: { text: "", cards: [], done: true },
+        })),
+      );
+    }
+    setTab("chat");
+  }, []);
 
   useEffect(() => {
     if (tab !== "memory") return;
@@ -472,31 +635,70 @@ export function CodingPage({
     [],
   );
 
+  const transcriptMessages = useMemo(() => turnsToMessages(turns, busy), [turns, busy]);
+  const pickerModel = useMemo(
+    () => listedModels.find((candidate) => candidate.id === modelId),
+    [listedModels, modelId],
+  );
+  const contextUsage = useMemo(
+    () => composerSessionUsage(transcriptMessages, pickerModel),
+    [transcriptMessages, pickerModel],
+  );
+
   return (
     <section
       data-testid="coding-page"
       style={{
         flex: 1,
         display: "flex",
-        flexDirection: "column",
-        padding: "var(--space-4)",
+        flexDirection: "row",
+        minHeight: 0,
         color: "var(--fg-0)",
-        gap: "var(--space-3)",
       }}
     >
-      <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-          <QuickModelSwitcher
-            testId="coding-model-select"
-            models={listedModels}
-            taskType="llm"
-            ownedIds={ownedIdSet(selection)}
-            value={modelId}
-            onChange={setModelId}
-            onGetMoreModels={onGetMoreModels}
-            disabled={Boolean(sessionId)}
+      <CollapsibleHistoryAside
+        testId="coding-history-pane"
+        ariaLabel="Agent sessions"
+        collapsed={historyCollapsed}
+        onToggle={toggleHistory}
+        toggleTestId="coding-history-collapse-toggle"
+        expandLabel="Expand sessions"
+        collapseLabel="Collapse sessions"
+      >
+        {sidecar.isDown ? (
+          <p
+            data-testid="coding-history-empty"
+            style={{ margin: 0, padding: "var(--space-3)", color: "var(--fg-muted)" }}
+          >
+            {CODING_FOLDER_TREE_COPY.emptyHint}
+          </p>
+        ) : (
+          <FolderTree
+            client={explorer}
+            selected={historySelected}
+            onSelect={setHistorySelected}
+            onOpenChat={(chat: Chat) => void handleResume(chat.id)}
+            onChange={() => void reloadSessions()}
+            defaultModelId={modelId}
+            copy={CODING_FOLDER_TREE_COPY}
+            storageKey="nexus.coding.expanded"
+            refreshToken={historyEpoch}
+            collapsed={historyCollapsed}
           />
-        </div>
+        )}
+      </CollapsibleHistoryAside>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          minHeight: 0,
+          padding: "var(--space-4)",
+          gap: "var(--space-3)",
+        }}
+      >
+      <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         <label
           htmlFor="coding-workspace-path"
           style={{
@@ -586,7 +788,7 @@ export function CodingPage({
         {tab === "chat" && (
           <div data-testid="coding-chat">
             <MessageList
-              messages={turnsToMessages(turns, busy)}
+              messages={transcriptMessages}
               enableTools={true}
               emptyMessage={
                 "Start by asking a question, attaching a document, or typing / for commands."
@@ -609,17 +811,30 @@ export function CodingPage({
           />
         )}
         {tab === "sessions" && (
-          <SessionListPanel
-            sessions={sessions}
-            activeSessionId={sessionId}
-            onResume={(id) => setSessionId(id)}
-          />
+          <section data-testid="sessions-panel" aria-label="Sessions panel">
+            <p style={{ color: "var(--fg-muted)", margin: 0 }}>
+              Sessions are listed on the left. Rename, delete, and folders live there.
+            </p>
+          </section>
         )}
       </div>
 
       {tab === "chat" && (
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <CodingInput disabled={busy} streaming={busy} onSubmit={handleSubmit} />
+          <ComposerContextRow usage={contextUsage} onStartNewSession={() => void handleNewSession()}>
+              <QuickModelSwitcher
+                testId="coding-model-select"
+                models={listedModels}
+                taskType="llm"
+                catalogTab="agentic"
+                ownedIds={ownedIdSet(selection)}
+              value={modelId}
+              onChange={setModelId}
+              onGetMoreModels={onGetMoreModels}
+              disabled={Boolean(sessionId)}
+            />
+          </ComposerContextRow>
           {sessionId && (
             <div
               style={{
@@ -670,6 +885,7 @@ export function CodingPage({
           )}
         </footer>
       )}
+      </div>
     </section>
   );
 }

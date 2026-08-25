@@ -2,11 +2,11 @@
  * v1.7.0 (Hub v3.10.0 adoption, gap HUB310.SCAN) -- reviewed injection-scan
  * allowlist for the trusted Nexus-Hub sync source.
  *
- * v2.2.5 Phase 5: re-reviewed against Hub **v3.19.2** (GitHub
- * `/repos/bendourthe/Nexus-Hub/releases/latest` on 2026-08-23). The v3.10.0
- * skill paths below still exist in that tag; each waiver stays one (skill,
- * rule) pair. New Hub skills are NOT blanket-muted. A planted jailbreak in a
- * non-allowlisted path still blocks.
+ * v2.2.5 Phase 5: re-reviewed against Hub **v3.19.2**.
+ * v2.2.8 Phase 5: re-stamped against Hub **v3.20.1** (GitHub
+ * `/repos/bendourthe/Nexus-Hub/releases/latest` on 2026-08-24). Existing
+ * waivers stay one (skill, rule) pair. New Hub skills are NOT blanket-muted.
+ * A planted jailbreak in a non-allowlisted path is quarantined, not allowlisted.
  *
  * The `PromptInjectionScanner` is (correctly) fail-closed and conservative, so
  * it flags security-education / config-example content in the Hub's own curated
@@ -33,7 +33,7 @@
 import type { ScanSuppression } from "./PromptInjectionScanner.js";
 
 /** Hub release this allowlist was last reviewed against. Not a pin. */
-export const HUB_ALLOWLIST_REVIEWED_TAG = "v3.19.2";
+export const HUB_ALLOWLIST_REVIEWED_TAG = "v3.20.1";
 
 export const HUB_SKILL_SCAN_ALLOWLIST: readonly ScanSuppression[] = Object.freeze([
   {

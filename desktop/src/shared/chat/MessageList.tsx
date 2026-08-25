@@ -9,6 +9,11 @@
 import type { ReactNode } from "react";
 import { MessageBubble } from "./MessageBubble";
 import type { ChatMessage } from "./types";
+import {
+  calendarDayKey,
+  formatDateHeading,
+  parseMessageTime,
+} from "./transcriptChrome";
 
 export interface MessageListProps {
   messages: readonly ChatMessage[];
@@ -26,6 +31,8 @@ export interface MessageListProps {
   renderAfter?: (message: ChatMessage) => ReactNode;
   /** v2.2.4 Phase 4 -- extra studio actions inside the media lightbox. */
   renderPreviewExtra?: (message: ChatMessage) => ReactNode;
+  /** v2.2.7 Phase 4 -- tests pin `en-US`; production uses the host locale. */
+  locale?: string;
 }
 
 export function messageRowAlign(role: ChatMessage["role"]): "flex-end" | "flex-start" {
@@ -41,12 +48,62 @@ export function MessageList({
   onMediaError,
   renderAfter,
   renderPreviewExtra,
+  locale,
 }: MessageListProps): JSX.Element {
   if (messages.length === 0) {
     return (
       <p data-testid={emptyTestId} style={{ color: "var(--fg-muted)" }}>
         {emptyMessage}
       </p>
+    );
+  }
+  const rows: JSX.Element[] = [];
+  let lastDay: string | null = null;
+  for (const msg of messages) {
+    const when = parseMessageTime(msg.timestamp);
+    const day = when ? calendarDayKey(when) : null;
+    if (day && day !== lastDay && when) {
+      lastDay = day;
+      rows.push(
+        <li
+          key={`day-${day}`}
+          data-testid={`message-day-${day}`}
+          role="separator"
+          style={{
+            width: "100%",
+            alignSelf: "stretch",
+            textAlign: "center",
+            color: "var(--fg-muted)",
+            fontSize: "var(--text-xs)",
+            padding: "var(--space-2) 0",
+          }}
+        >
+          {formatDateHeading(when, locale)}
+        </li>,
+      );
+    }
+    rows.push(
+      <li
+        key={msg.id}
+        data-testid={`message-row-${msg.id}`}
+        data-role={msg.role}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: messageRowAlign(msg.role),
+          width: "100%",
+        }}
+      >
+        <MessageBubble
+          message={msg}
+          enableTools={enableTools}
+          locale={locale}
+          {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
+          {...(onMediaError ? { onMediaError } : {})}
+          {...(renderPreviewExtra ? { renderPreviewExtra } : {})}
+        />
+        {renderAfter?.(msg)}
+      </li>,
     );
   }
   return (
@@ -62,28 +119,7 @@ export function MessageList({
         width: "100%",
       }}
     >
-      {messages.map((msg) => (
-        <li
-          key={msg.id}
-          data-testid={`message-row-${msg.id}`}
-          data-role={msg.role}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: messageRowAlign(msg.role),
-            width: "100%",
-          }}
-        >
-          <MessageBubble
-            message={msg}
-            enableTools={enableTools}
-            {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
-            {...(onMediaError ? { onMediaError } : {})}
-            {...(renderPreviewExtra ? { renderPreviewExtra } : {})}
-          />
-          {renderAfter?.(msg)}
-        </li>
-      ))}
+      {rows}
     </ul>
   );
 }

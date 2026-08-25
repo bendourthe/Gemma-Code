@@ -45,4 +45,11 @@ describe("resolveAgentState", () => {
       expect(allowed.has(resolveAgentState(activity).accentToken)).toBe(true);
     }
   });
+
+  it("defaults missing or unknown activity to Composing without throwing", () => {
+    expect(resolveAgentState(undefined).state).toBe("composing");
+    expect(resolveAgentState(null).state).toBe("composing");
+    expect(resolveAgentState("not-a-real-activity" as AgentActivity).state).toBe("composing");
+    expect(resolveAgentState("not-a-real-activity" as AgentActivity).label).toBe("Composing");
+  });
 });

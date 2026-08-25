@@ -77,6 +77,38 @@ jobs:
       # v2.2.5: the same job covers modelAliases, Models overflow/badges/chips,
       # FolderTree row icons + chats-pane pill, Hub catalog latest stubs, and
       # the scanner allowlist. Do not add a live GPU or live Hub clone.
+      # v2.2.6: the same job covers studio.session IPC, Image/Video remount
+      # hydrate and implicit last-output follow-up, Agents resume hydration,
+      # and Chatbot append-then-remount. No live GPU in PR CI.
+      # v2.2.7: the same job covers Settings Models context chips
+      # (128k / omit-on-null), chat/coding usage on done events,
+      # studio persist of visualUnits, ContextUsageBar 79/80 CTA,
+      # the composer picker row on Chat/Agents/Images/Videos, and
+      # MessageList once-per-day headings plus bubble time/tokens.
+      # v2.2.8 Phase 1: chat.send is not a 15s RPC; ping stays 15s; a slow
+      # chat fixture never surfaces sidecar response timeout; Ollama tag
+      # gemma4:12b marks catalog gemma-4-12b-it-gguf Downloaded. No live GPU
+      # in PR CI.
+      # v2.2.8 Phase 2: FolderTree collapse is a 56px icon rail (not an empty
+      # 24px gutter); Agents rename/delete go through FolderTree; Image/Video
+      # history panes share 280px + collapse; confirm-delete is rounded/quiet.
+      # v2.2.8 Phase 3: sidebar module nav has a top inset (not flush with the
+      # title bar); chat/coding pending orbs use size=bubble (not inline 20px)
+      # and are centered; image/video pending stays hero. No thinking-orbs
+      # package. No live GPU in PR CI.
+      # v2.2.8 Phase 4: Settings Models matches installer sort (family collapse,
+      # hideBelowVram, over-budget last); compact cards; Downloaded highlight;
+      # QuickModelSwitcher uses that order. No live GPU in PR CI.
+      # v2.2.8 Phase 5: Hub apply quarantines high-severity skills and still
+      # swaps Active to the fetched tag. test-ts covers NexusHubSyncer planted
+      # jailbreak + scanner-crash fail-closed; test:shell covers ipcSkillsClient,
+      # hub-catalog CLI, and SkillsSettings copy. Do not clone Hub. No live GPU.
+      # v2.2.8 Phase 6: T001-T012 stay in existing jobs. Cargo test (shell-build)
+      # covers rpc_timeout_for (chat.send != 15s, ping 15s). test:shell covers
+      # Gemma alias Downloaded, FolderTree 56px collapse, Models sort fixture,
+      # Hub quarantine apply. test-ts covers NexusHubSyncer quarantine.
+      # installer-tests covers catalog_tab_sort + stale 3.12.0 pack refusal.
+      # Do not add a live GPU or live Hub clone.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

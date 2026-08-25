@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   ORB_MAX_DPR,
   ORB_SIZE_HERO,
   ORB_SIZE_INLINE,
+  ORB_SIZE_BUBBLE,
   clampOrbDpr,
   createOrbDots,
   drawOrbFrame,
@@ -12,13 +16,19 @@ import {
   type OrbCtx2D,
 } from "../src/components/agentState/orbEngine";
 
+const here = dirname(fileURLToPath(import.meta.url));
+
 describe("orbEngine", () => {
   it("sizes the hero and inline presets", () => {
     expect(orbPixelSize("hero")).toBe(ORB_SIZE_HERO);
+    expect(orbPixelSize("bubble")).toBe(ORB_SIZE_BUBBLE);
     expect(orbPixelSize("inline")).toBe(ORB_SIZE_INLINE);
     expect(ORB_SIZE_HERO).toBe(64);
+    expect(ORB_SIZE_BUBBLE).toBe(48);
     expect(ORB_SIZE_INLINE).toBe(20);
-    expect(orbDotCount("hero")).toBeGreaterThan(orbDotCount("inline"));
+    expect(ORB_SIZE_BUBBLE).toBeGreaterThan(ORB_SIZE_INLINE);
+    expect(orbDotCount("hero")).toBeGreaterThan(orbDotCount("bubble"));
+    expect(orbDotCount("bubble")).toBeGreaterThan(orbDotCount("inline"));
   });
 
   it("caps device-pixel-ratio at 2", () => {
@@ -73,5 +83,14 @@ describe("orbEngine", () => {
     expect(ops[0]).toBe("clear");
     expect(ops.filter((op) => op === "arc").length).toBeGreaterThanOrEqual(4);
     expect(ctx.globalAlpha).toBe(1);
+  });
+
+  it("does not depend on the thinking-orbs package", () => {
+    const pkg = JSON.parse(readFileSync(resolve(here, "../package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    expect(pkg.dependencies?.["thinking-orbs"]).toBeUndefined();
+    expect(pkg.devDependencies?.["thinking-orbs"]).toBeUndefined();
   });
 });

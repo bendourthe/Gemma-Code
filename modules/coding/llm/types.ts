@@ -90,6 +90,7 @@ export interface LLMUsageCounters {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
+    reasoning_tokens?: number;
   };
 }
 
@@ -97,6 +98,8 @@ export interface LLMStreamChunk extends LLMUsageCounters {
   message: {
     role: string;
     content: string;
+    /** Gemma 4 thinking-in-message; stripped unless declared on the Zod schema. */
+    thinking?: string;
   };
   done: boolean;
   /** Model name echoed by the backend; may differ from the requested alias. */
@@ -183,6 +186,7 @@ export const LLMStreamChunkSchema = z.object({
   message: z.object({
     role: z.string(),
     content: z.string(),
+    thinking: z.string().optional(),
   }),
   done: z.boolean(),
   model: z.string().optional(),
@@ -197,6 +201,7 @@ export const LLMStreamChunkSchema = z.object({
       prompt_tokens: z.number().optional(),
       completion_tokens: z.number().optional(),
       total_tokens: z.number().optional(),
+      reasoning_tokens: z.number().optional(),
     })
     .optional(),
 });

@@ -11,6 +11,11 @@ import { useEffect, useMemo } from "react";
 import { ModelSelector } from "../chat/ModelSelector";
 import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
 import { GET_MORE_MODELS_ID, installedModelsForType } from "./installedFeed";
+import {
+  catalogSortGpuVendor,
+  visibleModelsOnTab,
+  type CatalogTab,
+} from "./catalogTabs";
 
 export interface QuickModelSwitcherProps {
   readonly models: readonly ListedModelDto[];
@@ -26,6 +31,18 @@ export interface QuickModelSwitcherProps {
   /** v1.18.0 Phase 2 -- forwarded to ModelSelector as a small harness badge. */
   harnessLabel?: string;
   harnessSelectorEnabled?: boolean;
+  /** v2.2.8 Phase 4 -- host VRAM so picker order matches Settings / installer. */
+  hostVramGB?: number | null;
+  /** Override tab (Agents uses agentic; default follows taskType). */
+  catalogTab?: CatalogTab;
+}
+
+function catalogTabForTask(type: ModelType): CatalogTab {
+  if (type === "image") return "image";
+  if (type === "video") return "video";
+  if (type === "audio") return "audio";
+  if (type === "document") return "document";
+  return "chat";
 }
 
 export function QuickModelSwitcher({
@@ -40,11 +57,18 @@ export function QuickModelSwitcher({
   testId = "quick-model-switcher",
   harnessLabel,
   harnessSelectorEnabled,
+  hostVramGB = null,
+  catalogTab,
 }: QuickModelSwitcherProps): JSX.Element {
-  const ready = useMemo(
-    () => installedModelsForType(models, taskType, ownedIds),
-    [models, taskType, ownedIds],
-  );
+  const ready = useMemo(() => {
+    const installed = new Set(
+      installedModelsForType(models, taskType, ownedIds).map((m) => m.id),
+    );
+    return visibleModelsOnTab(models, catalogTab ?? catalogTabForTask(taskType), {
+      hostVramGB,
+      gpuVendor: catalogSortGpuVendor(hostVramGB),
+    }).filter((m) => installed.has(m.id));
+  }, [models, taskType, ownedIds, hostVramGB, catalogTab]);
 
   const options = useMemo(
     () => [

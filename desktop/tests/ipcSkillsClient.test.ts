@@ -96,6 +96,24 @@ describe("createIpcSkillsClient", () => {
     );
   });
 
+  it("syncNow succeeds when apply advanced the tag with quarantined skills", async () => {
+    stub({
+      "skills.sync": {
+        tag: "v3.21.0",
+        applied: true,
+        alreadyUpToDate: false,
+        blocked: false,
+        quarantinedCount: 1,
+        summary: "+8 new, ~0 modified, -0 removed; quarantined 1",
+      },
+    });
+    expect(await createIpcSkillsClient().syncNow()).toEqual({
+      tag: "v3.21.0",
+      applied: true,
+      summary: "+8 new, ~0 modified, -0 removed; quarantined 1",
+    });
+  });
+
   // v2.2.0 Phase 3 (3.2) closes NHC.P6.B / P6.C: list() and the auto-sync
   // toggle are backed by real IPC. Enable/disable and quarantine approval stay
   // unimplemented server-side, so they still reject rather than shipping dead

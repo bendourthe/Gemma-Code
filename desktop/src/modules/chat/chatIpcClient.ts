@@ -10,7 +10,13 @@ import { ipcCall } from "../../lib/ipc";
 
 export type ChatStreamEvent =
   | { kind: "token"; text: string }
-  | { kind: "done"; finishReason?: string };
+  | {
+      kind: "done";
+      finishReason?: string;
+      inputTokens?: number | null;
+      reasoningTokens?: number | null;
+      outputTokens?: number | null;
+    };
 
 export interface ChatStartResult {
   sessionId: string;
@@ -47,6 +53,27 @@ export function joinChatReply(events: readonly ChatStreamEvent[]): string {
     .filter((e): e is { kind: "token"; text: string } => e.kind === "token")
     .map((e) => e.text)
     .join("");
+}
+
+export interface ChatTurnUsage {
+  inputTokens: number | null;
+  reasoningTokens: number | null;
+  outputTokens: number | null;
+}
+
+/** Last done-event usage. Missing counters stay null, never invented as 0. */
+export function usageFromChatEvents(events: readonly ChatStreamEvent[]): ChatTurnUsage {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event && event.kind === "done") {
+      return {
+        inputTokens: event.inputTokens ?? null,
+        reasoningTokens: event.reasoningTokens ?? null,
+        outputTokens: event.outputTokens ?? null,
+      };
+    }
+  }
+  return { inputTokens: null, reasoningTokens: null, outputTokens: null };
 }
 
 export function createChatIpcClient(): ChatSessionClient {

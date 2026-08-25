@@ -2,11 +2,207 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.5 Phase 6)
+**Last updated**: 2026-08-24 (v2.2.8 Phase 6)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md), [plans/v2.2.6-session-memory-and-studio-history.md](plans/v2.2.6-session-memory-and-studio-history.md), [plans/v2.2.7-context-meter-and-transcript-chrome.md](plans/v2.2.7-context-meter-and-transcript-chrome.md), [plans/v2.2.8-working-local-studio.md](plans/v2.2.8-working-local-studio.md)
+
+## v2.2.8
+
+**Last updated**: 2026-08-24 (Phase 6 - architecture, known-gaps, and CI)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 4 | 1 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Packaged Explorer launch is observed (DF-2 closed). Hub apply quarantines high-severity skills and still moves Active to the fetched tag (`PromptInjectionScanner` stays on); packaged Active = GitHub latest remains not_observed (DF-35). Pack-time snapshots still refuse a stale 3.12.0 catalog. Settings Models and the installer Models tab share one collapse/sort contract; packaged Settings vs installer screenshots remain not_observed (DF-34). The module rail has a small top inset. Chat/Agents pending orbs use the 48px `bubble` preset, centered; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Four tabs share FolderTree chrome (280px / 56px icon rail). Agents folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-4, DF-23, DF-24, DF-25, DF-26, and DF-27 stay open from earlier cycles. Desktop Agents `SessionListPanel.tsx` was removed; Agents history is FolderTree only.
+
+### Open this cycle
+
+##### DF-32 - Packaged Chatbot Hi and Agents turn remain unproven
+
+- **Source phase**: v2.2.8 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 1 Stability Gate)
+- **Reason**: Unit tests prove the timeout table, slow-stream copy, and Gemma alias probe. A packaged Explorer `Hi` against local Ollama was not recorded this phase. not_observed != absent.
+- **Suggested next step**: On a packaged Windows build, send Chatbot `Hi` and one Agents turn. Expect a local reply or a typed Ollama/weights error, never `sidecar response timeout`. Confirm Settings shows Gemma 4 12B as Downloaded when `ollama list` has `gemma4:12b`.
+
+##### DF-33 - Agents folders are a local overlay, not sidecar schema
+
+- **Source phase**: v2.2.8 Phase 2
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 2.1, folders optional)
+- **Reason**: `coding.session.*` has no folder rows. FolderTree on Agents uses `localStorage` (`nexus.coding.explorerFolders`) so New folder is not a dead control. Sessions stay in sidecar `sessions.json`. Deleting an overlay folder reparents sessions instead of calling `coding.session.delete`. Folders do not roam with the sidecar store.
+- **Suggested next step**: If Agents folders must survive a storage wipe the same way Chatbot folders do, add a sidecar folder table keyed by workspace, or document overlay-only as the product contract.
+
+##### DF-34 - Packaged Settings vs installer Models identity is unproven
+
+- **Source phase**: v2.2.8 Phase 4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 4 Stability Gate)
+- **Reason**: A shared golden fixture dual-asserts installer `collapse_and_sort` and desktop `visibleModelsOnTab`. Compact cards and the Downloaded highlight are unit-proven. A packaged Explorer Settings tab was not screenshotted next to the installer Models tab this phase. not_observed != absent.
+- **Suggested next step**: On the same host, open Settings > Models and the installer Models tab. Confirm Chat order, family collapse, gray over-budget last, and that Gemma 4 12B is Downloaded when `ollama list` has `gemma4:12b`.
+
+##### DF-35 - Packaged Hub apply of GitHub latest remains unproven
+
+- **Source phase**: v2.2.8 Phase 5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 5 Stability Gate)
+- **Reason**: Fixture apply with one planted jailbreak quarantines that skill, keeps clean skills enabled, and writes Active as the fixture tag. The scanner stays on. A packaged Explorer Update now / Sync now against live `bendourthe/Nexus-Hub` `/releases/latest` was not recorded this phase. not_observed != absent.
+- **Suggested next step**: On a packaged Windows build with network, press Update now. Confirm Active matches GitHub latest, the scanner is still on, quarantined skills (if any) are listed and not enabled, and the previous catalog is not left at 3.12.0.
+
+### Resolved this phase
+
+##### DF-2 - Packaged Explorer launch is unproven
+
+- **Source phase**: carried from v2.2.0 through v2.2.7; closed v2.2.8 Phase 6
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Review verdict, Phase 6.2)
+- **Resolution**: Operator packaged-Explorer screenshots after v2.2.6 (2026-08-24) showed Explorer launched. The remaining field failures were generation RPC timeout and Hub apply, not a blank window. Recorded as observed in the v2.2.8 plan Review verdict.
+- **Evidence**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Review verdict: Packaged Explorer launch (DF-2) is now observed).
+
+Hub quarantine apply remains unit/integration evidence. Packaged Hub update stays DF-23 plus DF-35. Live GPU generate stays DF-4.
+
+## v2.2.7
+
+**Last updated**: 2026-08-24 (Phase 5 - architecture, known-gaps, and CI)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 4 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 1 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Phase 5 deleted unused `Breadcrumb.tsx` and rebuilt an unsigned Windows installer for the operator field checklist. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 was later closed in v2.2.8 Phase 6 (observed 2026-08-24). DF-4 stays open from earlier cycles.
+
+### Open this cycle
+
+##### DF-28 - Packaged Settings and installer Context chips are unproven
+
+- **Source phase**: v2.2.7 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 1)
+- **Reason**: ModelsSettings and installer `_ModelCard` tests show `Context: 128k` for LFM and omit the chip on null diffusion rows. A packaged Explorer Settings tab and a running installer wizard were not screenshotted this phase. not_observed != absent.
+- **Suggested next step**: Open Settings > Models on a packaged build and the installer Models tab; confirm Gemma / Qwen / LFM chips match catalog.json and SANA has no fake 128k.
+
+##### DF-29 - Live Ollama usage and thinking fields are unproven
+
+- **Source phase**: v2.2.7 Phase 2
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 2)
+- **Reason**: Unit fixtures persist `prompt_eval_count` / `eval_count` / `message.thinking` onto the chat done event and round-trip chat/studio/coding stores. A live Gemma 4 Ollama final chunk was not captured this phase. Coding agent turns estimate when the runner does not attach counters. not_observed != absent.
+- **Suggested next step**: Send one Chatbot turn against a local Ollama Gemma 4 model and confirm the persisted assistant row matches the final chunk; if thinking is in `message.thinking`, confirm it counts toward used tokens.
+
+##### DF-30 - Packaged four-tab Context meter and 80% CTA are unproven
+
+- **Source phase**: v2.2.7 Phase 3
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 3)
+- **Reason**: Component tests cover 79% without CTA, 80% CTA creating a new Chatbot session without deleting the old tree row, hidden bar when no window or visual budget, and pickers under `composer-context-row` on Chat/Agents/Images/Videos. A packaged Explorer was not clicked through this phase. not_observed != absent.
+- **Suggested next step**: On a packaged build, send Chatbot turns until the pill reaches 80%, accept Start a new session, confirm the old chat remains; peek Images/Videos and confirm the picker sits under the composer and peeking does not load weights.
+
+##### DF-31 - Packaged transcript date, time, and token chrome is unproven
+
+- **Source phase**: v2.2.7 Phase 4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 4)
+- **Reason**: MessageList tests cover one heading per local day, discrete en-US clock text, skipped epoch timestamps, user `N in`, assistant `think + out`, and an em dash when unknown. Chat/Agents/Images/Videos smokes assert time and token testids after a turn. A packaged Explorer was not screenshotted this phase. not_observed != absent.
+- **Suggested next step**: Open all four modes on a packaged build; confirm one date heading per day, a clock on each bubble, user input tokens, and assistant reasoning+output or an em dash.
+
+##### WN-7 - Context chip formatters are duplicated across TypeScript and Python
+
+- **Source phase**: v2.2.7 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (T002)
+- **Reason**: The desktop renderer cannot import the installer Python module. Matching tests lock `128k` and `32k / 8k` on both sides. Drift remains possible if one formatter is edited alone.
+- **Suggested next step**: Keep the two test files in the same PR as any copy change, or generate Python copy from the TypeScript fixture in a later cleanup.
+
+### Resolved this phase
+
+None. Usage persist is new work, not a prior BG.
+
+## v2.2.6
+
+**Last updated**: 2026-08-24 (Phase 6 - architecture, gaps, and CI)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 5 | 0 |
+| Bugs / regressions (BG) | 0 | 4 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-51 through BG-54 are closed at unit/integration evidence. Packaged quit/reopen persist remains not_observed (DF-25). Video remount cannot restore `continueFrom` (DF-26). Agents tool-call cards are not persisted (DF-27).
+
+### Open this cycle
+
+##### DF-2 - Packaged Explorer launch is unproven
+
+- **Source phase**: carried from v2.2.5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 6.2)
+- **Reason**: Closed in v2.2.8 Phase 6. Packaged Explorer launch was observed 2026-08-24 (v2.2.8 plan Review verdict). Historical row kept so v2.2.6 readers can follow the close.
+- **Suggested next step**: None. See v2.2.8 Resolved DF-2.
+
+##### DF-4 - Live GPU image/video generate is unproven
+
+- **Source phase**: carried from v2.2.5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (operator field checklist)
+- **Reason**: Fail-closed envelopes and last-output follow-up are unit-proven. An operator GPU generate that paints a SANA image or a video clip was not recorded this session.
+- **Suggested next step**: Run one Image Studio generate and one Video Lab generate on a host with weights and GPU, or confirm the typed runtime-not-ready string in the UI when GPU is absent.
+
+##### DF-25 - Packaged session persist (quit/reopen) is unproven
+
+- **Source phase**: v2.2.6 Phases 1-5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 6.2)
+- **Reason**: Image/Video SQLite, Agents `sessions.json`, and Chatbot explorer DB round-trips are unit-proven. A packaged Explorer quit/reopen soak was not run. not_observed != absent.
+- **Suggested next step**: Install the unsigned Windows build, take one turn in each pillar, quit, reopen, and record whether the same session hydrates.
+
+##### DF-26 - Video remount cannot restore `continueFrom`
+
+- **Source phase**: v2.2.6 Phase 3
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 3)
+- **Reason**: `continueFrom` needs `priorJobId`. The studio session schema stores `lastOutputRef` (mp4 path), not the job id. After remount, a follow-up is a new text2video. `lastFramePath` is that mp4 path; there is no frame extractor.
+- **Suggested next step**: Persist `priorJobId` (or a generations-index job key) on the session row, or extract a last-frame PNG and document the quality limit.
+
+##### DF-27 - Agents resume does not restore tool-call cards
+
+- **Source phase**: v2.2.6 Phase 4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 4)
+- **Reason**: Sidecar persist stores user prompt plus concatenated assistant token text. `toolCallHeader` / arg deltas / complete events are not written. Resume shows the transcript, not the tool cards from the live stream.
+- **Suggested next step**: Persist a compact tool-card snapshot per turn, or accept text-only resume for this cycle.
+
+### Resolved this phase
+
+##### BG-51 - Image Studio had no named history or last-PNG memory
+
+- **Source phase**: v2.2.6 Phases 1-2
+- **Resolution**: Shared `StudioSessionStore` plus `studio.session.*` IPC. Image Studio creates a named session, appends turns (paths, never blobs), and empty-attachment follow-ups img2img `lastOutputRef`. Remount hydrates MessageList. Missing files render `output missing on disk`. Sidecar down does not claim saved.
+- **Evidence**: `desktop/tests/ImageStudioPage.test.tsx`, `desktop/tests/studioSessionMemory.test.ts`, `tests/unit/core/generations/StudioSessionStore.test.ts`. Packaged persist remains DF-25.
+
+##### BG-52 - Video Lab had no named history or last-clip memory
+
+- **Source phase**: v2.2.6 Phases 1 and 3
+- **Resolution**: Same store and history pane. In-session follow-up sets existing `continueFrom` from the live job. Remount hydrates transcript and last clip path. Unreadable `lastOutputRef` fail-closes with typed copy instead of silent text2video.
+- **Evidence**: `desktop/tests/VideoLabPage.test.tsx`, `desktop/tests/studioSessionMemory.test.ts`. Remount `continueFrom` remains DF-26. Packaged persist remains DF-25.
+
+##### BG-53 - Agents resume set sessionId only, so the transcript stayed empty
+
+- **Source phase**: v2.2.6 Phase 4
+- **Resolution**: `sendMessage` persists assistant token text. `coding.session.resume` returns `{ session, messages, turns }`. CodingPage hydrates MessageList. Unknown ids clear the list and show `Could not resume session`. Sessions list gained rename and delete (`coding.session.rename` / `coding.session.delete`).
+- **Evidence**: `desktop/tests/CodingPage.test.tsx`, `desktop/tests/coding-session-resume.test.ts`, `desktop/tests/coding-sessionManager.test.ts`, `desktop/tests/panels.test.tsx`, `desktop/tests/sidecar-handlers.test.ts`. Tool cards remain DF-27. Packaged persist remains DF-25.
+
+##### BG-54 - Chatbot remount hydration and failed-append honesty were unproven
+
+- **Source phase**: v2.2.6 Phase 5
+- **Resolution**: ChatPage already persisted via `chat.explorer.appendMessage` / `listMessages`, including attachment strings, and already folded model ids. Tests now prove append-then-remount (user + assistant), attachment `src` restore, and a visible bubble plus `Message is visible but was not saved` when append throws. No production ChatPage patch.
+- **Evidence**: `desktop/tests/ChatPage.persistence.test.tsx`. Packaged persist remains DF-25.
 
 ## v2.2.5
 
@@ -31,8 +227,8 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-43 through B
 
 - **Source phase**: carried from v2.2.4
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.5-first-successful-generation.md` (Phase 6.2)
-- **Reason**: not_observed != absent. No packaged soak this phase.
-- **Suggested next step**: Launch a packaged Windows build and record Explorer start.
+- **Reason**: Closed in v2.2.8 Phase 6. Packaged Explorer launch was observed 2026-08-24 (v2.2.8 plan Review verdict). Historical row kept so v2.2.5 readers can follow the close.
+- **Suggested next step**: None. See v2.2.8 Resolved DF-2.
 
 ##### DF-4 - Live GPU image/video generate is unproven
 

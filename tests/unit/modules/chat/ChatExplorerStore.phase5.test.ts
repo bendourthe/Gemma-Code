@@ -92,6 +92,45 @@ describe("messages", () => {
     expect(s.listMessages(chat.id)).toEqual([]);
     s.close();
   });
+
+  it("round-trips token fields and keeps missing usage as null", () => {
+    const s = store();
+    const chat = seedChat(s);
+    s.appendMessage({
+      chatId: chat.id,
+      role: "user",
+      content: "hello",
+      inputTokens: 4,
+      tokensEstimated: true,
+      createdAt: 1,
+    });
+    s.appendMessage({
+      chatId: chat.id,
+      role: "assistant",
+      content: "hi",
+      inputTokens: 12,
+      reasoningTokens: 3,
+      outputTokens: 5,
+      createdAt: 2,
+    });
+    s.appendMessage({
+      chatId: chat.id,
+      role: "assistant",
+      content: "no usage",
+      createdAt: 3,
+    });
+    const messages = s.listMessages(chat.id);
+    expect(messages[0]?.inputTokens).toBe(4);
+    expect(messages[0]?.tokensEstimated).toBe(true);
+    expect(messages[1]?.inputTokens).toBe(12);
+    expect(messages[1]?.reasoningTokens).toBe(3);
+    expect(messages[1]?.outputTokens).toBe(5);
+    expect(messages[1]?.tokensEstimated).toBe(false);
+    expect(messages[2]?.inputTokens).toBeNull();
+    expect(messages[2]?.outputTokens).toBeNull();
+    expect(messages[2]?.reasoningTokens).toBeNull();
+    s.close();
+  });
 });
 
 describe("persona", () => {

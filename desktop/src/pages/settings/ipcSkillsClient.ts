@@ -35,6 +35,7 @@ interface SkillsSyncDto {
   alreadyUpToDate: boolean;
   blocked: boolean;
   summary: string;
+  quarantinedCount?: number;
 }
 
 const NOT_WIRED =
@@ -80,11 +81,20 @@ export function createIpcSkillsClient(): SkillsSettingsClient {
     async syncNow(): Promise<{ tag: string; applied: boolean; summary: string }> {
       const reply = await ipcCall<SkillsSyncDto>("skills.sync", {});
       if (!reply.ok) throw new Error(reply.message);
-      const { tag, applied, alreadyUpToDate, blocked, summary } = reply.value;
-      if (blocked) {
+      const { tag, applied, alreadyUpToDate, blocked, summary, quarantinedCount } = reply.value;
+      // "Sync blocked" is only for fail-closed cases (apply did not happen).
+      // A partial quarantine that still advanced Active is success copy.
+      if (blocked && !applied) {
         throw new Error(`Sync blocked by the injection scanner: ${summary}`);
       }
-      return { tag, applied, summary: alreadyUpToDate ? "already up to date" : summary };
+      if (alreadyUpToDate) {
+        return { tag, applied, summary: "already up to date" };
+      }
+      const withQuarantine =
+        quarantinedCount && quarantinedCount > 0 && !/quarantined/i.test(summary)
+          ? `${summary}; quarantined ${quarantinedCount}`
+          : summary;
+      return { tag, applied, summary: withQuarantine };
     },
     async approveQuarantined(): Promise<void> {
       throw new Error(NOT_WIRED);

@@ -1,7 +1,9 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.5** first-successful-generation cut 2026-08-23; package **2.2.5**; v2.2.6 and v2.2.7 plans are filed and not started).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.8** working-local-studio cycle implemented 2026-08-24; package **2.2.8** pending tag).
 
+> **v2.2.8 CUT (2026-08-24)** -- [working-local-studio](v2/v2.2/plans/v2.2.8-working-local-studio.md) plus v2.2.6 session-memory and v2.2.7 context-meter, one tag. Package **2.2.8**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 closed observed; DF-4 live GPU; DF-32 packaged Hi; DF-35 packaged Hub latest). This release changes no opt-in capability, installer flag, or host surface.
+>
 > **v2.2.5 RELEASED (2026-08-23)** -- field-repair cycle [v2.2.0](v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md) through [v2.2.5](v2/v2.2/plans/v2.2.5-first-successful-generation.md). Package **2.2.5**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 packaged Explorer, DF-4 live GPU generate). Cycle: sidecar start, honest catalog, Chatbot-first, alias-fold ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest. This release changes no opt-in capability, installer flag, or host surface.
 >
 > **v2.1.0 RELEASED (2026-08-20)** -- [open-local-ai-wave](v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md) Phases 1-7 plus known-gaps sweeps. Package **2.1.0**. Known-gaps [finalized](v2/v2.1/known-gaps.md) (6 open DF remain hardware/watch/live-GPU). Cycle: Muse Glimmer + Nemotron Lightning catalog/harness, cheap-first routing, studio provenance + queue, vision budgets + SAM2, Unsloth Core fine-tuning, signed audit log + JSON CLI + VRAM knobs. Develop follow-up closed code-completeable rows (unload, AgentLoop routing, SAM picker, MaskEditor, frame comments, installer Unsloth checkbox, golden-eval adapter). No retag.
@@ -515,8 +517,9 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v2.2.3 | Glass chrome, thinking orbs, durable pillar runtime, occupancy, workspace-aware Hub harness, installer field fixes | **Implemented on develop (2026-08-23)** -- Phases 1-8 landed; package remains 2.1.0 until `/update release` | `v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` |
 | v2.2.4 | Chatbot-first shell, installed-catalog honesty, compact studio media, Settings Models catalog, Hub update timeout copy | **Implemented on develop (2026-08-23)** -- Phases 1-7 landed; DF-2 packaged Explorer and DF-4 live GPU remain open | `v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md` |
 | v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest | **Released (2026-08-23)** -- package 2.2.5; DF-2 and DF-4 remain open | `v2/v2.2/plans/v2.2.5-first-successful-generation.md` |
-| v2.2.6 | Session memory and studio history | **Planned** -- next after v2.2.5 | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
-| v2.2.7 | Context meter and transcript chrome | **Planned** -- after v2.2.6 | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
+| v2.2.6 | Session memory and studio history | **Released in v2.2.8 (2026-08-24)** -- Phases 1-6 landed | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
+| v2.2.7 | Context meter and transcript chrome | **Released in v2.2.8 (2026-08-24)** -- Phases 1-5 landed; DF-28 through DF-31 packaged/live soak remain open | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
+| v2.2.8 | Working local studio: minutes-class RPCs, shared FolderTree, Models sort, Hub quarantine apply | **Cut (2026-08-24)** -- package 2.2.8 pending tag; DF-32/33/34/35 and DF-4 remain open; DF-2 closed | `v2/v2.2/plans/v2.2.8-working-local-studio.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 

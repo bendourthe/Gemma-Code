@@ -153,7 +153,9 @@ button {
 }
 
 /* v2.2.5 Phase 4 -- chats-pane pill reuses the rail treatment with a 24px
- * hit target (plan: expand control is at least 24px). */
+ * hit target (plan: expand control is at least 24px). v2.2.8 Phase 2: the
+ * collapsed chats aside itself is a 56px icon rail, not an empty 24px gutter;
+ * this pill stays the 24px expand hit target on the rail edge. */
 .nexus-chats-collapse-pill {
   width: 24px;
   min-width: 24px;

@@ -3,8 +3,8 @@
  *
  * The Chat module's top-level page. Hosts:
  *   - left rail: `<FolderTree>` (drag-drop, context menu, keyboard nav)
- *   - right pane: breadcrumb + shared chat shell (`<MessageList>`, `<MediaComposer>`)
- *   - compact model switcher (installed-and-ready LLMs + Get more models)
+ *   - right pane: shared chat shell (`<MessageList>`, `<MediaComposer>`)
+ *   - compact model switcher under the composer (installed-and-ready LLMs + Get more models)
  *   - tools always on (confirmation and sandbox still gate execution)
  *
  * v2.2.0 Phase 5 (5.1): the page persists through the sidecar's SQLite store
@@ -15,10 +15,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
-import { Breadcrumb } from "./Breadcrumb";
-import { InMemoryChatExplorerClient, resolveMaybe } from "./chatExplorerClient";
+import {
+  CollapsibleHistoryAside,
+  usePersistentCollapsed,
+} from "../../shared/explorer/CollapsibleHistoryAside";
+import { CHAT_HISTORY_COLLAPSE_KEY } from "../../shared/explorer/historyPaneLayout";
+import { InMemoryChatExplorerClient } from "./chatExplorerClient";
 import {
   createIpcChatExplorerAdapter,
   tauriAvailable,
@@ -29,12 +32,18 @@ import type {
 import {
   createChatIpcClient,
   joinChatReply,
+  usageFromChatEvents,
   type ChatSessionClient,
 } from "./chatIpcClient";
-import type { Chat, ChatMessageRecord, Folder } from "./types";
+import { formatChatTurnError } from "../../lib/inferenceRpcError";
+import type { Chat, ChatMessageRecord } from "./types";
 import {
+  ComposerContextRow,
   MediaComposer,
   MessageList,
+  composerSessionUsage,
+  isoTimestampFromMillis,
+  withLiveTimestamp,
   type ChatMessage,
 } from "../../shared/chat";
 import {
@@ -49,6 +58,7 @@ import {
   nonVisionAttachmentGuidance,
   resolveVisualTokenBudget,
 } from "../../../../core/chat/vision";
+import { estimateTokens } from "../../../../core/chat/sessionContextUsage";
 import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visualBudget";
 import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
 import type { EpisodicMemory } from "../../../../core/memory/MemoryHub";
@@ -106,18 +116,8 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   modalities: ["text"] as const,
 }));
 
-/** v2.2.5 Phase 4 -- chats aside collapse, namespaced away from the main rail. */
-export const CHATS_PANE_STORAGE_KEY = "nexus.chat.chatsPaneCollapsed";
-const CHATS_PANE_WIDTH = 280;
-const CHATS_PANE_COLLAPSED_WIDTH = 24;
-
-function readChatsPaneCollapsed(): boolean {
-  try {
-    return window.localStorage.getItem(CHATS_PANE_STORAGE_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
+/** v2.2.5 Phase 4 / v2.2.8 Phase 2 -- chats aside collapse, namespaced away from the main rail. */
+export const CHATS_PANE_STORAGE_KEY = CHAT_HISTORY_COLLAPSE_KEY;
 
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
@@ -213,7 +213,9 @@ export function ChatPage({
   const hydrationVersionRef = useRef<Map<string, number>>(new Map());
 
   const [selected, setSelected] = useState<SelectedNode | null>(null);
-  const [chatsCollapsed, setChatsCollapsed] = useState(readChatsPaneCollapsed);
+  const { collapsed: chatsCollapsed, toggle: toggleChatsPane } = usePersistentCollapsed(
+    CHATS_PANE_STORAGE_KEY,
+  );
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   // Bumped when something outside the rail renames a chat (auto-titling).
   const [treeVersion, setTreeVersion] = useState(0);
@@ -239,8 +241,7 @@ export function ChatPage({
     () => audioClientOverride ?? createIpcAudioClient(),
   );
   const [personaByChat, setPersonaByChat] = useState<Record<string, string>>({});
-  // v2.2.0 Phase 5 (5.4): the persona left the always-on textarea under the
-  // composer and became a per-chat setting behind a header gear.
+  // v2.2.7 Phase 3: persona is a text control under the composer, not a header gear.
   const [personaOpen, setPersonaOpen] = useState(false);
   const [voiceLoop, setVoiceLoop] = useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -295,30 +296,6 @@ export function ChatPage({
     };
   }, [modelsClientOverride]);
 
-  // v2.2.3 Phase 1 (1.1): `ancestors()` may resolve asynchronously (IPC
-  // adapter). The old useMemo assumed a sync return and threw as soon as a
-  // chat became active. A failed lookup degrades to a root-only breadcrumb.
-  const [breadcrumbAncestors, setBreadcrumbAncestors] = useState<readonly Folder[]>([]);
-  useEffect(() => {
-    if (!activeChat) {
-      setBreadcrumbAncestors([]);
-      return;
-    }
-    let cancelled = false;
-    resolveMaybe(
-      () => client.ancestors(activeChat.folderId),
-      (rows) => {
-        if (!cancelled) setBreadcrumbAncestors(rows);
-      },
-      () => {
-        if (!cancelled) setBreadcrumbAncestors([]);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [activeChat, client]);
-
   const messages = useMemo(() => {
     if (!activeChat) return [];
     const rows = messagesByChat.get(activeChat.id) ?? [];
@@ -339,6 +316,15 @@ export function ChatPage({
     const id = activeChat?.modelId ?? modelId;
     return listedModels.find((m) => m.id === id);
   }, [activeChat, listedModels, modelId]);
+
+  const pickerModel = useMemo(
+    () => listedModels.find((m) => m.id === modelId),
+    [listedModels, modelId],
+  );
+  const contextUsage = useMemo(
+    () => composerSessionUsage(messages, pickerModel),
+    [messages, pickerModel],
+  );
 
   const imageGate = imageAttachmentAffordance(selectedListedModel);
   const audioHint = audioAttachmentCopy(selectedListedModel);
@@ -395,18 +381,6 @@ export function ChatPage({
 
   const handleSelect = useCallback((node: SelectedNode) => {
     setSelected(node);
-  }, []);
-
-  const toggleChatsPane = useCallback(() => {
-    setChatsCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(CHATS_PANE_STORAGE_KEY, String(next));
-      } catch {
-        /* preference is optional */
-      }
-      return next;
-    });
   }, []);
 
   const handleOpenChat = useCallback((chat: Chat) => {
@@ -467,6 +441,12 @@ export function ChatPage({
             role: message.role === "user" ? "user" : "assistant",
             content: message.content,
             ...(message.attachments ? { attachments: message.attachments } : {}),
+            ...(message.inputTokens !== undefined ? { inputTokens: message.inputTokens } : {}),
+            ...(message.reasoningTokens !== undefined
+              ? { reasoningTokens: message.reasoningTokens }
+              : {}),
+            ...(message.outputTokens !== undefined ? { outputTokens: message.outputTokens } : {}),
+            ...(message.tokensEstimated ? { tokensEstimated: true } : {}),
           }),
         );
         setTranscriptError(null);
@@ -482,11 +462,12 @@ export function ChatPage({
   /** Append locally first, then persist non-pending rows without blocking UI. */
   const appendMessage = useCallback(
     (chatId: string, message: ChatMessage) => {
+      const stamped = withLiveTimestamp(message);
       const next = new Map(messagesByChatRef.current);
-      next.set(chatId, [...(next.get(chatId) ?? []), message]);
+      next.set(chatId, [...(next.get(chatId) ?? []), stamped]);
       messagesByChatRef.current = next;
       setMessagesByChat(next);
-      if (!message.pending) void persistMessage(chatId, message);
+      if (!stamped.pending) void persistMessage(chatId, stamped);
     },
     [persistMessage],
   );
@@ -521,6 +502,7 @@ export function ChatPage({
         activity: "chat-streaming",
       });
       let content: string;
+      let usage = { inputTokens: null as number | null, reasoningTokens: null as number | null, outputTokens: null as number | null };
       try {
         const chat = activeChat;
         let sessionId = sessionIdsRef.current.get(chatId);
@@ -565,11 +547,12 @@ export function ChatPage({
           });
         }
         content = joinChatReply(reply.events) || "(no reply)";
+        usage = usageFromChatEvents(reply.events);
       } catch (err) {
-        content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
+        content = formatChatTurnError(err);
       }
-      patchMessage(chatId, assistantId, { content, pending: false });
-      void persistMessage(chatId, { id: assistantId, role: "assistant", content });
+      patchMessage(chatId, assistantId, { content, pending: false, ...usage });
+      void persistMessage(chatId, { id: assistantId, role: "assistant", content, ...usage });
       return content;
     },
     [activeChat, appendMessage, chatSession, modelId, patchMessage, persistMessage, personaByChat],
@@ -683,6 +666,7 @@ export function ChatPage({
               id: `${chat.id}-${Date.now()}-user`,
               role: "user",
               content: earlyUserText,
+              ...estimatedUserUsage(earlyUserText),
             });
           }
           appendMessage(chat.id, {
@@ -734,6 +718,7 @@ export function ChatPage({
         content: userContent,
         ...(displayAttachments.length > 0 ? { attachments: displayAttachments } : {}),
         ...(origin ? { origin } : {}),
+        ...estimatedUserUsage(userContent),
       });
       // v2.2.0 Phase 8 (DF-13): name the chat from its first prompt.
       //
@@ -875,6 +860,19 @@ export function ChatPage({
     ],
   );
 
+  const handleStartNewSession = useCallback(async (): Promise<void> => {
+    const created = client.createChat({
+      folderId: activeChat?.folderId ?? null,
+      title: "New chat",
+      modelId,
+    });
+    const chat = await Promise.resolve(created);
+    setActiveChat(chat);
+    setSelected({ kind: "chat", id: chat.id });
+    setTreeVersion((v) => v + 1);
+    setPersonaOpen(false);
+  }, [activeChat, client, modelId]);
+
   const ensureVoiceMic = useCallback((): MicRecorder => {
     if (!voiceMicRef.current) {
       voiceMicRef.current =
@@ -992,122 +990,26 @@ export function ChatPage({
         color: "var(--fg-0)",
       }}
     >
-      <aside
-        data-testid="chats-pane"
-        aria-label="Chats"
-        style={{
-          position: "relative",
-          zIndex: 1,
-          width: chatsCollapsed ? CHATS_PANE_COLLAPSED_WIDTH : CHATS_PANE_WIDTH,
-          flex: `0 0 ${chatsCollapsed ? CHATS_PANE_COLLAPSED_WIDTH : CHATS_PANE_WIDTH}px`,
-          overflow: "visible",
-          borderRight: "1px solid var(--border-1)",
-          backgroundColor: "var(--bg-1)",
-        }}
+      <CollapsibleHistoryAside
+        testId="chats-pane"
+        ariaLabel="Chats"
+        collapsed={chatsCollapsed}
+        onToggle={toggleChatsPane}
+        toggleTestId="chats-pane-collapse-toggle"
+        expandLabel="Expand chats"
+        collapseLabel="Collapse chats"
       >
-        {chatsCollapsed ? null : (
-          <div style={{ height: "100%", overflowY: "auto" }}>
-            <FolderTree
-              client={client}
-              selected={selected}
-              onSelect={handleSelect}
-              onOpenChat={handleOpenChat}
-              refreshToken={treeVersion}
-              defaultModelId={modelId}
-            />
-          </div>
-        )}
-        <button
-          type="button"
-          className="nexus-sidebar-collapse-pill nexus-chats-collapse-pill"
-          data-testid="chats-pane-collapse-toggle"
-          aria-label={chatsCollapsed ? "Expand chats" : "Collapse chats"}
-          aria-expanded={!chatsCollapsed}
-          title={chatsCollapsed ? "Expand chats" : "Collapse chats"}
-          style={{ width: 24, minWidth: 24, minHeight: 24, height: 40 }}
-          onClick={toggleChatsPane}
-        >
-          {chatsCollapsed ? (
-            <ChevronRight size={12} aria-hidden />
-          ) : (
-            <ChevronLeft size={12} aria-hidden />
-          )}
-        </button>
-      </aside>
+        <FolderTree
+          client={client}
+          selected={selected}
+          onSelect={handleSelect}
+          onOpenChat={handleOpenChat}
+          refreshToken={treeVersion}
+          defaultModelId={modelId}
+          collapsed={chatsCollapsed}
+        />
+      </CollapsibleHistoryAside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, padding: "var(--space-4)", gap: "var(--space-3)" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)" }}>
-          <Breadcrumb ancestors={breadcrumbAncestors} />
-          <button
-            type="button"
-            data-testid="chat-persona-toggle"
-            aria-label="Chat settings"
-            aria-expanded={personaOpen}
-            disabled={!activeChat}
-            onClick={() => setPersonaOpen((v) => !v)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--fg-muted)",
-              cursor: activeChat ? "pointer" : "default",
-              fontSize: "var(--text-sm)",
-            }}
-          >
-            {"⚙"}
-          </button>
-          {personaOpen && activeChat ? (
-            <div
-              data-testid="chat-persona-popover"
-              style={{
-                position: "absolute",
-                right: "var(--space-4)",
-                top: "2.5rem",
-                zIndex: 30,
-                width: "22rem",
-                padding: "var(--space-3)",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-subtle, #2a2a2a)",
-                background: "var(--bg-elevated, #1b1b1b)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--space-2)",
-              }}
-            >
-              <label style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
-                Persona for this chat
-              </label>
-              <textarea
-                data-testid="chat-persona"
-                rows={3}
-                value={personaByChat[activeChat.id] ?? ""}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setPersonaByChat((prev) => ({ ...prev, [activeChat.id]: next }));
-                  // Persisted, unlike the pre-v2.2.0 React-only state that
-                  // silently vanished on reload. `setPersona` is an optional
-                  // member of the async contract now -- no more cast.
-                  void client
-                    .setPersona?.(activeChat.id, next.trim() ? next : null)
-                    .catch(() => undefined);
-                }}
-                placeholder="Optional system prompt for this chat"
-                style={{ resize: "vertical", width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-          ) : null}
-          <span style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
-            <QuickModelSwitcher
-              testId="chat-model-select"
-              models={listedModels}
-              taskType="llm"
-              ownedIds={ownedIdSet(selection)}
-              value={modelId}
-              onChange={setModelId}
-              onGetMoreModels={onGetMoreModels}
-              disabled={Boolean(activeChat)}
-            />
-          </span>
-        </header>
-
         {sidecar.isDown && (
           <SidecarDownBanner
             status={sidecar.status}
@@ -1168,7 +1070,7 @@ export function ChatPage({
           ) : null}
         </div>
 
-        <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", position: "relative" }}>
             {/*
               v1.20.0 Phase 2: RapidOCR remains required for PDF/image. Native
               Office parse does not, so the composer stays usable when this
@@ -1210,12 +1112,62 @@ export function ChatPage({
             >
               {voiceLoop.captureVisible ? "Recording -- microphone is open" : "Mic closed"}
             </span>
-            {/*
-              v2.2.0 Phase 5 (5.4): the five-button voice row and the always-on
-              Persona textarea are gone. Every voice capability now lives in the
-              composer's mic menu, and the persona moved into the chat header
-              popover where it is also persisted.
-            */}
+            <button
+              type="button"
+              data-testid="chat-persona-toggle"
+              aria-label="Persona"
+              aria-expanded={personaOpen}
+              disabled={!activeChat}
+              onClick={() => setPersonaOpen((v) => !v)}
+              style={{
+                alignSelf: "flex-start",
+                background: "transparent",
+                border: "none",
+                color: "var(--fg-muted)",
+                cursor: activeChat ? "pointer" : "default",
+                fontSize: "var(--text-sm)",
+              }}
+            >
+              Persona
+            </button>
+            {personaOpen && activeChat ? (
+              <div
+                data-testid="chat-persona-popover"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  bottom: "100%",
+                  zIndex: 30,
+                  width: "22rem",
+                  marginBottom: "var(--space-2)",
+                  padding: "var(--space-3)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-subtle, #2a2a2a)",
+                  background: "var(--bg-elevated, #1b1b1b)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--space-2)",
+                }}
+              >
+                <label style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
+                  Persona for this chat
+                </label>
+                <textarea
+                  data-testid="chat-persona"
+                  rows={3}
+                  value={personaByChat[activeChat.id] ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setPersonaByChat((prev) => ({ ...prev, [activeChat.id]: next }));
+                    void client
+                      .setPersona?.(activeChat.id, next.trim() ? next : null)
+                      .catch(() => undefined);
+                  }}
+                  placeholder="Optional system prompt for this chat"
+                  style={{ resize: "vertical", width: "100%", boxSizing: "border-box" }}
+                />
+              </div>
+            ) : null}
             <MediaComposer
               onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
               submitAccentVar="--accent-chatbot"
@@ -1228,6 +1180,18 @@ export function ChatPage({
               audioEnabled
               audioHint={audioHint}
             />
+            <ComposerContextRow usage={contextUsage} onStartNewSession={() => void handleStartNewSession()}>
+              <QuickModelSwitcher
+                testId="chat-model-select"
+                models={listedModels}
+                taskType="llm"
+                ownedIds={ownedIdSet(selection)}
+                value={modelId}
+                onChange={setModelId}
+                onGetMoreModels={onGetMoreModels}
+                disabled={Boolean(activeChat)}
+              />
+            </ComposerContextRow>
         </footer>
       </div>
     </section>
@@ -1250,8 +1214,19 @@ function chatMessageFromRecord(record: ChatMessageRecord): ChatMessage {
     role: record.role,
     content: record.content,
     attachments: record.attachments,
-    timestamp: new Date(record.createdAt).toISOString(),
+    timestamp: isoTimestampFromMillis(record.createdAt),
+    inputTokens: record.inputTokens ?? null,
+    reasoningTokens: record.reasoningTokens ?? null,
+    outputTokens: record.outputTokens ?? null,
+    tokensEstimated: record.tokensEstimated,
   };
+}
+
+function estimatedUserUsage(content: string): {
+  inputTokens: number;
+  tokensEstimated: true;
+} {
+  return { inputTokens: estimateTokens(content), tokensEstimated: true };
 }
 
 function replayHistory(

@@ -53,6 +53,10 @@ export interface IpcChatExplorerClient {
     role: "user" | "assistant";
     content: string;
     attachments?: readonly string[];
+    inputTokens?: number | null;
+    reasoningTokens?: number | null;
+    outputTokens?: number | null;
+    tokensEstimated?: boolean;
   }): Promise<ChatMessageRecord>;
   listMessages(chatId: string, limit?: number): Promise<readonly ChatMessageRecord[]>;
   generateTitle(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
@@ -127,6 +131,10 @@ export function createIpcChatExplorerClient(): IpcChatExplorerClient {
         ...(input.attachments && input.attachments.length > 0
           ? { attachments: [...input.attachments] }
           : {}),
+        ...(input.inputTokens !== undefined ? { inputTokens: input.inputTokens } : {}),
+        ...(input.reasoningTokens !== undefined ? { reasoningTokens: input.reasoningTokens } : {}),
+        ...(input.outputTokens !== undefined ? { outputTokens: input.outputTokens } : {}),
+        ...(input.tokensEstimated ? { tokensEstimated: true } : {}),
       }),
     async listMessages(chatId, limit) {
       const { messages } = await call<{ messages: ChatMessageRecord[] }>(

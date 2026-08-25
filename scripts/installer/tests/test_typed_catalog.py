@@ -18,7 +18,9 @@ from nexus_installer.pages.typed_catalog import (
     TypedCatalogPage,
     TypedSelection,
     compatibility_badge,
+    format_context_chip,
     load_catalog_models,
+    parse_context_window,
 )
 
 
@@ -262,6 +264,20 @@ class TestLoadCatalog:
         assert models["qwen2.5-coder:7b"].origin == "China"
         assert models["qwen2.5-coder:7b"].agentic is True
         assert models["juggernaut-xl-v9"].agentic is False
+
+    def test_context_window_parsed_without_inventing_128k(self, tmp_path: Path) -> None:
+        models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
+        assert models["gemma4:e4b"].context_window_in == 128000
+        assert models["gemma4:e4b"].context_window_out == 0
+        assert models["juggernaut-xl-v9"].context_window_in == 0
+        assert models["wan2.1-t2v-1.3b"].context_window_in == 0
+        assert format_context_chip(128000) == "Context: 128k"
+        assert "in" not in format_context_chip(128000)
+        assert format_context_chip(32000, 8000) == "Context: 32k / 8k"
+        assert format_context_chip(0, 0) is None
+        assert parse_context_window(None) == 0
+        assert parse_context_window("nope") == 0
+        assert parse_context_window(128000) == 128000
 
     def test_tool_calling_verified_defaults_false_and_parses_true(self, tmp_path: Path) -> None:
         path = tmp_path / "catalog.json"
@@ -855,6 +871,66 @@ class TestPhase3Collapse:
         # ...and the plain title carries the name only (no inline date suffix).
         assert "Test Image Model" in texts
         assert not any("Test Image Model" in t and "2026" in t for t in texts)
+        assert not any(t.startswith("Context:") for t in texts)
+
+    def test_text_model_context_chip_is_128k_without_in(self, qt_app, tmp_path: Path) -> None:
+        from PyQt5.QtWidgets import QLabel
+        from nexus_installer.pages.typed_catalog import _ModelCard
+
+        entry = {
+            "id": "lfm2.5:2.6b",
+            "displayName": "LFM2.5 2.6B",
+            "type": "llm",
+            "task": "agentic",
+            "sizeGB": 1.67,
+            "requiredVramGB": 3,
+            "contextWindow": 128000,
+            "family": "lfm2.5",
+            "description": "On-device agentic model.",
+        }
+        path = tmp_path / "catalog.json"
+        path.write_text(json.dumps({"models": [entry]}), encoding="utf-8")
+        model = load_catalog_models(path)[0]
+        card = _ModelCard(
+            model,
+            recommended=False,
+            checked=False,
+            host_vram_gb=16,
+            host_ram_gb=16,
+            gpu_vendor="nvidia",
+        )
+        texts = [lbl.text() for lbl in card.findChildren(QLabel)]
+        assert "Context: 128k" in texts
+        assert not any("k in" in t for t in texts)
+
+    def test_document_row_with_window_still_gets_a_chip(self, qt_app, tmp_path: Path) -> None:
+        from PyQt5.QtWidgets import QLabel
+        from nexus_installer.pages.typed_catalog import _ModelCard
+
+        entry = {
+            "id": "unlimited-ocr-3b",
+            "displayName": "Unlimited-OCR 3B",
+            "type": "document",
+            "task": "document",
+            "sizeGB": 6.7,
+            "requiredVramGB": 12,
+            "contextWindow": 32768,
+            "family": "unlimited-ocr",
+            "description": "Document parser.",
+        }
+        path = tmp_path / "catalog.json"
+        path.write_text(json.dumps({"models": [entry]}), encoding="utf-8")
+        model = load_catalog_models(path)[0]
+        card = _ModelCard(
+            model,
+            recommended=False,
+            checked=False,
+            host_vram_gb=16,
+            host_ram_gb=16,
+            gpu_vendor="nvidia",
+        )
+        texts = [lbl.text() for lbl in card.findChildren(QLabel)]
+        assert "Context: 32k" in texts
 
     def test_low_vram_collapses_chat_to_small_tier(self, qt_app) -> None:
         # On a 4 GB GPU the gemma4 chat best-fit is the small e2b tier; the

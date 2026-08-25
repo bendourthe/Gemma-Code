@@ -259,7 +259,7 @@ describe("<ChatPage> with an async IPC-shaped client", () => {
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
   });
 
-  it("renders the breadcrumb ancestors for an active chat via the async client", async () => {
+  it("does not render breadcrumb ancestors in the chat header", async () => {
     const { fake } = createIpcShapedFake();
     const folder = await fake.createFolder(null, "Work");
     const chat = await fake.createChat({ folderId: folder.id, title: "Draft", modelId: "m" });
@@ -268,9 +268,9 @@ describe("<ChatPage> with an async IPC-shaped client", () => {
     render(<ChatPage client={adapter} />);
     await user.click(await screen.findByTestId(`tree-row-folder-${folder.id}`));
     await user.click(await screen.findByTestId(`tree-row-chat-${chat.id}`));
-    await waitFor(() =>
-      expect(screen.getByTestId("chat-breadcrumb")).toHaveTextContent("Work"),
-    );
+    expect(screen.queryByTestId("chat-breadcrumb")).toBeNull();
+    expect(screen.queryByTestId("chat-breadcrumb-root")).toBeNull();
+    expect(screen.getByTestId("composer-context-row")).toBeInTheDocument();
   });
 
   it("no longer carries the `as unknown as ChatExplorerClient` cast (exit gate)", () => {

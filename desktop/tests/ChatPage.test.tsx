@@ -1,7 +1,7 @@
 /**
  * v1.0.0 Phase 4.4 -- ChatPage integration tests.
  *
- * Covers: folder-tree + breadcrumb wiring, model selector reuse, tools
+ * Covers: folder-tree wiring, model selector under the composer, tools
  * always on (no per-chat checkbox), end-to-end "create folder - new chat
  * - send message - see assistant echo", and the v2.2.4 honesty contract
  * (Hi user bubble + send id equals the visible installed model).
@@ -97,7 +97,10 @@ describe("<ChatPage>", () => {
     const chatId = chats![0]!.id;
     await user.click(screen.getByTestId(`tree-row-chat-${chatId}`));
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
-    expect(screen.getByTestId("chat-breadcrumb")).toHaveTextContent("Work");
+    expect(screen.queryByTestId("chat-breadcrumb")).toBeNull();
+    expect(screen.queryByTestId("chat-breadcrumb-root")).toBeNull();
+    expect(screen.queryByText("⚙")).toBeNull();
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="chat-model-select"]')).toBeTruthy();
   });
 
   it("submitting a message renders the user bubble + the streamed assistant reply", async () => {
@@ -123,6 +126,8 @@ describe("<ChatPage>", () => {
     await user.type(textarea, "hello{Enter}");
     expect(await screen.findByText("hello")).toBeInTheDocument();
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
   });
 
   it("prepends the per-chat persona onto the outbound message", async () => {
@@ -144,8 +149,7 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    // v2.2.0 Phase 5 (5.4): the persona left the always-on textarea under the
-    // composer and now lives behind the chat header's settings gear.
+    // v2.2.7 Phase 3: persona is a labeled control under the composer, not a header gear.
     await user.click(screen.getByTestId("chat-persona-toggle"));
     fireEvent.change(screen.getByTestId("chat-persona"), { target: { value: "Be terse." } });
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
@@ -184,6 +188,8 @@ describe("<ChatPage>", () => {
     await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
     const orb = await screen.findByRole("img", { name: /agent composing/i });
     expect(orb).toHaveAttribute("data-agent-activity", "chat-streaming");
+    expect(orb).toHaveAttribute("data-orb-size", "bubble");
+    expect(orb).not.toHaveAttribute("data-orb-size", "inline");
     expect(screen.getByText("Composing...")).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
@@ -209,6 +215,60 @@ describe("<ChatPage>", () => {
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
     expect(await screen.findByText(/chat unavailable/)).toBeInTheDocument();
+  });
+
+  it("does not surface sidecar response timeout for a slow first token", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => {
+        await gate;
+        return {
+          sessionId: "s1",
+          events: [
+            { kind: "token", text: "Hello there" },
+            { kind: "done", finishReason: "stop" },
+          ],
+        };
+      },
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
+    expect(await screen.findByText("Composing...")).toBeInTheDocument();
+    expect(screen.queryByText(/sidecar response timeout/i)).toBeNull();
+    release();
+    expect(await screen.findByText("Hello there")).toBeInTheDocument();
+    expect(screen.queryByText(/sidecar response timeout/i)).toBeNull();
+    expect(screen.queryByText(/chat unavailable/i)).toBeNull();
+  });
+
+  it("rewrites a sidecar timeout string into typed local-model copy", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => {
+        throw new Error("sidecar response timeout");
+      },
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
+    expect(await screen.findByText(/Check Ollama is running/)).toBeInTheDocument();
+    expect(screen.queryByText(/sidecar response timeout/i)).toBeNull();
+    expect(screen.queryByText(/chat unavailable/i)).toBeNull();
   });
 
   it("does not render an Enable tools checkbox because tools stay on", () => {
@@ -335,19 +395,20 @@ describe("<ChatPage>", () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("the model selector is disabled while a chat is active", async () => {
+  it("the model selector lives under the composer and is disabled while a chat is active", async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });
     const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
     const user = userEvent.setup();
     render(<ChatPage client={client} />);
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="chat-model-select"]')).toBeTruthy();
     expect(screen.getByTestId("chat-model-select")).not.toBeDisabled();
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     expect(screen.getByTestId("chat-model-select")).toBeDisabled();
   });
 
-  it("breadcrumb shows ancestor chain for nested chats", async () => {
+  it("does not render a header breadcrumb for nested chats", async () => {
     const client = new InMemoryChatExplorerClient();
     const projects = client.createFolder({ parentId: null, name: "Projects" });
     const work = client.createFolder({ parentId: projects.id, name: "Work" });
@@ -355,15 +416,13 @@ describe("<ChatPage>", () => {
     const chat = client.createChat({ folderId: q3.id, title: "kickoff", modelId: "m" });
     const user = userEvent.setup();
     render(<ChatPage client={client} />);
-    // Expand the chain manually.
     await user.click(screen.getByTestId(`tree-row-folder-${projects.id}`));
     await user.click(screen.getByTestId(`tree-row-folder-${work.id}`));
     await user.click(screen.getByTestId(`tree-row-folder-${q3.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    const crumb = screen.getByTestId("chat-breadcrumb");
-    expect(crumb).toHaveTextContent("Projects");
-    expect(crumb).toHaveTextContent("Work");
-    expect(crumb).toHaveTextContent("Q3");
+    expect(screen.queryByTestId("chat-breadcrumb")).toBeNull();
+    expect(screen.queryByTestId("chat-breadcrumb-root")).toBeNull();
+    expect(screen.queryByText("⚙")).toBeNull();
   });
 
   it("the compact switcher lists only installed LLMs from the models client", async () => {
@@ -427,17 +486,65 @@ describe("<ChatPage>", () => {
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
   });
 
-  it("collapses the chats pane to 24px and restores it from the edge pill", () => {
+  it("at 80% the new-session CTA keeps the old chat in the tree", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const modelsClient = {
+      async list() {
+        return [
+          {
+            id: "gemma4:e4b",
+            displayName: "Gemma 4 E4B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+            contextWindow: 100,
+          },
+        ];
+      },
+    };
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => ({
+        sessionId: "s1",
+        events: [
+          { kind: "token", text: "ok" },
+          { kind: "done", finishReason: "stop", inputTokens: 80, outputTokens: 0 },
+        ],
+      }),
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={modelsClient} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    expect(await screen.findByText("hello")).toBeInTheDocument();
+    expect(await screen.findByTestId("context-usage-cta")).toBeInTheDocument();
+    await user.click(screen.getByTestId("context-usage-new-session"));
+    expect(screen.getByTestId(`tree-row-chat-${chat.id}`)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("hello")).toBeNull());
+    expect(screen.queryByTestId("context-usage-cta")).toBeNull();
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    expect(await screen.findByText("hello")).toBeInTheDocument();
+  });
+
+  it("collapses the chats pane to an icon rail and restores it from the edge pill", () => {
     window.localStorage.removeItem(CHATS_PANE_STORAGE_KEY);
     const client = new InMemoryChatExplorerClient();
-    client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
     render(<ChatPage client={client} />);
     const pane = screen.getByTestId("chats-pane");
     expect(pane.style.width).toBe("280px");
     expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("chats-pane-collapse-toggle"));
-    expect(screen.getByTestId("chats-pane").style.width).toBe("24px");
-    expect(screen.queryByTestId("folder-tree")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chats-pane").style.width).toBe("56px");
+    expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
+    expect(screen.getByTestId("folder-tree")).toHaveAttribute("data-collapsed", "true");
+    expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
+    expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
+    expect(screen.getByTestId(`history-rail-mark-${chat.id}`)).toBeInTheDocument();
     expect(screen.getByTestId("chat-page-empty")).toBeInTheDocument();
     expect(window.localStorage.getItem(CHATS_PANE_STORAGE_KEY)).toBe("true");
     const toggle = screen.getByTestId("chats-pane-collapse-toggle");
@@ -445,7 +552,7 @@ describe("<ChatPage>", () => {
     expect(toggle.style.minWidth).toBe("24px");
     fireEvent.click(toggle);
     expect(screen.getByTestId("chats-pane").style.width).toBe("280px");
-    expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
+    expect(screen.getByTestId("folder-tree")).toHaveAttribute("data-collapsed", "false");
     expect(window.localStorage.getItem(CHATS_PANE_STORAGE_KEY)).toBe("false");
   });
 });

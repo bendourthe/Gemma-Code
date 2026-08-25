@@ -212,6 +212,13 @@ export interface ModelSpec {
    */
   readonly multimodal?: boolean;
   readonly contextWindow?: number | null;
+  /**
+   * v2.2.7 Phase 1 -- optional split in/out windows. Omitted on nearly every
+   * row; when present, Settings and the installer chip as `Nk / Mk` without
+   * the word `in`. Do not invent these from a single `contextWindow`.
+   */
+  readonly contextWindowIn?: number | null;
+  readonly contextWindowOut?: number | null;
   readonly linkedVAE?: string;
   readonly linkedFamily?: string;
   readonly runtimeDeps?: readonly string[];

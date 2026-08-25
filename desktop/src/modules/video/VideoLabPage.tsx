@@ -23,18 +23,18 @@ import {
 import { ModelSwitchChip, ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { Button } from "../../components/ui";
+import { formatInferenceError } from "../../lib/inferenceRpcError";
 import {
   isBackendDownMessage,
   isSidecarFailureMessage,
   useSidecarStatus,
 } from "../../lib/sidecarStatus";
 
-import { MediaComposer, MessageList, chatComposerAccept, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, chatComposerAccept, composerSessionUsage, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableVideoPath } from "../../shared/studio/usablePayload";
-import { ModelSelector } from "../../shared/chat/ModelSelector";
+import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   SETTINGS_MODELS_PATH,
-  GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
 import {
@@ -60,6 +60,7 @@ import { TimelinePreviewer, type TimelineSegment } from "./TimelinePreviewer";
 import {
   createIpcVideoClient,
   type VideoClient,
+  type VideoContinueFrom,
   type VideoMode,
   type VideoProgressEvent,
 } from "./videoClient";
@@ -70,6 +71,22 @@ import {
   type GenerationQueueClient,
 } from "../../shared/studio/generationQueueClient";
 import type { GenerationJob } from "../../../../core/generations/GenerationQueue";
+import { StudioHistoryPane } from "../../shared/explorer/StudioHistoryPane";
+import {
+  InMemoryStudioExplorerClient,
+  type StudioExplorerClient,
+} from "../../shared/explorer/studioExplorerClient";
+import { createIpcStudioExplorerClient } from "../../shared/explorer/ipcStudioExplorerClient";
+import { tauriAvailable } from "../chat/ipcChatExplorerClient";
+import {
+  isUsablePathRef,
+  lastAssistantMediaRef,
+  sessionTitleFromPrompt,
+  studioTurnsToChatMessages,
+  UNREADABLE_OUTPUT_TEXT,
+} from "../../shared/explorer/studioSessionMemory";
+import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
+import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_VIDEO_FORM_VALUES.modelId,
@@ -107,6 +124,12 @@ export interface VideoLabPageProps {
   /** The scheduler's active job, so the policy knows what would be evicted. */
   readonly activeSchedulerJob?: SchedulerActiveJob | null;
   readonly residencyMemory?: ResidencySessionMemory;
+  /** v2.2.6: inject a studio explorer (tests). Production uses IPC when Tauri+sidecar are up. */
+  readonly explorerClient?: StudioExplorerClient;
+  /** Test seam: hydrate this session on mount (quit/reopen). */
+  readonly initialSessionId?: string;
+  /** Test seam: probe whether a last-output path still exists on disk. */
+  readonly outputExists?: (path: string) => boolean;
 }
 
 let messageSeq = 0;
@@ -129,6 +152,9 @@ export function VideoLabPage({
   hostVramFreeGB = null,
   activeSchedulerJob = null,
   residencyMemory,
+  explorerClient: explorerClientOverride,
+  initialSessionId,
+  outputExists,
 }: VideoLabPageProps = {}): JSX.Element {
   const tierClip = getDiffusionTierConfig(diffusionTier).video.clipSeconds || 4;
   const canAvatar = avatarAvailable(diffusionTier, vramGB);
@@ -142,6 +168,11 @@ export function VideoLabPage({
   const [listFailure, setListFailure] = useState<string | null>(null);
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
+  const studioClient = useMemo(() => {
+    if (explorerClientOverride) return explorerClientOverride;
+    if (backendDown || !tauriAvailable()) return new InMemoryStudioExplorerClient("video");
+    return createIpcStudioExplorerClient("video");
+  }, [explorerClientOverride, backendDown]);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
@@ -149,6 +180,10 @@ export function VideoLabPage({
     ...initialValues,
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const lastOutputRef = useRef<string | null>(null);
+  const lastJobIdRef = useRef<string | null>(null);
+  const [historyEpoch, setHistoryEpoch] = useState(0);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<ReadonlyMap<string, readonly TimelineSegment[]>>(
@@ -236,6 +271,106 @@ export function VideoLabPage({
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   }, []);
 
+  const persistTurn = useCallback(
+    (input: { role: "user" | "assistant"; content: string; mediaRef?: string | null }): void => {
+      if (backendDown) return;
+      const sessionId = activeSessionIdRef.current;
+      if (!sessionId || !studioClient.appendTurn) return;
+      try {
+        void Promise.resolve(
+          studioClient.appendTurn({
+            sessionId,
+            role: input.role,
+            content: input.content,
+            mediaRef: input.mediaRef ?? null,
+            ...studioPersistUsage(input),
+          }),
+        ).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+      } catch {
+        // Do not claim saved.
+      }
+    },
+    [backendDown, studioClient],
+  );
+
+  const ensureSession = useCallback(
+    async (title: string): Promise<string | null> => {
+      if (backendDown) return null;
+      if (activeSessionIdRef.current) return activeSessionIdRef.current;
+      try {
+        const session = await Promise.resolve(
+          studioClient.createSession({
+            folderId: null,
+            title: sessionTitleFromPrompt(title),
+            modelId: selectedModelId,
+          }),
+        );
+        activeSessionIdRef.current = session.id;
+        setHistoryEpoch((n) => n + 1);
+        return session.id;
+      } catch {
+        return null;
+      }
+    },
+    [backendDown, studioClient, selectedModelId],
+  );
+
+  const hydrateSession = useCallback(
+    (sessionId: string): void => {
+      const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
+        activeSessionIdRef.current = sessionId;
+        lastOutputRef.current = lastRef;
+        lastJobIdRef.current = null;
+        setMessages(studioTurnsToChatMessages(turns, { outputExists, mediaKind: "video" }));
+      };
+      const turnsMaybe = studioClient.listTurns?.(sessionId) ?? [];
+      const sessionMaybe = studioClient.getSession(sessionId);
+      const isThenable = (value: unknown): value is Promise<unknown> =>
+        typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
+      if (!isThenable(turnsMaybe) && !isThenable(sessionMaybe)) {
+        const turns = turnsMaybe as readonly StudioTurn[];
+        apply(turns, (sessionMaybe as { lastOutputRef?: string | null } | null)?.lastOutputRef ?? lastAssistantMediaRef(turns));
+        return;
+      }
+      void Promise.all([Promise.resolve(turnsMaybe), Promise.resolve(sessionMaybe)]).then(
+        ([turns, session]) => {
+          const list = (turns ?? []) as readonly StudioTurn[];
+          apply(
+            list,
+            (session as { lastOutputRef?: string | null } | null)?.lastOutputRef ?? lastAssistantMediaRef(list),
+          );
+        },
+      );
+    },
+    [studioClient, outputExists],
+  );
+
+  const startFreshStudioSession = useCallback(async (): Promise<void> => {
+    setMessages([]);
+    lastOutputRef.current = null;
+    lastJobIdRef.current = null;
+    activeSessionIdRef.current = null;
+    if (backendDown) return;
+    try {
+      const session = await Promise.resolve(
+        studioClient.createSession({
+          folderId: null,
+          title: "New session",
+          modelId: selectedModelId,
+        }),
+      );
+      activeSessionIdRef.current = session.id;
+      setHistoryEpoch((n) => n + 1);
+    } catch {
+      // Local transcript already cleared; the old session stays in the pane.
+    }
+  }, [backendDown, studioClient, selectedModelId]);
+
+  useEffect(() => {
+    if (!initialSessionId) return;
+    hydrateSession(initialSessionId);
+  }, [initialSessionId, hydrateSession]);
+
   const dispatchSegment = useCallback(
     async (
       mode: VideoMode,
@@ -246,6 +381,7 @@ export function VideoLabPage({
         sourceAudio?: string;
         priorJobId?: string;
         segmentCount: number;
+        sessionContinueFrom?: VideoContinueFrom;
       },
     ) => {
       const request = {
@@ -255,11 +391,14 @@ export function VideoLabPage({
           ? {
               continueFrom: {
                 priorJobId: extras.priorJobId,
+                lastFramePath: lastOutputRef.current ?? undefined,
                 segmentIndex: segment.index,
                 segmentCount: extras.segmentCount,
               },
             }
-          : {}),
+          : extras.sessionContinueFrom
+            ? { continueFrom: extras.sessionContinueFrom }
+            : {}),
       };
       if (mode === "audio2video") {
         return client.audio2video({
@@ -311,6 +450,10 @@ export function VideoLabPage({
               media: undefined,
               content: "Generation failed: video generation completed without a playable clip.",
             });
+            persistTurn({
+              role: "assistant",
+              content: "Generation failed: video generation completed without a playable clip.",
+            });
             return { done: true };
           }
           outputs.current.set(messageId, mp4Path);
@@ -347,6 +490,13 @@ export function VideoLabPage({
             progress: undefined,
             media: firstSrc ? { kind: "video", src: firstSrc } : undefined,
           });
+          if (isUsablePathRef(mp4Path)) {
+            lastOutputRef.current = mp4Path;
+            lastJobIdRef.current = event.jobId;
+            persistTurn({ role: "assistant", content: "", mediaRef: mp4Path });
+          } else {
+            persistTurn({ role: "assistant", content: "" });
+          }
           if (mp4Path) {
             void client.extractWorkflow(mp4Path).then((wf) => {
               if (wf && typeof wf === "object") {
@@ -368,12 +518,16 @@ export function VideoLabPage({
             media: undefined,
             content: `Generation failed: ${event.message ?? "unknown error"}`,
           });
+          persistTurn({
+            role: "assistant",
+            content: `Generation failed: ${event.message ?? "unknown error"}`,
+          });
           return { done: true };
         }
       }
       return { done: false };
     },
-    [patchMessage, resolveMp4Url, dispatchSegment, client],
+    [patchMessage, resolveMp4Url, dispatchSegment, client, persistTurn],
   );
 
   const handleMediaError = useCallback(
@@ -422,7 +576,7 @@ export function VideoLabPage({
           chainRef.current = null;
           patchMessage(activeJob.messageId, {
             pending: false,
-            content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+            content: `Generation failed: ${formatInferenceError(err)}`,
           });
           setActiveJob(null);
         }
@@ -472,17 +626,38 @@ export function VideoLabPage({
         if (verdict.kind === "not-installed" || verdict.kind === "defer") {
           setMessages((prev) => [
             ...prev,
-            {
+            withLiveTimestamp({
               id: nextId("vassistant"),
               role: "assistant",
               content:
                 verdict.kind === "not-installed"
                   ? `${selectedModelId} is not installed. Install it in Settings > Models.`
                   : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
-            },
+            }),
           ]);
           return;
         }
+      }
+      if (
+        attachments.length === 0 &&
+        lastOutputRef.current &&
+        !isUsablePathRef(lastOutputRef.current, outputExists)
+      ) {
+        const userMsg: ChatMessage = {
+          id: nextId("vuser"),
+          role: "user",
+          content: text,
+        };
+        const assistantMsg: ChatMessage = {
+          id: nextId("vassistant"),
+          role: "assistant",
+          content: UNREADABLE_OUTPUT_TEXT,
+        };
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+        persistTurn({ role: "assistant", content: UNREADABLE_OUTPUT_TEXT });
+        return;
       }
       const intent = inferVideoIntent({ text, attachments, avatarEnabled: canAvatar });
       const userMsg: ChatMessage = {
@@ -494,9 +669,17 @@ export function VideoLabPage({
       const assistantId = nextId("vassistant");
       setMessages((prev) => [
         ...prev,
-        userMsg,
-        { id: assistantId, role: "assistant", content: "", pending: true, activity: "video-generation" },
+        withLiveTimestamp(userMsg),
+        withLiveTimestamp({
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          pending: true,
+          activity: "video-generation",
+        }),
       ]);
+      await ensureSession(text);
+      persistTurn({ role: "user", content: text });
 
       if (intent.blockedReason) {
         patchMessage(assistantId, { pending: false, content: intent.blockedReason });
@@ -536,6 +719,18 @@ export function VideoLabPage({
         modelId,
       });
 
+      const sessionContinueFrom: VideoContinueFrom | undefined =
+        !intent.sourceImage &&
+        lastJobIdRef.current &&
+        isUsablePathRef(lastOutputRef.current, outputExists)
+          ? {
+              priorJobId: lastJobIdRef.current,
+              lastFramePath: lastOutputRef.current ?? undefined,
+              segmentIndex: 1,
+              segmentCount: 2,
+            }
+          : undefined;
+
       try {
         chainRef.current = {
           messageId: assistantId,
@@ -551,13 +746,18 @@ export function VideoLabPage({
           sourceImage: intent.sourceImage,
           sourceAudio: intent.sourceAudio,
           segmentCount: segments.length,
+          sessionContinueFrom,
         });
         setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
       } catch (err) {
         chainRef.current = null;
         patchMessage(assistantId, {
           pending: false,
-          content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          content: `Generation failed: ${formatInferenceError(err)}`,
+        });
+        persistTurn({
+          role: "assistant",
+          content: `Generation failed: ${formatInferenceError(err)}`,
         });
       }
     },
@@ -573,18 +773,10 @@ export function VideoLabPage({
       tierClip,
       dispatchSegment,
       frameComments,
+      persistTurn,
+      ensureSession,
+      outputExists,
     ],
-  );
-
-  const onSelectModel = useCallback(
-    (id: string): void => {
-      if (id === GET_MORE_MODELS_ID) {
-        onGetMoreModels?.();
-        return;
-      }
-      setSelectedModelId(id);
-    },
-    [onGetMoreModels],
   );
 
   function downloadVideo(messageId: string): void {
@@ -644,12 +836,13 @@ export function VideoLabPage({
     setFormEpoch((n) => n + 1);
   }
 
-  const selectorModels = useMemo(
-    () => [
-      ...models.map((m) => ({ id: m.id, displayName: m.displayName })),
-      { id: GET_MORE_MODELS_ID, displayName: "+ Get more models..." },
-    ],
-    [models],
+  const pickerModel = useMemo(
+    () => models.find((candidate) => candidate.id === selectedModelId),
+    [models, selectedModelId],
+  );
+  const contextUsage = useMemo(
+    () => composerSessionUsage(messages, pickerModel),
+    [messages, pickerModel],
   );
 
   return (
@@ -666,13 +859,6 @@ export function VideoLabPage({
           borderBottom: "1px solid var(--border-1)",
         }}
       >
-        <ModelSelector
-          models={selectorModels}
-          value={selectedModelId}
-          onChange={onSelectModel}
-          disabled={isGenerating}
-          testId="video-model-select"
-        />
         {noneInstalled && !backendDown && (
           <button
             type="button"
@@ -714,6 +900,16 @@ export function VideoLabPage({
         />
       )}
 
+      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
+        <StudioHistoryPane
+          pillar="video"
+          client={studioClient}
+          defaultModelId={selectedModelId}
+          sidecarDown={backendDown}
+          refreshToken={historyEpoch}
+          onSelectSession={hydrateSession}
+        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="video-history"
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
@@ -856,6 +1052,19 @@ export function VideoLabPage({
           audioEnabled={canAvatar}
           audioHint="Photo plus audio stay on this device."
         />
+        <ComposerContextRow usage={contextUsage} onStartNewSession={() => void startFreshStudioSession()}>
+          <QuickModelSwitcher
+            testId="video-model-select"
+            models={models}
+            taskType="video"
+            value={selectedModelId}
+            onChange={setSelectedModelId}
+            onGetMoreModels={onGetMoreModels}
+            disabled={isGenerating}
+          />
+        </ComposerContextRow>
+      </div>
+        </div>
       </div>
     </section>
   );

@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Download, FileJson, ImagePlus } from "lucide-react";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { Button } from "../../components/ui";
+import { formatInferenceError } from "../../lib/inferenceRpcError";
 import {
   isBackendDownMessage,
   isSidecarFailureMessage,
@@ -33,12 +34,11 @@ import {
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
 
-import { MediaComposer, MessageList, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
-import { ModelSelector } from "../../shared/chat/ModelSelector";
+import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   SETTINGS_MODELS_PATH,
-  GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
 import {
@@ -71,6 +71,22 @@ import {
   type GenerationQueueClient,
 } from "../../shared/studio/generationQueueClient";
 import type { GenerationJob } from "../../../../core/generations/GenerationQueue";
+import { StudioHistoryPane } from "../../shared/explorer/StudioHistoryPane";
+import {
+  InMemoryStudioExplorerClient,
+  type StudioExplorerClient,
+} from "../../shared/explorer/studioExplorerClient";
+import { createIpcStudioExplorerClient } from "../../shared/explorer/ipcStudioExplorerClient";
+import { tauriAvailable } from "../chat/ipcChatExplorerClient";
+import {
+  isUsablePathRef,
+  lastAssistantMediaRef,
+  sessionTitleFromPrompt,
+  studioTurnsToChatMessages,
+  UNREADABLE_OUTPUT_TEXT,
+} from "../../shared/explorer/studioSessionMemory";
+import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
+import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_FORM_VALUES.modelId,
@@ -116,6 +132,12 @@ export interface ImageStudioPageProps {
   /** The scheduler's active job, so the policy knows what would be evicted. */
   readonly activeSchedulerJob?: SchedulerActiveJob | null;
   readonly residencyMemory?: ResidencySessionMemory;
+  /** v2.2.6: inject a studio explorer (tests). Production uses IPC when Tauri+sidecar are up. */
+  readonly explorerClient?: StudioExplorerClient;
+  /** Test seam: hydrate this session on mount (quit/reopen). */
+  readonly initialSessionId?: string;
+  /** Test seam: probe whether a last-output path still exists on disk. */
+  readonly outputExists?: (path: string) => boolean;
 }
 
 let messageSeq = 0;
@@ -135,6 +157,9 @@ export function ImageStudioPage({
   activeSchedulerJob,
   residencyMemory,
   queueClient: queueOverride,
+  explorerClient: explorerClientOverride,
+  initialSessionId,
+  outputExists,
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
   const [queueClient] = useState<GenerationQueueClient>(
@@ -156,9 +181,17 @@ export function ImageStudioPage({
     attachments: [],
   });
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
+  const studioClient = useMemo(() => {
+    if (explorerClientOverride) return explorerClientOverride;
+    if (backendDown || !tauriAvailable()) return new InMemoryStudioExplorerClient("image");
+    return createIpcStudioExplorerClient("image");
+  }, [explorerClientOverride, backendDown]);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const lastOutputRef = useRef<string | null>(null);
+  const [historyEpoch, setHistoryEpoch] = useState(0);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
   const [formEpoch, setFormEpoch] = useState(0);
@@ -237,6 +270,104 @@ export function ImageStudioPage({
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   }, []);
 
+  const persistTurn = useCallback(
+    (input: { role: "user" | "assistant"; content: string; mediaRef?: string | null }): void => {
+      if (backendDown) return;
+      const sessionId = activeSessionIdRef.current;
+      if (!sessionId || !studioClient.appendTurn) return;
+      try {
+        void Promise.resolve(
+          studioClient.appendTurn({
+            sessionId,
+            role: input.role,
+            content: input.content,
+            mediaRef: input.mediaRef ?? null,
+            ...studioPersistUsage(input),
+          }),
+        ).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+      } catch {
+        // Do not claim saved.
+      }
+    },
+    [backendDown, studioClient],
+  );
+
+  const ensureSession = useCallback(
+    async (title: string): Promise<string | null> => {
+      if (backendDown) return null;
+      if (activeSessionIdRef.current) return activeSessionIdRef.current;
+      try {
+        const session = await Promise.resolve(
+          studioClient.createSession({
+            folderId: null,
+            title: sessionTitleFromPrompt(title),
+            modelId: selectedModelId,
+          }),
+        );
+        activeSessionIdRef.current = session.id;
+        setHistoryEpoch((n) => n + 1);
+        return session.id;
+      } catch {
+        return null;
+      }
+    },
+    [backendDown, studioClient, selectedModelId],
+  );
+
+  const hydrateSession = useCallback(
+    (sessionId: string): void => {
+      const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
+        activeSessionIdRef.current = sessionId;
+        lastOutputRef.current = lastRef;
+        setMessages(studioTurnsToChatMessages(turns, { outputExists }));
+      };
+      const turnsMaybe = studioClient.listTurns?.(sessionId) ?? [];
+      const sessionMaybe = studioClient.getSession(sessionId);
+      const isThenable = (value: unknown): value is Promise<unknown> =>
+        typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
+      if (!isThenable(turnsMaybe) && !isThenable(sessionMaybe)) {
+        const turns = turnsMaybe as readonly StudioTurn[];
+        apply(turns, (sessionMaybe as { lastOutputRef?: string | null } | null)?.lastOutputRef ?? lastAssistantMediaRef(turns));
+        return;
+      }
+      void Promise.all([Promise.resolve(turnsMaybe), Promise.resolve(sessionMaybe)]).then(
+        ([turns, session]) => {
+          const list = (turns ?? []) as readonly StudioTurn[];
+          apply(
+            list,
+            (session as { lastOutputRef?: string | null } | null)?.lastOutputRef ?? lastAssistantMediaRef(list),
+          );
+        },
+      );
+    },
+    [studioClient, outputExists],
+  );
+
+  const startFreshStudioSession = useCallback(async (): Promise<void> => {
+    setMessages([]);
+    lastOutputRef.current = null;
+    activeSessionIdRef.current = null;
+    if (backendDown) return;
+    try {
+      const session = await Promise.resolve(
+        studioClient.createSession({
+          folderId: null,
+          title: "New session",
+          modelId: selectedModelId,
+        }),
+      );
+      activeSessionIdRef.current = session.id;
+      setHistoryEpoch((n) => n + 1);
+    } catch {
+      // Local transcript already cleared; the old session stays in the pane.
+    }
+  }, [backendDown, studioClient, selectedModelId]);
+
+  useEffect(() => {
+    if (!initialSessionId) return;
+    hydrateSession(initialSessionId);
+  }, [initialSessionId, hydrateSession]);
+
   const advanceFromEvents = useCallback(
     (events: readonly ProgressEvent[], messageId: string): { done: boolean } => {
       let done = false;
@@ -261,6 +392,10 @@ export function ImageStudioPage({
               media: undefined,
               content: "Generation failed: image generation completed without image bytes.",
             });
+            persistTurn({
+              role: "assistant",
+              content: "Generation failed: image generation completed without image bytes.",
+            });
             continue;
           }
           outputs.current.set(messageId, png);
@@ -269,6 +404,13 @@ export function ImageStudioPage({
             progress: undefined,
             media: { kind: "image", src: `data:image/png;base64,${png}` },
           });
+          const pathRef = event.outputPath?.trim() ?? "";
+          if (isUsablePathRef(pathRef)) {
+            lastOutputRef.current = pathRef;
+            persistTurn({ role: "assistant", content: "", mediaRef: pathRef });
+          } else {
+            persistTurn({ role: "assistant", content: "" });
+          }
           void client.extractWorkflow(png).then((wf) => {
             if (wf && typeof wf === "object") {
               setWorkflowByMessage((prev) => ({
@@ -286,11 +428,15 @@ export function ImageStudioPage({
             media: undefined,
             content: `Generation failed: ${event.message ?? "unknown error"}`,
           });
+          persistTurn({
+            role: "assistant",
+            content: `Generation failed: ${event.message ?? "unknown error"}`,
+          });
         }
       }
       return { done };
     },
-    [patchMessage, client],
+    [patchMessage, client, persistTurn],
   );
 
   const handleMediaError = useCallback(
@@ -329,7 +475,7 @@ export function ImageStudioPage({
           clearInterval(timer);
           patchMessage(activeJob.messageId, {
             pending: false,
-            content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+            content: `Generation failed: ${formatInferenceError(err)}`,
           });
           setActiveJob(null);
         }
@@ -382,20 +528,46 @@ export function ImageStudioPage({
         if (verdict.kind === "not-installed" || verdict.kind === "defer") {
           setMessages((prev) => [
             ...prev,
-            {
+            withLiveTimestamp({
               id: nextId("assistant"),
               role: "assistant",
               content:
                 verdict.kind === "not-installed"
                   ? `${selectedModelId} is not installed. Install it in Settings > Models.`
                   : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
-            },
+            }),
           ]);
           return;
         }
       }
       const replace = attachments.length > 0 ? parseReplaceIntent(text) : null;
-      const intent = inferImageIntent({ text, attachments, mask: paintedMask });
+      if (
+        attachments.length === 0 &&
+        lastOutputRef.current &&
+        !isUsablePathRef(lastOutputRef.current, outputExists)
+      ) {
+        const userMsg: ChatMessage = {
+          id: nextId("user"),
+          role: "user",
+          content: text,
+        };
+        const assistantMsg: ChatMessage = {
+          id: nextId("assistant"),
+          role: "assistant",
+          content: UNREADABLE_OUTPUT_TEXT,
+        };
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+        persistTurn({ role: "assistant", content: UNREADABLE_OUTPUT_TEXT });
+        return;
+      }
+      const intent = inferImageIntent({
+        text,
+        attachments,
+        mask: paintedMask,
+        lastOutputRef: lastOutputRef.current,
+      });
       const userMsg: ChatMessage = {
         id: nextId("user"),
         role: "user",
@@ -410,7 +582,9 @@ export function ImageStudioPage({
         pending: true,
         activity: "image-generation",
       };
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+      await ensureSession(text);
+      persistTurn({ role: "user", content: text });
 
       const base = valuesToBaseRequest(values, {
         prompt: replace ? inpaintPromptFor(replace) : intent.prompt,
@@ -482,22 +656,15 @@ export function ImageStudioPage({
       } catch (err) {
         patchMessage(assistantId, {
           pending: false,
-          content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          content: `Generation failed: ${formatInferenceError(err)}`,
+        });
+        persistTurn({
+          role: "assistant",
+          content: `Generation failed: ${formatInferenceError(err)}`,
         });
       }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask],
-  );
-
-  const onSelectModel = useCallback(
-    (id: string): void => {
-      if (id === GET_MORE_MODELS_ID) {
-        onGetMoreModels?.();
-        return;
-      }
-      setSelectedModelId(id);
-    },
-    [onGetMoreModels],
+    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists],
   );
 
   const pickCandidate = useCallback(
@@ -565,12 +732,13 @@ export function ImageStudioPage({
     setFormEpoch((n) => n + 1);
   }
 
-  const selectorModels = useMemo(
-    () => [
-      ...models.map((m) => ({ id: m.id, displayName: m.displayName })),
-      { id: GET_MORE_MODELS_ID, displayName: "+ Get more models..." },
-    ],
-    [models],
+  const pickerModel = useMemo(
+    () => models.find((candidate) => candidate.id === selectedModelId),
+    [models, selectedModelId],
+  );
+  const contextUsage = useMemo(
+    () => composerSessionUsage(messages, pickerModel),
+    [messages, pickerModel],
   );
 
   return (
@@ -587,13 +755,6 @@ export function ImageStudioPage({
           borderBottom: "1px solid var(--border-1)",
         }}
       >
-        <ModelSelector
-          models={selectorModels}
-          value={selectedModelId}
-          onChange={onSelectModel}
-          disabled={isGenerating}
-          testId="image-model-select"
-        />
         {noneInstalled && !backendDown && (
           <button
             type="button"
@@ -635,6 +796,16 @@ export function ImageStudioPage({
         />
       )}
 
+      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
+        <StudioHistoryPane
+          pillar="image"
+          client={studioClient}
+          defaultModelId={selectedModelId}
+          sidecarDown={backendDown}
+          refreshToken={historyEpoch}
+          onSelectSession={hydrateSession}
+        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="image-history"
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
@@ -805,6 +976,19 @@ export function ImageStudioPage({
           seededAttachment={seededAttachment}
           streaming={isGenerating}
         />
+        <ComposerContextRow usage={contextUsage} onStartNewSession={() => void startFreshStudioSession()}>
+          <QuickModelSwitcher
+            testId="image-model-select"
+            models={models}
+            taskType="image"
+            value={selectedModelId}
+            onChange={setSelectedModelId}
+            onGetMoreModels={onGetMoreModels}
+            disabled={isGenerating}
+          />
+        </ComposerContextRow>
+      </div>
+        </div>
       </div>
     </section>
   );

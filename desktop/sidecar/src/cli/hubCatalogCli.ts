@@ -237,10 +237,9 @@ export async function syncHubCatalog(
     const syncer =
       deps.createSyncer?.(catalogDir) ?? new NexusHubSyncer({ catalogRoot: catalogDir });
     const result = await syncer.sync({ ...(tag ? { tag } : {}), apply: true });
-    // A fetch that did NOT apply is not a success. `sync({apply:true})` leaves
-    // `applied` false when the prompt-injection scanner blocks the bundle (or
-    // when the installed tag already matches), and reporting either as "done"
-    // would tell the installer the harness landed when it did not.
+    // Apply can succeed with per-skill quarantine. Fail closed only when the
+    // catalog was not swapped (scanner crash / network) and we are not already
+    // on this tag.
     if (!result.applied && !result.alreadyUpToDate) {
       return {
         kind: "error",

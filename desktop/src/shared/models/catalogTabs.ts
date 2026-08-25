@@ -134,3 +134,160 @@ export function sortModelsOnTab(
     return (a.displayName || a.id).localeCompare(b.displayName || b.id);
   });
 }
+
+/**
+ * v2.2.8 Phase 4 -- installer `catalog_tab_sort.collapse_and_sort`.
+ * Hide `hideBelowVramGB` rows, keep one best-fit per family, then
+ * required / recommended / compatible, with over-budget last.
+ */
+export interface CatalogSortOptions {
+  hostVramGB?: number | null;
+  gpuVendor?: string;
+  defaults?: ReadonlySet<string>;
+  recommendOrder?: readonly string[];
+}
+
+export function catalogSortGpuVendor(hostVramGB: number | null | undefined): string {
+  return hostVramGB === 0 ? "none" : "nvidia";
+}
+
+function rowVram(model: Pick<ListedModelDto, "vramGB">): number {
+  return typeof model.vramGB === "number" ? model.vramGB : 0;
+}
+
+function releaseOrdinal(value: string | undefined): number {
+  const text = (value ?? "").trim();
+  const parts = text.split("-");
+  const year = Number(parts[0]);
+  if (!Number.isFinite(year)) return 0;
+  const month = Number(parts[1] ?? 0);
+  const day = Number(parts[2] ?? 0);
+  if (!Number.isFinite(month) || !Number.isFinite(day)) return 0;
+  return year * 10000 + month * 100 + day;
+}
+
+function isDownloaded(model: Pick<ListedModelDto, "installed" | "source">): boolean {
+  return Boolean(model.installed && model.source && model.source !== "catalog-only");
+}
+
+export function isCatalogOverBudget(
+  model: Pick<ListedModelDto, "vramGB">,
+  hostVramGB: number | null | undefined,
+  gpuVendor: string,
+): boolean {
+  const vram = rowVram(model);
+  if (vram <= 0) return false;
+  if (gpuVendor === "none") return true;
+  if (typeof hostVramGB !== "number") return false;
+  return hostVramGB < vram;
+}
+
+export function isHiddenByVramFloor(
+  model: Pick<ListedModelDto, "hideBelowVramGB" | "installed" | "source">,
+  hostVramGB: number | null | undefined,
+): boolean {
+  const floor = model.hideBelowVramGB ?? 0;
+  if (floor <= 0 || typeof hostVramGB !== "number") return false;
+  if (isDownloaded(model)) return false;
+  return hostVramGB < floor;
+}
+
+function recommendGroup(
+  model: Pick<ListedModelDto, "id" | "tags">,
+  defaults: ReadonlySet<string>,
+  recRank: ReadonlyMap<string, number>,
+): number {
+  if (defaults.has(model.id)) return 0;
+  const tags = model.tags ?? [];
+  if (recRank.has(model.id) || tags.includes("recommended")) return 1;
+  return 2;
+}
+
+function nameOf(model: Pick<ListedModelDto, "id" | "displayName">): string {
+  return model.displayName || model.id;
+}
+
+function pickHighestVramThenName(rows: readonly ListedModelDto[]): ListedModelDto {
+  const ranked = [...rows].sort(
+    (a, b) => rowVram(b) - rowVram(a) || nameOf(a).localeCompare(nameOf(b)),
+  );
+  return ranked[0] ?? rows[0]!;
+}
+
+function pickLowestVramThenName(rows: readonly ListedModelDto[]): ListedModelDto {
+  const ranked = [...rows].sort(
+    (a, b) => rowVram(a) - rowVram(b) || nameOf(a).localeCompare(nameOf(b)),
+  );
+  return ranked[0] ?? rows[0]!;
+}
+
+/**
+ * Family collapse + hideBelowVram + required/recommended/compatible then
+ * over-budget. Same contract as installer `collapse_and_sort`.
+ */
+export function collapseAndSortModels(
+  models: readonly ListedModelDto[],
+  options: CatalogSortOptions = {},
+): ListedModelDto[] {
+  const hostVramGB = options.hostVramGB;
+  const gpuVendor = options.gpuVendor ?? catalogSortGpuVendor(hostVramGB);
+  const defaults = options.defaults ?? new Set<string>();
+  const recRank = new Map((options.recommendOrder ?? []).map((id, i) => [id, i]));
+  const visible = models.filter((m) => !isHiddenByVramFloor(m, hostVramGB));
+
+  const byFamily = new Map<string, ListedModelDto[]>();
+  for (const row of visible) {
+    const key = row.family || row.id;
+    const list = byFamily.get(key);
+    if (list) list.push(row);
+    else byFamily.set(key, [row]);
+  }
+
+  const enabled: ListedModelDto[] = [];
+  const disabled: ListedModelDto[] = [];
+  for (const members of byFamily.values()) {
+    const kept = members.filter(isDownloaded);
+    const keptIds = new Set(kept.map((m) => m.id));
+    const rest = members.filter((m) => !keptIds.has(m.id));
+    for (const m of kept) {
+      if (isCatalogOverBudget(m, hostVramGB, gpuVendor)) disabled.push(m);
+      else enabled.push(m);
+    }
+    if (rest.length === 0) continue;
+    const fitting = rest.filter((m) => !isCatalogOverBudget(m, hostVramGB, gpuVendor));
+    const over = rest.filter((m) => isCatalogOverBudget(m, hostVramGB, gpuVendor));
+    if (fitting.length > 0) {
+      const pool = fitting.filter((m) => defaults.has(m.id));
+      const pickFrom = pool.length > 0 ? pool : fitting;
+      enabled.push(pickHighestVramThenName(pickFrom));
+      disabled.push(...over);
+    } else {
+      disabled.push(pickLowestVramThenName(rest));
+    }
+  }
+
+  enabled.sort((a, b) => {
+    const req = Number(recommendationKind(a) !== "required") - Number(recommendationKind(b) !== "required");
+    if (req !== 0) return req;
+    const grp = recommendGroup(a, defaults, recRank) - recommendGroup(b, defaults, recRank);
+    if (grp !== 0) return grp;
+    const ra = recRank.get(a.id) ?? 10_000;
+    const rb = recRank.get(b.id) ?? 10_000;
+    if (ra !== rb) return ra - rb;
+    const date = releaseOrdinal(b.releaseDate) - releaseOrdinal(a.releaseDate);
+    if (date !== 0) return date;
+    const vram = rowVram(b) - rowVram(a);
+    if (vram !== 0) return vram;
+    return nameOf(a).localeCompare(nameOf(b));
+  });
+  disabled.sort((a, b) => rowVram(a) - rowVram(b) || nameOf(a).localeCompare(nameOf(b)));
+  return [...enabled, ...disabled];
+}
+
+export function visibleModelsOnTab(
+  models: readonly ListedModelDto[],
+  tab: CatalogTab,
+  options: CatalogSortOptions = {},
+): ListedModelDto[] {
+  return collapseAndSortModels(modelsOnTab(models, tab), options);
+}

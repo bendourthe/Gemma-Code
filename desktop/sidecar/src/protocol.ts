@@ -41,6 +41,8 @@ export const IPC_METHODS = [
   "coding.session.cancel",
   "coding.session.list",
   "coding.session.resume",
+  "coding.session.rename",
+  "coding.session.delete",
   "coding.memory.snapshot",
   "coding.trace.subscribe",
   "coding.sessions.list",
@@ -96,6 +98,18 @@ export const IPC_METHODS = [
   "chat.explorer.listMessages",
   "chat.explorer.search",
   "chat.generateTitle",
+  // v2.2.6 Phase 1 -- named Image/Video studio sessions.
+  "studio.session.tree",
+  "studio.session.createFolder",
+  "studio.session.renameFolder",
+  "studio.session.moveFolder",
+  "studio.session.deleteFolder",
+  "studio.session.createSession",
+  "studio.session.renameSession",
+  "studio.session.moveSession",
+  "studio.session.deleteSession",
+  "studio.session.appendTurn",
+  "studio.session.listTurns",
   "data.categories",
   "data.export",
   "data.import",
@@ -212,7 +226,13 @@ export const CodingSessionEvent = z.discriminatedUnion("kind", [
     callId: z.string(),
     result: z.string(),
   }),
-  z.object({ kind: z.literal("done"), finishReason: z.string().optional() }),
+  z.object({
+    kind: z.literal("done"),
+    finishReason: z.string().optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+  }),
 ]);
 export type CodingSessionEventT = z.infer<typeof CodingSessionEvent>;
 
@@ -279,7 +299,13 @@ export type ChatSessionSendMessageRequestT = z.infer<typeof ChatSessionSendMessa
 
 export const ChatSessionEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("token"), text: z.string() }),
-  z.object({ kind: z.literal("done"), finishReason: z.string().optional() }),
+  z.object({
+    kind: z.literal("done"),
+    finishReason: z.string().optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+  }),
 ]);
 export type ChatSessionEventT = z.infer<typeof ChatSessionEvent>;
 
@@ -354,15 +380,51 @@ export type CodingSessionListResponseT = z.infer<typeof CodingSessionListRespons
 export const CodingSessionResumeRequest = z
   .object({ sessionId: z.string().min(1) })
   .strict();
+export const CodingSessionTurn = z
+  .object({
+    prompt: z.string(),
+    assistantText: z.string(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+    tokensEstimated: z.boolean().optional(),
+    createdAt: z.string().optional(),
+  })
+  .strict();
+export type CodingSessionTurnT = z.infer<typeof CodingSessionTurn>;
 export const CodingSessionResumeResponse = z
   .object({
     session: CodingSessionSummary,
     // v1.5.0 Phase 5 (item 26) -- the full message history so a session started
     // in one surface resumes with intact state in another (cross-surface resume).
     messages: z.array(z.string()),
+    // v2.2.6 Phase 4 -- user/assistant pairs so Agents can restore visible
+    // transcript. `messages` stays the user-prompt list for older callers.
+    turns: z.array(CodingSessionTurn),
   })
   .strict();
 export type CodingSessionResumeResponseT = z.infer<typeof CodingSessionResumeResponse>;
+
+export const CodingSessionRenameRequest = z
+  .object({
+    sessionId: z.string().min(1),
+    title: z.string().min(1),
+  })
+  .strict();
+export type CodingSessionRenameRequestT = z.infer<typeof CodingSessionRenameRequest>;
+export const CodingSessionRenameResponse = z
+  .object({ session: CodingSessionSummary })
+  .strict();
+export type CodingSessionRenameResponseT = z.infer<typeof CodingSessionRenameResponse>;
+
+export const CodingSessionDeleteRequest = z
+  .object({ sessionId: z.string().min(1) })
+  .strict();
+export type CodingSessionDeleteRequestT = z.infer<typeof CodingSessionDeleteRequest>;
+export const CodingSessionDeleteResponse = z
+  .object({ sessionId: z.string(), deleted: z.literal(true) })
+  .strict();
+export type CodingSessionDeleteResponseT = z.infer<typeof CodingSessionDeleteResponse>;
 
 // ---- Panel data (Memory / Trace / Sessions) ---------------------------------
 
@@ -663,6 +725,10 @@ const ChatMessageDto = z.object({
   content: z.string(),
   attachments: z.array(z.string()),
   createdAt: z.number(),
+  inputTokens: z.number().int().nonnegative().nullable().optional(),
+  reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+  outputTokens: z.number().int().nonnegative().nullable().optional(),
+  tokensEstimated: z.boolean().optional(),
 });
 // The tree is recursive; validate the leaf shapes and pass the nesting
 // through rather than fighting zod's recursive typing for an internal DTO.
@@ -703,6 +769,10 @@ export const ChatExplorerAppendMessageRequest = z
     role: z.enum(["user", "assistant"]),
     content: z.string(),
     attachments: z.array(z.string()).optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+    tokensEstimated: z.boolean().optional(),
   })
   .strict();
 export const ChatExplorerListMessagesRequest = z
@@ -715,6 +785,92 @@ export const ChatExplorerSearchRequest = z
   .object({ query: z.string(), limit: z.number().int().positive().optional() })
   .strict();
 export const ChatExplorerSearchResponse = z.object({ hits: z.array(z.unknown()) });
+
+const StudioPillarSchema = z.enum(["image", "video"]);
+export const StudioSessionTreeRequest = z.object({ pillar: StudioPillarSchema }).strict();
+export const StudioSessionTreeResponse = z.object({ tree: z.unknown() });
+export const StudioSessionCreateFolderRequest = z
+  .object({
+    pillar: StudioPillarSchema,
+    parentId: z.string().nullable(),
+    name: z.string().min(1),
+  })
+  .strict();
+export const StudioSessionFolderResponse = z.object({
+  id: z.string(),
+  pillar: StudioPillarSchema,
+  parentId: z.string().nullable(),
+  name: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  color: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+});
+export const StudioSessionRenameFolderRequest = z
+  .object({ id: z.string(), name: z.string().min(1) })
+  .strict();
+export const StudioSessionMoveFolderRequest = z
+  .object({ id: z.string(), parentId: z.string().nullable() })
+  .strict();
+export const StudioSessionIdRequest = z.object({ id: z.string() }).strict();
+export const StudioSessionOkResponse = z.object({ ok: z.literal(true) });
+export const StudioSessionCreateSessionRequest = z
+  .object({
+    pillar: StudioPillarSchema,
+    folderId: z.string().nullable(),
+    title: z.string().min(1),
+    modelId: z.string().min(1),
+  })
+  .strict();
+export const StudioSessionSessionResponse = z.object({
+  id: z.string(),
+  pillar: StudioPillarSchema,
+  folderId: z.string().nullable(),
+  title: z.string(),
+  modelId: z.string(),
+  lastOutputRef: z.string().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  turnCount: z.number(),
+});
+export const StudioSessionRenameSessionRequest = z
+  .object({ id: z.string(), title: z.string().min(1) })
+  .strict();
+export const StudioSessionMoveSessionRequest = z
+  .object({ id: z.string(), folderId: z.string().nullable() })
+  .strict();
+export const StudioSessionAppendTurnRequest = z
+  .object({
+    sessionId: z.string(),
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+    mediaRef: z.string().nullable().optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+    tokensEstimated: z.boolean().optional(),
+    visualUnits: z.number().int().nonnegative().nullable().optional(),
+  })
+  .strict();
+export const StudioSessionTurnResponse = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  mediaRef: z.string().nullable(),
+  createdAt: z.number(),
+  inputTokens: z.number().int().nonnegative().nullable().optional(),
+  reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+  outputTokens: z.number().int().nonnegative().nullable().optional(),
+  tokensEstimated: z.boolean().optional(),
+  visualUnits: z.number().int().nonnegative().nullable().optional(),
+});
+export const StudioSessionListTurnsRequest = z
+  .object({ sessionId: z.string(), limit: z.number().int().positive().optional() })
+  .strict();
+export const StudioSessionListTurnsResponse = z.object({
+  turns: z.array(StudioSessionTurnResponse),
+});
 
 // v2.2.0 Phase 5 (5.3) -- auto-title a chat from its first message.
 export const ChatGenerateTitleRequest = z
@@ -787,6 +943,21 @@ export const SkillsListResponse = z.object({
       path: z.string(),
       tags: z.array(z.string()).optional(),
       active: z.boolean().optional(),
+      quarantine: z
+        .object({
+          decision: z.enum(["block", "warn", "pass"]),
+          findings: z.array(
+            z.object({
+              ruleId: z.string(),
+              severity: z.enum(["high", "medium", "low"]),
+              message: z.string(),
+              source: z.string(),
+              line: z.number(),
+              excerpt: z.string(),
+            }),
+          ),
+        })
+        .optional(),
       provenance: z.object({
         source: z.enum(["builtin", "user", "nexus-hub"]),
         tag: z.string().optional(),
@@ -1392,6 +1563,7 @@ export const ModelListedEntry = z
       })
       .strict()
       .optional(),
+    hideBelowVramGB: z.number().nonnegative().optional(),
   })
   .strict();
 export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;
@@ -1961,6 +2133,7 @@ export const SkillsSyncResponse = z
     alreadyUpToDate: z.boolean(),
     blocked: z.boolean(),
     summary: z.string(),
+    quarantinedCount: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type SkillsSyncResponseT = z.infer<typeof SkillsSyncResponse>;
@@ -2145,6 +2318,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: CodingSessionResumeResponse,
     implemented: true,
   },
+  "coding.session.rename": {
+    request: CodingSessionRenameRequest,
+    response: CodingSessionRenameResponse,
+    implemented: true,
+  },
+  "coding.session.delete": {
+    request: CodingSessionDeleteRequest,
+    response: CodingSessionDeleteResponse,
+    implemented: true,
+  },
   "coding.memory.snapshot": {
     request: CodingMemorySnapshotRequest,
     response: CodingMemorySnapshotResponse,
@@ -2298,6 +2481,17 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "chat.explorer.listMessages": { request: ChatExplorerListMessagesRequest, response: ChatExplorerListMessagesResponse, implemented: true },
   "chat.explorer.search": { request: ChatExplorerSearchRequest, response: ChatExplorerSearchResponse, implemented: true },
   "chat.generateTitle": { request: ChatGenerateTitleRequest, response: ChatGenerateTitleResponse, implemented: true },
+  "studio.session.tree": { request: StudioSessionTreeRequest, response: StudioSessionTreeResponse, implemented: true },
+  "studio.session.createFolder": { request: StudioSessionCreateFolderRequest, response: StudioSessionFolderResponse, implemented: true },
+  "studio.session.renameFolder": { request: StudioSessionRenameFolderRequest, response: StudioSessionFolderResponse, implemented: true },
+  "studio.session.moveFolder": { request: StudioSessionMoveFolderRequest, response: StudioSessionFolderResponse, implemented: true },
+  "studio.session.deleteFolder": { request: StudioSessionIdRequest, response: StudioSessionOkResponse, implemented: true },
+  "studio.session.createSession": { request: StudioSessionCreateSessionRequest, response: StudioSessionSessionResponse, implemented: true },
+  "studio.session.renameSession": { request: StudioSessionRenameSessionRequest, response: StudioSessionSessionResponse, implemented: true },
+  "studio.session.moveSession": { request: StudioSessionMoveSessionRequest, response: StudioSessionSessionResponse, implemented: true },
+  "studio.session.deleteSession": { request: StudioSessionIdRequest, response: StudioSessionOkResponse, implemented: true },
+  "studio.session.appendTurn": { request: StudioSessionAppendTurnRequest, response: StudioSessionTurnResponse, implemented: true },
+  "studio.session.listTurns": { request: StudioSessionListTurnsRequest, response: StudioSessionListTurnsResponse, implemented: true },
   "data.categories": { request: DataCategoriesRequest, response: DataCategoriesResponse, implemented: true },
   "data.export": { request: DataExportRequest, response: DataExportResponse, implemented: true },
   "data.import": { request: DataImportRequest, response: DataImportResponse, implemented: true },

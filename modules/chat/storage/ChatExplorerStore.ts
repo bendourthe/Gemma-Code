@@ -63,6 +63,10 @@ interface MessageRow {
   content: string;
   attachments: string | null;
   created_at: number;
+  input_tokens?: number | null;
+  reasoning_tokens?: number | null;
+  output_tokens?: number | null;
+  tokens_estimated?: number | null;
 }
 
 function rowToFolder(row: FolderRow): Folder {
@@ -94,6 +98,10 @@ function rowToChat(row: ChatRow): Chat {
   };
 }
 
+function nullableInt(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function rowToMessage(row: MessageRow): ChatMessageRecord {
   let attachments: string[] = [];
   if (row.attachments) {
@@ -112,6 +120,10 @@ function rowToMessage(row: MessageRow): ChatMessageRecord {
     content: row.content,
     attachments,
     createdAt: row.created_at,
+    inputTokens: nullableInt(row.input_tokens),
+    reasoningTokens: nullableInt(row.reasoning_tokens),
+    outputTokens: nullableInt(row.output_tokens),
+    tokensEstimated: row.tokens_estimated === 1,
   };
 }
 
@@ -173,6 +185,10 @@ export class ChatExplorerStore {
     // the constructor idempotent on an already-migrated database.
     this._addColumnIfMissing("chat_chats", "persona", "TEXT");
     this._addColumnIfMissing("chat_chats", "user_renamed", "INTEGER NOT NULL DEFAULT 0");
+    this._addColumnIfMissing("chat_chat_messages", "input_tokens", "INTEGER");
+    this._addColumnIfMissing("chat_chat_messages", "reasoning_tokens", "INTEGER");
+    this._addColumnIfMissing("chat_chat_messages", "output_tokens", "INTEGER");
+    this._addColumnIfMissing("chat_chat_messages", "tokens_estimated", "INTEGER NOT NULL DEFAULT 0");
 
     createFtsTableAndTriggers(this._db, {
       ftsTable: "chat_folders_fts",
@@ -510,15 +526,32 @@ export class ChatExplorerStore {
       input.attachments && input.attachments.length > 0
         ? JSON.stringify(input.attachments)
         : null;
+    const inputTokens = input.inputTokens ?? null;
+    const reasoningTokens = input.reasoningTokens ?? null;
+    const outputTokens = input.outputTokens ?? null;
+    const tokensEstimated = input.tokensEstimated ? 1 : 0;
     // One transaction: a message that is stored but not counted (or the
     // reverse) would make the rail disagree with the conversation.
     const tx = this._db.transaction(() => {
       this._db
         .prepare(
-          `INSERT INTO chat_chat_messages (id, chat_id, role, content, attachments, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO chat_chat_messages
+             (id, chat_id, role, content, attachments, created_at,
+              input_tokens, reasoning_tokens, output_tokens, tokens_estimated)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, input.chatId, input.role, input.content, attachments, now);
+        .run(
+          id,
+          input.chatId,
+          input.role,
+          input.content,
+          attachments,
+          now,
+          inputTokens,
+          reasoningTokens,
+          outputTokens,
+          tokensEstimated,
+        );
       this._db
         .prepare(
           `UPDATE chat_chats SET message_count = message_count + 1, updated_at = ?
@@ -534,6 +567,10 @@ export class ChatExplorerStore {
       content: input.content,
       attachments: [...(input.attachments ?? [])],
       createdAt: now,
+      inputTokens,
+      reasoningTokens,
+      outputTokens,
+      tokensEstimated: tokensEstimated === 1,
     };
   }
 

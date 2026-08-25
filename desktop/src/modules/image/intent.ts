@@ -24,6 +24,12 @@ export interface ComposerInput {
   readonly attachments: readonly string[];
   /** A painted inpaint mask (data URL), when the user marked a region. */
   readonly mask?: string | null;
+  /**
+   * v2.2.6 Phase 2: path of the last usable assistant PNG in this session.
+   * Used only when attachments are empty (user follow-up without re-attach).
+   * Callers must not pass an unreadable ref; they fail closed before this.
+   */
+  readonly lastOutputRef?: string | null;
 }
 
 export interface ImageIntent {
@@ -49,8 +55,10 @@ const DEFAULT_OUTPAINT_PIXELS = 128;
 
 export function inferImageIntent(input: ComposerInput): ImageIntent {
   const text = input.text.trim();
-  const hasImage = input.attachments.length > 0;
-  const source = hasImage ? input.attachments[0] : undefined;
+  const attached = input.attachments[0];
+  const implicit = !attached && input.lastOutputRef?.trim() ? input.lastOutputRef.trim() : undefined;
+  const source = attached ?? implicit;
+  const hasImage = Boolean(source);
 
   let mode: ImageMode;
   if (!hasImage) mode = "txt2img";

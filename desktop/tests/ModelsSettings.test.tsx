@@ -158,6 +158,26 @@ describe("ModelsSettings", () => {
     expect(screen.queryByTestId("models-row-qwen2.5-coder:7b")).not.toBeInTheDocument();
   });
 
+  it("shows Downloaded for catalog id gemma-4-12b-it-gguf when the probe marked it installed", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      {
+        id: "gemma-4-12b-it-gguf",
+        displayName: "Gemma 4 12B",
+        family: "gemma4",
+        type: "llm",
+        task: "chat",
+        installed: true,
+        source: "registry",
+        vramGB: 11,
+      },
+    ];
+    await loaded(ctx);
+    expect(screen.getByTestId("models-downloaded-gemma-4-12b-it-gguf")).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-gemma-4-12b-it-gguf")).toHaveAttribute("data-downloaded", "true");
+    expect(screen.queryByTestId("models-install-gemma-4-12b-it-gguf")).not.toBeInTheDocument();
+  });
+
   it("switches to Agentic and Video without using type dropdowns", async () => {
     await loaded(client());
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
@@ -284,7 +304,50 @@ describe("ModelsSettings", () => {
     await loaded(client(), { hostVramGB: 8 });
     fireEvent.click(screen.getByTestId("models-tab-video"));
     expect(screen.getByTestId("models-over-budget-ltx-video")).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-ltx-video")).toHaveAttribute("data-over-budget", "true");
     expect(screen.queryByTestId("models-install-ltx-video")).not.toBeInTheDocument();
+  });
+
+  it("hides hideBelowVram siblings and collapses a family to the best fit", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      {
+        id: "gemma-e2b",
+        displayName: "Gemma E2B",
+        family: "gemma",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 4,
+      },
+      {
+        id: "gemma-e4b",
+        displayName: "Gemma E4B",
+        family: "gemma",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 6,
+        tags: ["recommended"],
+      },
+      {
+        id: "kimi-hidden",
+        displayName: "Kimi Large",
+        family: "kimi",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 24,
+        hideBelowVramGB: 20,
+      },
+    ];
+    await loaded(ctx, { hostVramGB: 16 });
+    expect(screen.getByTestId("models-row-gemma-e4b")).toBeInTheDocument();
+    expect(screen.queryByTestId("models-row-gemma-e2b")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("models-row-kimi-hidden")).not.toBeInTheDocument();
   });
 
   it("renders installer card copy and the LFM use-restriction note", async () => {
@@ -326,9 +389,65 @@ describe("ModelsSettings", () => {
     expect(screen.getByTestId("models-row-lfm2.5:2.6b-description").textContent).toMatch(/On-device agentic/);
     expect(screen.getByTestId("models-row-lfm2.5:2.6b-best-for").textContent).toMatch(/Tool calling on CPU/);
     expect(screen.getByTestId("models-row-lfm2.5:2.6b-why").textContent).toMatch(/sub-4 GB/);
+    expect(screen.getByTestId("models-row-lfm2.5:2.6b")).toHaveAttribute("data-compact", "true");
+    expect(screen.getByTestId("models-row-lfm2.5:2.6b-details")).not.toHaveAttribute("open");
     const note = screen.getByTestId("models-row-lfm2.5:2.6b-license-note");
     expect(note.textContent).toMatch(/USD 10M/i);
     expect(note.querySelector("a")?.getAttribute("href")).toBe("https://www.liquid.ai/lfm-license");
+  });
+
+  it("shows a Context chip for LFM 128000 and omits it when the window is null", async () => {
+    const lfmClient: ModelsClient = {
+      async list() {
+        return [
+          {
+            id: "lfm2.5:2.6b",
+            displayName: "LFM2.5 2.6B",
+            family: "lfm2.5",
+            type: "llm",
+            task: "agentic",
+            installed: false,
+            source: "catalog-only",
+            vramGB: 3,
+            contextWindow: 128000,
+            origin: "USA",
+          },
+          {
+            id: "split-ctx",
+            displayName: "Split Window",
+            family: "split",
+            type: "llm",
+            task: "agentic",
+            installed: false,
+            source: "catalog-only",
+            vramGB: 4,
+            contextWindowIn: 32000,
+            contextWindowOut: 8000,
+          },
+        ];
+      },
+      install() {
+        return Object.assign({ cancel() {} }, { done: Promise.resolve() });
+      },
+      async remove() {},
+      async diskUsage() {
+        return { usedBytes: 0, freeBytes: null };
+      },
+    };
+    render(<ModelsSettings client={lfmClient} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("models-tab-agentic"));
+    expect(screen.getByTestId("models-chip-context-lfm2.5:2.6b").textContent).toBe("Context: 128k");
+    expect(screen.getByTestId("models-chip-context-lfm2.5:2.6b").textContent).not.toMatch(/\bin\b/);
+    expect(screen.getByTestId("models-chip-context-split-ctx").textContent).toBe("Context: 32k / 8k");
+  });
+
+  it("does not invent a 128k chip for gemma without a catalog window or a null diffusion row", async () => {
+    await loaded(client());
+    expect(screen.queryByTestId("models-chip-context-gemma4:e4b")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("models-tab-video"));
+    expect(screen.queryByTestId("models-chip-context-ltx-video")).not.toBeInTheDocument();
+    expect(screen.getByTestId("models-row-ltx-video")).toBeInTheDocument();
   });
 
   it("favorite is one-per-tab and writes the Phase 2 storage key", async () => {
@@ -397,14 +516,16 @@ describe("ModelsSettings", () => {
     render(<ModelsSettings client={sanaClient} hostVramGB={16} />);
     await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
     fireEvent.click(screen.getByTestId("models-tab-image"));
-    const rows = screen.getAllByTestId(/models-row-/);
+    const rows = screen.getAllByTestId(/^models-row-(sana-sprint-1024|sana-1\.6b-4k)$/);
     expect(rows[0]).toHaveAttribute("data-testid", "models-row-sana-sprint-1024");
     expect(rows[1]).toHaveAttribute("data-testid", "models-row-sana-1.6b-4k");
+    expect(rows[1]).toHaveAttribute("data-over-budget", "true");
     expect(screen.getByTestId("models-badge-sana-1.6b-4k").textContent).toBe("Needs 20 GB VRAM");
     expect(screen.getByTestId("models-badge-sana-sprint-1024").textContent).toBe("Recommended");
     expect(screen.getByTestId("models-chip-origin-sana-1.6b-4k").textContent).toMatch(/USA/);
     expect(screen.getByTestId("models-chip-date-sana-1.6b-4k").textContent).toMatch(/2025-09-10/);
     expect(screen.getByTestId("models-chip-guardrails-sana-1.6b-4k").textContent).toBe("Censored");
+    expect(screen.queryByTestId("models-chip-context-sana-1.6b-4k")).not.toBeInTheDocument();
   });
 
   it("shows Retry when Qwen 3.5 4B was selected at install but is not on disk", async () => {

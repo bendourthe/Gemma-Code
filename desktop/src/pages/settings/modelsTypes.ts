@@ -66,6 +66,15 @@ export interface ListedModelDto {
   uncensored?: boolean;
   /** True when the installer snapshot listed this id (or an alias). */
   selectedAtInstall?: boolean;
+  /**
+   * v2.2.7 Phase 1 -- catalog-reported token window. null when omitted or
+   * junk. Never a default 128000.
+   */
+  contextWindow?: number | null;
+  contextWindowIn?: number | null;
+  contextWindowOut?: number | null;
+  /** v2.2.8 Phase 4 -- installer hide-below floor; 0/omit means no floor. */
+  hideBelowVramGB?: number;
 }
 
 export interface InstallProgressDto {

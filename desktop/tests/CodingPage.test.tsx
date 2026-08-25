@@ -16,6 +16,7 @@ interface InvokeArgs {
 
 function makeFakeInvoke() {
   const calls: InvokeArgs[] = [];
+  const transcripts = new Map<string, { prompt: string; assistantText: string }[]>();
   const fakeSessions = [
     {
       sessionId: "prev-1",
@@ -25,26 +26,86 @@ function makeFakeInvoke() {
       createdAt: "2026-05-17T10:00:00Z",
       messageCount: 4,
     },
+    {
+      sessionId: "missing-1",
+      modelId: "qwen2.5-coder:7b",
+      family: "qwen",
+      title: "Missing session",
+      createdAt: "2026-05-17T10:00:00Z",
+      messageCount: 1,
+    },
   ];
+  transcripts.set("prev-1", [{ prompt: "Hello agent", assistantText: "ok" }]);
   const invoke = vi.fn(async (_cmd: string, args?: Record<string, unknown>): Promise<unknown> => {
     const a = args as unknown as InvokeArgs;
     calls.push(a);
     switch (a.method) {
-      case "coding.session.start":
+      case "coding.session.start": {
+        const sessionId = "sess-1";
+        transcripts.set(sessionId, []);
+        if (!fakeSessions.some((session) => session.sessionId === sessionId)) {
+          fakeSessions.push({
+            sessionId,
+            modelId: (a.params.modelId as string) ?? "gemma4:e4b",
+            family: "gemma",
+            title: "Live session",
+            createdAt: "2026-05-17T11:00:00Z",
+            messageCount: 0,
+          });
+        }
         return {
-          sessionId: "sess-1",
+          sessionId,
           modelId: (a.params.modelId as string) ?? "gemma4:e4b",
           family: "gemma",
           createdAt: "2026-05-17T11:00:00Z",
         };
-      case "coding.session.sendMessage":
+      }
+      case "coding.session.sendMessage": {
+        const sessionId = String(a.params.sessionId);
+        const prompt = String(a.params.message);
+        const turns = transcripts.get(sessionId) ?? [];
+        turns.push({ prompt, assistantText: "ok" });
+        transcripts.set(sessionId, turns);
+        const listed = fakeSessions.find((session) => session.sessionId === sessionId);
+        if (listed) listed.messageCount = turns.length;
         return {
-          sessionId: a.params.sessionId,
+          sessionId,
           events: [
             { kind: "token", text: "ok" },
             { kind: "done", finishReason: "stop" },
           ],
         };
+      }
+      case "coding.session.resume": {
+        const sessionId = String(a.params.sessionId);
+        if (sessionId === "missing-1") {
+          throw new Error(`unknown sessionId: ${sessionId}`);
+        }
+        const session = fakeSessions.find((item) => item.sessionId === sessionId);
+        const turns = transcripts.get(sessionId);
+        if (!session || !turns) {
+          throw new Error(`unknown sessionId: ${sessionId}`);
+        }
+        return {
+          session,
+          messages: turns.map((turn) => turn.prompt),
+          turns,
+        };
+      }
+      case "coding.session.rename": {
+        const session = fakeSessions.find((item) => item.sessionId === a.params.sessionId);
+        if (!session) throw new Error(`unknown sessionId: ${String(a.params.sessionId)}`);
+        session.title = String(a.params.title);
+        return { session };
+      }
+      case "coding.session.delete": {
+        const sessionId = String(a.params.sessionId);
+        const index = fakeSessions.findIndex((item) => item.sessionId === sessionId);
+        if (index < 0) throw new Error(`unknown sessionId: ${sessionId}`);
+        fakeSessions.splice(index, 1);
+        transcripts.delete(sessionId);
+        return { sessionId, deleted: true };
+      }
       case "coding.session.cancel":
         return { sessionId: a.params.sessionId, cancelled: true };
       case "coding.memory.snapshot":
@@ -62,7 +123,7 @@ function makeFakeInvoke() {
           ],
         };
       case "coding.sessions.list":
-        return { sessions: fakeSessions };
+        return { sessions: fakeSessions.map((session) => ({ ...session })) };
       case "models.list":
         return {
           models: [
@@ -113,6 +174,8 @@ describe("CodingPage", () => {
   it("renders the model selector and the chat empty state by default", () => {
     render(<CodingPage />);
     expect(screen.getByTestId("coding-model-select")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
+    expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
   });
 
@@ -123,6 +186,8 @@ describe("CodingPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
     });
+    expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(1);
     expect(fake.calls.find((call) => call.method === "coding.session.start")?.params).toMatchObject({
       workspacePath: "C:\\work\\project",
     });
@@ -194,6 +259,7 @@ describe("CodingPage", () => {
     await userEvent.click(screen.getByTestId("coding-input-submit"));
     const orb = await screen.findByRole("img", { name: /agent working/i });
     expect(orb).toHaveAttribute("data-agent-activity", "coding-tool-use");
+    expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     release();
@@ -201,6 +267,23 @@ describe("CodingPage", () => {
       expect(screen.queryByTestId("message-pending-coding-pending")).toBeNull();
     });
     expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+  });
+
+  it("rewrites sidecar response timeout on send into typed local-model copy", async () => {
+    const fake = makeFakeInvoke();
+    setInvokeOverride(async (_cmd, args) => {
+      const a = args as unknown as InvokeArgs;
+      if (a.method === "coding.session.sendMessage") {
+        throw new Error("sidecar response timeout");
+      }
+      return fake.invoke("ipc_call", args ?? {});
+    });
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    const alert = await screen.findByTestId("coding-error");
+    expect(alert.textContent ?? "").toMatch(/Check Ollama is running/);
+    expect(alert.textContent ?? "").not.toMatch(/sidecar response timeout/i);
   });
 
   it("renders the Memory panel when the Memory tab is selected", async () => {
@@ -220,8 +303,10 @@ describe("CodingPage", () => {
   it("renders the Sessions panel when the Sessions tab is selected", async () => {
     render(<CodingPage initialTab="sessions" />);
     await waitFor(() => {
-      expect(screen.getByTestId("session-prev-1")).toBeInTheDocument();
+      expect(screen.getByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("coding-history-pane")).toBeInTheDocument();
+    expect(screen.getByTestId("sessions-panel")).toBeInTheDocument();
   });
 
   it("model select changes the modelId before a session starts", async () => {
@@ -234,6 +319,8 @@ describe("CodingPage", () => {
             type: "llm" as const,
             installed: true,
             source: "registry" as const,
+            contextWindow: 128000,
+            agentic: true,
           },
           {
             id: "qwen2.5-coder:7b",
@@ -241,6 +328,8 @@ describe("CodingPage", () => {
             type: "llm" as const,
             installed: true,
             source: "registry" as const,
+            contextWindow: 32768,
+            agentic: true,
           },
         ];
       },
@@ -250,6 +339,8 @@ describe("CodingPage", () => {
     await waitFor(() => {
       expect([...select.options].map((o) => o.value)).toContain("qwen2.5-coder:7b");
     });
+    expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
     await userEvent.selectOptions(select, "qwen2.5-coder:7b");
     expect(select.value).toBe("qwen2.5-coder:7b");
   });
@@ -445,5 +536,62 @@ describe("CodingPage", () => {
     );
     expect(await screen.findByTestId("coding-sidecar-down")).toBeInTheDocument();
     expect(screen.getByTestId("coding-input")).toBeInTheDocument();
+    expect(screen.getByTestId("coding-history-empty")).toBeInTheDocument();
+    expect(screen.queryByText("Prior session")).toBeNull();
+  });
+
+  it("resuming a previous session restores user and assistant text without starting a new session", async () => {
+    const { unmount } = render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("ok");
+    });
+    unmount();
+    render(<CodingPage initialTab="sessions" />);
+    await userEvent.click(await screen.findByTestId("tree-row-chat-sess-1"));
+    await waitFor(() => {
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("ok");
+    });
+    expect(fake.calls.filter((call) => call.method === "coding.session.start")).toHaveLength(1);
+    expect(fake.calls.some((call) => call.method === "coding.session.resume")).toBe(true);
+  });
+
+  it("unknown resume id shows a typed error and an empty transcript", async () => {
+    render(<CodingPage initialTab="sessions" />);
+    await userEvent.click(await screen.findByTestId("tree-row-chat-missing-1"));
+    expect(await screen.findByTestId("coding-error")).toHaveTextContent(
+      "Could not resume session",
+    );
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking a question/);
+    expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
+  });
+
+  it("opening the Sessions tab does not start a session or send a turn", async () => {
+    render(<CodingPage initialTab="sessions" />);
+    expect(await screen.findByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
+    expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
+    expect(fake.calls.some((call) => call.method === "coding.session.sendMessage")).toBe(false);
+  });
+
+  it("renames and deletes a listed Agents session", async () => {
+    render(<CodingPage initialTab="sessions" />);
+    await userEvent.click(await screen.findByTestId("tree-rename-prev-1"));
+    const input = await screen.findByTestId("tree-rename-input-prev-1");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Renamed agents{Enter}");
+    await waitFor(() => {
+      expect(fake.calls.some((call) => call.method === "coding.session.rename")).toBe(true);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("tree-row-chat-prev-1")).toHaveTextContent("Renamed agents");
+    });
+    await userEvent.click(screen.getByTestId("tree-delete-prev-1"));
+    await userEvent.click(screen.getByTestId("confirm-delete-ok"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("tree-row-chat-prev-1")).toBeNull();
+    });
   });
 });

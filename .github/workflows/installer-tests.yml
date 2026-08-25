@@ -3,6 +3,20 @@
 # changes still run the job (LFM pin, licenseNote, 8B-A1B absence).
 # v2.2.5: scripts/installer/** covers snapshot-latest stubs
 # (NEXUS_HUB_LATEST_TAG) and the stale-3.12.0 refusal. Do not clone Hub.
+# v2.2.6: no installer or runtime.json change. Studio sessions live at
+# ~/.nexus/generations/sessions.db (same generations/ tree as studio.db).
+# Silent no-op; do not clone Hub.
+# v2.2.7: scripts/installer/** covers Models tab context chips (`<val>k`,
+# no trailing "in"; null window omits the chip). Do not clone Hub.
+# v2.2.8 Phase 4: scripts/installer/** covers catalog_tab_sort (family
+# collapse + hideBelowVram + over-budget last) dual-asserted against
+# tests/fixtures/v2.2.8-catalog-tab-sort.json. Do not clone Hub.
+# v2.2.8 Phase 5: pack-time stale 3.12.0 refusal is unchanged
+# (test_hub_catalog_provisioner). Install-time --sync-hub-catalog apply with
+# per-skill quarantine lives in sidecar/unit tests, not this pytest job.
+# Do not clone Hub.
+# v2.2.8 Phase 6: T009/T010 catalog_tab_sort and T012 pack-time 3.12.0
+# refusal stay in this job. No live GPU. Do not clone Hub.
 # PRs to main use the same path filter. workflow_dispatch always runs.
 name: Installer tests
 
@@ -21,6 +35,8 @@ on:
       - "core/registry/models.json"
       - "core/registry/patientTier.ts"
       - "core/config/**"
+      - "tests/fixtures/v2.2.8-catalog-tab-sort.json"
+      - "desktop/src/shared/models/catalogTabs.ts"
       - ".github/workflows/installer-tests.yml"
   pull_request:
     branches: ["main"]
@@ -36,6 +52,8 @@ on:
       - "core/registry/models.json"
       - "core/registry/patientTier.ts"
       - "core/config/**"
+      - "tests/fixtures/v2.2.8-catalog-tab-sort.json"
+      - "desktop/src/shared/models/catalogTabs.ts"
       - ".github/workflows/installer-tests.yml"
   workflow_dispatch: {}
 

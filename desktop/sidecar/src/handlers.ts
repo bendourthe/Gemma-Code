@@ -14,7 +14,9 @@ import {
   EpisodicMemorySearchRequest,
   CodingMemorySnapshotRequest,
   CodingSessionCancelRequest,
+  CodingSessionDeleteRequest,
   CodingSessionListRequest,
+  CodingSessionRenameRequest,
   CodingSessionResumeRequest,
   CodingSessionSendMessageRequest,
   CodingSessionStartRequest,
@@ -86,6 +88,16 @@ import {
   ChatExplorerSetPersonaRequest,
   ChatExplorerAppendMessageRequest,
   ChatGenerateTitleRequest,
+  StudioSessionCreateFolderRequest,
+  StudioSessionCreateSessionRequest,
+  StudioSessionIdRequest,
+  StudioSessionListTurnsRequest,
+  StudioSessionMoveFolderRequest,
+  StudioSessionMoveSessionRequest,
+  StudioSessionRenameFolderRequest,
+  StudioSessionRenameSessionRequest,
+  StudioSessionAppendTurnRequest,
+  StudioSessionTreeRequest,
   DataExportRequest,
   DataImportRequest,
   SkillsSyncRequest,
@@ -121,7 +133,7 @@ import { Buffer } from "node:buffer";
 import {
   NexusHubSyncer,
   defaultDependencies,
-  summarizeDiff,
+  summarizeSyncResult,
 } from "../../../core/skills/NexusHubSyncer.js";
 import { catalogRoot, hubLayoutDir, nexusHome } from "../../../core/storage/paths.js";
 import {
@@ -183,6 +195,7 @@ import { sampleGpu } from "./telemetry/gpuRuntime.js";
 import { readHubCatalog, readHubCommands } from "./skills/hubSkillReader.js";
 import { generateChatTitle } from "./chat/titleGenerator.js";
 import type { ChatExplorerOps } from "./chat/explorerRuntime.js";
+import type { StudioSessionOps } from "./studio/sessionRuntime.js";
 import type { ChatMemoryOps } from "./chat/memoryRuntime.js";
 import { NEXUS_HUB_AUTO_SYNC_SETTING_KEY } from "../../../core/skills/NexusHubAutoSync.js";
 import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
@@ -424,6 +437,21 @@ async function explorerOps(): Promise<ChatExplorerOps> {
 /** Test seam: drop the memoized explorer ops. */
 export function resetExplorerOps(): void {
   _explorerOps = null;
+}
+
+let _studioSessionOps: StudioSessionOps | null = null;
+
+async function studioSessionOps(): Promise<StudioSessionOps> {
+  if (!_studioSessionOps) {
+    const mod = await import("./studio/sessionRuntime.js");
+    _studioSessionOps = mod.createStudioSessionOps();
+  }
+  return _studioSessionOps;
+}
+
+/** Test seam: drop the memoized studio-session ops. */
+export function resetStudioSessionOps(): void {
+  _studioSessionOps = null;
 }
 
 async function memoryOps(ctx: HandlerContext): Promise<ChatMemoryOps> {
@@ -809,6 +837,14 @@ export const handlers: Record<Method, HandlerFn> = {
     const req = CodingSessionResumeRequest.parse(params ?? {});
     return ctx.sessions.resume(req.sessionId);
   },
+  "coding.session.rename": async (params, ctx) => {
+    const req = CodingSessionRenameRequest.parse(params ?? {});
+    return ctx.sessions.rename(req.sessionId, req.title);
+  },
+  "coding.session.delete": async (params, ctx) => {
+    const req = CodingSessionDeleteRequest.parse(params ?? {});
+    return ctx.sessions.delete(req.sessionId);
+  },
   "coding.memory.snapshot": async (params) => {
     CodingMemorySnapshotRequest.parse(params ?? {});
     return memorySnapshot();
@@ -934,8 +970,9 @@ export const handlers: Record<Method, HandlerFn> = {
       tag: result.tag,
       applied: result.applied,
       alreadyUpToDate: result.alreadyUpToDate,
-      blocked: result.scan.decision === "block",
-      summary: summarizeDiff(result.diff),
+      blocked: !result.applied && !result.alreadyUpToDate,
+      quarantinedCount: result.quarantined.length,
+      summary: summarizeSyncResult(result),
     };
   },
   "skills.status": async (): Promise<SkillsStatusResponseT> => {
@@ -1018,6 +1055,29 @@ export const handlers: Record<Method, HandlerFn> = {
     const req = ChatGenerateTitleRequest.parse(params ?? {});
     return generateChatTitle(req, ctx);
   },
+  // v2.2.6 Phase 1: named Image/Video studio sessions.
+  "studio.session.tree": async (params) =>
+    (await studioSessionOps()).tree(StudioSessionTreeRequest.parse(params ?? {})),
+  "studio.session.createFolder": async (params) =>
+    (await studioSessionOps()).createFolder(StudioSessionCreateFolderRequest.parse(params ?? {})),
+  "studio.session.renameFolder": async (params) =>
+    (await studioSessionOps()).renameFolder(StudioSessionRenameFolderRequest.parse(params ?? {})),
+  "studio.session.moveFolder": async (params) =>
+    (await studioSessionOps()).moveFolder(StudioSessionMoveFolderRequest.parse(params ?? {})),
+  "studio.session.deleteFolder": async (params) =>
+    (await studioSessionOps()).deleteFolder(StudioSessionIdRequest.parse(params ?? {})),
+  "studio.session.createSession": async (params) =>
+    (await studioSessionOps()).createSession(StudioSessionCreateSessionRequest.parse(params ?? {})),
+  "studio.session.renameSession": async (params) =>
+    (await studioSessionOps()).renameSession(StudioSessionRenameSessionRequest.parse(params ?? {})),
+  "studio.session.moveSession": async (params) =>
+    (await studioSessionOps()).moveSession(StudioSessionMoveSessionRequest.parse(params ?? {})),
+  "studio.session.deleteSession": async (params) =>
+    (await studioSessionOps()).deleteSession(StudioSessionIdRequest.parse(params ?? {})),
+  "studio.session.appendTurn": async (params) =>
+    (await studioSessionOps()).appendTurn(StudioSessionAppendTurnRequest.parse(params ?? {})),
+  "studio.session.listTurns": async (params) =>
+    (await studioSessionOps()).listTurns(StudioSessionListTurnsRequest.parse(params ?? {})),
   // v2.2.0 Phase 8 (DF-16): local data export / import.
   //
   // These load the runtime lazily. transferRuntime reaches into the storage

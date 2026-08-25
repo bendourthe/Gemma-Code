@@ -9,6 +9,11 @@
 import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
+import {
+  formatBubbleTime,
+  formatBubbleTokens,
+  parseMessageTime,
+} from "./transcriptChrome";
 
 const COMPACT_MEDIA_STYLE: CSSProperties = {
   display: "block",
@@ -38,6 +43,8 @@ export interface MessageBubbleProps {
   onMediaError?: (message: ChatMessage) => void;
   /** v2.2.4 Phase 4 -- extra studio actions inside the media lightbox. */
   renderPreviewExtra?: (message: ChatMessage) => ReactNode;
+  /** v2.2.7 Phase 4 -- tests pin `en-US`; production uses the host locale. */
+  locale?: string;
 }
 
 export function MessageBubble({
@@ -46,6 +53,7 @@ export function MessageBubble({
   onSelect,
   onMediaError,
   renderPreviewExtra,
+  locale,
 }: MessageBubbleProps): JSX.Element {
   const [mediaFailed, setMediaFailed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -107,17 +115,17 @@ export function MessageBubble({
             marginTop: studioPending ? 0 : "var(--space-2)",
             color: "var(--fg-muted)",
             display: "flex",
-            flexDirection: studioPending ? "column" : "row",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: studioPending ? "center" : undefined,
+            justifyContent: "center",
             gap: "var(--space-2)",
-            width: studioPending ? "100%" : undefined,
-            minHeight: studioPending ? "12rem" : undefined,
+            width: "100%",
+            minHeight: studioPending ? "12rem" : "5.5rem",
           }}
         >
           <AgentStateOrb
             activity={message.activity ?? "chat-streaming"}
-            size={studioPending ? "hero" : "inline"}
+            size={studioPending ? "hero" : "bubble"}
             showCaption
             surfaceId={`message-${message.id}`}
           />
@@ -184,7 +192,41 @@ export function MessageBubble({
           ))}
         </ul>
       )}
+      <BubbleMeta message={message} locale={locale} />
     </article>
+  );
+}
+
+function BubbleMeta({
+  message,
+  locale,
+}: {
+  message: ChatMessage;
+  locale?: string;
+}): JSX.Element {
+  const when = parseMessageTime(message.timestamp);
+  return (
+    <div
+      data-testid={`message-meta-${message.id}`}
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: "var(--space-2)",
+        marginTop: "var(--space-1)",
+        color: "var(--fg-muted)",
+        fontSize: "var(--text-xs)",
+      }}
+    >
+      {when ? (
+        <time
+          data-testid={`message-time-${message.id}`}
+          dateTime={when.toISOString()}
+        >
+          {formatBubbleTime(when, locale)}
+        </time>
+      ) : null}
+      <span data-testid={`message-tokens-${message.id}`}>{formatBubbleTokens(message)}</span>
+    </div>
   );
 }
 

@@ -31,6 +31,7 @@ from __future__ import annotations
 import contextlib
 import html
 import json
+import logging
 import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -52,6 +53,15 @@ from PyQt5.QtWidgets import (
 )
 
 from nexus_installer import registry_paths
+from nexus_installer.catalog_tab_sort import (
+    collapse_and_sort as shared_collapse_and_sort,
+)
+from nexus_installer.catalog_tab_sort import (
+    is_over_budget as shared_is_over_budget,
+)
+from nexus_installer.catalog_tab_sort import (
+    release_ordinal,
+)
 from nexus_installer.constants import (
     ACCENT,
     ACCENT_BRIGHT,
@@ -133,6 +143,8 @@ _EXTREME_LOW_BIT_QUANTS = frozenset(
     {"q1_0", "q2_0", "tq1_0", "tq2_0", "i2_s", "1bit", "ternary"}
 )
 _BLOCKED_VENDORS = ("bonsai", "prismml", "prism-ml")
+_LOGGED_CONTEXT_JUNK: set[str] = set()
+_LOGGER = logging.getLogger(__name__)
 
 
 def _is_extreme_low_bit_quant(quant: str) -> bool:
@@ -252,6 +264,64 @@ def _coerce_int(value: object, default: int = 0) -> int:
         return default
 
 
+def parse_context_window(
+    value: object, *, model_id: str = "", field: str = "contextWindow"
+) -> int:
+    """Positive token count, or 0 when absent/invalid. Never invent 128000."""
+    if value is None or value == "":
+        return 0
+    if isinstance(value, bool):
+        _warn_context_junk(model_id, field)
+        return 0
+    if isinstance(value, (int, float)):
+        number = int(value)
+        return number if number > 0 else 0
+    if isinstance(value, str) and value.strip():
+        try:
+            number = int(float(value.strip()))
+            return number if number > 0 else 0
+        except (TypeError, ValueError):
+            pass
+    _warn_context_junk(model_id, field)
+    return 0
+
+
+def _warn_context_junk(model_id: str, field: str) -> None:
+    key = f"{model_id}:{field}"
+    if key in _LOGGED_CONTEXT_JUNK:
+        return
+    _LOGGED_CONTEXT_JUNK.add(key)
+    _LOGGER.warning("skip context chip for %s %s: non-numeric value", model_id, field)
+
+
+def format_context_window_k(tokens: int) -> str:
+    if tokens < 1000:
+        return str(tokens)
+    return f"{tokens // 1000}k"
+
+
+def format_context_chip(
+    context_window_in: int,
+    context_window_out: int = 0,
+    context_window: int = 0,
+) -> str | None:
+    """Chip copy such as ``Context: 128k`` or ``Context: 32k / 8k``.
+
+    Returns None when neither window is a positive count. Never appends ``in``.
+    """
+    in_tok = context_window_in or context_window
+    out_tok = context_window_out
+    if in_tok and out_tok and in_tok != out_tok:
+        return (
+            f"Context: {format_context_window_k(in_tok)} / "
+            f"{format_context_window_k(out_tok)}"
+        )
+    shown = in_tok or out_tok
+    if shown <= 0:
+        return None
+    return f"Context: {format_context_window_k(shown)}"
+
+
 def _coerce_float(value: object, default: float = 0.0) -> float:
     try:
         return float(value)  # type: ignore[arg-type]
@@ -299,10 +369,18 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 required_ram_gb=_coerce_int(entry.get("requiredRamGB")),
                 release_date=str(entry.get("releaseDate") or ""),
                 license_name=str(entry.get("license") or ""),
-                context_window_in=_coerce_int(
-                    entry.get("contextWindowIn", entry.get("contextWindow"))
+                context_window_in=parse_context_window(
+                    entry.get("contextWindowIn")
+                    if entry.get("contextWindowIn") is not None
+                    else entry.get("contextWindow"),
+                    model_id=str(entry.get("id") or ""),
+                    field="contextWindowIn",
                 ),
-                context_window_out=_coerce_int(entry.get("contextWindowOut")),
+                context_window_out=parse_context_window(
+                    entry.get("contextWindowOut"),
+                    model_id=str(entry.get("id") or ""),
+                    field="contextWindowOut",
+                ),
                 multimodal=bool(entry.get("multimodal")),
                 uncensored=bool(entry.get("uncensored")),
                 description=str(entry.get("description") or ""),
@@ -328,15 +406,22 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
 
 def _release_ordinal(value: str) -> int:
     """YYYYMMDD integer for newest-first sort; missing/invalid dates sort last."""
-    text = (value or "").strip()
-    parts = text.split("-")
-    try:
-        year = int(parts[0])
-        month = int(parts[1]) if len(parts) > 1 else 0
-        day = int(parts[2]) if len(parts) > 2 else 0
-        return year * 10000 + month * 100 + day
-    except (TypeError, ValueError):
-        return 0
+    return release_ordinal(value)
+
+
+def _catalog_model_sort_row(model: CatalogModel) -> dict[str, object]:
+    tags: list[str] = []
+    if model.is_required:
+        tags.append("required")
+    return {
+        "id": model.id,
+        "displayName": model.display_name,
+        "family": model.family or model.id,
+        "vramGB": model.required_vram_gb,
+        "hideBelowVramGB": model.hide_below_vram_gb,
+        "releaseDate": model.release_date,
+        "tags": tags,
+    }
 
 
 def _is_over_budget(model: CatalogModel, host_vram_gb: int, gpu_vendor: str) -> bool:
@@ -345,11 +430,11 @@ def _is_over_budget(model: CatalogModel, host_vram_gb: int, gpu_vendor: str) -> 
     Over-budget models sort to the bottom of a tab and are disabled (v1.13.0
     Phase 4). A no-GPU host is over budget for any model that needs VRAM.
     """
-    if model.required_vram_gb <= 0:
-        return False
-    if gpu_vendor == "none":
-        return True
-    return host_vram_gb < model.required_vram_gb
+    return shared_is_over_budget(
+        {"vramGB": model.required_vram_gb},
+        host_vram_gb,
+        gpu_vendor,
+    )
 
 
 def compatibility_badge(
@@ -590,15 +675,11 @@ class _ModelCard(QWidget):
                     border=agentic_color,
                 )
             )
-        if model.is_text_model and (
-            model.context_window_in or model.context_window_out
-        ):
-            ctx_bits = []
-            if model.context_window_in:
-                ctx_bits.append(f"{model.context_window_in // 1000}k in")
-            if model.context_window_out:
-                ctx_bits.append(f"{model.context_window_out // 1000}k out")
-            chip_row.addWidget(_pill("Context: " + " / ".join(ctx_bits)))
+        context_chip = format_context_chip(
+            model.context_window_in, model.context_window_out
+        )
+        if context_chip:
+            chip_row.addWidget(_pill(context_chip))
         if model.multimodal:
             chip_row.addWidget(
                 _pill("Multimodal", color=ACCENT_BRIGHT, border=ACCENT_BRIGHT)
@@ -883,58 +964,21 @@ class TypedCatalogPage(QWidget):
         rows come first: required, then pre-ticked defaults, then the rest of
         this tier's recommended.json list (recommendation order), then newest
         release, then most-capable. Over-budget rows follow.
+
+        v2.2.8 Phase 4: the comparison and order live in
+        ``nexus_installer.catalog_tab_sort`` so Settings can dual-assert the
+        same id list.
         """
-        defaults = defaults or set()
-        rec_rank = {
-            model_id: index for index, model_id in enumerate(recommend_order or ())
-        }
-
-        def vram(m: CatalogModel) -> float:
-            return float(m.required_vram_gb)
-
-        def recommend_group(m: CatalogModel) -> int:
-            if m.id in defaults:
-                return 0
-            if m.id in rec_rank:
-                return 1
-            return 2
-
-        by_family: dict[str, list[CatalogModel]] = {}
-        for model in self._models_for_section(section_key):
-            if model.hide_below_vram_gb > 0 and host_vram_gb < model.hide_below_vram_gb:
-                continue
-            by_family.setdefault(model.family or model.id, []).append(model)
-
-        enabled: list[CatalogModel] = []
-        disabled: list[CatalogModel] = []
-        for members in by_family.values():
-            fitting = [
-                m for m in members if not _is_over_budget(m, host_vram_gb, gpu_vendor)
-            ]
-            over = [m for m in members if _is_over_budget(m, host_vram_gb, gpu_vendor)]
-            if fitting:
-                # Prefer the family's tier default so the recommended pick stays
-                # pre-selected; otherwise the most capable variant that fits.
-                pool = [m for m in fitting if m.id in defaults] or fitting
-                best = min(pool, key=lambda m: (-vram(m), m.display_name))
-                enabled.append(best)
-                disabled.extend(over)  # larger tiers, shown grayed at the bottom
-            else:
-                # No variant fits: show the smallest so the family still appears.
-                disabled.append(min(members, key=lambda m: (vram(m), m.display_name)))
-
-        enabled.sort(
-            key=lambda m: (
-                not m.is_required,
-                recommend_group(m),
-                rec_rank.get(m.id, 10_000),
-                -_release_ordinal(m.release_date),
-                -vram(m),
-                m.display_name,
-            )
+        section = list(self._models_for_section(section_key))
+        by_id = {m.id: m for m in section}
+        ordered = shared_collapse_and_sort(
+            [_catalog_model_sort_row(m) for m in section],
+            host_vram_gb=host_vram_gb,
+            gpu_vendor=gpu_vendor,
+            defaults=defaults or set(),
+            recommend_order=recommend_order,
         )
-        disabled.sort(key=lambda m: (vram(m), m.display_name))
-        return enabled + disabled
+        return [by_id[i] for i in ordered if i in by_id]
 
     def _build_tab(
         self,
@@ -1311,5 +1355,8 @@ __all__ = [
     "TypedCatalogPage",
     "TypedSelection",
     "compatibility_badge",
+    "format_context_chip",
+    "format_context_window_k",
     "load_catalog_models",
+    "parse_context_window",
 ]

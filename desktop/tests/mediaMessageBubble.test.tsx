@@ -54,7 +54,13 @@ describe("MessageBubble media", () => {
     };
     render(<MessageBubble message={msg} />);
     expect(screen.getByTestId("message-pending-a2")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /agent composing/i })).toBeInTheDocument();
+    const orb = screen.getByRole("img", { name: /agent composing/i });
+    expect(orb).toHaveAttribute("data-orb-size", "bubble");
+    expect(orb.querySelector("canvas")?.style.height).toBe("48px");
+    expect(screen.getByTestId("message-pending-a2")).toHaveStyle({
+      justifyContent: "center",
+      width: "100%",
+    });
     expect(screen.getByText("Composing...")).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
   });

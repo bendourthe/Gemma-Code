@@ -136,3 +136,108 @@ The proposal to make the three scoped architecture changes, update the shell wor
 - No scratch docs, duplicate catalogs, or empty tracked directories to move this phase.
 
 **Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 1 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- New helper `core/registry/contextWindow.ts` is the TypeScript chip formatter, not a stray docs file.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 2 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- New helper `core/chat/sessionContextUsage.ts` lives next to existing `core/chat` vision/budget modules.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 3 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- New UI lives under `desktop/src/shared/chat/` (`ContextUsageBar`, `ComposerContextRow`).
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 4 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- New helper `desktop/src/shared/chat/transcriptChrome.ts` sits next to MessageList / MessageBubble.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 5 audit
+
+**Date**: 2026-08-24
+**Mode**: apply (one obsolete file deleted)
+
+- Deleted unused `desktop/src/modules/chat/Breadcrumb.tsx` (ChatPage no longer imports it; tests assert the testid is absent).
+- Last-phase evidence at `docs/v2/v2.2/development/last-phase-evidence.md`.
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean after deleting the unused Breadcrumb module.
+
+## v2.2.8 Phase 1 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md`.
+- New helper `desktop/src/lib/inferenceRpcError.ts` sits next to `sidecarStatus.ts`.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.8 Phase 2 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md`.
+- New helpers live under `desktop/src/shared/explorer/` (`CollapsibleHistoryAside`, `historyPaneLayout`, `codingSessionsAsChatExplorer`) next to the existing studio explorer adapters.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- `SessionListPanel` remains for isolated panel unit tests; CodingPage no longer uses it as the history UI.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.8 Phase 3 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md`.
+**Verdict**: Clean. No action required.
+
+## v2.2.8 Phase 4 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md`.
+- Shared sort lives in `scripts/installer/src/nexus_installer/catalog_tab_sort.py` and `desktop/src/shared/models/catalogTabs.ts`, dual-asserted via `tests/fixtures/v2.2.8-catalog-tab-sort.json`.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.

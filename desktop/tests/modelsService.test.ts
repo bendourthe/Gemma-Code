@@ -54,6 +54,12 @@ describe("queryOllamaTags", () => {
   it("returns empty when Ollama is unreachable", async () => {
     expect(await queryOllamaTags("http://x", throwingFetch)).toEqual(new Set());
   });
+
+  it("collects the model field when name is absent (newer Ollama /api/tags)", async () => {
+    const fetchFn = (async () =>
+      okJson({ models: [{ model: "gemma4:12b" }] })) as unknown as typeof fetch;
+    expect(await queryOllamaTags("http://x", fetchFn)).toEqual(new Set(["gemma4:12b"]));
+  });
 });
 
 describe("scanWeightsIds", () => {
@@ -90,6 +96,62 @@ describe("ModelsService.list", () => {
       installed: true,
       source: "registry",
     });
+  });
+
+  it("marks gemma-4-12b-it-gguf installed when /api/tags only has model, not name", async () => {
+    const listed = [
+      {
+        id: "gemma-4-12b-it-gguf",
+        displayName: "Gemma 4 12B",
+        installed: false,
+        source: "catalog-only",
+        type: "llm",
+      },
+    ] as ListedModel[];
+    const svc = new ModelsService({
+      registry: fakeRegistry(listed),
+      catalog: CATALOG,
+      modelsRoot: "/nonexistent-models-root",
+      fetchFn: (async () => okJson({ models: [{ model: "gemma4:12b" }] })) as unknown as typeof fetch,
+      loadSnapshot: async () => null,
+    });
+    const out = await svc.list();
+    expect(out[0]).toMatchObject({
+      id: "gemma-4-12b-it-gguf",
+      installed: true,
+      source: "registry",
+    });
+  });
+
+  it("copies catalog contextWindow onto the DTO as null rather than 0 or 128000", async () => {
+    const listed = [
+      {
+        id: "lfm2.5:2.6b",
+        displayName: "LFM2.5 2.6B",
+        installed: false,
+        source: "catalog-only",
+        type: "llm",
+        contextWindow: 128000,
+      },
+      {
+        id: "sana-1.6b-4k",
+        displayName: "SANA 1.6B 4K",
+        installed: false,
+        source: "catalog-only",
+        type: "image",
+        contextWindow: null,
+      },
+    ] as ListedModel[];
+    const svc = new ModelsService({
+      registry: fakeRegistry(listed),
+      catalog: CATALOG,
+      modelsRoot: "/nonexistent-models-root",
+      fetchFn: throwingFetch,
+      loadSnapshot: async () => null,
+    });
+    const out = await svc.list();
+    expect(out[0]?.contextWindow).toBe(128000);
+    expect(out[1]?.contextWindow).toBeNull();
   });
 });
 

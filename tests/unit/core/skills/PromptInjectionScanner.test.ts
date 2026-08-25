@@ -196,6 +196,7 @@ describe("HUB_SKILL_SCAN_ALLOWLIST", () => {
   it("records the Hub tag last reviewed (latest as of this cycle, not a frozen 3.12.0 pin)", () => {
     expect(HUB_ALLOWLIST_REVIEWED_TAG).toMatch(/^v\d+\.\d+\.\d+$/);
     expect(HUB_ALLOWLIST_REVIEWED_TAG).not.toBe("v3.12.0");
+    expect(HUB_ALLOWLIST_REVIEWED_TAG).toBe("v3.20.1");
   });
 
   it("still applies reviewed Hub security snippets, and still blocks a planted jailbreak", () => {

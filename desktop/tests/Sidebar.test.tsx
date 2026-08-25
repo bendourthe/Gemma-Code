@@ -118,15 +118,26 @@ describe("Sidebar", () => {
   });
 
   // v2.2.4 Phase 1 (1.3): collapse is an edge pill, not a flex row above Chatbot.
+  // v2.2.8 Phase 3 (3.1): a small top inset keeps Chatbot off the title bar.
   it("keeps the collapse control out of document flow above the first tab", () => {
     renderAt("/chatbot");
     const aside = screen.getByTestId("sidebar");
     const nav = screen.getByTestId("sidebar-module-nav");
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
     expect(aside.firstElementChild).toBe(nav);
-    expect((aside as HTMLElement).style.padding.startsWith("0 ")).toBe(true);
+    expect((aside as HTMLElement).style.padding.startsWith("0 ")).toBe(false);
+    expect((aside as HTMLElement).style.padding).toContain("var(--space-2)");
     expect(toggle.className).toContain("nexus-sidebar-collapse-pill");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("keeps the title-bar inset in both compact and expanded rails", () => {
+    renderAt("/settings");
+    const aside = screen.getByTestId("sidebar") as HTMLElement;
+    expect(aside.style.padding).toMatch(/^var\(--space-2\)/);
+    fireEvent.click(screen.getByTestId("sidebar-collapse-toggle"));
+    expect(aside.style.padding).toMatch(/^var\(--space-2\)/);
+    expect(screen.getByTestId("nav-admin-settings").getAttribute("aria-current")).toBe("page");
   });
 
   it("toggles the edge pill without navigating modules", () => {
