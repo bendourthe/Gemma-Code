@@ -160,3 +160,39 @@ The proposal to make the three scoped architecture changes, update the shell wor
 - No scratch docs, duplicate version trees, or empty tracked directories created.
 
 **Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 3 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- New UI lives under `desktop/src/shared/chat/` (`ContextUsageBar`, `ComposerContextRow`).
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 4 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- New helper `desktop/src/shared/chat/transcriptChrome.ts` sits next to MessageList / MessageBubble.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 5 audit
+
+**Date**: 2026-08-24
+**Mode**: apply (one obsolete file deleted)
+
+- Deleted unused `desktop/src/modules/chat/Breadcrumb.tsx` (ChatPage no longer imports it; tests assert the testid is absent).
+- Last-phase evidence at `docs/v2/v2.2/development/last-phase-evidence.md`.
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean after deleting the unused Breadcrumb module.

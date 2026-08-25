@@ -1,6 +1,6 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.5** first-successful-generation cut 2026-08-23; package **2.2.5**; v2.2.6 and v2.2.7 plans are filed and not started).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.7** context-meter cycle implemented 2026-08-24, not tagged; last released package **2.2.5**; do not bump package.json until `/update release`).
 
 > **v2.2.5 RELEASED (2026-08-23)** -- field-repair cycle [v2.2.0](v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md) through [v2.2.5](v2/v2.2/plans/v2.2.5-first-successful-generation.md). Package **2.2.5**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 packaged Explorer, DF-4 live GPU generate). Cycle: sidecar start, honest catalog, Chatbot-first, alias-fold ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest. This release changes no opt-in capability, installer flag, or host surface.
 >
@@ -515,8 +515,8 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v2.2.3 | Glass chrome, thinking orbs, durable pillar runtime, occupancy, workspace-aware Hub harness, installer field fixes | **Implemented on develop (2026-08-23)** -- Phases 1-8 landed; package remains 2.1.0 until `/update release` | `v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` |
 | v2.2.4 | Chatbot-first shell, installed-catalog honesty, compact studio media, Settings Models catalog, Hub update timeout copy | **Implemented on develop (2026-08-23)** -- Phases 1-7 landed; DF-2 packaged Explorer and DF-4 live GPU remain open | `v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md` |
 | v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest | **Released (2026-08-23)** -- package 2.2.5; DF-2 and DF-4 remain open | `v2/v2.2/plans/v2.2.5-first-successful-generation.md` |
-| v2.2.6 | Session memory and studio history | **Planned** -- next after v2.2.5 | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
-| v2.2.7 | Context meter and transcript chrome | **Planned** -- after v2.2.6 | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
+| v2.2.6 | Session memory and studio history | **Implemented on develop (2026-08-24)** -- Phases 1-6 landed; package remains 2.2.5 until `/update release` | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
+| v2.2.7 | Context meter and transcript chrome | **Implemented on develop (2026-08-24)** -- Phases 1-5 landed; DF-28 through DF-31 packaged/live soak remain open; package remains 2.2.5 until `/update release` | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 

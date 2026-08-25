@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.7 Phase 4)
+**Last updated**: 2026-08-24 (v2.2.7 Phase 5)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.7
 
-**Last updated**: 2026-08-24 (Phase 4 - transcript date, time, and tokens)
+**Last updated**: 2026-08-24 (Phase 5 - architecture, known-gaps, and CI)
 
 ### Summary
 
@@ -23,7 +23,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Phase 5 deleted unused `Breadcrumb.tsx` and rebuilt an unsigned Windows installer for the operator field checklist. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
 
 ### Open this cycle
 
