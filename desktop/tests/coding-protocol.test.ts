@@ -24,6 +24,8 @@ describe("coding protocol", () => {
     expect(IPC_METHODS).toContain("coding.session.cancel");
     expect(IPC_METHODS).toContain("coding.session.list");
     expect(IPC_METHODS).toContain("coding.session.resume");
+    expect(IPC_METHODS).toContain("coding.session.rename");
+    expect(IPC_METHODS).toContain("coding.session.delete");
     expect(IPC_METHODS).toContain("coding.memory.snapshot");
     expect(IPC_METHODS).toContain("coding.trace.subscribe");
     expect(IPC_METHODS).toContain("coding.sessions.list");
@@ -36,6 +38,8 @@ describe("coding protocol", () => {
       "coding.session.cancel",
       "coding.session.list",
       "coding.session.resume",
+      "coding.session.rename",
+      "coding.session.delete",
       "coding.memory.snapshot",
       "coding.trace.subscribe",
       "coding.sessions.list",

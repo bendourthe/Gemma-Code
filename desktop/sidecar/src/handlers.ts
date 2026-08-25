@@ -14,7 +14,9 @@ import {
   EpisodicMemorySearchRequest,
   CodingMemorySnapshotRequest,
   CodingSessionCancelRequest,
+  CodingSessionDeleteRequest,
   CodingSessionListRequest,
+  CodingSessionRenameRequest,
   CodingSessionResumeRequest,
   CodingSessionSendMessageRequest,
   CodingSessionStartRequest,
@@ -834,6 +836,14 @@ export const handlers: Record<Method, HandlerFn> = {
   "coding.session.resume": async (params, ctx) => {
     const req = CodingSessionResumeRequest.parse(params ?? {});
     return ctx.sessions.resume(req.sessionId);
+  },
+  "coding.session.rename": async (params, ctx) => {
+    const req = CodingSessionRenameRequest.parse(params ?? {});
+    return ctx.sessions.rename(req.sessionId, req.title);
+  },
+  "coding.session.delete": async (params, ctx) => {
+    const req = CodingSessionDeleteRequest.parse(params ?? {});
+    return ctx.sessions.delete(req.sessionId);
   },
   "coding.memory.snapshot": async (params) => {
     CodingMemorySnapshotRequest.parse(params ?? {});

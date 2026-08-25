@@ -41,6 +41,8 @@ export const IPC_METHODS = [
   "coding.session.cancel",
   "coding.session.list",
   "coding.session.resume",
+  "coding.session.rename",
+  "coding.session.delete",
   "coding.memory.snapshot",
   "coding.trace.subscribe",
   "coding.sessions.list",
@@ -366,15 +368,46 @@ export type CodingSessionListResponseT = z.infer<typeof CodingSessionListRespons
 export const CodingSessionResumeRequest = z
   .object({ sessionId: z.string().min(1) })
   .strict();
+export const CodingSessionTurn = z
+  .object({
+    prompt: z.string(),
+    assistantText: z.string(),
+  })
+  .strict();
+export type CodingSessionTurnT = z.infer<typeof CodingSessionTurn>;
 export const CodingSessionResumeResponse = z
   .object({
     session: CodingSessionSummary,
     // v1.5.0 Phase 5 (item 26) -- the full message history so a session started
     // in one surface resumes with intact state in another (cross-surface resume).
     messages: z.array(z.string()),
+    // v2.2.6 Phase 4 -- user/assistant pairs so Agents can restore visible
+    // transcript. `messages` stays the user-prompt list for older callers.
+    turns: z.array(CodingSessionTurn),
   })
   .strict();
 export type CodingSessionResumeResponseT = z.infer<typeof CodingSessionResumeResponse>;
+
+export const CodingSessionRenameRequest = z
+  .object({
+    sessionId: z.string().min(1),
+    title: z.string().min(1),
+  })
+  .strict();
+export type CodingSessionRenameRequestT = z.infer<typeof CodingSessionRenameRequest>;
+export const CodingSessionRenameResponse = z
+  .object({ session: CodingSessionSummary })
+  .strict();
+export type CodingSessionRenameResponseT = z.infer<typeof CodingSessionRenameResponse>;
+
+export const CodingSessionDeleteRequest = z
+  .object({ sessionId: z.string().min(1) })
+  .strict();
+export type CodingSessionDeleteRequestT = z.infer<typeof CodingSessionDeleteRequest>;
+export const CodingSessionDeleteResponse = z
+  .object({ sessionId: z.string(), deleted: z.literal(true) })
+  .strict();
+export type CodingSessionDeleteResponseT = z.infer<typeof CodingSessionDeleteResponse>;
 
 // ---- Panel data (Memory / Trace / Sessions) ---------------------------------
 
@@ -2231,6 +2264,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "coding.session.resume": {
     request: CodingSessionResumeRequest,
     response: CodingSessionResumeResponse,
+    implemented: true,
+  },
+  "coding.session.rename": {
+    request: CodingSessionRenameRequest,
+    response: CodingSessionRenameResponse,
+    implemented: true,
+  },
+  "coding.session.delete": {
+    request: CodingSessionDeleteRequest,
+    response: CodingSessionDeleteResponse,
     implemented: true,
   },
   "coding.memory.snapshot": {

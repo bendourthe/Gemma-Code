@@ -73,6 +73,8 @@ describe("sidecar handlers", () => {
           "coding.session.cancel",
           "coding.session.list",
           "coding.session.resume",
+          "coding.session.rename",
+          "coding.session.delete",
           "coding.memory.snapshot",
           "coding.trace.subscribe",
           "coding.sessions.list",

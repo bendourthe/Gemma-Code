@@ -3,6 +3,7 @@ import { ipc } from "../../lib/ipc";
 import type {
   CodingSessionEventT,
   CodingSessionListResponseT,
+  CodingSessionResumeResponseT,
   CodingSessionStartResponseT,
   CodingSessionSummaryT,
   CodingMemorySnapshotResponseT,
@@ -74,19 +75,25 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
   const messages: ChatMessage[] = [];
   for (const turn of turns) {
     messages.push({ id: `${turn.id}-user`, role: "user", content: turn.prompt });
-    messages.push({
-      id: `${turn.id}-assistant`,
-      role: "assistant",
-      content: turn.rendered.text,
-      toolCards: turn.rendered.cards.map((card) => ({
-        callId: card.callId,
-        name: card.name,
-        args: card.args,
-        result: card.result,
-      })),
-      pending: turn.pending,
-      activity: turn.activity,
-    });
+    const hasAssistant =
+      Boolean(turn.pending) ||
+      turn.rendered.text.length > 0 ||
+      turn.rendered.cards.length > 0;
+    if (hasAssistant) {
+      messages.push({
+        id: `${turn.id}-assistant`,
+        role: "assistant",
+        content: turn.rendered.text,
+        toolCards: turn.rendered.cards.map((card) => ({
+          callId: card.callId,
+          name: card.name,
+          args: card.args,
+          result: card.result,
+        })),
+        pending: turn.pending,
+        activity: turn.activity,
+      });
+    }
   }
   if (busy && !turns.some((turn) => turn.pending)) {
     messages.push({
@@ -376,6 +383,74 @@ export function CodingPage({
     setError(null);
   }, [sessionId]);
 
+  const reloadSessions = useCallback(async (): Promise<void> => {
+    const reply = await ipc.call<CodingSessionListResponseT>("coding.sessions.list", {});
+    if (reply.ok) setSessions(reply.value.sessions);
+  }, []);
+
+  const handleResume = useCallback(async (id: string): Promise<void> => {
+    setError(null);
+    const reply = await ipc.call<CodingSessionResumeResponseT>("coding.session.resume", {
+      sessionId: id,
+    });
+    if (!reply.ok) {
+      setSessionId(null);
+      setTurns([]);
+      setTab("chat");
+      setError(`Could not resume session: ${reply.message}`);
+      return;
+    }
+    setSessionId(id);
+    if (reply.value.session.modelId) setModelId(reply.value.session.modelId);
+    const restored = reply.value.turns ?? [];
+    if (restored.length > 0) {
+      setTurns(
+        restored.map((turn, index) => ({
+          id: `${id}-${index}`,
+          prompt: turn.prompt,
+          rendered: { text: turn.assistantText, cards: [], done: true },
+        })),
+      );
+    } else {
+      setTurns(
+        reply.value.messages.map((prompt, index) => ({
+          id: `${id}-${index}`,
+          prompt,
+          rendered: { text: "", cards: [], done: true },
+        })),
+      );
+    }
+    setTab("chat");
+  }, []);
+
+  const handleRenameSession = useCallback(
+    async (id: string, title: string): Promise<void> => {
+      const reply = await ipc.call("coding.session.rename", { sessionId: id, title });
+      if (!reply.ok) {
+        setError(`Could not rename session: ${reply.message}`);
+        return;
+      }
+      await reloadSessions();
+    },
+    [reloadSessions],
+  );
+
+  const handleDeleteSession = useCallback(
+    async (id: string): Promise<void> => {
+      const reply = await ipc.call("coding.session.delete", { sessionId: id });
+      if (!reply.ok) {
+        setError(`Could not delete session: ${reply.message}`);
+        return;
+      }
+      if (sessionId === id) {
+        setSessionId(null);
+        setTurns([]);
+      }
+      await reloadSessions();
+    },
+    [reloadSessions, sessionId],
+  );
+
   useEffect(() => {
     if (tab !== "memory") return;
     void ipc
@@ -612,7 +687,9 @@ export function CodingPage({
           <SessionListPanel
             sessions={sessions}
             activeSessionId={sessionId}
-            onResume={(id) => setSessionId(id)}
+            onResume={(id) => void handleResume(id)}
+            onRename={(id, title) => void handleRenameSession(id, title)}
+            onDelete={(id) => void handleDeleteSession(id)}
           />
         )}
       </div>

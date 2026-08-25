@@ -33,6 +33,12 @@ import {
 } from "../../../../core/memory/sessionArtifacts.js";
 import type { SidecarModelEntry } from "./models.js";
 
+/** One persisted user prompt plus the assistant text that exists for that turn. */
+export interface PersistedTurn {
+  readonly prompt: string;
+  readonly assistantText: string;
+}
+
 /** A session as persisted to disk: summary + the full message history. */
 export interface PersistedSession {
   readonly id: string;
@@ -41,6 +47,8 @@ export interface PersistedSession {
   readonly title: string;
   readonly createdAt: string;
   readonly messages: readonly string[];
+  /** v2.2.6 Phase 4 -- optional because files written before this field omit it. */
+  readonly turns?: readonly PersistedTurn[];
 }
 
 /** Persistence seam for `CodingSessionManager`. Synchronous to match the manager. */
@@ -51,6 +59,8 @@ export interface SessionStore {
   get(id: string): PersistedSession | undefined;
   /** Store (or overwrite) a session. */
   upsert(session: PersistedSession): void;
+  /** Remove a session. Missing ids are a no-op. */
+  delete(id: string): void;
 }
 
 /** A session as persisted to disk, where messages may be dehydration markers. */
@@ -158,6 +168,11 @@ export class JsonFileSessionStore implements SessionStore {
 
   upsert(session: PersistedSession): void {
     this._sessions.set(session.id, session);
+    this._persist();
+  }
+
+  delete(id: string): void {
+    if (!this._sessions.delete(id)) return;
     this._persist();
   }
 }

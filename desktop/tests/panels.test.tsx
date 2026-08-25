@@ -338,4 +338,26 @@ describe("SessionListPanel", () => {
     const row = screen.getByTestId("session-s2");
     expect(row).toBeInTheDocument();
   });
+
+  it("renames and deletes a session from the list", async () => {
+    const onRename = vi.fn();
+    const onDelete = vi.fn();
+    render(
+      <SessionListPanel
+        sessions={sessions}
+        activeSessionId={null}
+        onResume={() => {}}
+        onRename={onRename}
+        onDelete={onDelete}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("session-rename-s1"));
+    const input = screen.getByTestId("session-rename-input-s1");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Fresh title{Enter}");
+    expect(onRename).toHaveBeenCalledWith("s1", "Fresh title");
+    await userEvent.click(screen.getByTestId("session-delete-s1"));
+    await userEvent.click(screen.getByTestId("session-delete-confirm-s1"));
+    expect(onDelete).toHaveBeenCalledWith("s1");
+  });
 });
