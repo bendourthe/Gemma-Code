@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryPanel } from "../src/modules/coding/panels/MemoryPanel";
 import { TraceDashboardPanel } from "../src/modules/coding/panels/TraceDashboardPanel";
-import { SessionListPanel } from "../src/modules/coding/panels/SessionListPanel";
 import type {
   CodingSessionSummaryT,
   MemorySnapshotT,
@@ -294,70 +293,5 @@ describe("TraceDashboardPanel", () => {
       />,
     );
     expect(screen.getByTestId("session-compare")).toBeInTheDocument();
-  });
-});
-
-describe("SessionListPanel", () => {
-  const sessions: CodingSessionSummaryT[] = [
-    {
-      sessionId: "s1",
-      modelId: "gemma4:e4b",
-      family: "gemma",
-      title: "Refactor",
-      createdAt: "2026-05-17T11:00:00Z",
-      messageCount: 3,
-    },
-    {
-      sessionId: "s2",
-      modelId: "qwen2.5-coder:7b",
-      family: "qwen",
-      title: "Debug",
-      createdAt: "2026-05-17T12:00:00Z",
-      messageCount: 1,
-    },
-  ];
-
-  it("renders the empty state when there are no sessions", () => {
-    render(<SessionListPanel sessions={[]} activeSessionId={null} onResume={() => {}} />);
-    expect(screen.getByTestId("sessions-panel")).toHaveTextContent(/No previous/);
-  });
-
-  it("invokes onResume with the picked sessionId", async () => {
-    const onResume = vi.fn();
-    render(
-      <SessionListPanel sessions={sessions} activeSessionId={null} onResume={onResume} />,
-    );
-    await userEvent.click(screen.getByTestId("session-s1"));
-    expect(onResume).toHaveBeenCalledWith("s1");
-  });
-
-  it("highlights the active session", () => {
-    render(
-      <SessionListPanel sessions={sessions} activeSessionId="s2" onResume={() => {}} />,
-    );
-    const row = screen.getByTestId("session-s2");
-    expect(row).toBeInTheDocument();
-  });
-
-  it("renames and deletes a session from the list", async () => {
-    const onRename = vi.fn();
-    const onDelete = vi.fn();
-    render(
-      <SessionListPanel
-        sessions={sessions}
-        activeSessionId={null}
-        onResume={() => {}}
-        onRename={onRename}
-        onDelete={onDelete}
-      />,
-    );
-    await userEvent.click(screen.getByTestId("session-rename-s1"));
-    const input = screen.getByTestId("session-rename-input-s1");
-    await userEvent.clear(input);
-    await userEvent.type(input, "Fresh title{Enter}");
-    expect(onRename).toHaveBeenCalledWith("s1", "Fresh title");
-    await userEvent.click(screen.getByTestId("session-delete-s1"));
-    await userEvent.click(screen.getByTestId("session-delete-confirm-s1"));
-    expect(onDelete).toHaveBeenCalledWith("s1");
   });
 });

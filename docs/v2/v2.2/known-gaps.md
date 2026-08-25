@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.8 Phase 5)
+**Last updated**: 2026-08-24 (v2.2.8 Phase 6)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,20 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.8
 
-**Last updated**: 2026-08-24 (Phase 5 - Hub latest apply)
+**Last updated**: 2026-08-24 (Phase 6 - architecture, known-gaps, and CI)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 4 | 0 |
+| Deferred (DF) | 4 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Hub apply now quarantines high-severity skills and still moves Active to the fetched tag (`PromptInjectionScanner` stays on). Pack-time snapshots still refuse a stale 3.12.0 catalog. Packaged Explorer Sync now / Active = GitHub latest remains not_observed (DF-35). Settings Models and the installer Models tab share one collapse/sort contract (hideBelowVram, one best-fit per family, required / recommended / compatible, over-budget last). Settings cards are compact (details disclosure, highlighted Downloaded chip). Packaged Explorer Settings vs installer screenshots remain not_observed (DF-34). The module rail has a small top inset so Chatbot is not flush with the title bar. Chat/Agents pending orbs use the 48px `bubble` preset, centered in the assistant bubble; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Chatbot, Agents, Images, and Videos share FolderTree chrome: 280px expanded, 56px collapsed icon rail (new/folder plus per-session marks), persisted collapse keys, rounded quiet confirm-delete. Agents sessions without sidecar folders render as a flat list; folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-2 close waits for Phase 6 evidence. DF-4 stays open.
+Packaged Explorer launch is observed (DF-2 closed). Hub apply quarantines high-severity skills and still moves Active to the fetched tag (`PromptInjectionScanner` stays on); packaged Active = GitHub latest remains not_observed (DF-35). Pack-time snapshots still refuse a stale 3.12.0 catalog. Settings Models and the installer Models tab share one collapse/sort contract; packaged Settings vs installer screenshots remain not_observed (DF-34). The module rail has a small top inset. Chat/Agents pending orbs use the 48px `bubble` preset, centered; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Four tabs share FolderTree chrome (280px / 56px icon rail). Agents folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-4, DF-23, DF-24, DF-25, DF-26, and DF-27 stay open from earlier cycles. Desktop Agents `SessionListPanel.tsx` was removed; Agents history is FolderTree only.
 
 ### Open this cycle
 
@@ -57,7 +57,14 @@ Hub apply now quarantines high-severity skills and still moves Active to the fet
 
 ### Resolved this phase
 
-None. Hub quarantine apply is new this cycle at unit/integration evidence. Packaged Hub update stays DF-23 (v2.2.4) plus DF-35 (this cycle's Active=latest bar).
+##### DF-2 - Packaged Explorer launch is unproven
+
+- **Source phase**: carried from v2.2.0 through v2.2.7; closed v2.2.8 Phase 6
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Review verdict, Phase 6.2)
+- **Resolution**: Operator packaged-Explorer screenshots after v2.2.6 (2026-08-24) showed Explorer launched. The remaining field failures were generation RPC timeout and Hub apply, not a blank window. Recorded as observed in the v2.2.8 plan Review verdict.
+- **Evidence**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Review verdict: Packaged Explorer launch (DF-2) is now observed).
+
+Hub quarantine apply remains unit/integration evidence. Packaged Hub update stays DF-23 plus DF-35. Live GPU generate stays DF-4.
 
 ## v2.2.7
 
@@ -74,7 +81,7 @@ None. Hub quarantine apply is new this cycle at unit/integration evidence. Packa
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Phase 5 deleted unused `Breadcrumb.tsx` and rebuilt an unsigned Windows installer for the operator field checklist. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Phase 5 deleted unused `Breadcrumb.tsx` and rebuilt an unsigned Windows installer for the operator field checklist. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 was later closed in v2.2.8 Phase 6 (observed 2026-08-24). DF-4 stays open from earlier cycles.
 
 ### Open this cycle
 
@@ -140,8 +147,8 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-51 through B
 
 - **Source phase**: carried from v2.2.5
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 6.2)
-- **Reason**: not_observed != absent. No packaged soak this phase.
-- **Suggested next step**: Launch a packaged Windows build and record Explorer start.
+- **Reason**: Closed in v2.2.8 Phase 6. Packaged Explorer launch was observed 2026-08-24 (v2.2.8 plan Review verdict). Historical row kept so v2.2.6 readers can follow the close.
+- **Suggested next step**: None. See v2.2.8 Resolved DF-2.
 
 ##### DF-4 - Live GPU image/video generate is unproven
 
@@ -220,8 +227,8 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-43 through B
 
 - **Source phase**: carried from v2.2.4
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.5-first-successful-generation.md` (Phase 6.2)
-- **Reason**: not_observed != absent. No packaged soak this phase.
-- **Suggested next step**: Launch a packaged Windows build and record Explorer start.
+- **Reason**: Closed in v2.2.8 Phase 6. Packaged Explorer launch was observed 2026-08-24 (v2.2.8 plan Review verdict). Historical row kept so v2.2.5 readers can follow the close.
+- **Suggested next step**: None. See v2.2.8 Resolved DF-2.
 
 ##### DF-4 - Live GPU image/video generate is unproven
 

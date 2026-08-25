@@ -15,6 +15,8 @@
 # (test_hub_catalog_provisioner). Install-time --sync-hub-catalog apply with
 # per-skill quarantine lives in sidecar/unit tests, not this pytest job.
 # Do not clone Hub.
+# v2.2.8 Phase 6: T009/T010 catalog_tab_sort and T012 pack-time 3.12.0
+# refusal stay in this job. No live GPU. Do not clone Hub.
 # PRs to main use the same path filter. workflow_dispatch always runs.
 name: Installer tests
 

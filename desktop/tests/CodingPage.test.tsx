@@ -320,6 +320,7 @@ describe("CodingPage", () => {
             installed: true,
             source: "registry" as const,
             contextWindow: 128000,
+            agentic: true,
           },
           {
             id: "qwen2.5-coder:7b",
@@ -328,6 +329,7 @@ describe("CodingPage", () => {
             installed: true,
             source: "registry" as const,
             contextWindow: 32768,
+            agentic: true,
           },
         ];
       },

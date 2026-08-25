@@ -103,6 +103,12 @@ jobs:
       # swaps Active to the fetched tag. test-ts covers NexusHubSyncer planted
       # jailbreak + scanner-crash fail-closed; test:shell covers ipcSkillsClient,
       # hub-catalog CLI, and SkillsSettings copy. Do not clone Hub. No live GPU.
+      # v2.2.8 Phase 6: T001-T012 stay in existing jobs. Cargo test (shell-build)
+      # covers rpc_timeout_for (chat.send != 15s, ping 15s). test:shell covers
+      # Gemma alias Downloaded, FolderTree 56px collapse, Models sort fixture,
+      # Hub quarantine apply. test-ts covers NexusHubSyncer quarantine.
+      # installer-tests covers catalog_tab_sort + stale 3.12.0 pack refusal.
+      # Do not add a live GPU or live Hub clone.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

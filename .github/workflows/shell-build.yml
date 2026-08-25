@@ -98,6 +98,8 @@ jobs:
       - name: Cargo test (Tauri core)
         working-directory: desktop/src-tauri
         run: cargo test --all-targets
+        # v2.2.8 Phase 6: cargo test covers rpc_timeout_for (T001: chat.send /
+        # generate minutes-class; ping stays 15s). No live GPU.
 
       - name: Build frontend bundle
         run: npm run build:web
