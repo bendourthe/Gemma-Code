@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ipc } from "../../lib/ipc";
 import { formatInferenceError } from "../../lib/inferenceRpcError";
 import type {
@@ -21,8 +21,18 @@ import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
 import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
-import { SessionListPanel } from "./panels/SessionListPanel";
 import { ComposerContextRow, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
+import { FolderTree, type FolderTreeCopy, type SelectedNode } from "../chat/FolderTree";
+import type { Chat } from "../chat/types";
+import {
+  CollapsibleHistoryAside,
+  usePersistentCollapsed,
+} from "../../shared/explorer/CollapsibleHistoryAside";
+import { CODING_HISTORY_COLLAPSE_KEY } from "../../shared/explorer/historyPaneLayout";
+import {
+  createCodingSessionsAsChatExplorer,
+  createIpcCodingExplorerBackend,
+} from "../../shared/explorer/codingSessionsAsChatExplorer";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   installedForTask,
@@ -64,6 +74,16 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   installed: false,
   source: "registry" as const,
 }));
+
+const CODING_FOLDER_TREE_COPY: FolderTreeCopy = {
+  paneTitle: "Sessions",
+  newItem: "New session",
+  emptyCta: "Start a new session",
+  treeAria: "Agent sessions",
+  loadError: "Could not load sessions",
+  emptyHint: "No sessions yet.",
+  itemNoun: "session",
+};
 
 interface Turn {
   id: string;
@@ -191,12 +211,19 @@ export function CodingPage({
   const [workspacePath, setWorkspacePath] = useState(
     () => initialWorkspacePath ?? readCodingWorkspacePath() ?? "",
   );
+  const workspacePathRef = useRef(workspacePath);
+  workspacePathRef.current = workspacePath;
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshotT | null>(null);
   const [traceEvents, setTraceEvents] = useState<readonly TraceEventT[]>([]);
   const [sessions, setSessions] = useState<readonly CodingSessionSummaryT[]>([]);
+  const [historyEpoch, setHistoryEpoch] = useState(0);
+  const [historySelected, setHistorySelected] = useState<SelectedNode | null>(null);
+  const { collapsed: historyCollapsed, toggle: toggleHistory } = usePersistentCollapsed(
+    CODING_HISTORY_COLLAPSE_KEY,
+  );
   // v1.16.0 Phase 2.2 -- per-model inference analytics for the Trace tab.
   const [modelMetrics, setModelMetrics] = useState<readonly PerModelMetricSummaryT[]>([]);
   // v1.1.0 Phase 7 -- session-replay state: the active session selected from
@@ -211,6 +238,36 @@ export function CodingPage({
     text: "",
     attachments: [],
   });
+  const modelIdRef = useRef(modelId);
+  modelIdRef.current = modelId;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+  const explorer = useMemo(
+    () => {
+      const ipcBackend = createIpcCodingExplorerBackend();
+      return createCodingSessionsAsChatExplorer({
+        backend: {
+          ...ipcBackend,
+          async deleteSession(id) {
+            await ipcBackend.deleteSession(id);
+            if (sessionIdRef.current === id) {
+              setSessionId(null);
+              setTurns([]);
+            }
+          },
+        },
+        getWorkspacePath: () => workspacePathRef.current,
+        getModelId: () => modelIdRef.current,
+        onSessionCreated: (session) => {
+          setSessionId(session.sessionId);
+          setTab("chat");
+          setHistorySelected({ kind: "chat", id: session.sessionId });
+          setHistoryEpoch((n) => n + 1);
+        },
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -256,6 +313,7 @@ export function CodingPage({
       return null;
     }
     setSessionId(reply.value.sessionId);
+    setHistoryEpoch((n) => n + 1);
     return reply.value.sessionId;
   }, [modelId, sessionId, workspacePath]);
 
@@ -454,6 +512,7 @@ export function CodingPage({
     }
     setSessionId(id);
     if (reply.value.session.modelId) setModelId(reply.value.session.modelId);
+    setHistorySelected({ kind: "chat", id });
     const restored = reply.value.turns ?? [];
     if (restored.length > 0) {
       setTurns(
@@ -479,34 +538,6 @@ export function CodingPage({
     }
     setTab("chat");
   }, []);
-
-  const handleRenameSession = useCallback(
-    async (id: string, title: string): Promise<void> => {
-      const reply = await ipc.call("coding.session.rename", { sessionId: id, title });
-      if (!reply.ok) {
-        setError(`Could not rename session: ${reply.message}`);
-        return;
-      }
-      await reloadSessions();
-    },
-    [reloadSessions],
-  );
-
-  const handleDeleteSession = useCallback(
-    async (id: string): Promise<void> => {
-      const reply = await ipc.call("coding.session.delete", { sessionId: id });
-      if (!reply.ok) {
-        setError(`Could not delete session: ${reply.message}`);
-        return;
-      }
-      if (sessionId === id) {
-        setSessionId(null);
-        setTurns([]);
-      }
-      await reloadSessions();
-    },
-    [reloadSessions, sessionId],
-  );
 
   useEffect(() => {
     if (tab !== "memory") return;
@@ -620,12 +651,53 @@ export function CodingPage({
       style={{
         flex: 1,
         display: "flex",
-        flexDirection: "column",
-        padding: "var(--space-4)",
+        flexDirection: "row",
+        minHeight: 0,
         color: "var(--fg-0)",
-        gap: "var(--space-3)",
       }}
     >
+      <CollapsibleHistoryAside
+        testId="coding-history-pane"
+        ariaLabel="Agent sessions"
+        collapsed={historyCollapsed}
+        onToggle={toggleHistory}
+        toggleTestId="coding-history-collapse-toggle"
+        expandLabel="Expand sessions"
+        collapseLabel="Collapse sessions"
+      >
+        {sidecar.isDown ? (
+          <p
+            data-testid="coding-history-empty"
+            style={{ margin: 0, padding: "var(--space-3)", color: "var(--fg-muted)" }}
+          >
+            {CODING_FOLDER_TREE_COPY.emptyHint}
+          </p>
+        ) : (
+          <FolderTree
+            client={explorer}
+            selected={historySelected}
+            onSelect={setHistorySelected}
+            onOpenChat={(chat: Chat) => void handleResume(chat.id)}
+            onChange={() => void reloadSessions()}
+            defaultModelId={modelId}
+            copy={CODING_FOLDER_TREE_COPY}
+            storageKey="nexus.coding.expanded"
+            refreshToken={historyEpoch}
+            collapsed={historyCollapsed}
+          />
+        )}
+      </CollapsibleHistoryAside>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          minHeight: 0,
+          padding: "var(--space-4)",
+          gap: "var(--space-3)",
+        }}
+      >
       <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         <label
           htmlFor="coding-workspace-path"
@@ -739,13 +811,11 @@ export function CodingPage({
           />
         )}
         {tab === "sessions" && (
-          <SessionListPanel
-            sessions={sessions}
-            activeSessionId={sessionId}
-            onResume={(id) => void handleResume(id)}
-            onRename={(id, title) => void handleRenameSession(id, title)}
-            onDelete={(id) => void handleDeleteSession(id)}
-          />
+          <section data-testid="sessions-panel" aria-label="Sessions panel">
+            <p style={{ color: "var(--fg-muted)", margin: 0 }}>
+              Sessions are listed on the left. Rename, delete, and folders live there.
+            </p>
+          </section>
         )}
       </div>
 
@@ -814,6 +884,7 @@ export function CodingPage({
           )}
         </footer>
       )}
+      </div>
     </section>
   );
 }

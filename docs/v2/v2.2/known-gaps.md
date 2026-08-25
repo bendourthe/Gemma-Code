@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.8 Phase 1)
+**Last updated**: 2026-08-24 (v2.2.8 Phase 2)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,20 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.8
 
-**Last updated**: 2026-08-24 (Phase 1 - local inference that finishes)
+**Last updated**: 2026-08-24 (Phase 2 - unified history chrome)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 1 | 0 |
+| Deferred (DF) | 2 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-`rpc_timeout_for("chat.send")` and the real `chat.session.sendMessage` / coding send / diffusion generate methods are 600s with typed copy. `ping` stays 15s. A slow ChatPage fixture and a thrown `sidecar response timeout` never render that string. Ollama tag `gemma4:12b` marks catalog `gemma-4-12b-it-gguf` Downloaded. Packaged Chatbot `Hi` remains not_observed (DF-32). DF-2 close waits for Phase 6 evidence. DF-4 stays open.
+Chatbot, Agents, Images, and Videos share FolderTree chrome: 280px expanded, 56px collapsed icon rail (new/folder plus per-session marks), persisted collapse keys, rounded quiet confirm-delete. Agents sessions without sidecar folders render as a flat list; folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-2 close waits for Phase 6 evidence. DF-4 stays open.
 
 ### Open this cycle
 
@@ -34,9 +34,16 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: Unit tests prove the timeout table, slow-stream copy, and Gemma alias probe. A packaged Explorer `Hi` against local Ollama was not recorded this phase. not_observed != absent.
 - **Suggested next step**: On a packaged Windows build, send Chatbot `Hi` and one Agents turn. Expect a local reply or a typed Ollama/weights error, never `sidecar response timeout`. Confirm Settings shows Gemma 4 12B as Downloaded when `ollama list` has `gemma4:12b`.
 
+##### DF-33 - Agents folders are a local overlay, not sidecar schema
+
+- **Source phase**: v2.2.8 Phase 2
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 2.1, folders optional)
+- **Reason**: `coding.session.*` has no folder rows. FolderTree on Agents uses `localStorage` (`nexus.coding.explorerFolders`) so New folder is not a dead control. Sessions stay in sidecar `sessions.json`. Deleting an overlay folder reparents sessions instead of calling `coding.session.delete`. Folders do not roam with the sidecar store.
+- **Suggested next step**: If Agents folders must survive a storage wipe the same way Chatbot folders do, add a sidecar folder table keyed by workspace, or document overlay-only as the product contract.
+
 ### Resolved this phase
 
-None. Timeout and probe work is new this cycle, not a prior BG close.
+None. History chrome is new this cycle, not a prior BG close.
 
 ## v2.2.7
 

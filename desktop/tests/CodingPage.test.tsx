@@ -302,8 +302,10 @@ describe("CodingPage", () => {
   it("renders the Sessions panel when the Sessions tab is selected", async () => {
     render(<CodingPage initialTab="sessions" />);
     await waitFor(() => {
-      expect(screen.getByTestId("session-prev-1")).toBeInTheDocument();
+      expect(screen.getByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("coding-history-pane")).toBeInTheDocument();
+    expect(screen.getByTestId("sessions-panel")).toBeInTheDocument();
   });
 
   it("model select changes the modelId before a session starts", async () => {
@@ -531,6 +533,8 @@ describe("CodingPage", () => {
     );
     expect(await screen.findByTestId("coding-sidecar-down")).toBeInTheDocument();
     expect(screen.getByTestId("coding-input")).toBeInTheDocument();
+    expect(screen.getByTestId("coding-history-empty")).toBeInTheDocument();
+    expect(screen.queryByText("Prior session")).toBeNull();
   });
 
   it("resuming a previous session restores user and assistant text without starting a new session", async () => {
@@ -543,7 +547,7 @@ describe("CodingPage", () => {
     });
     unmount();
     render(<CodingPage initialTab="sessions" />);
-    await userEvent.click(await screen.findByTestId("session-sess-1"));
+    await userEvent.click(await screen.findByTestId("tree-row-chat-sess-1"));
     await waitFor(() => {
       expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
       expect(screen.getByTestId("coding-chat")).toHaveTextContent("ok");
@@ -554,7 +558,7 @@ describe("CodingPage", () => {
 
   it("unknown resume id shows a typed error and an empty transcript", async () => {
     render(<CodingPage initialTab="sessions" />);
-    await userEvent.click(await screen.findByTestId("session-missing-1"));
+    await userEvent.click(await screen.findByTestId("tree-row-chat-missing-1"));
     expect(await screen.findByTestId("coding-error")).toHaveTextContent(
       "Could not resume session",
     );
@@ -564,27 +568,27 @@ describe("CodingPage", () => {
 
   it("opening the Sessions tab does not start a session or send a turn", async () => {
     render(<CodingPage initialTab="sessions" />);
-    expect(await screen.findByTestId("session-prev-1")).toBeInTheDocument();
+    expect(await screen.findByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
     expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
     expect(fake.calls.some((call) => call.method === "coding.session.sendMessage")).toBe(false);
   });
 
   it("renames and deletes a listed Agents session", async () => {
     render(<CodingPage initialTab="sessions" />);
-    await userEvent.click(await screen.findByTestId("session-rename-prev-1"));
-    const input = await screen.findByTestId("session-rename-input-prev-1");
+    await userEvent.click(await screen.findByTestId("tree-rename-prev-1"));
+    const input = await screen.findByTestId("tree-rename-input-prev-1");
     await userEvent.clear(input);
     await userEvent.type(input, "Renamed agents{Enter}");
     await waitFor(() => {
       expect(fake.calls.some((call) => call.method === "coding.session.rename")).toBe(true);
     });
     await waitFor(() => {
-      expect(screen.getByTestId("session-prev-1")).toHaveTextContent("Renamed agents");
+      expect(screen.getByTestId("tree-row-chat-prev-1")).toHaveTextContent("Renamed agents");
     });
-    await userEvent.click(screen.getByTestId("session-delete-prev-1"));
-    await userEvent.click(screen.getByTestId("session-delete-confirm-prev-1"));
+    await userEvent.click(screen.getByTestId("tree-delete-prev-1"));
+    await userEvent.click(screen.getByTestId("confirm-delete-ok"));
     await waitFor(() => {
-      expect(screen.queryByTestId("session-prev-1")).toBeNull();
+      expect(screen.queryByTestId("tree-row-chat-prev-1")).toBeNull();
     });
   });
 });

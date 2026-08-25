@@ -1,5 +1,6 @@
 /**
  * v2.2.6 Phase 1 -- left history pane for Image Studio / Video Lab.
+ * v2.2.8 Phase 2 -- same width, collapse-to-icon-rail, and empty chrome as Chatbot.
  *
  * Reuses FolderTree. Image/Video pages import this module, not Chat types.
  */
@@ -10,6 +11,14 @@ import type { Chat } from "../../modules/chat/types";
 import { studioClientAsChatExplorer } from "./studioAsChatExplorer";
 import type { StudioExplorerClient } from "./studioExplorerClient";
 import type { StudioPillar } from "../../../../core/generations/StudioSessionStore.types";
+import {
+  CollapsibleHistoryAside,
+  usePersistentCollapsed,
+} from "./CollapsibleHistoryAside";
+import {
+  IMAGE_HISTORY_COLLAPSE_KEY,
+  VIDEO_HISTORY_COLLAPSE_KEY,
+} from "./historyPaneLayout";
 
 const IMAGE_COPY: FolderTreeCopy = {
   paneTitle: "Sessions",
@@ -18,6 +27,7 @@ const IMAGE_COPY: FolderTreeCopy = {
   treeAria: "Image sessions",
   loadError: "Could not load sessions",
   emptyHint: "No sessions yet.",
+  itemNoun: "session",
 };
 
 const VIDEO_COPY: FolderTreeCopy = {
@@ -27,6 +37,7 @@ const VIDEO_COPY: FolderTreeCopy = {
   treeAria: "Video sessions",
   loadError: "Could not load sessions",
   emptyHint: "No sessions yet.",
+  itemNoun: "session",
 };
 
 export interface StudioHistoryPaneProps {
@@ -51,19 +62,18 @@ export function StudioHistoryPane({
   const [selected, setSelected] = useState<SelectedNode | null>(null);
   const copy = pillar === "video" ? VIDEO_COPY : IMAGE_COPY;
   const testId = pillar === "video" ? "video-history-pane" : "image-history-pane";
+  const collapseKey = pillar === "video" ? VIDEO_HISTORY_COLLAPSE_KEY : IMAGE_HISTORY_COLLAPSE_KEY;
+  const { collapsed, toggle } = usePersistentCollapsed(collapseKey);
 
   return (
-    <aside
-      data-testid={testId}
-      aria-label={copy.treeAria}
-      style={{
-        width: 240,
-        flex: "0 0 240px",
-        minHeight: 0,
-        overflowY: "auto",
-        borderRight: "1px solid var(--border-1)",
-        background: "var(--bg-1)",
-      }}
+    <CollapsibleHistoryAside
+      testId={testId}
+      ariaLabel={copy.treeAria}
+      collapsed={collapsed}
+      onToggle={toggle}
+      toggleTestId={`${pillar}-history-collapse-toggle`}
+      expandLabel="Expand sessions"
+      collapseLabel="Collapse sessions"
     >
       {sidecarDown ? (
         <p
@@ -82,8 +92,9 @@ export function StudioHistoryPane({
           copy={copy}
           storageKey={`nexus.${pillar}.expanded`}
           refreshToken={refreshToken}
+          collapsed={collapsed}
         />
       )}
-    </aside>
+    </CollapsibleHistoryAside>
   );
 }

@@ -31,6 +31,7 @@ import {
 import {
   ChevronDown,
   ChevronRight,
+  Folder as FolderIcon,
   FolderPlus,
   MessageCirclePlus,
   Pencil,
@@ -82,6 +83,11 @@ export interface FolderTreeProps {
   copy?: FolderTreeCopy;
   /** localStorage key for expanded folders. Defaults to `nexus.chat.expanded`. */
   storageKey?: string;
+  /**
+   * v2.2.8 Phase 2 -- icon rail (new/folder + per-session marks) instead of
+   * hiding the tree. Delete still confirms.
+   */
+  collapsed?: boolean;
 }
 
 export interface FolderTreeCopy {
@@ -91,6 +97,8 @@ export interface FolderTreeCopy {
   treeAria: string;
   loadError: string;
   emptyHint: string;
+  /** Used when a delete target has no title. Chatbot: "chat"; studio/Agents: "session". */
+  itemNoun?: string;
 }
 
 export const CHAT_FOLDER_TREE_COPY: FolderTreeCopy = {
@@ -100,6 +108,7 @@ export const CHAT_FOLDER_TREE_COPY: FolderTreeCopy = {
   treeAria: "Chat folders",
   loadError: "Could not load chats",
   emptyHint: "No chats yet.",
+  itemNoun: "chat",
 };
 
 export interface ExpandedStorageAdapter {
@@ -210,6 +219,7 @@ export function FolderTree({
   defaultModelId = "gemma4:e4b",
   copy = CHAT_FOLDER_TREE_COPY,
   storageKey = DEFAULT_STORAGE_KEY,
+  collapsed = false,
 }: FolderTreeProps): JSX.Element {
   const storage = storageAdapter ?? makeDefaultStorage(storageKey);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(storage.read()));
@@ -219,6 +229,18 @@ export function FolderTree({
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState | null>(null);
   const [revision, setRevision] = useState(0);
   const dragSourceRef = useRef<SelectedNode | null>(null);
+  const itemNoun = copy.itemNoun ?? "chat";
+
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const onKey = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setConfirmDelete(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmDelete]);
 
   const refresh = useCallback(() => {
     setRevision((r) => r + 1);
@@ -544,19 +566,58 @@ export function FolderTree({
     );
   }, [client, confirmDelete, refresh]);
 
+  const toolbar = (
+    <span
+      style={{
+        display: "flex",
+        flexDirection: collapsed ? "column" : "row",
+        gap: "var(--space-1)",
+        alignItems: "center",
+      }}
+    >
+      <button
+        type="button"
+        data-testid="folder-tree-new-folder"
+        aria-label="New folder"
+        title="New folder"
+        onClick={(e) => {
+          e.stopPropagation();
+          onCreateFolder(null);
+        }}
+        style={iconButtonStyle}
+      >
+        <FolderPlus size={14} aria-hidden />
+      </button>
+      <button
+        type="button"
+        data-testid="folder-tree-new-chat"
+        aria-label={copy.newItem}
+        title={copy.newItem}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCreateChat(null);
+        }}
+        style={iconButtonStyle}
+      >
+        <MessageCirclePlus size={14} aria-hidden />
+      </button>
+    </span>
+  );
+
   const isEmpty = tree.children.length === 0 && tree.chats.length === 0;
   if (isEmpty) {
     return (
       <div
         data-testid="folder-tree-empty"
         style={{
-          padding: "var(--space-4)",
+          padding: collapsed ? "var(--space-2)" : "var(--space-4)",
           display: "flex",
           flexDirection: "column",
           gap: "var(--space-2)",
-          alignItems: "flex-start",
+          alignItems: collapsed ? "center" : "flex-start",
         }}
       >
+        {toolbar}
         {loadError !== null ? (
           <p
             data-testid="folder-tree-error"
@@ -566,74 +627,59 @@ export function FolderTree({
             {copy.loadError}: {loadError}
           </p>
         ) : null}
-        <p style={{ margin: 0, color: "var(--fg-muted)" }}>{copy.emptyHint}</p>
-        {/*
-          v2.2.0 Phase 8 (DF-12): this used to read "Create your first folder",
-          which is why the module appeared to require a folder before it would
-          let you talk to anything. The store has always supported chats with
-          `folderId: null`; only this button insisted otherwise. Folders remain
-          available for organising later, from the header and context menu.
-        */}
-        <button
-          type="button"
-          data-testid="folder-tree-empty-cta"
-          onClick={() => onCreateChat(null)}
-          style={{
-            backgroundColor: "var(--accent-chatbot, var(--accent-coding))",
-            color: "var(--bg-0)",
-            border: "none",
-            padding: "var(--space-2) var(--space-3)",
-            borderRadius: "var(--radius-md)",
-            cursor: "pointer",
-          }}
-        >
-          {copy.emptyCta}
-        </button>
+        {collapsed ? null : (
+          <>
+            <p style={{ margin: 0, color: "var(--fg-muted)" }}>{copy.emptyHint}</p>
+            {/*
+              v2.2.0 Phase 8 (DF-12): this used to read "Create your first folder",
+              which is why the module appeared to require a folder before it would
+              let you talk to anything. The store has always supported chats with
+              `folderId: null`; only this button insisted otherwise. Folders remain
+              available for organising later, from the header and context menu.
+            */}
+            <button
+              type="button"
+              data-testid="folder-tree-empty-cta"
+              onClick={() => onCreateChat(null)}
+              style={{
+                backgroundColor: "var(--accent-chatbot, var(--accent-coding))",
+                color: "var(--bg-0)",
+                border: "none",
+                padding: "var(--space-2) var(--space-3)",
+                borderRadius: "var(--radius-md)",
+                cursor: "pointer",
+              }}
+            >
+              {copy.emptyCta}
+            </button>
+          </>
+        )}
       </div>
     );
   }
 
   return (
-    <div data-testid="folder-tree" onClick={closeContextMenu}>
+    <div
+      data-testid="folder-tree"
+      data-collapsed={collapsed ? "true" : "false"}
+      onClick={closeContextMenu}
+    >
       <header
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          flexDirection: collapsed ? "column" : "row",
+          justifyContent: collapsed ? "flex-start" : "space-between",
           alignItems: "center",
-          padding: "var(--space-2) var(--space-3)",
+          padding: collapsed ? "var(--space-2) 0" : "var(--space-2) var(--space-3)",
+          gap: "var(--space-1)",
         }}
       >
-        <span style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-          {copy.paneTitle}
-        </span>
-        <span style={{ display: "flex", gap: "var(--space-1)" }}>
-          <button
-            type="button"
-            data-testid="folder-tree-new-folder"
-            aria-label="New folder"
-            title="New folder"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCreateFolder(null);
-            }}
-            style={iconButtonStyle}
-          >
-            <FolderPlus size={14} aria-hidden />
-          </button>
-          <button
-            type="button"
-            data-testid="folder-tree-new-chat"
-            aria-label={copy.newItem}
-            title={copy.newItem}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCreateChat(null);
-            }}
-            style={iconButtonStyle}
-          >
-            <MessageCirclePlus size={14} aria-hidden />
-          </button>
-        </span>
+        {collapsed ? null : (
+          <span style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
+            {copy.paneTitle}
+          </span>
+        )}
+        {toolbar}
       </header>
 
       {loadError !== null ? (
@@ -660,7 +706,8 @@ export function FolderTree({
             const key =
               node.kind === "folder" ? `folder:${node.id ?? "ROOT"}` : `chat:${node.id}`;
             const isSelected = selected ? nodeKey(selected) === key : false;
-            const isRenaming = renamingId === node.id;
+            const isRenaming = renamingId === node.id && !collapsed;
+            const mark = node.label.trim().charAt(0).toUpperCase() || (node.kind === "folder" ? "F" : "S");
             return (
               <li
                 key={key}
@@ -668,6 +715,8 @@ export function FolderTree({
                 data-testid={`tree-row-${node.kind}-${node.id ?? "root"}`}
                 role="treeitem"
                 aria-selected={isSelected}
+                aria-label={node.label}
+                title={node.label}
                 tabIndex={isSelected ? 0 : -1}
                 draggable={!isRenaming}
                 onDragStart={(e) => handleDragStart(e, node)}
@@ -679,12 +728,29 @@ export function FolderTree({
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  handleDoubleClick(node);
+                  if (!collapsed) handleDoubleClick(node);
                 }}
                 onContextMenu={(e) => handleContextMenu(e, node)}
                 onKeyDown={(e) => handleKeyDown(e, idx, node)}
-                style={rowStyle(node, isSelected)}
+                style={rowStyle(node, isSelected, collapsed)}
               >
+                {collapsed ? (
+                  <span
+                    data-testid={
+                      node.kind === "chat" && node.chat
+                        ? `history-rail-mark-${node.chat.id}`
+                        : `history-rail-folder-${node.id ?? "root"}`
+                    }
+                    style={railMarkStyle(isSelected)}
+                  >
+                    {node.kind === "folder" ? (
+                      <FolderIcon size={14} aria-hidden />
+                    ) : (
+                      mark
+                    )}
+                  </span>
+                ) : (
+                  <>
                 <span style={{ width: node.depth * 12, display: "inline-block" }} />
                 {node.kind === "folder" ? (
                   expanded.has(node.id ?? "") ? (
@@ -762,6 +828,8 @@ export function FolderTree({
                     </button>
                   </span>
                 ) : null}
+                  </>
+                )}
               </li>
             );
           })}
@@ -885,7 +953,10 @@ export function FolderTree({
         >
           <div style={modalCardStyle}>
             <p style={{ margin: 0, color: "var(--fg-0)" }}>
-              Delete <strong>{confirmDelete.label}</strong>
+              Delete{" "}
+              <strong>
+                {confirmDelete.label.trim() || `this ${itemNoun}`}
+              </strong>
               {confirmDelete.target.kind === "folder"
                 ? " and all of its contents?"
                 : "?"}
@@ -895,7 +966,7 @@ export function FolderTree({
                 type="button"
                 data-testid="confirm-delete-cancel"
                 onClick={() => setConfirmDelete(null)}
-                style={ctxButtonStyle}
+                style={quietCancelStyle}
               >
                 Cancel
               </button>
@@ -903,11 +974,7 @@ export function FolderTree({
                 type="button"
                 data-testid="confirm-delete-ok"
                 onClick={confirmDeleteNow}
-                style={{
-                  ...ctxButtonStyle,
-                  backgroundColor: "var(--status-err, #d33)",
-                  color: "white",
-                }}
+                style={quietDestructiveStyle}
               >
                 Delete
               </button>
@@ -927,7 +994,18 @@ const iconButtonStyle: CSSProperties = {
   padding: "var(--space-1)",
 };
 
-function rowStyle(node: FlatNode, selected: boolean): CSSProperties {
+function rowStyle(node: FlatNode, selected: boolean, collapsed = false): CSSProperties {
+  if (collapsed) {
+    return {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "var(--space-1) 0",
+      backgroundColor: "transparent",
+      cursor: "pointer",
+      fontSize: "var(--text-sm)",
+    };
+  }
   return {
     display: "flex",
     alignItems: "center",
@@ -940,6 +1018,24 @@ function rowStyle(node: FlatNode, selected: boolean): CSSProperties {
         : "4px solid transparent",
     cursor: "pointer",
     fontSize: "var(--text-sm)",
+  };
+}
+
+function railMarkStyle(selected: boolean): CSSProperties {
+  return {
+    width: 32,
+    height: 32,
+    borderRadius: "var(--radius-pill, 999px)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "var(--text-xs, 12px)",
+    fontWeight: 600,
+    color: "var(--fg-0)",
+    backgroundColor: selected
+      ? "color-mix(in srgb, var(--fg-0) 14%, transparent)"
+      : "color-mix(in srgb, var(--fg-0) 8%, transparent)",
+    border: "1px solid color-mix(in srgb, var(--fg-0) 14%, transparent)",
   };
 }
 
@@ -982,8 +1078,8 @@ const modalBackdropStyle: CSSProperties = {
 };
 
 const modalCardStyle: CSSProperties = {
-  backgroundColor: "var(--bg-1)",
-  border: "1px solid var(--border-1)",
+  backgroundColor: "color-mix(in srgb, var(--bg-1) 86%, transparent)",
+  border: "1px solid color-mix(in srgb, var(--fg-0) 14%, transparent)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-4)",
   minWidth: 320,
@@ -991,4 +1087,26 @@ const modalCardStyle: CSSProperties = {
   flexDirection: "column",
   gap: "var(--space-3)",
   color: "var(--fg-0)",
+  boxShadow: "inset 0 1px 0 color-mix(in srgb, white 8%, transparent), var(--shadow-md)",
+  backdropFilter: "blur(16px)",
+};
+
+const quietCancelStyle: CSSProperties = {
+  padding: "var(--space-2) var(--space-3)",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid transparent",
+  background: "transparent",
+  color: "var(--fg-muted)",
+  cursor: "pointer",
+  fontSize: "var(--text-sm)",
+};
+
+const quietDestructiveStyle: CSSProperties = {
+  padding: "var(--space-2) var(--space-3)",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid color-mix(in srgb, var(--status-err, #d33) 40%, transparent)",
+  background: "color-mix(in srgb, var(--status-err, #d33) 16%, transparent)",
+  color: "var(--fg-0)",
+  cursor: "pointer",
+  fontSize: "var(--text-sm)",
 };

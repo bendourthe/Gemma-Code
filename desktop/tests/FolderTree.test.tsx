@@ -40,6 +40,8 @@ describe("<FolderTree>", () => {
     expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(
       /start a new chat/i,
     );
+    expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
+    expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
   });
 
   it("clicking the empty-state CTA creates a chat at the root, not a folder", async () => {
@@ -339,6 +341,54 @@ describe("<FolderTree>", () => {
     fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
     expect(screen.getByTestId("folder-tree-confirm-delete")).toBeInTheDocument();
     expect(client.getChat(chat.id)?.title).toBe("draft");
+    fireEvent.click(screen.getByTestId("confirm-delete-ok"));
+    expect(client.getChat(chat.id)).toBeNull();
+  });
+
+  it("confirm-delete uses a rounded quiet destructive, not a square flash-red fill", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
+    const dialog = screen.getByTestId("folder-tree-confirm-delete");
+    const card = dialog.firstElementChild as HTMLElement;
+    const ok = screen.getByTestId("confirm-delete-ok");
+    expect(getComputedStyle(card).borderRadius === "" ? card.style.borderRadius : card.style.borderRadius).not.toBe("0px");
+    expect(card.style.borderRadius).toContain("radius");
+    expect(ok.style.borderRadius).toContain("radius");
+    expect(ok.style.backgroundColor).not.toMatch(/^(#d33|rgb\(221,\s*51,\s*51\)|white)$/i);
+    expect(ok.style.background).toMatch(/color-mix|status-err/);
+    expect(ok.style.color).not.toBe("white");
+  });
+
+  it("confirm-delete Escape and Cancel keep the chat", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "keep-me", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByTestId("folder-tree-confirm-delete")).not.toBeInTheDocument();
+    expect(client.getChat(chat.id)?.title).toBe("keep-me");
+    fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
+    fireEvent.click(screen.getByTestId("confirm-delete-cancel"));
+    expect(client.getChat(chat.id)?.title).toBe("keep-me");
+  });
+
+  it("collapsed rail keeps new/folder actions and still confirms delete", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} collapsed />);
+    expect(screen.getByTestId("folder-tree")).toHaveAttribute("data-collapsed", "true");
+    expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
+    expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
+    expect(screen.getByTestId(`history-rail-mark-${chat.id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId(`tree-delete-${chat.id}`)).not.toBeInTheDocument();
+    const row = screen.getByTestId(`tree-row-chat-${chat.id}`);
+    fireEvent.keyDown(row, { key: "Delete" });
+    expect(screen.getByTestId("folder-tree-confirm-delete")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("confirm-delete-cancel"));
+    expect(client.getChat(chat.id)).not.toBeNull();
+    fireEvent.keyDown(row, { key: "Delete" });
     fireEvent.click(screen.getByTestId("confirm-delete-ok"));
     expect(client.getChat(chat.id)).toBeNull();
   });

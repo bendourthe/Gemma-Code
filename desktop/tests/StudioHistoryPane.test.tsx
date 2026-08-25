@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { StudioHistoryPane } from "../src/shared/explorer/StudioHistoryPane";
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
@@ -22,8 +22,37 @@ describe("StudioHistoryPane", () => {
       <StudioHistoryPane pillar="image" client={client} defaultModelId="sana-1.6b-1024" />,
     );
     expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
+    expect(screen.getByTestId("image-history-pane").style.width).toBe("280px");
     expect(screen.getByText("Fox portrait")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree-new-chat")).toHaveAttribute("title", "New session");
+  });
+
+  it("collapses to an icon rail and keeps new/folder actions", () => {
+    window.localStorage.removeItem("nexus.image.historyCollapsed");
+    const client = new InMemoryStudioExplorerClient("image");
+    const session = client.createSession({
+      folderId: null,
+      title: "Fox portrait",
+      modelId: "sana-1.6b-1024",
+    });
+    render(
+      <StudioHistoryPane pillar="image" client={client} defaultModelId="sana-1.6b-1024" />,
+    );
+    fireEvent.click(screen.getByTestId("image-history-collapse-toggle"));
+    expect(screen.getByTestId("image-history-pane").style.width).toBe("56px");
+    expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
+    expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
+    expect(screen.getByTestId(`history-rail-mark-${session.id}`)).toBeInTheDocument();
+  });
+
+  it("video pane matches image width and session copy", () => {
+    const client = new InMemoryStudioExplorerClient("video");
+    render(
+      <StudioHistoryPane pillar="video" client={client} defaultModelId="wan2.1" />,
+    );
+    expect(screen.getByTestId("video-history-pane").style.width).toBe("280px");
+    expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(/start a new session/i);
+    expect(screen.getByTestId("video-history-collapse-toggle")).toBeInTheDocument();
   });
 
   it("sidecar down shows an empty hint and does not fabricate sessions", () => {
