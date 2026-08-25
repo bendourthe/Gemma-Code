@@ -2,10 +2,11 @@
  * v2.2.4 Phase 5 -- Settings > Models.
  *
  * Installer-parity catalog: Chat / Agentic / Image / Video / Audio / Document
- * tabs, card copy (description, Best for, license, size, Recommended /
- * Required / Compatible), Download vs Downloaded, hardware gating, and one
- * Favorite star per tab. Search stays as a secondary filter. Unknown tasks
- * land in Other so a row is never dropped. The installer Qt wizard is not
+ * tabs, compact rows (name, badges, chips, size, VRAM), Download vs a
+ * highlighted Downloaded state, hardware gating, and one Favorite star per
+ * tab. Search stays as a secondary filter. Unknown tasks land in Other so a
+ * row is never dropped. Long description copy lives behind a closed details
+ * disclosure, matching installer density. The installer Qt wizard is not
  * iframed.
  */
 
@@ -19,8 +20,9 @@ import {
   CATALOG_TAB_DEFS,
   catalogTabsFor,
   cardBadgeLabel,
+  catalogSortGpuVendor,
   modelsOnTab,
-  sortModelsOnTab,
+  visibleModelsOnTab,
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
 import { filterCatalog, modelFitsHost } from "../../shared/models/modelLibrary";
@@ -132,7 +134,10 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
 
   const otherCount = modelsOnTab(searched, "other").length;
   const tabDefs = otherCount > 0 ? [...CATALOG_TAB_DEFS, { id: "other" as const, label: "Other" }] : CATALOG_TAB_DEFS;
-  const visible = sortModelsOnTab(modelsOnTab(searched, tab), hostVramGB);
+  const visible = visibleModelsOnTab(searched, tab, {
+    hostVramGB,
+    gpuVendor: catalogSortGpuVendor(hostVramGB),
+  });
 
   async function refresh(): Promise<void> {
     const list = await client.list();
@@ -327,8 +332,29 @@ function ModelCard({
   const downloaded = item.installed && item.source !== "catalog-only";
   const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
   const contextChip = formatContextChip(item);
+  const card: CSSProperties = {
+    ...cardStyle,
+    ...(downloaded
+      ? {
+          background: "color-mix(in srgb, var(--status-ok, #16a34a) 14%, var(--bg-1, transparent))",
+          border: "1px solid color-mix(in srgb, var(--status-ok, #16a34a) 45%, var(--border-1, #2a2a2a))",
+        }
+      : null),
+    ...(overBudget
+      ? {
+          opacity: 0.55,
+          color: "var(--fg-muted)",
+        }
+      : null),
+  };
   return (
-    <li data-testid={`models-row-${item.id}`} style={cardStyle}>
+    <li
+      data-testid={`models-row-${item.id}`}
+      data-compact="true"
+      data-downloaded={downloaded ? "true" : "false"}
+      data-over-budget={overBudget ? "true" : "false"}
+      style={card}
+    >
       <div style={{ display: "flex", gap: "var(--space-3, 12px)", alignItems: "flex-start" }}>
         <ModelIcon type={item.type} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -343,21 +369,6 @@ function ModelCard({
               <span style={{ fontSize: "0.75em", color: "var(--fg-muted)" }}>Also agentic</span>
             ) : null}
           </div>
-          {item.description ? (
-            <p data-testid={`models-row-${item.id}-description`} style={copyStyle}>
-              {item.description}
-            </p>
-          ) : null}
-          {item.strengths && item.strengths.length > 0 ? (
-            <p data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
-              Best for: {item.strengths.join(", ")}
-            </p>
-          ) : null}
-          {item.whyRecommended ? (
-            <p data-testid={`models-row-${item.id}-why`} style={copyStyle}>
-              Why this one: {item.whyRecommended}
-            </p>
-          ) : null}
           <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
             {item.family ?? "?"}
             {item.tag ? `:${item.tag}` : ""}
@@ -390,6 +401,26 @@ function ModelCard({
               </span>
             ) : null}
           </div>
+          {item.description || (item.strengths && item.strengths.length > 0) || item.whyRecommended ? (
+            <details data-testid={`models-row-${item.id}-details`} style={{ marginTop: 4 }}>
+              <summary style={{ cursor: "pointer", fontSize: "0.8em", color: "var(--fg-muted)" }}>Details</summary>
+              {item.description ? (
+                <p data-testid={`models-row-${item.id}-description`} style={copyStyle}>
+                  {item.description}
+                </p>
+              ) : null}
+              {item.strengths && item.strengths.length > 0 ? (
+                <p data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
+                  Best for: {item.strengths.join(", ")}
+                </p>
+              ) : null}
+              {item.whyRecommended ? (
+                <p data-testid={`models-row-${item.id}-why`} style={copyStyle}>
+                  Why this one: {item.whyRecommended}
+                </p>
+              ) : null}
+            </details>
+          ) : null}
           {selectedMissing ? (
             <p data-testid={`models-row-${item.id}-selected-missing`} style={copyStyle}>
               Selected during setup but not found in Ollama. Retry the download, or ignore if the installer skipped this sibling.
@@ -496,7 +527,17 @@ function RowActions({
   if (downloaded) {
     return (
       <div style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}>
-        <span data-testid={`models-downloaded-${item.id}`} style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
+        <span
+          data-testid={`models-downloaded-${item.id}`}
+          style={{
+            fontSize: "0.8em",
+            fontWeight: 600,
+            padding: "2px 8px",
+            borderRadius: "999px",
+            background: "color-mix(in srgb, var(--status-ok, #16a34a) 22%, transparent)",
+            color: "var(--status-ok, #16a34a)",
+          }}
+        >
           Downloaded
         </span>
         {onRemove ? (

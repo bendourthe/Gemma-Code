@@ -174,6 +174,7 @@ describe("ModelsSettings", () => {
     ];
     await loaded(ctx);
     expect(screen.getByTestId("models-downloaded-gemma-4-12b-it-gguf")).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-gemma-4-12b-it-gguf")).toHaveAttribute("data-downloaded", "true");
     expect(screen.queryByTestId("models-install-gemma-4-12b-it-gguf")).not.toBeInTheDocument();
   });
 
@@ -303,7 +304,50 @@ describe("ModelsSettings", () => {
     await loaded(client(), { hostVramGB: 8 });
     fireEvent.click(screen.getByTestId("models-tab-video"));
     expect(screen.getByTestId("models-over-budget-ltx-video")).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-ltx-video")).toHaveAttribute("data-over-budget", "true");
     expect(screen.queryByTestId("models-install-ltx-video")).not.toBeInTheDocument();
+  });
+
+  it("hides hideBelowVram siblings and collapses a family to the best fit", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      {
+        id: "gemma-e2b",
+        displayName: "Gemma E2B",
+        family: "gemma",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 4,
+      },
+      {
+        id: "gemma-e4b",
+        displayName: "Gemma E4B",
+        family: "gemma",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 6,
+        tags: ["recommended"],
+      },
+      {
+        id: "kimi-hidden",
+        displayName: "Kimi Large",
+        family: "kimi",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 24,
+        hideBelowVramGB: 20,
+      },
+    ];
+    await loaded(ctx, { hostVramGB: 16 });
+    expect(screen.getByTestId("models-row-gemma-e4b")).toBeInTheDocument();
+    expect(screen.queryByTestId("models-row-gemma-e2b")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("models-row-kimi-hidden")).not.toBeInTheDocument();
   });
 
   it("renders installer card copy and the LFM use-restriction note", async () => {
@@ -345,6 +389,8 @@ describe("ModelsSettings", () => {
     expect(screen.getByTestId("models-row-lfm2.5:2.6b-description").textContent).toMatch(/On-device agentic/);
     expect(screen.getByTestId("models-row-lfm2.5:2.6b-best-for").textContent).toMatch(/Tool calling on CPU/);
     expect(screen.getByTestId("models-row-lfm2.5:2.6b-why").textContent).toMatch(/sub-4 GB/);
+    expect(screen.getByTestId("models-row-lfm2.5:2.6b")).toHaveAttribute("data-compact", "true");
+    expect(screen.getByTestId("models-row-lfm2.5:2.6b-details")).not.toHaveAttribute("open");
     const note = screen.getByTestId("models-row-lfm2.5:2.6b-license-note");
     expect(note.textContent).toMatch(/USD 10M/i);
     expect(note.querySelector("a")?.getAttribute("href")).toBe("https://www.liquid.ai/lfm-license");
@@ -470,9 +516,10 @@ describe("ModelsSettings", () => {
     render(<ModelsSettings client={sanaClient} hostVramGB={16} />);
     await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
     fireEvent.click(screen.getByTestId("models-tab-image"));
-    const rows = screen.getAllByTestId(/models-row-/);
+    const rows = screen.getAllByTestId(/^models-row-(sana-sprint-1024|sana-1\.6b-4k)$/);
     expect(rows[0]).toHaveAttribute("data-testid", "models-row-sana-sprint-1024");
     expect(rows[1]).toHaveAttribute("data-testid", "models-row-sana-1.6b-4k");
+    expect(rows[1]).toHaveAttribute("data-over-budget", "true");
     expect(screen.getByTestId("models-badge-sana-1.6b-4k").textContent).toBe("Needs 20 GB VRAM");
     expect(screen.getByTestId("models-badge-sana-sprint-1024").textContent).toBe("Recommended");
     expect(screen.getByTestId("models-chip-origin-sana-1.6b-4k").textContent).toMatch(/USA/);

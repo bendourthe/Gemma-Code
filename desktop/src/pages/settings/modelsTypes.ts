@@ -73,6 +73,8 @@ export interface ListedModelDto {
   contextWindow?: number | null;
   contextWindowIn?: number | null;
   contextWindowOut?: number | null;
+  /** v2.2.8 Phase 4 -- installer hide-below floor; 0/omit means no floor. */
+  hideBelowVramGB?: number;
 }
 
 export interface InstallProgressDto {

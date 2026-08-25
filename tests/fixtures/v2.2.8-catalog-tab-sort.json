@@ -1,0 +1,109 @@
+{
+  "hostVramGB": 16,
+  "gpuVendor": "nvidia",
+  "defaults": ["gemma-e4b"],
+  "recommendOrder": ["gemma-e4b"],
+  "models": [
+    {
+      "id": "nomic-embed-text",
+      "displayName": "Nomic Embed Text",
+      "family": "nomic",
+      "type": "embed",
+      "task": "embed",
+      "vramGB": 1,
+      "tags": ["required"],
+      "releaseDate": "2024-01-01",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "gemma-e2b",
+      "displayName": "Gemma E2B",
+      "family": "gemma",
+      "type": "llm",
+      "task": "chat",
+      "vramGB": 4,
+      "tags": [],
+      "releaseDate": "2026-01-01",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "gemma-e4b",
+      "displayName": "Gemma E4B",
+      "family": "gemma",
+      "type": "llm",
+      "task": "chat",
+      "vramGB": 6,
+      "tags": ["recommended"],
+      "releaseDate": "2026-02-01",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "gemma-26b",
+      "displayName": "Gemma 26B",
+      "family": "gemma",
+      "type": "llm",
+      "task": "chat",
+      "vramGB": 22,
+      "tags": [],
+      "releaseDate": "2026-03-01",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "kimi-hidden",
+      "displayName": "Kimi Large",
+      "family": "kimi",
+      "type": "llm",
+      "task": "chat",
+      "vramGB": 24,
+      "hideBelowVramGB": 20,
+      "tags": [],
+      "releaseDate": "2026-04-01",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "qwen-compat",
+      "displayName": "Qwen Compatible",
+      "family": "qwen",
+      "type": "llm",
+      "task": "chat",
+      "vramGB": 8,
+      "tags": [],
+      "releaseDate": "2025-01-01",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "sana-sprint",
+      "displayName": "SANA Sprint",
+      "family": "sana",
+      "type": "image",
+      "task": "image",
+      "vramGB": 8,
+      "tags": ["recommended"],
+      "releaseDate": "2026-05-01",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "sana-4k",
+      "displayName": "SANA 4K",
+      "family": "sana",
+      "type": "image",
+      "task": "image",
+      "vramGB": 20,
+      "tags": [],
+      "releaseDate": "2025-09-10",
+      "installed": false,
+      "source": "catalog-only"
+    }
+  ],
+  "expectedIds": {
+    "chat": ["nomic-embed-text", "gemma-e4b", "qwen-compat", "gemma-26b"],
+    "image": ["sana-sprint", "sana-4k"]
+  }
+}

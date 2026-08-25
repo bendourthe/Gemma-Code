@@ -96,6 +96,9 @@ jobs:
       # title bar); chat/coding pending orbs use size=bubble (not inline 20px)
       # and are centered; image/video pending stays hero. No thinking-orbs
       # package. No live GPU in PR CI.
+      # v2.2.8 Phase 4: Settings Models matches installer sort (family collapse,
+      # hideBelowVram, over-budget last); compact cards; Downloaded highlight;
+      # QuickModelSwitcher uses that order. No live GPU in PR CI.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

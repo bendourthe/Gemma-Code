@@ -83,6 +83,7 @@ export interface ListedModelDto {
     contextWindow?: number | null;
     contextWindowIn?: number | null;
     contextWindowOut?: number | null;
+    hideBelowVramGB?: number;
   }
 
 export interface DiskUsageDto {
@@ -307,6 +308,7 @@ function toDto(m: ListedModel): ListedModelDto {
     contextWindow: m.contextWindow ?? null,
     contextWindowIn: m.contextWindowIn ?? null,
     contextWindowOut: m.contextWindowOut ?? null,
+    hideBelowVramGB: m.hideBelowVramGB,
   };
 }
 

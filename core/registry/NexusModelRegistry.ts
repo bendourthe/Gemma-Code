@@ -133,6 +133,8 @@ export interface ListedModel {
   readonly contextWindow?: number | null;
   readonly contextWindowIn?: number | null;
   readonly contextWindowOut?: number | null;
+  /** v2.2.8 Phase 4 -- installer hide-below floor. */
+  readonly hideBelowVramGB?: number;
 }
 
 export interface ListFilter {
@@ -244,6 +246,7 @@ export class NexusModelRegistry {
         origin: spec?.origin,
         releaseDate: spec?.releaseDate,
         uncensored: spec?.uncensored,
+        hideBelowVramGB: spec?.hideBelowVramGB,
         ...contextFields(spec, manifest.id),
       });
     }
@@ -282,6 +285,7 @@ export class NexusModelRegistry {
         origin: spec.origin,
         releaseDate: spec.releaseDate,
         uncensored: spec.uncensored,
+        hideBelowVramGB: spec.hideBelowVramGB,
         ...contextFields(spec, spec.id),
       });
     }

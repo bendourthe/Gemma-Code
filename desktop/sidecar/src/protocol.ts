@@ -1548,6 +1548,7 @@ export const ModelListedEntry = z
       })
       .strict()
       .optional(),
+    hideBelowVramGB: z.number().nonnegative().optional(),
   })
   .strict();
 export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;

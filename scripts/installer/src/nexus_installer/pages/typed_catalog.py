@@ -53,6 +53,15 @@ from PyQt5.QtWidgets import (
 )
 
 from nexus_installer import registry_paths
+from nexus_installer.catalog_tab_sort import (
+    collapse_and_sort as shared_collapse_and_sort,
+)
+from nexus_installer.catalog_tab_sort import (
+    is_over_budget as shared_is_over_budget,
+)
+from nexus_installer.catalog_tab_sort import (
+    release_ordinal,
+)
 from nexus_installer.constants import (
     ACCENT,
     ACCENT_BRIGHT,
@@ -397,15 +406,22 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
 
 def _release_ordinal(value: str) -> int:
     """YYYYMMDD integer for newest-first sort; missing/invalid dates sort last."""
-    text = (value or "").strip()
-    parts = text.split("-")
-    try:
-        year = int(parts[0])
-        month = int(parts[1]) if len(parts) > 1 else 0
-        day = int(parts[2]) if len(parts) > 2 else 0
-        return year * 10000 + month * 100 + day
-    except (TypeError, ValueError):
-        return 0
+    return release_ordinal(value)
+
+
+def _catalog_model_sort_row(model: CatalogModel) -> dict[str, object]:
+    tags: list[str] = []
+    if model.is_required:
+        tags.append("required")
+    return {
+        "id": model.id,
+        "displayName": model.display_name,
+        "family": model.family or model.id,
+        "vramGB": model.required_vram_gb,
+        "hideBelowVramGB": model.hide_below_vram_gb,
+        "releaseDate": model.release_date,
+        "tags": tags,
+    }
 
 
 def _is_over_budget(model: CatalogModel, host_vram_gb: int, gpu_vendor: str) -> bool:
@@ -414,11 +430,11 @@ def _is_over_budget(model: CatalogModel, host_vram_gb: int, gpu_vendor: str) -> 
     Over-budget models sort to the bottom of a tab and are disabled (v1.13.0
     Phase 4). A no-GPU host is over budget for any model that needs VRAM.
     """
-    if model.required_vram_gb <= 0:
-        return False
-    if gpu_vendor == "none":
-        return True
-    return host_vram_gb < model.required_vram_gb
+    return shared_is_over_budget(
+        {"vramGB": model.required_vram_gb},
+        host_vram_gb,
+        gpu_vendor,
+    )
 
 
 def compatibility_badge(
@@ -948,58 +964,21 @@ class TypedCatalogPage(QWidget):
         rows come first: required, then pre-ticked defaults, then the rest of
         this tier's recommended.json list (recommendation order), then newest
         release, then most-capable. Over-budget rows follow.
+
+        v2.2.8 Phase 4: the comparison and order live in
+        ``nexus_installer.catalog_tab_sort`` so Settings can dual-assert the
+        same id list.
         """
-        defaults = defaults or set()
-        rec_rank = {
-            model_id: index for index, model_id in enumerate(recommend_order or ())
-        }
-
-        def vram(m: CatalogModel) -> float:
-            return float(m.required_vram_gb)
-
-        def recommend_group(m: CatalogModel) -> int:
-            if m.id in defaults:
-                return 0
-            if m.id in rec_rank:
-                return 1
-            return 2
-
-        by_family: dict[str, list[CatalogModel]] = {}
-        for model in self._models_for_section(section_key):
-            if model.hide_below_vram_gb > 0 and host_vram_gb < model.hide_below_vram_gb:
-                continue
-            by_family.setdefault(model.family or model.id, []).append(model)
-
-        enabled: list[CatalogModel] = []
-        disabled: list[CatalogModel] = []
-        for members in by_family.values():
-            fitting = [
-                m for m in members if not _is_over_budget(m, host_vram_gb, gpu_vendor)
-            ]
-            over = [m for m in members if _is_over_budget(m, host_vram_gb, gpu_vendor)]
-            if fitting:
-                # Prefer the family's tier default so the recommended pick stays
-                # pre-selected; otherwise the most capable variant that fits.
-                pool = [m for m in fitting if m.id in defaults] or fitting
-                best = min(pool, key=lambda m: (-vram(m), m.display_name))
-                enabled.append(best)
-                disabled.extend(over)  # larger tiers, shown grayed at the bottom
-            else:
-                # No variant fits: show the smallest so the family still appears.
-                disabled.append(min(members, key=lambda m: (vram(m), m.display_name)))
-
-        enabled.sort(
-            key=lambda m: (
-                not m.is_required,
-                recommend_group(m),
-                rec_rank.get(m.id, 10_000),
-                -_release_ordinal(m.release_date),
-                -vram(m),
-                m.display_name,
-            )
+        section = list(self._models_for_section(section_key))
+        by_id = {m.id: m for m in section}
+        ordered = shared_collapse_and_sort(
+            [_catalog_model_sort_row(m) for m in section],
+            host_vram_gb=host_vram_gb,
+            gpu_vendor=gpu_vendor,
+            defaults=defaults or set(),
+            recommend_order=recommend_order,
         )
-        disabled.sort(key=lambda m: (vram(m), m.display_name))
-        return enabled + disabled
+        return [by_id[i] for i in ordered if i in by_id]
 
     def _build_tab(
         self,

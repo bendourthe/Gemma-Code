@@ -55,6 +55,56 @@ describe("QuickModelSwitcher", () => {
     expect(values).toEqual(["gemma4:e4b", "qwen2.5-coder:7b", GET_MORE_MODELS_ID]);
   });
 
+  it("orders llm pickers the same way Settings sorts the Chat tab", () => {
+    const shuffled: ListedModelDto[] = [
+      {
+        id: "qwen-compat",
+        displayName: "Qwen Compatible",
+        type: "llm",
+        task: "chat",
+        family: "qwen",
+        installed: true,
+        source: "registry",
+        vramGB: 8,
+      },
+      {
+        id: "gemma-e4b",
+        displayName: "Gemma E4B",
+        type: "llm",
+        task: "chat",
+        family: "gemma",
+        installed: true,
+        source: "registry",
+        vramGB: 6,
+        tags: ["recommended"],
+      },
+      {
+        id: "sana",
+        displayName: "SANA",
+        type: "image",
+        task: "image",
+        installed: true,
+        source: "registry",
+        vramGB: 8,
+      },
+    ];
+    render(
+      <QuickModelSwitcher
+        models={shuffled}
+        taskType="llm"
+        value="qwen-compat"
+        onChange={() => undefined}
+        hostVramGB={16}
+      />,
+    );
+    const select = screen.getByTestId("quick-model-switcher") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual([
+      "gemma-e4b",
+      "qwen-compat",
+      GET_MORE_MODELS_ID,
+    ]);
+  });
+
   it("does not list catalog-only entries or other task types", () => {
     render(
       <QuickModelSwitcher

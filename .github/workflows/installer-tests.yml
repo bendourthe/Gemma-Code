@@ -8,6 +8,9 @@
 # Silent no-op; do not clone Hub.
 # v2.2.7: scripts/installer/** covers Models tab context chips (`<val>k`,
 # no trailing "in"; null window omits the chip). Do not clone Hub.
+# v2.2.8 Phase 4: scripts/installer/** covers catalog_tab_sort (family
+# collapse + hideBelowVram + over-budget last) dual-asserted against
+# tests/fixtures/v2.2.8-catalog-tab-sort.json. Do not clone Hub.
 # PRs to main use the same path filter. workflow_dispatch always runs.
 name: Installer tests
 
@@ -26,6 +29,8 @@ on:
       - "core/registry/models.json"
       - "core/registry/patientTier.ts"
       - "core/config/**"
+      - "tests/fixtures/v2.2.8-catalog-tab-sort.json"
+      - "desktop/src/shared/models/catalogTabs.ts"
       - ".github/workflows/installer-tests.yml"
   pull_request:
     branches: ["main"]
@@ -41,6 +46,8 @@ on:
       - "core/registry/models.json"
       - "core/registry/patientTier.ts"
       - "core/config/**"
+      - "tests/fixtures/v2.2.8-catalog-tab-sort.json"
+      - "desktop/src/shared/models/catalogTabs.ts"
       - ".github/workflows/installer-tests.yml"
   workflow_dispatch: {}
 

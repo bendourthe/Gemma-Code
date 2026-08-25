@@ -823,11 +823,12 @@ export function CodingPage({
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <CodingInput disabled={busy} streaming={busy} onSubmit={handleSubmit} />
           <ComposerContextRow usage={contextUsage} onStartNewSession={() => void handleNewSession()}>
-            <QuickModelSwitcher
-              testId="coding-model-select"
-              models={listedModels}
-              taskType="llm"
-              ownedIds={ownedIdSet(selection)}
+              <QuickModelSwitcher
+                testId="coding-model-select"
+                models={listedModels}
+                taskType="llm"
+                catalogTab="agentic"
+                ownedIds={ownedIdSet(selection)}
               value={modelId}
               onChange={setModelId}
               onGetMoreModels={onGetMoreModels}
