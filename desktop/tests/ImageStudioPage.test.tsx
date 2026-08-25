@@ -73,6 +73,8 @@ describe("ImageStudioPage (chat)", () => {
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("sana-1.6b-1024");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
     // User bubble plus the auto-created session title both read the prompt.
     expect(screen.getAllByText("a fox").length).toBeGreaterThanOrEqual(1);
   });

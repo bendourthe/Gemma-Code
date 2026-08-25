@@ -37,6 +37,8 @@ import {
   MediaComposer,
   MessageList,
   composerSessionUsage,
+  isoTimestampFromMillis,
+  withLiveTimestamp,
   type ChatMessage,
 } from "../../shared/chat";
 import {
@@ -475,11 +477,12 @@ export function ChatPage({
   /** Append locally first, then persist non-pending rows without blocking UI. */
   const appendMessage = useCallback(
     (chatId: string, message: ChatMessage) => {
+      const stamped = withLiveTimestamp(message);
       const next = new Map(messagesByChatRef.current);
-      next.set(chatId, [...(next.get(chatId) ?? []), message]);
+      next.set(chatId, [...(next.get(chatId) ?? []), stamped]);
       messagesByChatRef.current = next;
       setMessagesByChat(next);
-      if (!message.pending) void persistMessage(chatId, message);
+      if (!stamped.pending) void persistMessage(chatId, stamped);
     },
     [persistMessage],
   );
@@ -1249,7 +1252,7 @@ function chatMessageFromRecord(record: ChatMessageRecord): ChatMessage {
     role: record.role,
     content: record.content,
     attachments: record.attachments,
-    timestamp: new Date(record.createdAt).toISOString(),
+    timestamp: isoTimestampFromMillis(record.createdAt),
     inputTokens: record.inputTokens ?? null,
     reasoningTokens: record.reasoningTokens ?? null,
     outputTokens: record.outputTokens ?? null,

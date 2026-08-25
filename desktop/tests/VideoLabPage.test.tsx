@@ -80,6 +80,8 @@ describe("VideoLabPage (chat)", () => {
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
   });
 
   it("does not generate until a conflicting active model switch is approved", async () => {

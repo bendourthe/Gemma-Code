@@ -33,7 +33,7 @@ import {
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
 
-import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
@@ -527,14 +527,14 @@ export function ImageStudioPage({
         if (verdict.kind === "not-installed" || verdict.kind === "defer") {
           setMessages((prev) => [
             ...prev,
-            {
+            withLiveTimestamp({
               id: nextId("assistant"),
               role: "assistant",
               content:
                 verdict.kind === "not-installed"
                   ? `${selectedModelId} is not installed. Install it in Settings > Models.`
                   : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
-            },
+            }),
           ]);
           return;
         }
@@ -555,7 +555,7 @@ export function ImageStudioPage({
           role: "assistant",
           content: UNREADABLE_OUTPUT_TEXT,
         };
-        setMessages((prev) => [...prev, userMsg, assistantMsg]);
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
         await ensureSession(text);
         persistTurn({ role: "user", content: text });
         persistTurn({ role: "assistant", content: UNREADABLE_OUTPUT_TEXT });
@@ -581,7 +581,7 @@ export function ImageStudioPage({
         pending: true,
         activity: "image-generation",
       };
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
       await ensureSession(text);
       persistTurn({ role: "user", content: text });
 

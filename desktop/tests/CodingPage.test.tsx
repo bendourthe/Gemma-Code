@@ -186,6 +186,8 @@ describe("CodingPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
     });
+    expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(1);
     expect(fake.calls.find((call) => call.method === "coding.session.start")?.params).toMatchObject({
       workspacePath: "C:\\work\\project",
     });

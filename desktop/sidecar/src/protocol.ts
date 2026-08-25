@@ -388,6 +388,7 @@ export const CodingSessionTurn = z
     reasoningTokens: z.number().int().nonnegative().nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
     tokensEstimated: z.boolean().optional(),
+    createdAt: z.string().optional(),
   })
   .strict();
 export type CodingSessionTurnT = z.infer<typeof CodingSessionTurn>;

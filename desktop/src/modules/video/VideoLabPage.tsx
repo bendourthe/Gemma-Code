@@ -29,7 +29,7 @@ import {
   useSidecarStatus,
 } from "../../lib/sidecarStatus";
 
-import { ComposerContextRow, MediaComposer, MessageList, chatComposerAccept, composerSessionUsage, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, chatComposerAccept, composerSessionUsage, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableVideoPath } from "../../shared/studio/usablePayload";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
@@ -625,14 +625,14 @@ export function VideoLabPage({
         if (verdict.kind === "not-installed" || verdict.kind === "defer") {
           setMessages((prev) => [
             ...prev,
-            {
+            withLiveTimestamp({
               id: nextId("vassistant"),
               role: "assistant",
               content:
                 verdict.kind === "not-installed"
                   ? `${selectedModelId} is not installed. Install it in Settings > Models.`
                   : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
-            },
+            }),
           ]);
           return;
         }
@@ -652,7 +652,7 @@ export function VideoLabPage({
           role: "assistant",
           content: UNREADABLE_OUTPUT_TEXT,
         };
-        setMessages((prev) => [...prev, userMsg, assistantMsg]);
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
         await ensureSession(text);
         persistTurn({ role: "user", content: text });
         persistTurn({ role: "assistant", content: UNREADABLE_OUTPUT_TEXT });
@@ -668,8 +668,14 @@ export function VideoLabPage({
       const assistantId = nextId("vassistant");
       setMessages((prev) => [
         ...prev,
-        userMsg,
-        { id: assistantId, role: "assistant", content: "", pending: true, activity: "video-generation" },
+        withLiveTimestamp(userMsg),
+        withLiveTimestamp({
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          pending: true,
+          activity: "video-generation",
+        }),
       ]);
       await ensureSession(text);
       persistTurn({ role: "user", content: text });

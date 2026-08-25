@@ -172,6 +172,7 @@ describe("CodingSessionManager", () => {
       reasoningTokens: 2,
       outputTokens: 10,
       tokensEstimated: false,
+      createdAt: "2026-05-17T11:00:00.000Z",
     });
   });
 

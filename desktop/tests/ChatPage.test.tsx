@@ -126,6 +126,8 @@ describe("<ChatPage>", () => {
     await user.type(textarea, "hello{Enter}");
     expect(await screen.findByText("hello")).toBeInTheDocument();
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
   });
 
   it("prepends the per-chat persona onto the outbound message", async () => {

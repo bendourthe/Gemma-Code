@@ -83,7 +83,8 @@ jobs:
       # v2.2.7: the same job covers Settings Models context chips
       # (128k / omit-on-null), chat/coding usage on done events,
       # studio persist of visualUnits, ContextUsageBar 79/80 CTA,
-      # and the composer picker row on Chat/Agents/Images/Videos.
+      # the composer picker row on Chat/Agents/Images/Videos, and
+      # MessageList once-per-day headings plus bubble time/tokens.
       # No live GPU in PR CI.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'

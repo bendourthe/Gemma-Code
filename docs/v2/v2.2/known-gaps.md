@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.7 Phase 3)
+**Last updated**: 2026-08-24 (v2.2.7 Phase 4)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,20 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.7
 
-**Last updated**: 2026-08-24 (Phase 3 - context pill and 80% CTA)
+**Last updated**: 2026-08-24 (Phase 4 - transcript date, time, and tokens)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 3 | 0 |
+| Deferred (DF) | 4 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. 79% has no CTA; 80% creates or selects a new session without deleting the old. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
 
 ### Open this cycle
 
@@ -47,6 +47,13 @@ Settings and installer Context chips are unit-proven as `<val>k` with no trailin
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 3)
 - **Reason**: Component tests cover 79% without CTA, 80% CTA creating a new Chatbot session without deleting the old tree row, hidden bar when no window or visual budget, and pickers under `composer-context-row` on Chat/Agents/Images/Videos. A packaged Explorer was not clicked through this phase. not_observed != absent.
 - **Suggested next step**: On a packaged build, send Chatbot turns until the pill reaches 80%, accept Start a new session, confirm the old chat remains; peek Images/Videos and confirm the picker sits under the composer and peeking does not load weights.
+
+##### DF-31 - Packaged transcript date, time, and token chrome is unproven
+
+- **Source phase**: v2.2.7 Phase 4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 4)
+- **Reason**: MessageList tests cover one heading per local day, discrete en-US clock text, skipped epoch timestamps, user `N in`, assistant `think + out`, and an em dash when unknown. Chat/Agents/Images/Videos smokes assert time and token testids after a turn. A packaged Explorer was not screenshotted this phase. not_observed != absent.
+- **Suggested next step**: Open all four modes on a packaged build; confirm one date heading per day, a clock on each bubble, user input tokens, and assistant reasoning+output or an em dash.
 
 ##### WN-7 - Context chip formatters are duplicated across TypeScript and Python
 

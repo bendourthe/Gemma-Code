@@ -20,7 +20,9 @@ describe("<MessageBubble>", () => {
     render(<MessageBubble message={msg} />);
     const bubble = screen.getByTestId("message-bubble-m1");
     expect(bubble).toHaveTextContent("Hello world");
-    expect(bubble.textContent).toBe("Hello world");
+    expect(bubble).not.toHaveTextContent("You");
+    expect(screen.getByTestId("message-tokens-m1")).toHaveTextContent("\u2014");
+    expect(screen.queryByTestId("message-time-m1")).toBeNull();
     expect(bubble.getAttribute("data-role")).toBe("user");
     expect(bubble.style.maxWidth).toBe("80%");
     expect(bubble.style.width).toBe("fit-content");
@@ -31,7 +33,8 @@ describe("<MessageBubble>", () => {
     render(<MessageBubble message={msg} />);
     const bubble = screen.getByTestId("message-bubble-a1");
     expect(bubble).toHaveTextContent("Sure");
-    expect(bubble.textContent).toBe("Sure");
+    expect(bubble).not.toHaveTextContent("Assistant");
+    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent("\u2014");
     expect(bubble.style.maxWidth).toBe("80%");
   });
 
@@ -110,6 +113,45 @@ describe("<MessageList>", () => {
   it("honours a custom emptyMessage", () => {
     render(<MessageList messages={[]} emptyMessage="No chats yet" />);
     expect(screen.getByTestId("message-list-empty")).toHaveTextContent("No chats yet");
+  });
+
+  it("shows one date heading per local day and discrete time plus tokens", () => {
+    const day1 = new Date(2026, 7, 24, 14, 15).toISOString();
+    const day1b = new Date(2026, 7, 24, 16, 0).toISOString();
+    const day2 = new Date(2026, 7, 25, 9, 0).toISOString();
+    render(
+      <MessageList
+        locale="en-US"
+        messages={[
+          { id: "u1", role: "user", content: "a", timestamp: day1, inputTokens: 12 },
+          { id: "a1", role: "assistant", content: "b", timestamp: day1b, reasoningTokens: 12, outputTokens: 36 },
+          { id: "u2", role: "user", content: "c", timestamp: day2, inputTokens: 3 },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("message-day-2026-08-24")).toHaveTextContent("Monday, August 24, 2026");
+    expect(screen.getByTestId("message-day-2026-08-25")).toHaveTextContent("Tuesday, August 25, 2026");
+    expect(screen.getAllByTestId(/^message-day-/)).toHaveLength(2);
+    expect(screen.getByTestId("message-time-u1")).toHaveTextContent(/2:15/);
+    expect(screen.getByTestId("message-tokens-u1")).toHaveTextContent("12 in");
+    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent("12 think + 36 out");
+    expect(screen.queryByTestId("message-time-missing")).toBeNull();
+  });
+
+  it("skips the clock for missing or epoch timestamps", () => {
+    render(
+      <MessageList
+        locale="en-US"
+        messages={[
+          { id: "u1", role: "user", content: "a", timestamp: "1970-01-01T00:00:00.000Z", inputTokens: 1 },
+          { id: "a1", role: "assistant", content: "b" },
+        ]}
+      />,
+    );
+    expect(screen.queryByTestId(/^message-day-/)).toBeNull();
+    expect(screen.queryByTestId("message-time-u1")).toBeNull();
+    expect(screen.queryByTestId("message-time-a1")).toBeNull();
+    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent("\u2014");
   });
 });
 

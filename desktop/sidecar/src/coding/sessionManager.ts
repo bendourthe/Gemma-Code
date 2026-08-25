@@ -34,6 +34,7 @@ interface SessionTurn {
   reasoningTokens?: number | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  createdAt?: string;
 }
 
 interface SessionRecord {
@@ -68,6 +69,7 @@ function copyTurn(turn: PersistedTurn | SessionTurn): SessionTurn {
     reasoningTokens: turn.reasoningTokens,
     outputTokens: turn.outputTokens,
     tokensEstimated: turn.tokensEstimated,
+    createdAt: turn.createdAt,
   };
 }
 
@@ -89,11 +91,16 @@ function usageFromCodingEvents(events: readonly CodingSessionEventT[]): {
   return { inputTokens: null, reasoningTokens: null, outputTokens: null };
 }
 
-function persistedTurnFromEvents(prompt: string, events: readonly CodingSessionEventT[]): SessionTurn {
+function persistedTurnFromEvents(
+  prompt: string,
+  events: readonly CodingSessionEventT[],
+  now: Date,
+): SessionTurn {
   const assistantText = tokenTextFromEvents(events);
   const usage = usageFromCodingEvents(events);
   const hasReported =
     usage.inputTokens != null || usage.reasoningTokens != null || usage.outputTokens != null;
+  const createdAt = now.toISOString();
   if (hasReported) {
     return {
       prompt,
@@ -102,6 +109,7 @@ function persistedTurnFromEvents(prompt: string, events: readonly CodingSessionE
       reasoningTokens: usage.reasoningTokens,
       outputTokens: usage.outputTokens,
       tokensEstimated: false,
+      createdAt,
     };
   }
   return {
@@ -110,6 +118,7 @@ function persistedTurnFromEvents(prompt: string, events: readonly CodingSessionE
     inputTokens: estimateTokens(prompt),
     outputTokens: estimateTokens(assistantText),
     tokensEstimated: true,
+    createdAt,
   };
 }
 
@@ -240,7 +249,7 @@ export class CodingSessionManager {
           },
           { kind: "done", finishReason: rec.cancelRequested ? "cancelled" : "stop" },
         ];
-    rec.turns.push(persistedTurnFromEvents(message, events));
+    rec.turns.push(persistedTurnFromEvents(message, events, this._now()));
     this._persist(rec);
     return events;
   }

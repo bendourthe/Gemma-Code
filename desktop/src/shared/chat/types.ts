@@ -24,7 +24,7 @@ export interface ChatMessage {
   content: string;
   /** Optional tool-call cards to render below the message (Coding only). */
   toolCards?: readonly ToolCard[];
-  /** ISO timestamp; the bubble shows a humanised "x seconds ago" label. */
+  /** ISO timestamp; the bubble shows a discrete local clock when parseable. */
   timestamp?: string;
 
   /*

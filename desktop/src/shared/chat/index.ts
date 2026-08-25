@@ -15,4 +15,14 @@ export { ModelSelector, type ModelSelectorProps } from "./ModelSelector";
 export { ContextUsageBar, type ContextUsageBarProps } from "./ContextUsageBar";
 export { ComposerContextRow, type ComposerContextRowProps } from "./ComposerContextRow";
 export { composerSessionUsage, usageTurnsFromMessages } from "./usageTurnsFromMessages";
+export {
+  UNKNOWN_TOKEN_MARK,
+  calendarDayKey,
+  formatBubbleTime,
+  formatBubbleTokens,
+  formatDateHeading,
+  isoTimestampFromMillis,
+  parseMessageTime,
+  withLiveTimestamp,
+} from "./transcriptChrome";
 export type { ChatMessage, ChatMedia, ChatRole, ToolCard, ModelOption } from "./types";

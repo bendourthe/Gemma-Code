@@ -41,6 +41,8 @@ export interface PersistedTurn {
   readonly reasoningTokens?: number | null;
   readonly outputTokens?: number | null;
   readonly tokensEstimated?: boolean;
+  /** v2.2.7 Phase 4 -- ISO time for transcript chrome. Optional on older files. */
+  readonly createdAt?: string;
 }
 
 /** A session as persisted to disk: summary + the full message history. */

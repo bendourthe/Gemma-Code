@@ -74,6 +74,7 @@ interface Turn {
   reasoningTokens?: number | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  createdAt?: string;
 }
 
 function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMessage[] {
@@ -83,6 +84,7 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
       id: `${turn.id}-user`,
       role: "user",
       content: turn.prompt,
+      timestamp: turn.createdAt,
       inputTokens: turn.inputTokens ?? null,
       tokensEstimated: turn.tokensEstimated,
     });
@@ -95,6 +97,7 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
         id: `${turn.id}-assistant`,
         role: "assistant",
         content: turn.rendered.text,
+        timestamp: turn.createdAt,
         toolCards: turn.rendered.cards.map((card) => ({
           callId: card.callId,
           name: card.name,
@@ -265,6 +268,7 @@ export function CodingPage({
         {
           id: turnId,
           prompt: userContent,
+          createdAt: new Date().toISOString(),
           rendered: { text: "Reading document...", cards: [], done: false },
           pending: true,
           activity: "document-parse",
@@ -353,6 +357,7 @@ export function CodingPage({
               {
                 id: `local-${Date.now()}`,
                 prompt: text,
+                createdAt: new Date().toISOString(),
                 rendered: { text: notice, cards: [], done: true },
               },
             ]);
@@ -391,6 +396,7 @@ export function CodingPage({
           {
             id: `${id}-${prev.length}`,
             prompt: text,
+            createdAt: new Date().toISOString(),
             rendered,
             inputTokens: estimated ? estimateTokens(text) : usage.inputTokens,
             reasoningTokens: usage.reasoningTokens,
@@ -458,6 +464,7 @@ export function CodingPage({
           reasoningTokens: turn.reasoningTokens ?? null,
           outputTokens: turn.outputTokens ?? null,
           tokensEstimated: turn.tokensEstimated,
+          createdAt: turn.createdAt,
         })),
       );
     } else {

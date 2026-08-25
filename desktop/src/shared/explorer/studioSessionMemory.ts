@@ -7,6 +7,7 @@
 
 import type { ChatMessage } from "../chat/types";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
+import { isoTimestampFromMillis } from "../chat/transcriptChrome";
 
 export const MISSING_OUTPUT_TEXT = "output missing on disk";
 export const UNREADABLE_OUTPUT_TEXT = "Last output is unreadable; cannot edit it.";
@@ -54,7 +55,7 @@ export function studioTurnsToChatMessages(
         id: turn.id,
         role: "user" as const,
         content: turn.content,
-        timestamp: new Date(turn.createdAt).toISOString(),
+        timestamp: isoTimestampFromMillis(turn.createdAt),
         inputTokens: turn.inputTokens ?? null,
         reasoningTokens: turn.reasoningTokens ?? null,
         outputTokens: turn.outputTokens ?? null,
@@ -68,7 +69,7 @@ export function studioTurnsToChatMessages(
         id: turn.id,
         role: "assistant" as const,
         content: turn.content.trim() ? turn.content : MISSING_OUTPUT_TEXT,
-        timestamp: new Date(turn.createdAt).toISOString(),
+        timestamp: isoTimestampFromMillis(turn.createdAt),
         inputTokens: turn.inputTokens ?? null,
         reasoningTokens: turn.reasoningTokens ?? null,
         outputTokens: turn.outputTokens ?? null,
@@ -79,7 +80,7 @@ export function studioTurnsToChatMessages(
       id: turn.id,
       role: "assistant" as const,
       content: turn.content,
-      timestamp: new Date(turn.createdAt).toISOString(),
+        timestamp: isoTimestampFromMillis(turn.createdAt),
       inputTokens: turn.inputTokens ?? null,
       reasoningTokens: turn.reasoningTokens ?? null,
       outputTokens: turn.outputTokens ?? null,
