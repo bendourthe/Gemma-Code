@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ipc } from "../../lib/ipc";
+import { formatInferenceError } from "../../lib/inferenceRpcError";
 import type {
   CodingSessionEventT,
   CodingSessionListResponseT,
@@ -382,7 +383,7 @@ export function CodingPage({
           events: CodingSessionEventT[];
         }>("coding.session.sendMessage", { sessionId: id, message: text });
         if (!reply.ok) {
-          setError(`sendMessage failed: ${reply.message}`);
+          setError(`sendMessage failed: ${formatInferenceError(reply.message)}`);
           return;
         }
         const rendered = applyEvents(reply.value.events);

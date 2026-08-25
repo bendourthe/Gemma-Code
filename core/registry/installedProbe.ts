@@ -17,7 +17,7 @@
 
 import type { CatalogFile } from "./catalog.js";
 import { findSpec } from "./catalog.js";
-import { aliasesFor, lookupAlias } from "./modelAliases.js";
+import { aliasesFor, foldModelId, lookupAlias } from "./modelAliases.js";
 import type { ListedModel } from "./NexusModelRegistry.js";
 
 /**
@@ -62,6 +62,29 @@ export interface InstalledProbe {
   readonly weightsMarkerIds?: ReadonlySet<string>;
 }
 
+/**
+ * True when Ollama's `/api/tags` set covers this catalog id or one of its
+ * aliases. Unknown tags never fold onto Gemma: `foldModelId` of an unmapped
+ * id is itself, so `totally-unknown:7b` cannot mark `gemma-4-12b-it-gguf`.
+ */
+export function ollamaTagsIncludeModel(
+  modelId: string,
+  ollamaTags: ReadonlySet<string>,
+): boolean {
+  const candidates = new Set<string>([modelId, ...aliasesFor(modelId)]);
+  const folded = foldModelId(modelId);
+  if (folded) candidates.add(folded);
+  for (const candidate of candidates) {
+    if (ollamaTags.has(candidate)) return true;
+  }
+  for (const tag of ollamaTags) {
+    if (foldModelId(tag) === folded && lookupAlias(modelId) !== undefined) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** True when the probe proves this catalog id is present on disk. */
 export function isOnDisk(modelId: string, probe: InstalledProbe): boolean {
   if (probe.weightsMarkerIds?.has(modelId)) return true;
@@ -76,10 +99,10 @@ export function isOnDisk(modelId: string, probe: InstalledProbe): boolean {
  * weights tree. Snapshot membership is not consulted here.
  */
 export function isInstalledByAliases(modelId: string, probe: InstalledProbe): boolean {
+  if (ollamaTagsIncludeModel(modelId, probe.ollamaTags)) return true;
   const rec = lookupAlias(modelId);
   const ids = rec ? rec.aliases : aliasesFor(modelId);
   for (const alias of ids) {
-    if (probe.ollamaTags.has(alias)) return true;
     if (isOnDisk(alias, probe)) return true;
   }
   return false;
@@ -99,7 +122,9 @@ export function markInstalledFromProbe(
   return listed.map((model) => {
     if (model.installed || model.source !== "catalog-only") return model;
     const tag = ollamaTagForSpec(findSpec(catalog, model.id));
-    const inOllama = tag !== null && probe.ollamaTags.has(tag);
+    const inOllama =
+      (tag !== null && ollamaTagsIncludeModel(tag, probe.ollamaTags)) ||
+      ollamaTagsIncludeModel(model.id, probe.ollamaTags);
     if (inOllama || isOnDisk(model.id, probe) || isInstalledByAliases(model.id, probe)) {
       return { ...model, installed: true, source: "registry" };
     }

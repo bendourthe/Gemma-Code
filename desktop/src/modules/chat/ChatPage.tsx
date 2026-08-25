@@ -31,6 +31,7 @@ import {
   usageFromChatEvents,
   type ChatSessionClient,
 } from "./chatIpcClient";
+import { formatChatTurnError } from "../../lib/inferenceRpcError";
 import type { Chat, ChatMessageRecord } from "./types";
 import {
   ComposerContextRow,
@@ -564,7 +565,7 @@ export function ChatPage({
         content = joinChatReply(reply.events) || "(no reply)";
         usage = usageFromChatEvents(reply.events);
       } catch (err) {
-        content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
+        content = formatChatTurnError(err);
       }
       patchMessage(chatId, assistantId, { content, pending: false, ...usage });
       void persistMessage(chatId, { id: assistantId, role: "assistant", content, ...usage });

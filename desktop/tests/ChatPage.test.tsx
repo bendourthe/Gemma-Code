@@ -215,6 +215,60 @@ describe("<ChatPage>", () => {
     expect(await screen.findByText(/chat unavailable/)).toBeInTheDocument();
   });
 
+  it("does not surface sidecar response timeout for a slow first token", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => {
+        await gate;
+        return {
+          sessionId: "s1",
+          events: [
+            { kind: "token", text: "Hello there" },
+            { kind: "done", finishReason: "stop" },
+          ],
+        };
+      },
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
+    expect(await screen.findByText("Composing...")).toBeInTheDocument();
+    expect(screen.queryByText(/sidecar response timeout/i)).toBeNull();
+    release();
+    expect(await screen.findByText("Hello there")).toBeInTheDocument();
+    expect(screen.queryByText(/sidecar response timeout/i)).toBeNull();
+    expect(screen.queryByText(/chat unavailable/i)).toBeNull();
+  });
+
+  it("rewrites a sidecar timeout string into typed local-model copy", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => {
+        throw new Error("sidecar response timeout");
+      },
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
+    expect(await screen.findByText(/Check Ollama is running/)).toBeInTheDocument();
+    expect(screen.queryByText(/sidecar response timeout/i)).toBeNull();
+    expect(screen.queryByText(/chat unavailable/i)).toBeNull();
+  });
+
   it("does not render an Enable tools checkbox because tools stay on", () => {
     const client = new InMemoryChatExplorerClient();
     client.createFolder({ parentId: null, name: "Work" });

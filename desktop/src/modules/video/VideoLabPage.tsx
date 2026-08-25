@@ -23,6 +23,7 @@ import {
 import { ModelSwitchChip, ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { Button } from "../../components/ui";
+import { formatInferenceError } from "../../lib/inferenceRpcError";
 import {
   isBackendDownMessage,
   isSidecarFailureMessage,
@@ -575,7 +576,7 @@ export function VideoLabPage({
           chainRef.current = null;
           patchMessage(activeJob.messageId, {
             pending: false,
-            content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+            content: `Generation failed: ${formatInferenceError(err)}`,
           });
           setActiveJob(null);
         }
@@ -752,11 +753,11 @@ export function VideoLabPage({
         chainRef.current = null;
         patchMessage(assistantId, {
           pending: false,
-          content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          content: `Generation failed: ${formatInferenceError(err)}`,
         });
         persistTurn({
           role: "assistant",
-          content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          content: `Generation failed: ${formatInferenceError(err)}`,
         });
       }
     },

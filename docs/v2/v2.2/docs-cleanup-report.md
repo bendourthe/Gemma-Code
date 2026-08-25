@@ -196,3 +196,15 @@ The proposal to make the three scoped architecture changes, update the shell wor
 - No scratch docs, duplicate version trees, or empty tracked directories created.
 
 **Verdict**: Clean after deleting the unused Breadcrumb module.
+
+## v2.2.8 Phase 1 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md`.
+- New helper `desktop/src/lib/inferenceRpcError.ts` sits next to `sidecarStatus.ts`.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.

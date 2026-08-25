@@ -54,6 +54,12 @@ describe("queryOllamaTags", () => {
   it("returns empty when Ollama is unreachable", async () => {
     expect(await queryOllamaTags("http://x", throwingFetch)).toEqual(new Set());
   });
+
+  it("collects the model field when name is absent (newer Ollama /api/tags)", async () => {
+    const fetchFn = (async () =>
+      okJson({ models: [{ model: "gemma4:12b" }] })) as unknown as typeof fetch;
+    expect(await queryOllamaTags("http://x", fetchFn)).toEqual(new Set(["gemma4:12b"]));
+  });
 });
 
 describe("scanWeightsIds", () => {
@@ -82,6 +88,31 @@ describe("ModelsService.list", () => {
       catalog: CATALOG,
       modelsRoot: "/nonexistent-models-root",
       fetchFn: (async () => okJson({ models: [{ name: "gemma4:12b" }] })) as unknown as typeof fetch,
+      loadSnapshot: async () => null,
+    });
+    const out = await svc.list();
+    expect(out[0]).toMatchObject({
+      id: "gemma-4-12b-it-gguf",
+      installed: true,
+      source: "registry",
+    });
+  });
+
+  it("marks gemma-4-12b-it-gguf installed when /api/tags only has model, not name", async () => {
+    const listed = [
+      {
+        id: "gemma-4-12b-it-gguf",
+        displayName: "Gemma 4 12B",
+        installed: false,
+        source: "catalog-only",
+        type: "llm",
+      },
+    ] as ListedModel[];
+    const svc = new ModelsService({
+      registry: fakeRegistry(listed),
+      catalog: CATALOG,
+      modelsRoot: "/nonexistent-models-root",
+      fetchFn: (async () => okJson({ models: [{ model: "gemma4:12b" }] })) as unknown as typeof fetch,
       loadSnapshot: async () => null,
     });
     const out = await svc.list();

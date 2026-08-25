@@ -41,12 +41,52 @@ const READY_MARKER: &str = "[nexus-sidecar] ready";
 const RPC_TIMEOUT_DEFAULT: Duration = Duration::from_secs(15);
 /// Hub `skills.sync` may clone for minutes; other methods keep 15s.
 const RPC_TIMEOUT_SKILLS_SYNC: Duration = Duration::from_secs(10 * 60);
+/// Local chat/coding/image/video generate RPCs stay open for a cold first
+/// token. Documented cap: 10 minutes. Ping and list stay at 15s.
+const RPC_TIMEOUT_INFERENCE: Duration = Duration::from_secs(10 * 60);
 const HUB_SYNC_TIMEOUT_MSG: &str = "Hub fetch did not finish. Check the network and retry Update now. The sidecar is still running.";
+const INFERENCE_TIMEOUT_MSG: &str = "Local model did not finish in time. Check Ollama is running and the weights are loaded. The sidecar is still running.";
+
+/// Chat/coding send and image/video generate. Exact names only; a malformed
+/// method keeps the 15s default.
+fn is_inference_rpc(method: &str) -> bool {
+    matches!(
+        method,
+        "chat.send"
+            | "chat.session.sendMessage"
+            | "coding.session.sendMessage"
+            | "coding.startTask"
+            | "image.generate"
+            | "video.generate"
+            | "diffusion.txt2img"
+            | "diffusion.img2img"
+            | "diffusion.inpaint"
+            | "diffusion.outpaint"
+            | "diffusion.segment"
+            | "diffusion.video.text2video"
+            | "diffusion.video.image2video"
+            | "diffusion.video.audio2video"
+    )
+}
 
 pub fn rpc_timeout_for(method: &str) -> Duration {
     match method {
         "skills.sync" => RPC_TIMEOUT_SKILLS_SYNC,
+        m if is_inference_rpc(m) => RPC_TIMEOUT_INFERENCE,
         _ => RPC_TIMEOUT_DEFAULT,
+    }
+}
+
+/// Typed copy when a minutes-class RPC hits its cap. `None` means the
+/// shell should emit `SidecarError::Timeout` ("sidecar response timeout"),
+/// which is reserved for a dead/hung sidecar on short RPCs.
+pub fn rpc_timeout_typed_message(method: &str) -> Option<&'static str> {
+    if method == "skills.sync" {
+        Some(HUB_SYNC_TIMEOUT_MSG)
+    } else if is_inference_rpc(method) {
+        Some(INFERENCE_TIMEOUT_MSG)
+    } else {
+        None
     }
 }
 
@@ -533,11 +573,12 @@ impl Sidecar {
                 if let Ok(mut map) = handle.pending.lock() {
                     map.remove(&id);
                 }
-                // A Hub clone can exceed 15s on a healthy sidecar. Do not raise
-                // the global timeout; do not report "sidecar response timeout"
-                // when the sidecar is still answering other RPCs.
-                if method == "skills.sync" {
-                    Err(SidecarError::Request(HUB_SYNC_TIMEOUT_MSG.to_string()))
+                // Minutes-class RPCs (Hub clone, local inference) can exceed
+                // 15s on a healthy sidecar. Do not raise the global timeout;
+                // do not report "sidecar response timeout" when the sidecar
+                // is still answering other RPCs (ping stays 15s).
+                if let Some(msg) = rpc_timeout_typed_message(method) {
+                    Err(SidecarError::Request(msg.to_string()))
                 } else {
                     Err(SidecarError::Timeout)
                 }
@@ -906,11 +947,45 @@ mod tests {
     fn rpc_timeout_keeps_15s_for_ordinary_methods() {
         assert_eq!(rpc_timeout_for("ping"), Duration::from_secs(15));
         assert_eq!(rpc_timeout_for("models.list"), Duration::from_secs(15));
-        assert_eq!(rpc_timeout_for("chat.send"), Duration::from_secs(15));
+        assert_eq!(rpc_timeout_for("skills.status"), Duration::from_secs(15));
+        assert_eq!(rpc_timeout_for("chat.explorer.tree"), Duration::from_secs(15));
+        // Malformed / unknown names stay on the short default.
+        assert_eq!(rpc_timeout_for(""), Duration::from_secs(15));
+        assert_eq!(rpc_timeout_for("chat.send "), Duration::from_secs(15));
+        assert_eq!(rpc_timeout_for("CHAT.SEND"), Duration::from_secs(15));
     }
 
     #[test]
-    fn rpc_timeout_allows_minutes_for_skills_sync() {
+    fn rpc_timeout_chat_send_is_not_15s() {
+        assert_ne!(rpc_timeout_for("chat.send"), Duration::from_secs(15));
+        assert_eq!(rpc_timeout_for("chat.send"), Duration::from_secs(600));
+        assert_eq!(
+            rpc_timeout_for("chat.session.sendMessage"),
+            Duration::from_secs(600)
+        );
+        assert_eq!(
+            rpc_timeout_for("coding.session.sendMessage"),
+            Duration::from_secs(600)
+        );
+        assert_eq!(rpc_timeout_for("diffusion.txt2img"), Duration::from_secs(600));
+        assert_eq!(
+            rpc_timeout_for("diffusion.video.text2video"),
+            Duration::from_secs(600)
+        );
+        assert_eq!(rpc_timeout_for("image.generate"), Duration::from_secs(600));
+        assert_eq!(rpc_timeout_for("video.generate"), Duration::from_secs(600));
+        assert!(rpc_timeout_typed_message("chat.send").is_some());
+        assert!(rpc_timeout_typed_message("chat.session.sendMessage").is_some());
+        assert!(rpc_timeout_typed_message("ping").is_none());
+    }
+
+    #[test]
+    fn rpc_timeout_ping_stays_short_while_generate_is_minutes() {
+        // Concurrent ping during a long generate: ping still 15s and can
+        // succeed while generate continues inside its 10-minute cap.
+        assert_eq!(rpc_timeout_for("ping"), Duration::from_secs(15));
+        assert!(rpc_timeout_for("chat.send") > rpc_timeout_for("ping"));
+        assert!(rpc_timeout_for("diffusion.txt2img") > rpc_timeout_for("ping"));
         assert_eq!(rpc_timeout_for("skills.sync"), Duration::from_secs(600));
         assert!(rpc_timeout_for("skills.sync") > rpc_timeout_for("ping"));
     }

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { markInstalledFromProbe, ollamaTagForSpec } from "../../core/registry/installedProbe";
+import { markInstalledFromProbe, ollamaTagForSpec, ollamaTagsIncludeModel } from "../../core/registry/installedProbe";
 import type { CatalogFile } from "../../core/registry/catalog";
 import type { ListedModel } from "../../core/registry/NexusModelRegistry";
 
@@ -79,6 +79,34 @@ describe("markInstalledFromProbe", () => {
     expect(out[0]).toMatchObject({ installed: true, source: "registry" });
   });
 
+  it("does not map an unknown Ollama tag onto Gemma", () => {
+    const out = markInstalledFromProbe([catalogOnly("gemma-4-12b-it-gguf")], CATALOG, {
+      ollamaTags: new Set(["totally-unknown:7b"]),
+      weightsIds: new Set(),
+    });
+    expect(out[0]).toMatchObject({ installed: false, source: "catalog-only" });
+  });
+
+  it("leaves catalog-only when Ollama reports no tags", () => {
+    const out = markInstalledFromProbe([catalogOnly("gemma-4-12b-it-gguf")], CATALOG, {
+      ollamaTags: new Set(),
+      weightsIds: new Set(),
+    });
+    expect(out[0]).toMatchObject({ installed: false, source: "catalog-only" });
+  });
+
+  it("treats gemma4:12b as installed for catalog id gemma-4-12b-it-gguf via fold", () => {
+    const out = markInstalledFromProbe([catalogOnly("gemma-4-12b-it-gguf")], CATALOG, {
+      ollamaTags: new Set(["gemma4:12b"]),
+      weightsIds: new Set(),
+    });
+    expect(out[0]).toMatchObject({
+      id: "gemma-4-12b-it-gguf",
+      installed: true,
+      source: "registry",
+    });
+  });
+
   it("leaves already-installed registry / external entries untouched", () => {
     const reg = { id: "x", displayName: "X", installed: true, source: "registry" } as ListedModel;
     const ext = { id: "y", displayName: "Y", installed: true, source: "external" } as ListedModel;
@@ -87,5 +115,17 @@ describe("markInstalledFromProbe", () => {
       weightsIds: new Set(),
     });
     expect(out).toEqual([reg, ext]);
+  });
+});
+
+describe("ollamaTagsIncludeModel", () => {
+  it("matches catalog id gemma-4-12b-it-gguf to Ollama tag gemma4:12b", () => {
+    expect(ollamaTagsIncludeModel("gemma-4-12b-it-gguf", new Set(["gemma4:12b"]))).toBe(true);
+  });
+
+  it("does not match an unknown tag", () => {
+    expect(ollamaTagsIncludeModel("gemma-4-12b-it-gguf", new Set(["totally-unknown:7b"]))).toBe(
+      false,
+    );
   });
 });

@@ -268,6 +268,23 @@ describe("CodingPage", () => {
     expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
   });
 
+  it("rewrites sidecar response timeout on send into typed local-model copy", async () => {
+    const fake = makeFakeInvoke();
+    setInvokeOverride(async (_cmd, args) => {
+      const a = args as unknown as InvokeArgs;
+      if (a.method === "coding.session.sendMessage") {
+        throw new Error("sidecar response timeout");
+      }
+      return fake.invoke("ipc_call", args ?? {});
+    });
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    const alert = await screen.findByTestId("coding-error");
+    expect(alert.textContent ?? "").toMatch(/Check Ollama is running/);
+    expect(alert.textContent ?? "").not.toMatch(/sidecar response timeout/i);
+  });
+
   it("renders the Memory panel when the Memory tab is selected", async () => {
     render(<CodingPage initialTab="memory" />);
     await waitFor(() => {

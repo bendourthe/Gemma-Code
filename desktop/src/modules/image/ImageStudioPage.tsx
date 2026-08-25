@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Download, FileJson, ImagePlus } from "lucide-react";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { Button } from "../../components/ui";
+import { formatInferenceError } from "../../lib/inferenceRpcError";
 import {
   isBackendDownMessage,
   isSidecarFailureMessage,
@@ -474,7 +475,7 @@ export function ImageStudioPage({
           clearInterval(timer);
           patchMessage(activeJob.messageId, {
             pending: false,
-            content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+            content: `Generation failed: ${formatInferenceError(err)}`,
           });
           setActiveJob(null);
         }
@@ -655,11 +656,11 @@ export function ImageStudioPage({
       } catch (err) {
         patchMessage(assistantId, {
           pending: false,
-          content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          content: `Generation failed: ${formatInferenceError(err)}`,
         });
         persistTurn({
           role: "assistant",
-          content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          content: `Generation failed: ${formatInferenceError(err)}`,
         });
       }
     },

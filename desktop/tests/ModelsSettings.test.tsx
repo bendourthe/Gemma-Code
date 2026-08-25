@@ -158,6 +158,25 @@ describe("ModelsSettings", () => {
     expect(screen.queryByTestId("models-row-qwen2.5-coder:7b")).not.toBeInTheDocument();
   });
 
+  it("shows Downloaded for catalog id gemma-4-12b-it-gguf when the probe marked it installed", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      {
+        id: "gemma-4-12b-it-gguf",
+        displayName: "Gemma 4 12B",
+        family: "gemma4",
+        type: "llm",
+        task: "chat",
+        installed: true,
+        source: "registry",
+        vramGB: 11,
+      },
+    ];
+    await loaded(ctx);
+    expect(screen.getByTestId("models-downloaded-gemma-4-12b-it-gguf")).toBeInTheDocument();
+    expect(screen.queryByTestId("models-install-gemma-4-12b-it-gguf")).not.toBeInTheDocument();
+  });
+
   it("switches to Agentic and Video without using type dropdowns", async () => {
     await loaded(client());
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
