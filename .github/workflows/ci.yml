@@ -92,7 +92,10 @@ jobs:
       # v2.2.8 Phase 2: FolderTree collapse is a 56px icon rail (not an empty
       # 24px gutter); Agents rename/delete go through FolderTree; Image/Video
       # history panes share 280px + collapse; confirm-delete is rounded/quiet.
-      # No live GPU in PR CI.
+      # v2.2.8 Phase 3: sidebar module nav has a top inset (not flush with the
+      # title bar); chat/coding pending orbs use size=bubble (not inline 20px)
+      # and are centered; image/video pending stays hero. No thinking-orbs
+      # package. No live GPU in PR CI.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

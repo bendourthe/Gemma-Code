@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
-import { ORB_SIZE_HERO, ORB_SIZE_INLINE } from "../src/components/agentState/orbEngine";
+import { ORB_SIZE_HERO, ORB_SIZE_INLINE, ORB_SIZE_BUBBLE } from "../src/components/agentState/orbEngine";
 
 afterEach(() => {
   cleanup();
@@ -22,6 +22,12 @@ describe("AgentStateOrb", () => {
     expect(hero).toHaveAttribute("data-agent-state", "shaping");
     expect(hero).toHaveAttribute("data-orb-size", "hero");
     expect(hero).toHaveStyle({ width: `${ORB_SIZE_HERO}px`, height: `${ORB_SIZE_HERO}px` });
+
+    rerender(<AgentStateOrb activity="chat-streaming" size="bubble" />);
+    const bubble = screen.getByRole("img", { name: /agent composing/i });
+    expect(bubble).toHaveAttribute("data-orb-size", "bubble");
+    expect(bubble).toHaveStyle({ width: `${ORB_SIZE_BUBBLE}px`, height: `${ORB_SIZE_BUBBLE}px` });
+    expect(ORB_SIZE_BUBBLE).toBeGreaterThan(ORB_SIZE_INLINE);
   });
 
   it("falls back to a static frame under reduced-motion", () => {

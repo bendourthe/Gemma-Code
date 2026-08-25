@@ -221,3 +221,15 @@ The proposal to make the three scoped architecture changes, update the shell wor
 - No scratch docs, duplicate version trees, or empty tracked directories created.
 
 **Verdict**: Clean. No action required.
+
+## v2.2.8 Phase 3 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md`.
+- Orb motion stays in `desktop/src/components/agentState/`; no second renderer and no `thinking-orbs` package.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.

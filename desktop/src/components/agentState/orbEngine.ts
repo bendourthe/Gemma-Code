@@ -9,7 +9,11 @@ import type { AgentState } from "./mapping";
 
 export const ORB_MAX_DPR = 2;
 export const ORB_SIZE_HERO = 64;
+/** Chat/Agents composing in the bubble. Larger than the 20px status-chip inline size. */
+export const ORB_SIZE_BUBBLE = 48;
 export const ORB_SIZE_INLINE = 20;
+
+export type OrbSizePreset = "hero" | "bubble" | "inline";
 
 export interface OrbDot {
   angle: number;
@@ -31,12 +35,16 @@ export function clampOrbDpr(dpr: number): number {
   return Math.min(Math.max(safe, 1), ORB_MAX_DPR);
 }
 
-export function orbPixelSize(preset: "hero" | "inline"): number {
-  return preset === "hero" ? ORB_SIZE_HERO : ORB_SIZE_INLINE;
+export function orbPixelSize(preset: OrbSizePreset): number {
+  if (preset === "hero") return ORB_SIZE_HERO;
+  if (preset === "bubble") return ORB_SIZE_BUBBLE;
+  return ORB_SIZE_INLINE;
 }
 
-export function orbDotCount(preset: "hero" | "inline"): number {
-  return preset === "hero" ? 36 : 14;
+export function orbDotCount(preset: OrbSizePreset): number {
+  if (preset === "hero") return 36;
+  if (preset === "bubble") return 28;
+  return 14;
 }
 
 export function createOrbDots(count: number, rand: () => number = Math.random): OrbDot[] {
@@ -63,30 +71,30 @@ export function stepOrbDots(dots: OrbDot[], state: AgentState, t: number): void 
         d.radius = 0.7 + 0.03 * Math.sin(d.phase);
         break;
       case "working":
-        d.angle += 0.038 + 0.01 * Math.sin(d.phase + t);
-        d.radius = 0.5 + 0.22 * Math.sin(t * 3.2 + d.phase);
+        d.angle += 0.048 + 0.008 * Math.sin(d.phase + t);
+        d.radius = 0.62 + 0.1 * Math.sin(t * 2.4 + d.phase);
         break;
       case "searching": {
-        const sweep = ((d.angle + t * 1.4) % (Math.PI * 2)) / (Math.PI * 2);
-        d.angle += 0.022;
-        d.radius = 0.38 + 0.42 * sweep;
+        const sweep = ((d.angle + t * 1.6) % (Math.PI * 2)) / (Math.PI * 2);
+        d.angle += 0.026;
+        d.radius = 0.36 + 0.44 * sweep;
         break;
       }
       case "solving":
-        d.angle += 0.016;
-        d.radius = 0.22 + 0.5 * (0.5 + 0.5 * Math.cos(t * 2.1 + d.phase));
+        d.angle += 0.02;
+        d.radius = 0.18 + 0.52 * (0.5 + 0.5 * Math.cos(t * 2.1 + d.phase));
         break;
       case "listening":
-        d.angle += 0.008;
-        d.radius = 0.48 + 0.28 * Math.sin(t * 2.0);
+        d.angle += 0.01;
+        d.radius = 0.5 + 0.26 * Math.sin(t * 2.2);
         break;
       case "composing":
-        d.angle += 0.028;
-        d.radius = 0.58 + 0.12 * Math.sin(t * 4 + frac * Math.PI * 2);
+        d.angle += 0.04;
+        d.radius = 0.74 + 0.05 * Math.sin(t * 3.4 + frac * Math.PI * 2);
         break;
       case "shaping":
-        d.angle += 0.014 * (1 + 0.4 * Math.cos(t));
-        d.radius = 0.34 + 0.32 * Math.sin(t * 1.6 + d.phase * 0.5);
+        d.angle += 0.016 * (1 + 0.45 * Math.cos(t));
+        d.radius = 0.32 + 0.34 * Math.sin(t * 1.7 + d.phase * 0.5);
         break;
     }
   }
@@ -115,8 +123,8 @@ export function drawOrbFrame(
     const frac = i / Math.max(1, dots.length);
     let alpha = 0.72;
     if (state === "composing") {
-      const chase = (frac + t * 0.35) % 1;
-      alpha = 0.22 + 0.7 * chase;
+      const chase = (frac - ((t * 0.55) % 1) + 1) % 1;
+      alpha = chase < 0.2 ? 0.95 : 0.16;
     } else if (state === "searching") {
       const sweep = ((d.angle + t * 1.4) % (Math.PI * 2)) / (Math.PI * 2);
       alpha = 0.2 + 0.7 * sweep;

@@ -16,11 +16,12 @@ import {
   orbPixelSize,
   stepOrbDots,
   type OrbDot,
+  type OrbSizePreset,
 } from "./orbEngine";
 
 export interface AgentStateOrbProps {
   activity: AgentActivity;
-  size?: "hero" | "inline";
+  size?: OrbSizePreset;
   /** Show the mapped activity label beside or below the orb. */
   showCaption?: boolean;
   /** Recede-when-active id. Defaults to a stable per-activity value. */
@@ -164,13 +165,13 @@ export function AgentStateOrb({
         height: showCaption ? "auto" : cssSize,
         flex: "none",
         display: "flex",
-        flexDirection: size === "hero" ? "column" : "row",
+        flexDirection: size === "inline" ? "row" : "column",
         alignItems: "center",
         justifyContent: "center",
         gap: showCaption ? "var(--space-2)" : undefined,
         borderRadius: showCaption ? undefined : "50%",
         boxShadow:
-          !showCaption && size === "hero" && activity !== "idle"
+          !showCaption && size !== "inline" && activity !== "idle"
             ? `0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent)`
             : undefined,
       }}
@@ -185,7 +186,7 @@ export function AgentStateOrb({
           width: cssSize,
           height: cssSize,
           filter:
-            showCaption && size === "hero" && activity !== "idle"
+            showCaption && size !== "inline" && activity !== "idle"
               ? `drop-shadow(0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent))`
               : undefined,
         }}

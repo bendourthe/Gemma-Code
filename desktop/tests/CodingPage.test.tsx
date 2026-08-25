@@ -259,6 +259,7 @@ describe("CodingPage", () => {
     await userEvent.click(screen.getByTestId("coding-input-submit"));
     const orb = await screen.findByRole("img", { name: /agent working/i });
     expect(orb).toHaveAttribute("data-agent-activity", "coding-tool-use");
+    expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     release();

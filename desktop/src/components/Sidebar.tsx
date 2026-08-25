@@ -46,7 +46,8 @@ const ADMIN_ENTRIES = [
   { label: "Settings", to: "/settings", icon: SettingsIcon, shortcut: "Ctrl+," },
 ] as const;
 
-/** Persisted collapse preference. */
+/** Small inset under the frameless title bar so Chatbot is not flush. */
+export const SIDEBAR_NAV_INSET_TOP = "var(--space-2)";
 const COMPACT_KEY = "nexus.sidebar.compact";
 const FULL_WIDTH = 248;
 const RAIL_WIDTH = 56;
@@ -142,7 +143,9 @@ export function Sidebar({
         transition: "width 120ms ease",
         display: "flex",
         flexDirection: "column",
-        padding: compact ? "0 var(--space-2) var(--space-2)" : "0 var(--space-4) var(--space-3)",
+        padding: compact
+          ? `${SIDEBAR_NAV_INSET_TOP} var(--space-2) var(--space-2)`
+          : `${SIDEBAR_NAV_INSET_TOP} var(--space-4) var(--space-3)`,
         gap: "var(--space-2)",
       }}
     >
@@ -151,7 +154,10 @@ export function Sidebar({
         already shows "Nexus AI Studio" one row above; repeating it here cost a
         row of vertical space and read as a duplicate.
         v2.2.4 Phase 1 (1.3): collapse is an edge pill, not the first flex
-        child, so Chatbot is the first row with no spacer gap above it.
+        child, so Chatbot is the first row.
+        v2.2.8 Phase 3 (3.1): a small top inset (`SIDEBAR_NAV_INSET_TOP`) sits
+        under the title bar so the Chatbot row is not flush. Compact and
+        expanded both keep that inset. Do not restore the brand wordmark.
       */}
       <nav
         aria-label="Modules"

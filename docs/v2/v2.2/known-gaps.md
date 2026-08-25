@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.8 Phase 2)
+**Last updated**: 2026-08-24 (v2.2.8 Phase 3)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.8
 
-**Last updated**: 2026-08-24 (Phase 2 - unified history chrome)
+**Last updated**: 2026-08-24 (Phase 3 - rail margin and thinking orbs)
 
 ### Summary
 
@@ -23,7 +23,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Chatbot, Agents, Images, and Videos share FolderTree chrome: 280px expanded, 56px collapsed icon rail (new/folder plus per-session marks), persisted collapse keys, rounded quiet confirm-delete. Agents sessions without sidecar folders render as a flat list; folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-2 close waits for Phase 6 evidence. DF-4 stays open.
+The module rail has a small top inset so Chatbot is not flush with the title bar. Chat/Agents pending orbs use the 48px `bubble` preset, centered in the assistant bubble; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Chatbot, Agents, Images, and Videos share FolderTree chrome: 280px expanded, 56px collapsed icon rail (new/folder plus per-session marks), persisted collapse keys, rounded quiet confirm-delete. Agents sessions without sidecar folders render as a flat list; folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-2 close waits for Phase 6 evidence. DF-4 stays open.
 
 ### Open this cycle
 

@@ -115,17 +115,17 @@ export function MessageBubble({
             marginTop: studioPending ? 0 : "var(--space-2)",
             color: "var(--fg-muted)",
             display: "flex",
-            flexDirection: studioPending ? "column" : "row",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: studioPending ? "center" : undefined,
+            justifyContent: "center",
             gap: "var(--space-2)",
-            width: studioPending ? "100%" : undefined,
-            minHeight: studioPending ? "12rem" : undefined,
+            width: "100%",
+            minHeight: studioPending ? "12rem" : "5.5rem",
           }}
         >
           <AgentStateOrb
             activity={message.activity ?? "chat-streaming"}
-            size={studioPending ? "hero" : "inline"}
+            size={studioPending ? "hero" : "bubble"}
             showCaption
             surfaceId={`message-${message.id}`}
           />
