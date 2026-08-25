@@ -188,7 +188,6 @@ export function ImageStudioPage({
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
   const lastOutputRef = useRef<string | null>(null);
   const [historyEpoch, setHistoryEpoch] = useState(0);
@@ -304,7 +303,6 @@ export function ImageStudioPage({
           }),
         );
         activeSessionIdRef.current = session.id;
-        setActiveSessionId(session.id);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {
@@ -318,7 +316,6 @@ export function ImageStudioPage({
     (sessionId: string): void => {
       const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
         activeSessionIdRef.current = sessionId;
-        setActiveSessionId(sessionId);
         lastOutputRef.current = lastRef;
         setMessages(studioTurnsToChatMessages(turns, { outputExists }));
       };

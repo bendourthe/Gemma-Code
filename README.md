@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, and the current **v2.2.5** field-repair cycle lives under `docs/v2/v2.2/`. See [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, and the current **v2.2.6** field-repair cycle lives under `docs/v2/v2.2/`. See [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, and `docs/v2/v2.2/` for **v2.2.5**).
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, and `docs/v2/v2.2/` for **v2.2.6**).
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: the old `v2.0.0` tag became `v1.6.0`, `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0`, `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. This **v2.0.0** cut is the reserved convergence release (v1.18 plan + v1.19.x subplans + this adoption plan).
 
@@ -109,8 +109,20 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v2.0.0 | Convergence: multimodal Chat + local voice loop, DANGEROUS isolated-profile browser tools, Video Lab continuation + gated avatar, ProjectScope stretch | Landed | [docs/v2/v2.0/](docs/v2/v2.0/) |
 | v2.1.0 | Open local-AI wave: Muse Glimmer + Nemotron Lightning catalog/harness, adaptive routing, Image Studio depth, multimodal chat + SAM2, local fine-tuning, hardening | Landed | [docs/v2/v2.1/](docs/v2/v2.1/) |
 | v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion bytes, Settings Models installer parity, chat explorer chrome, Hub latest (not 3.12.0) | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
+| v2.2.6 | Session memory: named Image/Video history, last-output follow-up, Agents resume hydrate, Chatbot remount proof | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
 
 Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. Deferred work is in that version's `known-gaps.md`.
+
+### What's new in v2.2.6
+
+Named sessions and last-output memory for the studio pillars, plus Agents transcript restore. Packaged quit/reopen persist, live GPU generate, and packaged Explorer soak remain unproven (DF-25, DF-4, DF-2).
+
+- **Image and Video history** - Images and Videos reuse the Chatbot folder tree against `studio.session.*` and `~/.nexus/generations/sessions.db`. Turns store paths, never PNG/MP4 blobs. Chatbot stays on `chat.explorer.*`.
+- **Last-output follow-up** - An empty-attachment Image follow-up img2imgs the last PNG. An in-session Video follow-up sets existing `continueFrom`. After remount, Video cannot restore `continueFrom` (no `priorJobId` on the session row). Missing files show typed error text, not a blank complete.
+- **Agents resume** - Opening a previous session hydrates user and assistant token text. Sessions list can rename and delete. Tool-call cards are not restored.
+- **Chatbot remount** - Append-then-remount shows both bubbles and attachment `src`. A failed append keeps the bubble visible and says it was not saved.
+
+Known gaps: [docs/v2/v2.2/known-gaps.md](docs/v2/v2.2/known-gaps.md). Plan: [docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md](docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md).
 
 ### What's new in v2.2.5
 

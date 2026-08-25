@@ -179,7 +179,6 @@ export function VideoLabPage({
     ...initialValues,
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
   const lastOutputRef = useRef<string | null>(null);
   const lastJobIdRef = useRef<string | null>(null);
@@ -305,7 +304,6 @@ export function VideoLabPage({
           }),
         );
         activeSessionIdRef.current = session.id;
-        setActiveSessionId(session.id);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {
@@ -319,7 +317,6 @@ export function VideoLabPage({
     (sessionId: string): void => {
       const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
         activeSessionIdRef.current = sessionId;
-        setActiveSessionId(sessionId);
         lastOutputRef.current = lastRef;
         lastJobIdRef.current = null;
         setMessages(studioTurnsToChatMessages(turns, { outputExists, mediaKind: "video" }));

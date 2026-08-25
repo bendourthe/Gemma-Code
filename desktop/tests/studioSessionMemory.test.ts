@@ -6,7 +6,7 @@ import {
   sessionTitleFromPrompt,
   studioTurnsToChatMessages,
 } from "../src/shared/explorer/studioSessionMemory";
-import type { StudioTurn } from "../../../core/generations/StudioSessionStore.types";
+import type { StudioTurn } from "../../core/generations/StudioSessionStore.types";
 
 describe("studioSessionMemory", () => {
   it("rejects data: blobs as last-output paths", () => {

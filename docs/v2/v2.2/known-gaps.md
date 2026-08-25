@@ -2,11 +2,91 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.5 Phase 6)
+**Last updated**: 2026-08-24 (v2.2.6 Phase 6)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md), [plans/v2.2.6-session-memory-and-studio-history.md](plans/v2.2.6-session-memory-and-studio-history.md)
+
+## v2.2.6
+
+**Last updated**: 2026-08-24 (Phase 6 - architecture, gaps, and CI)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 5 | 0 |
+| Bugs / regressions (BG) | 0 | 4 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-51 through BG-54 are closed at unit/integration evidence. Packaged quit/reopen persist remains not_observed (DF-25). Video remount cannot restore `continueFrom` (DF-26). Agents tool-call cards are not persisted (DF-27).
+
+### Open this cycle
+
+##### DF-2 - Packaged Explorer launch is unproven
+
+- **Source phase**: carried from v2.2.5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 6.2)
+- **Reason**: not_observed != absent. No packaged soak this phase.
+- **Suggested next step**: Launch a packaged Windows build and record Explorer start.
+
+##### DF-4 - Live GPU image/video generate is unproven
+
+- **Source phase**: carried from v2.2.5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (operator field checklist)
+- **Reason**: Fail-closed envelopes and last-output follow-up are unit-proven. An operator GPU generate that paints a SANA image or a video clip was not recorded this session.
+- **Suggested next step**: Run one Image Studio generate and one Video Lab generate on a host with weights and GPU, or confirm the typed runtime-not-ready string in the UI when GPU is absent.
+
+##### DF-25 - Packaged session persist (quit/reopen) is unproven
+
+- **Source phase**: v2.2.6 Phases 1-5
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 6.2)
+- **Reason**: Image/Video SQLite, Agents `sessions.json`, and Chatbot explorer DB round-trips are unit-proven. A packaged Explorer quit/reopen soak was not run. not_observed != absent.
+- **Suggested next step**: Install the unsigned Windows build, take one turn in each pillar, quit, reopen, and record whether the same session hydrates.
+
+##### DF-26 - Video remount cannot restore `continueFrom`
+
+- **Source phase**: v2.2.6 Phase 3
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 3)
+- **Reason**: `continueFrom` needs `priorJobId`. The studio session schema stores `lastOutputRef` (mp4 path), not the job id. After remount, a follow-up is a new text2video. `lastFramePath` is that mp4 path; there is no frame extractor.
+- **Suggested next step**: Persist `priorJobId` (or a generations-index job key) on the session row, or extract a last-frame PNG and document the quality limit.
+
+##### DF-27 - Agents resume does not restore tool-call cards
+
+- **Source phase**: v2.2.6 Phase 4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 4)
+- **Reason**: Sidecar persist stores user prompt plus concatenated assistant token text. `toolCallHeader` / arg deltas / complete events are not written. Resume shows the transcript, not the tool cards from the live stream.
+- **Suggested next step**: Persist a compact tool-card snapshot per turn, or accept text-only resume for this cycle.
+
+### Resolved this phase
+
+##### BG-51 - Image Studio had no named history or last-PNG memory
+
+- **Source phase**: v2.2.6 Phases 1-2
+- **Resolution**: Shared `StudioSessionStore` plus `studio.session.*` IPC. Image Studio creates a named session, appends turns (paths, never blobs), and empty-attachment follow-ups img2img `lastOutputRef`. Remount hydrates MessageList. Missing files render `output missing on disk`. Sidecar down does not claim saved.
+- **Evidence**: `desktop/tests/ImageStudioPage.test.tsx`, `desktop/tests/studioSessionMemory.test.ts`, `tests/unit/core/generations/StudioSessionStore.test.ts`. Packaged persist remains DF-25.
+
+##### BG-52 - Video Lab had no named history or last-clip memory
+
+- **Source phase**: v2.2.6 Phases 1 and 3
+- **Resolution**: Same store and history pane. In-session follow-up sets existing `continueFrom` from the live job. Remount hydrates transcript and last clip path. Unreadable `lastOutputRef` fail-closes with typed copy instead of silent text2video.
+- **Evidence**: `desktop/tests/VideoLabPage.test.tsx`, `desktop/tests/studioSessionMemory.test.ts`. Remount `continueFrom` remains DF-26. Packaged persist remains DF-25.
+
+##### BG-53 - Agents resume set sessionId only, so the transcript stayed empty
+
+- **Source phase**: v2.2.6 Phase 4
+- **Resolution**: `sendMessage` persists assistant token text. `coding.session.resume` returns `{ session, messages, turns }`. CodingPage hydrates MessageList. Unknown ids clear the list and show `Could not resume session`. Sessions list gained rename and delete (`coding.session.rename` / `coding.session.delete`).
+- **Evidence**: `desktop/tests/CodingPage.test.tsx`, `desktop/tests/coding-session-resume.test.ts`, `desktop/tests/coding-sessionManager.test.ts`, `desktop/tests/panels.test.tsx`, `desktop/tests/sidecar-handlers.test.ts`. Tool cards remain DF-27. Packaged persist remains DF-25.
+
+##### BG-54 - Chatbot remount hydration and failed-append honesty were unproven
+
+- **Source phase**: v2.2.6 Phase 5
+- **Resolution**: ChatPage already persisted via `chat.explorer.appendMessage` / `listMessages`, including attachment strings, and already folded model ids. Tests now prove append-then-remount (user + assistant), attachment `src` restore, and a visible bubble plus `Message is visible but was not saved` when append throws. No production ChatPage patch.
+- **Evidence**: `desktop/tests/ChatPage.persistence.test.tsx`. Packaged persist remains DF-25.
 
 ## v2.2.5
 
