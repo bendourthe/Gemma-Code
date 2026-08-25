@@ -40,6 +40,7 @@ import {
   findSpec,
   loadCatalog,
 } from "./catalog.js";
+import { catalogContextFromSpec } from "./contextWindow.js";
 
 export type InstallProgress = (bytes: number, total: number | null) => void;
 
@@ -125,6 +126,13 @@ export interface ListedModel {
   readonly origin?: string;
   readonly releaseDate?: string;
   readonly uncensored?: boolean;
+  /**
+   * v2.2.7 Phase 1 -- catalog-reported token window. null when the catalog
+   * omitted or junked the field. Never a default 128000.
+   */
+  readonly contextWindow?: number | null;
+  readonly contextWindowIn?: number | null;
+  readonly contextWindowOut?: number | null;
 }
 
 export interface ListFilter {
@@ -157,6 +165,10 @@ export class ExternalRemovalError extends Error {
     );
     this.name = "ExternalRemovalError";
   }
+}
+
+function contextFields(spec: ModelSpec | undefined, id: string) {
+  return catalogContextFromSpec(spec, id);
 }
 
 export class NexusModelRegistry {
@@ -232,6 +244,7 @@ export class NexusModelRegistry {
         origin: spec?.origin,
         releaseDate: spec?.releaseDate,
         uncensored: spec?.uncensored,
+        ...contextFields(spec, manifest.id),
       });
     }
 
@@ -269,6 +282,7 @@ export class NexusModelRegistry {
         origin: spec.origin,
         releaseDate: spec.releaseDate,
         uncensored: spec.uncensored,
+        ...contextFields(spec, spec.id),
       });
     }
 

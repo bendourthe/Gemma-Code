@@ -331,6 +331,60 @@ describe("ModelsSettings", () => {
     expect(note.querySelector("a")?.getAttribute("href")).toBe("https://www.liquid.ai/lfm-license");
   });
 
+  it("shows a Context chip for LFM 128000 and omits it when the window is null", async () => {
+    const lfmClient: ModelsClient = {
+      async list() {
+        return [
+          {
+            id: "lfm2.5:2.6b",
+            displayName: "LFM2.5 2.6B",
+            family: "lfm2.5",
+            type: "llm",
+            task: "agentic",
+            installed: false,
+            source: "catalog-only",
+            vramGB: 3,
+            contextWindow: 128000,
+            origin: "USA",
+          },
+          {
+            id: "split-ctx",
+            displayName: "Split Window",
+            family: "split",
+            type: "llm",
+            task: "agentic",
+            installed: false,
+            source: "catalog-only",
+            vramGB: 4,
+            contextWindowIn: 32000,
+            contextWindowOut: 8000,
+          },
+        ];
+      },
+      install() {
+        return Object.assign({ cancel() {} }, { done: Promise.resolve() });
+      },
+      async remove() {},
+      async diskUsage() {
+        return { usedBytes: 0, freeBytes: null };
+      },
+    };
+    render(<ModelsSettings client={lfmClient} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("models-tab-agentic"));
+    expect(screen.getByTestId("models-chip-context-lfm2.5:2.6b").textContent).toBe("Context: 128k");
+    expect(screen.getByTestId("models-chip-context-lfm2.5:2.6b").textContent).not.toMatch(/\bin\b/);
+    expect(screen.getByTestId("models-chip-context-split-ctx").textContent).toBe("Context: 32k / 8k");
+  });
+
+  it("does not invent a 128k chip for gemma without a catalog window or a null diffusion row", async () => {
+    await loaded(client());
+    expect(screen.queryByTestId("models-chip-context-gemma4:e4b")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("models-tab-video"));
+    expect(screen.queryByTestId("models-chip-context-ltx-video")).not.toBeInTheDocument();
+    expect(screen.getByTestId("models-row-ltx-video")).toBeInTheDocument();
+  });
+
   it("favorite is one-per-tab and writes the Phase 2 storage key", async () => {
     await loaded(client());
     fireEvent.click(screen.getByTestId("models-favorite-gemma4:e4b"));
@@ -405,6 +459,7 @@ describe("ModelsSettings", () => {
     expect(screen.getByTestId("models-chip-origin-sana-1.6b-4k").textContent).toMatch(/USA/);
     expect(screen.getByTestId("models-chip-date-sana-1.6b-4k").textContent).toMatch(/2025-09-10/);
     expect(screen.getByTestId("models-chip-guardrails-sana-1.6b-4k").textContent).toBe("Censored");
+    expect(screen.queryByTestId("models-chip-context-sana-1.6b-4k")).not.toBeInTheDocument();
   });
 
   it("shows Retry when Qwen 3.5 4B was selected at install but is not on disk", async () => {

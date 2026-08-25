@@ -91,6 +91,37 @@ describe("ModelsService.list", () => {
       source: "registry",
     });
   });
+
+  it("copies catalog contextWindow onto the DTO as null rather than 0 or 128000", async () => {
+    const listed = [
+      {
+        id: "lfm2.5:2.6b",
+        displayName: "LFM2.5 2.6B",
+        installed: false,
+        source: "catalog-only",
+        type: "llm",
+        contextWindow: 128000,
+      },
+      {
+        id: "sana-1.6b-4k",
+        displayName: "SANA 1.6B 4K",
+        installed: false,
+        source: "catalog-only",
+        type: "image",
+        contextWindow: null,
+      },
+    ] as ListedModel[];
+    const svc = new ModelsService({
+      registry: fakeRegistry(listed),
+      catalog: CATALOG,
+      modelsRoot: "/nonexistent-models-root",
+      fetchFn: throwingFetch,
+      loadSnapshot: async () => null,
+    });
+    const out = await svc.list();
+    expect(out[0]?.contextWindow).toBe(128000);
+    expect(out[1]?.contextWindow).toBeNull();
+  });
 });
 
 describe("ModelsService.diskUsage / remove", () => {

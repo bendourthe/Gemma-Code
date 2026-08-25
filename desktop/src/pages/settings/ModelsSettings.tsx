@@ -30,6 +30,7 @@ import {
   writeFavorite,
   type TaskKey,
 } from "../../shared/models/selectionPolicy";
+import { formatContextChip } from "../../../../core/registry/contextWindow";
 import type {
   DiskUsageDto,
   InstallProgressDto,
@@ -325,6 +326,7 @@ function ModelCard({
   const overBudget = modelFitsHost(item, hostVramGB) === false;
   const downloaded = item.installed && item.source !== "catalog-only";
   const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
+  const contextChip = formatContextChip(item);
   return (
     <li data-testid={`models-row-${item.id}`} style={cardStyle}>
       <div style={{ display: "flex", gap: "var(--space-3, 12px)", alignItems: "flex-start" }}>
@@ -366,6 +368,11 @@ function ModelCard({
             {item.origin ? (
               <span data-testid={`models-chip-origin-${item.id}`} style={chipStyle}>
                 Origin: {item.origin}
+              </span>
+            ) : null}
+            {contextChip ? (
+              <span data-testid={`models-chip-context-${item.id}`} style={chipStyle}>
+                {contextChip}
               </span>
             ) : null}
             {item.releaseDate ? (

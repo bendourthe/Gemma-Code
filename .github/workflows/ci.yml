@@ -80,6 +80,8 @@ jobs:
       # v2.2.6: the same job covers studio.session IPC, Image/Video remount
       # hydrate and implicit last-output follow-up, Agents resume hydration,
       # and Chatbot append-then-remount. No live GPU in PR CI.
+      # v2.2.7: the same job covers Settings Models context chips
+      # (128k / omit-on-null). No live GPU in PR CI.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

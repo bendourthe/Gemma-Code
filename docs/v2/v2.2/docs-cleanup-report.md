@@ -136,3 +136,15 @@ The proposal to make the three scoped architecture changes, update the shell wor
 - No scratch docs, duplicate catalogs, or empty tracked directories to move this phase.
 
 **Verdict**: Clean. No action required.
+
+## v2.2.7 Phase 1 audit
+
+**Date**: 2026-08-24
+**Mode**: audit (no files moved)
+
+- Canonical plan remains `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md`.
+- New helper `core/registry/contextWindow.ts` is the TypeScript chip formatter, not a stray docs file.
+- Session history for this phase lands under `docs/v2/v2.2/development/history/`.
+- No scratch docs, duplicate version trees, or empty tracked directories created.
+
+**Verdict**: Clean. No action required.

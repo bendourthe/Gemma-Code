@@ -2,11 +2,48 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.6 Phase 6)
+**Last updated**: 2026-08-24 (v2.2.7 Phase 1)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md), [plans/v2.2.6-session-memory-and-studio-history.md](plans/v2.2.6-session-memory-and-studio-history.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md), [plans/v2.2.6-session-memory-and-studio-history.md](plans/v2.2.6-session-memory-and-studio-history.md), [plans/v2.2.7-context-meter-and-transcript-chrome.md](plans/v2.2.7-context-meter-and-transcript-chrome.md), [plans/v2.2.8-working-local-studio.md](plans/v2.2.8-working-local-studio.md)
+
+## v2.2.7
+
+**Last updated**: 2026-08-24 (Phase 1 - catalog context on Models tabs)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 1 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 1 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Null catalog windows omit the chip. Packaged Settings/installer rendering is not_observed (DF-28). Chip copy is implemented twice (TypeScript `core/registry/contextWindow.ts` and Python `typed_catalog.py`); tests lock both (WN-7). DF-2 and DF-4 stay open from earlier cycles.
+
+### Open this cycle
+
+##### DF-28 - Packaged Settings and installer Context chips are unproven
+
+- **Source phase**: v2.2.7 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 1)
+- **Reason**: ModelsSettings and installer `_ModelCard` tests show `Context: 128k` for LFM and omit the chip on null diffusion rows. A packaged Explorer Settings tab and a running installer wizard were not screenshotted this phase. not_observed != absent.
+- **Suggested next step**: Open Settings > Models on a packaged build and the installer Models tab; confirm Gemma / Qwen / LFM chips match catalog.json and SANA has no fake 128k.
+
+##### WN-7 - Context chip formatters are duplicated across TypeScript and Python
+
+- **Source phase**: v2.2.7 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (T002)
+- **Reason**: The desktop renderer cannot import the installer Python module. Matching tests lock `128k` and `32k / 8k` on both sides. Drift remains possible if one formatter is edited alone.
+- **Suggested next step**: Keep the two test files in the same PR as any copy change, or generate Python copy from the TypeScript fixture in a later cleanup.
+
+### Resolved this phase
+
+None. Catalog marshaling and chips are new work, not a prior BG.
 
 ## v2.2.6
 

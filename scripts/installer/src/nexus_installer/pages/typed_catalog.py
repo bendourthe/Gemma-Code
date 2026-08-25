@@ -31,6 +31,7 @@ from __future__ import annotations
 import contextlib
 import html
 import json
+import logging
 import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -133,6 +134,8 @@ _EXTREME_LOW_BIT_QUANTS = frozenset(
     {"q1_0", "q2_0", "tq1_0", "tq2_0", "i2_s", "1bit", "ternary"}
 )
 _BLOCKED_VENDORS = ("bonsai", "prismml", "prism-ml")
+_LOGGED_CONTEXT_JUNK: set[str] = set()
+_LOGGER = logging.getLogger(__name__)
 
 
 def _is_extreme_low_bit_quant(quant: str) -> bool:
@@ -252,6 +255,64 @@ def _coerce_int(value: object, default: int = 0) -> int:
         return default
 
 
+def parse_context_window(
+    value: object, *, model_id: str = "", field: str = "contextWindow"
+) -> int:
+    """Positive token count, or 0 when absent/invalid. Never invent 128000."""
+    if value is None or value == "":
+        return 0
+    if isinstance(value, bool):
+        _warn_context_junk(model_id, field)
+        return 0
+    if isinstance(value, (int, float)):
+        number = int(value)
+        return number if number > 0 else 0
+    if isinstance(value, str) and value.strip():
+        try:
+            number = int(float(value.strip()))
+            return number if number > 0 else 0
+        except (TypeError, ValueError):
+            pass
+    _warn_context_junk(model_id, field)
+    return 0
+
+
+def _warn_context_junk(model_id: str, field: str) -> None:
+    key = f"{model_id}:{field}"
+    if key in _LOGGED_CONTEXT_JUNK:
+        return
+    _LOGGED_CONTEXT_JUNK.add(key)
+    _LOGGER.warning("skip context chip for %s %s: non-numeric value", model_id, field)
+
+
+def format_context_window_k(tokens: int) -> str:
+    if tokens < 1000:
+        return str(tokens)
+    return f"{tokens // 1000}k"
+
+
+def format_context_chip(
+    context_window_in: int,
+    context_window_out: int = 0,
+    context_window: int = 0,
+) -> str | None:
+    """Chip copy such as ``Context: 128k`` or ``Context: 32k / 8k``.
+
+    Returns None when neither window is a positive count. Never appends ``in``.
+    """
+    in_tok = context_window_in or context_window
+    out_tok = context_window_out
+    if in_tok and out_tok and in_tok != out_tok:
+        return (
+            f"Context: {format_context_window_k(in_tok)} / "
+            f"{format_context_window_k(out_tok)}"
+        )
+    shown = in_tok or out_tok
+    if shown <= 0:
+        return None
+    return f"Context: {format_context_window_k(shown)}"
+
+
 def _coerce_float(value: object, default: float = 0.0) -> float:
     try:
         return float(value)  # type: ignore[arg-type]
@@ -299,10 +360,18 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 required_ram_gb=_coerce_int(entry.get("requiredRamGB")),
                 release_date=str(entry.get("releaseDate") or ""),
                 license_name=str(entry.get("license") or ""),
-                context_window_in=_coerce_int(
-                    entry.get("contextWindowIn", entry.get("contextWindow"))
+                context_window_in=parse_context_window(
+                    entry.get("contextWindowIn")
+                    if entry.get("contextWindowIn") is not None
+                    else entry.get("contextWindow"),
+                    model_id=str(entry.get("id") or ""),
+                    field="contextWindowIn",
                 ),
-                context_window_out=_coerce_int(entry.get("contextWindowOut")),
+                context_window_out=parse_context_window(
+                    entry.get("contextWindowOut"),
+                    model_id=str(entry.get("id") or ""),
+                    field="contextWindowOut",
+                ),
                 multimodal=bool(entry.get("multimodal")),
                 uncensored=bool(entry.get("uncensored")),
                 description=str(entry.get("description") or ""),
@@ -590,15 +659,11 @@ class _ModelCard(QWidget):
                     border=agentic_color,
                 )
             )
-        if model.is_text_model and (
-            model.context_window_in or model.context_window_out
-        ):
-            ctx_bits = []
-            if model.context_window_in:
-                ctx_bits.append(f"{model.context_window_in // 1000}k in")
-            if model.context_window_out:
-                ctx_bits.append(f"{model.context_window_out // 1000}k out")
-            chip_row.addWidget(_pill("Context: " + " / ".join(ctx_bits)))
+        context_chip = format_context_chip(
+            model.context_window_in, model.context_window_out
+        )
+        if context_chip:
+            chip_row.addWidget(_pill(context_chip))
         if model.multimodal:
             chip_row.addWidget(
                 _pill("Multimodal", color=ACCENT_BRIGHT, border=ACCENT_BRIGHT)
@@ -1311,5 +1376,8 @@ __all__ = [
     "TypedCatalogPage",
     "TypedSelection",
     "compatibility_badge",
+    "format_context_chip",
+    "format_context_window_k",
     "load_catalog_models",
+    "parse_context_window",
 ]

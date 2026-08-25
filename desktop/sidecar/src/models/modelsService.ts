@@ -79,6 +79,10 @@ export interface ListedModelDto {
     releaseDate?: string;
     uncensored?: boolean;
     selectedAtInstall?: boolean;
+    /** v2.2.7 Phase 1 -- catalog-reported token window. null, never a default 128000. */
+    contextWindow?: number | null;
+    contextWindowIn?: number | null;
+    contextWindowOut?: number | null;
   }
 
 export interface DiskUsageDto {
@@ -298,6 +302,9 @@ function toDto(m: ListedModel): ListedModelDto {
     origin: m.origin,
     releaseDate: m.releaseDate,
     uncensored: m.uncensored,
+    contextWindow: m.contextWindow ?? null,
+    contextWindowIn: m.contextWindowIn ?? null,
+    contextWindowOut: m.contextWindowOut ?? null,
   };
 }
 

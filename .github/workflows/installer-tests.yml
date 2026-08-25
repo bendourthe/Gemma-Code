@@ -6,6 +6,8 @@
 # v2.2.6: no installer or runtime.json change. Studio sessions live at
 # ~/.nexus/generations/sessions.db (same generations/ tree as studio.db).
 # Silent no-op; do not clone Hub.
+# v2.2.7: scripts/installer/** covers Models tab context chips (`<val>k`,
+# no trailing "in"; null window omits the chip). Do not clone Hub.
 # PRs to main use the same path filter. workflow_dispatch always runs.
 name: Installer tests
 
