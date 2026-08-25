@@ -16,6 +16,7 @@ import {
   newUsage,
   normalizeRole,
   toLlmOptions,
+  turnUsageFromCollected,
 } from "../sidecar/src/serving/chatCore";
 import { ServingHttpError } from "../sidecar/src/serving/errors";
 import type { LLMStreamChunk } from "../../modules/coding/llm/types";
@@ -159,19 +160,34 @@ describe("collectUsage", () => {
   });
 
   it("starts unreported with zero counts", () => {
-    expect(newUsage()).toEqual({ promptTokens: 0, completionTokens: 0, reported: false });
+    expect(newUsage()).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      reasoningTokens: null,
+      reported: false,
+    });
   });
 
   it("reads Ollama-shaped counters", () => {
     const usage = newUsage();
     collectUsage(chunk({ prompt_eval_count: 11, eval_count: 22 }), usage);
-    expect(usage).toEqual({ promptTokens: 11, completionTokens: 22, reported: true });
+    expect(usage).toEqual({
+      promptTokens: 11,
+      completionTokens: 22,
+      reasoningTokens: null,
+      reported: true,
+    });
   });
 
   it("reads an OpenAI-shaped usage block", () => {
     const usage = newUsage();
     collectUsage(chunk({ usage: { prompt_tokens: 3, completion_tokens: 4 } }), usage);
-    expect(usage).toEqual({ promptTokens: 3, completionTokens: 4, reported: true });
+    expect(usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 4,
+      reasoningTokens: null,
+      reported: true,
+    });
   });
 
   it("leaves the accumulator unreported when a chunk carries no counters", () => {
@@ -198,6 +214,34 @@ describe("collectUsage", () => {
     const usage = newUsage();
     collectUsage(chunk({ prompt_eval_count: 9 }), usage);
     collectUsage(chunk({ usage: { completion_tokens: 12 } }), usage);
-    expect(usage).toEqual({ promptTokens: 9, completionTokens: 12, reported: true });
+    expect(usage).toEqual({
+      promptTokens: 9,
+      completionTokens: 12,
+      reasoningTokens: null,
+      reported: true,
+    });
+  });
+
+  it("reads reasoning_tokens and thinking text into turn usage", () => {
+    const usage = newUsage();
+    collectUsage(
+      chunk({
+        prompt_eval_count: 10,
+        eval_count: 4,
+        usage: { reasoning_tokens: 6 },
+      }),
+      usage,
+    );
+    expect(turnUsageFromCollected(usage)).toEqual({
+      inputTokens: 10,
+      reasoningTokens: 6,
+      outputTokens: 4,
+    });
+    const thinkingOnly = newUsage();
+    expect(turnUsageFromCollected(thinkingOnly, "abcd")).toEqual({
+      inputTokens: null,
+      reasoningTokens: 1,
+      outputTokens: null,
+    });
   });
 });

@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.7 Phase 1)
+**Last updated**: 2026-08-24 (v2.2.7 Phase 2)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,20 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.7
 
-**Last updated**: 2026-08-24 (Phase 1 - catalog context on Models tabs)
+**Last updated**: 2026-08-24 (Phase 2 - session token accounting)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 1 | 0 |
+| Deferred (DF) | 2 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Null catalog windows omit the chip. Packaged Settings/installer rendering is not_observed (DF-28). Chip copy is implemented twice (TypeScript `core/registry/contextWindow.ts` and Python `typed_catalog.py`); tests lock both (WN-7). DF-2 and DF-4 stay open from earlier cycles.
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
 
 ### Open this cycle
 
@@ -34,6 +34,13 @@ Settings and installer Context chips are unit-proven as `<val>k` with no trailin
 - **Reason**: ModelsSettings and installer `_ModelCard` tests show `Context: 128k` for LFM and omit the chip on null diffusion rows. A packaged Explorer Settings tab and a running installer wizard were not screenshotted this phase. not_observed != absent.
 - **Suggested next step**: Open Settings > Models on a packaged build and the installer Models tab; confirm Gemma / Qwen / LFM chips match catalog.json and SANA has no fake 128k.
 
+##### DF-29 - Live Ollama usage and thinking fields are unproven
+
+- **Source phase**: v2.2.7 Phase 2
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 2)
+- **Reason**: Unit fixtures persist `prompt_eval_count` / `eval_count` / `message.thinking` onto the chat done event and round-trip chat/studio/coding stores. A live Gemma 4 Ollama final chunk was not captured this phase. Coding agent turns estimate when the runner does not attach counters. not_observed != absent.
+- **Suggested next step**: Send one Chatbot turn against a local Ollama Gemma 4 model and confirm the persisted assistant row matches the final chunk; if thinking is in `message.thinking`, confirm it counts toward used tokens.
+
 ##### WN-7 - Context chip formatters are duplicated across TypeScript and Python
 
 - **Source phase**: v2.2.7 Phase 1
@@ -43,7 +50,7 @@ Settings and installer Context chips are unit-proven as `<val>k` with no trailin
 
 ### Resolved this phase
 
-None. Catalog marshaling and chips are new work, not a prior BG.
+None. Usage persist is new work, not a prior BG.
 
 ## v2.2.6
 

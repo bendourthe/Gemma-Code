@@ -5,11 +5,20 @@
 // handler wraps the vscode-free `createHeadlessOllamaClient` (no tools, no
 // loop) and maps stream chunks onto the `token` / `done` IPC event union.
 // Never throws -- an LLM failure is surfaced as a trailing `done` event.
+//
+// v2.2.7 Phase 2 -- collect Ollama/OpenAI usage onto the done event. Missing
+// usage stays omitted (null at persist), never invented as 0.
 
 import { createHeadlessOllamaClient } from "../../../../modules/coding/llm/headlessOllamaClient.js";
 import type { LLMClient, LLMMessage } from "../../../../modules/coding/llm/types.js";
 import type { ChatSessionEventT } from "../protocol.js";
 import type { SidecarModelEntry } from "../coding/models.js";
+import {
+  collectUsage,
+  doneUsageFields,
+  newUsage,
+  turnUsageFromCollected,
+} from "../serving/chatCore.js";
 
 export interface ChatRunnerInput {
   readonly sessionId: string;
@@ -38,20 +47,30 @@ export function createChatMessageHandler(
   const llm = options.llm ?? createHeadlessOllamaClient();
   return async (input) => {
     const events: ChatSessionEventT[] = [];
+    const usage = newUsage();
+    let thinking = "";
     try {
       for await (const chunk of llm.streamChat(
         { model: input.model.id, messages: [...input.messages], stream: true },
         input.signal,
       )) {
+        collectUsage(chunk, usage);
+        const thinkDelta = chunk.message?.thinking ?? "";
+        if (thinkDelta) thinking += thinkDelta;
         const delta = chunk.message?.content ?? "";
         if (delta) events.push({ kind: "token", text: delta });
         if (chunk.done) break;
       }
-      events.push({ kind: "done", finishReason: "stop" });
+      events.push({
+        kind: "done",
+        finishReason: "stop",
+        ...doneUsageFields(turnUsageFromCollected(usage, thinking)),
+      });
     } catch (err) {
       events.push({
         kind: "done",
         finishReason: `error: ${err instanceof Error ? err.message : String(err)}`,
+        ...doneUsageFields(turnUsageFromCollected(usage, thinking)),
       });
     }
     return events;

@@ -37,6 +37,10 @@ import type { SidecarModelEntry } from "./models.js";
 export interface PersistedTurn {
   readonly prompt: string;
   readonly assistantText: string;
+  readonly inputTokens?: number | null;
+  readonly reasoningTokens?: number | null;
+  readonly outputTokens?: number | null;
+  readonly tokensEstimated?: boolean;
 }
 
 /** A session as persisted to disk: summary + the full message history. */

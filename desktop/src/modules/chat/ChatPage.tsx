@@ -29,6 +29,7 @@ import type {
 import {
   createChatIpcClient,
   joinChatReply,
+  usageFromChatEvents,
   type ChatSessionClient,
 } from "./chatIpcClient";
 import type { Chat, ChatMessageRecord, Folder } from "./types";
@@ -49,6 +50,7 @@ import {
   nonVisionAttachmentGuidance,
   resolveVisualTokenBudget,
 } from "../../../../core/chat/vision";
+import { estimateTokens } from "../../../../core/chat/sessionContextUsage";
 import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visualBudget";
 import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
 import type { EpisodicMemory } from "../../../../core/memory/MemoryHub";
@@ -467,6 +469,12 @@ export function ChatPage({
             role: message.role === "user" ? "user" : "assistant",
             content: message.content,
             ...(message.attachments ? { attachments: message.attachments } : {}),
+            ...(message.inputTokens !== undefined ? { inputTokens: message.inputTokens } : {}),
+            ...(message.reasoningTokens !== undefined
+              ? { reasoningTokens: message.reasoningTokens }
+              : {}),
+            ...(message.outputTokens !== undefined ? { outputTokens: message.outputTokens } : {}),
+            ...(message.tokensEstimated ? { tokensEstimated: true } : {}),
           }),
         );
         setTranscriptError(null);
@@ -521,6 +529,7 @@ export function ChatPage({
         activity: "chat-streaming",
       });
       let content: string;
+      let usage = { inputTokens: null as number | null, reasoningTokens: null as number | null, outputTokens: null as number | null };
       try {
         const chat = activeChat;
         let sessionId = sessionIdsRef.current.get(chatId);
@@ -565,11 +574,12 @@ export function ChatPage({
           });
         }
         content = joinChatReply(reply.events) || "(no reply)";
+        usage = usageFromChatEvents(reply.events);
       } catch (err) {
         content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
       }
-      patchMessage(chatId, assistantId, { content, pending: false });
-      void persistMessage(chatId, { id: assistantId, role: "assistant", content });
+      patchMessage(chatId, assistantId, { content, pending: false, ...usage });
+      void persistMessage(chatId, { id: assistantId, role: "assistant", content, ...usage });
       return content;
     },
     [activeChat, appendMessage, chatSession, modelId, patchMessage, persistMessage, personaByChat],
@@ -683,6 +693,7 @@ export function ChatPage({
               id: `${chat.id}-${Date.now()}-user`,
               role: "user",
               content: earlyUserText,
+              ...estimatedUserUsage(earlyUserText),
             });
           }
           appendMessage(chat.id, {
@@ -734,6 +745,7 @@ export function ChatPage({
         content: userContent,
         ...(displayAttachments.length > 0 ? { attachments: displayAttachments } : {}),
         ...(origin ? { origin } : {}),
+        ...estimatedUserUsage(userContent),
       });
       // v2.2.0 Phase 8 (DF-13): name the chat from its first prompt.
       //
@@ -1251,7 +1263,18 @@ function chatMessageFromRecord(record: ChatMessageRecord): ChatMessage {
     content: record.content,
     attachments: record.attachments,
     timestamp: new Date(record.createdAt).toISOString(),
+    inputTokens: record.inputTokens ?? null,
+    reasoningTokens: record.reasoningTokens ?? null,
+    outputTokens: record.outputTokens ?? null,
+    tokensEstimated: record.tokensEstimated,
   };
+}
+
+function estimatedUserUsage(content: string): {
+  inputTokens: number;
+  tokensEstimated: true;
+} {
+  return { inputTokens: estimateTokens(content), tokensEstimated: true };
 }
 
 function replayHistory(

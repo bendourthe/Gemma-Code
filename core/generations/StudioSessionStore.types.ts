@@ -46,6 +46,13 @@ export interface StudioTurn {
   /** Path to media on disk, or null. Never a giant blob. */
   mediaRef: string | null;
   createdAt: number;
+  /** v2.2.7 Phase 2 -- null when usage is unknown. Never invent 0. */
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
+  /** Usable visuals this turn. 0/omit for a 1x1 stub or failed generate. */
+  visualUnits?: number | null;
 }
 
 export interface StudioTreeNode {
@@ -76,4 +83,9 @@ export interface AppendStudioTurnInput {
   mediaRef?: string | null;
   id?: string;
   createdAt?: number;
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
+  visualUnits?: number | null;
 }

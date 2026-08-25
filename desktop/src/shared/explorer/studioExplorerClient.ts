@@ -220,6 +220,11 @@ export class InMemoryStudioExplorerClient implements StudioExplorerClient {
       content: input.content,
       mediaRef: input.mediaRef ?? null,
       createdAt: now,
+      inputTokens: input.inputTokens,
+      reasoningTokens: input.reasoningTokens,
+      outputTokens: input.outputTokens,
+      tokensEstimated: input.tokensEstimated,
+      visualUnits: input.visualUnits,
     };
     const list = this.turns.get(input.sessionId) ?? [];
     list.push(turn);

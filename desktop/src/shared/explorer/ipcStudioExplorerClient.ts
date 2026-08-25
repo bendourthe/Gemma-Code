@@ -95,6 +95,11 @@ export function createIpcStudioExplorerClient(pillar: StudioPillar): StudioExplo
         role: input.role,
         content: input.content,
         mediaRef: input.mediaRef ?? null,
+        ...(input.inputTokens !== undefined ? { inputTokens: input.inputTokens } : {}),
+        ...(input.reasoningTokens !== undefined ? { reasoningTokens: input.reasoningTokens } : {}),
+        ...(input.outputTokens !== undefined ? { outputTokens: input.outputTokens } : {}),
+        ...(input.tokensEstimated ? { tokensEstimated: true } : {}),
+        ...(input.visualUnits !== undefined ? { visualUnits: input.visualUnits } : {}),
       }),
     async listTurns(sessionId, limit) {
       const { turns } = await call<{ turns: StudioTurn[] }>("studio.session.listTurns", {

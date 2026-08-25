@@ -50,6 +50,11 @@ export interface ChatMessage {
    * v2.0.0 Phase 1 -- provenance class for labelled content (STT transcripts).
    */
   origin?: "stt_transcript" | "user";
+  /** v2.2.7 Phase 2 -- null when the backend did not report usage. */
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
 }
 
 export interface ChatMedia {

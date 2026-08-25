@@ -90,6 +90,53 @@ function extraJsonOk(raw: string | null): boolean {
   }
 }
 
+interface TurnUsageExtra {
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
+  visualUnits?: number | null;
+}
+
+function optionalNumber(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function parseTurnUsage(raw: string | null): TurnUsageExtra {
+  if (raw == null || raw === "") return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const obj = parsed as Record<string, unknown>;
+    const extra: TurnUsageExtra = {
+      inputTokens: optionalNumber(obj.inputTokens),
+      reasoningTokens: optionalNumber(obj.reasoningTokens),
+      outputTokens: optionalNumber(obj.outputTokens),
+    };
+    if (obj.tokensEstimated === true) extra.tokensEstimated = true;
+    if (typeof obj.visualUnits === "number" && Number.isFinite(obj.visualUnits)) {
+      extra.visualUnits = obj.visualUnits;
+    } else if (obj.visualUnits === null) {
+      extra.visualUnits = null;
+    }
+    return extra;
+  } catch {
+    return {};
+  }
+}
+
+function turnUsageExtraJson(input: AppendStudioTurnInput): string | null {
+  const extra: TurnUsageExtra = {};
+  if (input.inputTokens !== undefined) extra.inputTokens = input.inputTokens;
+  if (input.reasoningTokens !== undefined) extra.reasoningTokens = input.reasoningTokens;
+  if (input.outputTokens !== undefined) extra.outputTokens = input.outputTokens;
+  if (input.tokensEstimated) extra.tokensEstimated = true;
+  if (input.visualUnits !== undefined) extra.visualUnits = input.visualUnits;
+  return Object.keys(extra).length === 0 ? null : JSON.stringify(extra);
+}
+
 function rowToFolder(row: FolderRow): StudioFolder | null {
   if (!isStudioPillar(row.pillar)) return null;
   if (!extraJsonOk(row.extra_json)) return null;
@@ -123,6 +170,7 @@ function rowToSession(row: SessionRow): StudioSession | null {
 
 function rowToTurn(row: TurnRow): StudioTurn | null {
   if (!extraJsonOk(row.extra_json)) return null;
+  const usage = parseTurnUsage(row.extra_json);
   return {
     id: row.id,
     sessionId: row.session_id,
@@ -130,6 +178,7 @@ function rowToTurn(row: TurnRow): StudioTurn | null {
     content: row.content,
     mediaRef: row.media_ref,
     createdAt: row.created_at,
+    ...usage,
   };
 }
 
@@ -345,14 +394,15 @@ export class StudioSessionStore {
     const mediaRef = assertPathRef(input.mediaRef);
     const now = input.createdAt ?? Date.now();
     const id = input.id ?? randomUUID();
+    const extraJson = turnUsageExtraJson(input);
     const tx = this.db.transaction(() => {
       this.db
         .prepare(
           `INSERT INTO studio_turns
              (id, session_id, role, content, media_ref, extra_json, created_at)
-           VALUES (?, ?, ?, ?, ?, NULL, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, input.sessionId, input.role, input.content, mediaRef, now);
+        .run(id, input.sessionId, input.role, input.content, mediaRef, extraJson, now);
       if (input.role === "assistant" && mediaRef) {
         this.db
           .prepare(
@@ -379,6 +429,11 @@ export class StudioSessionStore {
       content: input.content,
       mediaRef,
       createdAt: now,
+      inputTokens: input.inputTokens,
+      reasoningTokens: input.reasoningTokens,
+      outputTokens: input.outputTokens,
+      tokensEstimated: input.tokensEstimated,
+      visualUnits: input.visualUnits,
     };
   }
 

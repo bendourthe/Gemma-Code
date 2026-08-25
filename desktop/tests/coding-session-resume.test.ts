@@ -64,10 +64,23 @@ describe("CodingSessionManager -- cross-surface resume (item 26)", () => {
     expect(resumed.session.family).toBe("gemma");
     expect(resumed.session.messageCount).toBe(2);
     expect(resumed.messages).toEqual(["first message", "second message"]);
-    expect(resumed.turns).toEqual([
-      { prompt: "first message", assistantText: "Acknowledged: first message" },
-      { prompt: "second message", assistantText: "Acknowledged: second message" },
-    ]);
+    expect(resumed.turns).toHaveLength(2);
+    expect(resumed.turns[0]).toEqual(
+      expect.objectContaining({
+        prompt: "first message",
+        assistantText: "Acknowledged: first message",
+        tokensEstimated: true,
+      }),
+    );
+    expect(resumed.turns[1]).toEqual(
+      expect.objectContaining({
+        prompt: "second message",
+        assistantText: "Acknowledged: second message",
+        tokensEstimated: true,
+      }),
+    );
+    expect(typeof resumed.turns[0]?.inputTokens).toBe("number");
+    expect(typeof resumed.turns[0]?.outputTokens).toBe("number");
   });
 
   it("messages appended after resume persist back to the shared store", async () => {

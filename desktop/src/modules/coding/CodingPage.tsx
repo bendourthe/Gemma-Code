@@ -15,6 +15,7 @@ import type {
 } from "../../../sidecar/src/protocol";
 import { CodingInput } from "./CodingInput";
 import { foldModelId } from "../../../../core/registry/modelAliases";
+import { estimateTokens } from "../../../../core/chat/sessionContextUsage";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
@@ -69,12 +70,22 @@ interface Turn {
   rendered: RenderedTurn;
   pending?: boolean;
   activity?: AgentActivity;
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
 }
 
 function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMessage[] {
   const messages: ChatMessage[] = [];
   for (const turn of turns) {
-    messages.push({ id: `${turn.id}-user`, role: "user", content: turn.prompt });
+    messages.push({
+      id: `${turn.id}-user`,
+      role: "user",
+      content: turn.prompt,
+      inputTokens: turn.inputTokens ?? null,
+      tokensEstimated: turn.tokensEstimated,
+    });
     const hasAssistant =
       Boolean(turn.pending) ||
       turn.rendered.text.length > 0 ||
@@ -92,6 +103,9 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
         })),
         pending: turn.pending,
         activity: turn.activity,
+        reasoningTokens: turn.reasoningTokens ?? null,
+        outputTokens: turn.outputTokens ?? null,
+        tokensEstimated: turn.tokensEstimated,
       });
     }
   }
@@ -105,6 +119,24 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
     });
   }
   return messages;
+}
+
+function usageFromCodingEvents(events: readonly CodingSessionEventT[]): {
+  inputTokens: number | null;
+  reasoningTokens: number | null;
+  outputTokens: number | null;
+} {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event && event.kind === "done") {
+      return {
+        inputTokens: event.inputTokens ?? null,
+        reasoningTokens: event.reasoningTokens ?? null,
+        outputTokens: event.outputTokens ?? null,
+      };
+    }
+  }
+  return { inputTokens: null, reasoningTokens: null, outputTokens: null };
 }
 
 export interface CodingPageProps {
@@ -349,9 +381,22 @@ export function CodingPage({
           return;
         }
         const rendered = applyEvents(reply.value.events);
+        const usage = usageFromCodingEvents(reply.value.events);
+        const estimated =
+          usage.inputTokens == null &&
+          usage.reasoningTokens == null &&
+          usage.outputTokens == null;
         setTurns((prev) => [
           ...prev,
-          { id: `${id}-${prev.length}`, prompt: text, rendered },
+          {
+            id: `${id}-${prev.length}`,
+            prompt: text,
+            rendered,
+            inputTokens: estimated ? estimateTokens(text) : usage.inputTokens,
+            reasoningTokens: usage.reasoningTokens,
+            outputTokens: estimated ? estimateTokens(rendered.text) : usage.outputTokens,
+            tokensEstimated: estimated,
+          },
         ]);
       } finally {
         setBusy(false);
@@ -409,6 +454,10 @@ export function CodingPage({
           id: `${id}-${index}`,
           prompt: turn.prompt,
           rendered: { text: turn.assistantText, cards: [], done: true },
+          inputTokens: turn.inputTokens ?? null,
+          reasoningTokens: turn.reasoningTokens ?? null,
+          outputTokens: turn.outputTokens ?? null,
+          tokensEstimated: turn.tokensEstimated,
         })),
       );
     } else {

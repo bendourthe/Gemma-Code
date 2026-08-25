@@ -151,12 +151,13 @@ export function buildChatRequest(args: {
 export interface CollectedUsage {
   promptTokens: number;
   completionTokens: number;
+  reasoningTokens: number | null;
   reported: boolean;
 }
 
 /** A fresh, all-zero usage accumulator. */
 export function newUsage(): CollectedUsage {
-  return { promptTokens: 0, completionTokens: 0, reported: false };
+  return { promptTokens: 0, completionTokens: 0, reasoningTokens: null, reported: false };
 }
 
 /**
@@ -184,7 +185,45 @@ export function collectUsage(chunk: LLMStreamChunk, into: CollectedUsage): void 
       into.completionTokens = usage.completion_tokens;
       into.reported = true;
     }
+    if (typeof usage.reasoning_tokens === "number") {
+      into.reasoningTokens = usage.reasoning_tokens;
+    }
   }
+}
+
+export function turnUsageFromCollected(
+  usage: CollectedUsage,
+  thinkingText = "",
+): {
+  inputTokens: number | null;
+  reasoningTokens: number | null;
+  outputTokens: number | null;
+} {
+  const thinkingReasoning = thinkingText.trim().length > 0 ? Math.ceil(new TextEncoder().encode(thinkingText).length / 4) : null;
+  const reasoning = usage.reasoningTokens ?? thinkingReasoning;
+  if (!usage.reported) {
+    return { inputTokens: null, reasoningTokens: reasoning, outputTokens: null };
+  }
+  return {
+    inputTokens: usage.promptTokens,
+    reasoningTokens: reasoning,
+    outputTokens: usage.completionTokens,
+  };
+}
+
+export function doneUsageFields(usage: ReturnType<typeof turnUsageFromCollected>): {
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+} {
+  if (usage.inputTokens == null && usage.reasoningTokens == null && usage.outputTokens == null) {
+    return {};
+  }
+  return {
+    inputTokens: usage.inputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    outputTokens: usage.outputTokens,
+  };
 }
 
 /** Monotonic-ish id factory; injectable so tests get deterministic ids. */

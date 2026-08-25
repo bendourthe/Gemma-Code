@@ -54,6 +54,11 @@ export function studioTurnsToChatMessages(
         id: turn.id,
         role: "user" as const,
         content: turn.content,
+        timestamp: new Date(turn.createdAt).toISOString(),
+        inputTokens: turn.inputTokens ?? null,
+        reasoningTokens: turn.reasoningTokens ?? null,
+        outputTokens: turn.outputTokens ?? null,
+        tokensEstimated: turn.tokensEstimated,
         ...(turn.mediaRef ? { attachments: [turn.mediaRef] } : {}),
       };
     }
@@ -63,12 +68,22 @@ export function studioTurnsToChatMessages(
         id: turn.id,
         role: "assistant" as const,
         content: turn.content.trim() ? turn.content : MISSING_OUTPUT_TEXT,
+        timestamp: new Date(turn.createdAt).toISOString(),
+        inputTokens: turn.inputTokens ?? null,
+        reasoningTokens: turn.reasoningTokens ?? null,
+        outputTokens: turn.outputTokens ?? null,
+        tokensEstimated: turn.tokensEstimated,
       };
     }
     return {
       id: turn.id,
       role: "assistant" as const,
       content: turn.content,
+      timestamp: new Date(turn.createdAt).toISOString(),
+      inputTokens: turn.inputTokens ?? null,
+      reasoningTokens: turn.reasoningTokens ?? null,
+      outputTokens: turn.outputTokens ?? null,
+      tokensEstimated: turn.tokensEstimated,
       ...(ref ? { media: { kind: mediaKind, src: ref } } : {}),
     };
   });

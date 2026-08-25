@@ -22,6 +22,7 @@ import {
   CodingSessionSummaryT,
   IpcMethodError,
 } from "../protocol.js";
+import { estimateTokens } from "../../../../core/chat/sessionContextUsage.js";
 import { requireModel, type SidecarModelEntry } from "./models.js";
 import type { AgentRunner } from "./headlessAgentRunner.js";
 import type { PersistedSession, PersistedTurn, SessionStore } from "./sessionStore.js";
@@ -29,6 +30,10 @@ import type { PersistedSession, PersistedTurn, SessionStore } from "./sessionSto
 interface SessionTurn {
   prompt: string;
   assistantText: string;
+  inputTokens?: number | null;
+  reasoningTokens?: number | null;
+  outputTokens?: number | null;
+  tokensEstimated?: boolean;
 }
 
 interface SessionRecord {
@@ -53,6 +58,59 @@ function tokenTextFromEvents(events: readonly CodingSessionEventT[]): string {
 
 function turnsFromRecord(rec: SessionRecord): PersistedTurn[] {
   return rec.messages.map((prompt, index) => rec.turns[index] ?? { prompt, assistantText: "" });
+}
+
+function copyTurn(turn: PersistedTurn | SessionTurn): SessionTurn {
+  return {
+    prompt: turn.prompt,
+    assistantText: turn.assistantText,
+    inputTokens: turn.inputTokens,
+    reasoningTokens: turn.reasoningTokens,
+    outputTokens: turn.outputTokens,
+    tokensEstimated: turn.tokensEstimated,
+  };
+}
+
+function usageFromCodingEvents(events: readonly CodingSessionEventT[]): {
+  inputTokens: number | null;
+  reasoningTokens: number | null;
+  outputTokens: number | null;
+} {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event && event.kind === "done") {
+      return {
+        inputTokens: event.inputTokens ?? null,
+        reasoningTokens: event.reasoningTokens ?? null,
+        outputTokens: event.outputTokens ?? null,
+      };
+    }
+  }
+  return { inputTokens: null, reasoningTokens: null, outputTokens: null };
+}
+
+function persistedTurnFromEvents(prompt: string, events: readonly CodingSessionEventT[]): SessionTurn {
+  const assistantText = tokenTextFromEvents(events);
+  const usage = usageFromCodingEvents(events);
+  const hasReported =
+    usage.inputTokens != null || usage.reasoningTokens != null || usage.outputTokens != null;
+  if (hasReported) {
+    return {
+      prompt,
+      assistantText,
+      inputTokens: usage.inputTokens,
+      reasoningTokens: usage.reasoningTokens,
+      outputTokens: usage.outputTokens,
+      tokensEstimated: false,
+    };
+  }
+  return {
+    prompt,
+    assistantText,
+    inputTokens: estimateTokens(prompt),
+    outputTokens: estimateTokens(assistantText),
+    tokensEstimated: true,
+  };
 }
 
 export class CodingSessionManager {
@@ -91,7 +149,7 @@ export class CodingSessionManager {
           createdAt: s.createdAt,
           messages: [...s.messages],
           turns: (s.turns ?? s.messages.map((prompt) => ({ prompt, assistantText: "" }))).map(
-            (turn) => ({ prompt: turn.prompt, assistantText: turn.assistantText }),
+            copyTurn,
           ),
           cancelRequested: false,
         });
@@ -182,7 +240,7 @@ export class CodingSessionManager {
           },
           { kind: "done", finishReason: rec.cancelRequested ? "cancelled" : "stop" },
         ];
-    rec.turns.push({ prompt: message, assistantText: tokenTextFromEvents(events) });
+    rec.turns.push(persistedTurnFromEvents(message, events));
     this._persist(rec);
     return events;
   }

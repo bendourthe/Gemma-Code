@@ -86,6 +86,7 @@ import {
   UNREADABLE_OUTPUT_TEXT,
 } from "../../shared/explorer/studioSessionMemory";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
+import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_FORM_VALUES.modelId,
@@ -281,6 +282,7 @@ export function ImageStudioPage({
             role: input.role,
             content: input.content,
             mediaRef: input.mediaRef ?? null,
+            ...studioPersistUsage(input),
           }),
         ).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
       } catch {

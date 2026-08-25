@@ -226,7 +226,13 @@ export const CodingSessionEvent = z.discriminatedUnion("kind", [
     callId: z.string(),
     result: z.string(),
   }),
-  z.object({ kind: z.literal("done"), finishReason: z.string().optional() }),
+  z.object({
+    kind: z.literal("done"),
+    finishReason: z.string().optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+  }),
 ]);
 export type CodingSessionEventT = z.infer<typeof CodingSessionEvent>;
 
@@ -293,7 +299,13 @@ export type ChatSessionSendMessageRequestT = z.infer<typeof ChatSessionSendMessa
 
 export const ChatSessionEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("token"), text: z.string() }),
-  z.object({ kind: z.literal("done"), finishReason: z.string().optional() }),
+  z.object({
+    kind: z.literal("done"),
+    finishReason: z.string().optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+  }),
 ]);
 export type ChatSessionEventT = z.infer<typeof ChatSessionEvent>;
 
@@ -372,6 +384,10 @@ export const CodingSessionTurn = z
   .object({
     prompt: z.string(),
     assistantText: z.string(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+    tokensEstimated: z.boolean().optional(),
   })
   .strict();
 export type CodingSessionTurnT = z.infer<typeof CodingSessionTurn>;
@@ -708,6 +724,10 @@ const ChatMessageDto = z.object({
   content: z.string(),
   attachments: z.array(z.string()),
   createdAt: z.number(),
+  inputTokens: z.number().int().nonnegative().nullable().optional(),
+  reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+  outputTokens: z.number().int().nonnegative().nullable().optional(),
+  tokensEstimated: z.boolean().optional(),
 });
 // The tree is recursive; validate the leaf shapes and pass the nesting
 // through rather than fighting zod's recursive typing for an internal DTO.
@@ -748,6 +768,10 @@ export const ChatExplorerAppendMessageRequest = z
     role: z.enum(["user", "assistant"]),
     content: z.string(),
     attachments: z.array(z.string()).optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+    tokensEstimated: z.boolean().optional(),
   })
   .strict();
 export const ChatExplorerListMessagesRequest = z
@@ -820,6 +844,11 @@ export const StudioSessionAppendTurnRequest = z
     role: z.enum(["user", "assistant"]),
     content: z.string(),
     mediaRef: z.string().nullable().optional(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+    tokensEstimated: z.boolean().optional(),
+    visualUnits: z.number().int().nonnegative().nullable().optional(),
   })
   .strict();
 export const StudioSessionTurnResponse = z.object({
@@ -829,6 +858,11 @@ export const StudioSessionTurnResponse = z.object({
   content: z.string(),
   mediaRef: z.string().nullable(),
   createdAt: z.number(),
+  inputTokens: z.number().int().nonnegative().nullable().optional(),
+  reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+  outputTokens: z.number().int().nonnegative().nullable().optional(),
+  tokensEstimated: z.boolean().optional(),
+  visualUnits: z.number().int().nonnegative().nullable().optional(),
 });
 export const StudioSessionListTurnsRequest = z
   .object({ sessionId: z.string(), limit: z.number().int().positive().optional() })

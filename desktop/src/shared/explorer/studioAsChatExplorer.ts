@@ -147,6 +147,10 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           role: input.role,
           content: input.content,
           mediaRef: input.attachments?.[0] ?? null,
+          inputTokens: input.inputTokens,
+          reasoningTokens: input.reasoningTokens,
+          outputTokens: input.outputTokens,
+          tokensEstimated: input.tokensEstimated,
         }),
         (turn) => {
           const record: ChatMessageRecord = {
@@ -156,6 +160,10 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
             content: turn.content,
             attachments: turn.mediaRef ? [turn.mediaRef] : [],
             createdAt: turn.createdAt,
+            inputTokens: turn.inputTokens,
+            reasoningTokens: turn.reasoningTokens,
+            outputTokens: turn.outputTokens,
+            tokensEstimated: turn.tokensEstimated,
           };
           return record;
         },
@@ -171,6 +179,10 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           content: turn.content,
           attachments: turn.mediaRef ? [turn.mediaRef] : [],
           createdAt: turn.createdAt,
+          inputTokens: turn.inputTokens,
+          reasoningTokens: turn.reasoningTokens,
+          outputTokens: turn.outputTokens,
+          tokensEstimated: turn.tokensEstimated,
         })),
       );
     },

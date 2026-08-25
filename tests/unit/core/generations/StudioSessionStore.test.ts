@@ -192,4 +192,43 @@ describe("StudioSessionStore", () => {
     expect(store.moveSession(session.id, folder.id).folderId).toBe(folder.id);
     expect(store.moveSession(session.id, null).folderId).toBeNull();
   });
+
+  it("round-trips usage fields through extra_json and does not count a stub visual unit", () => {
+    const store = mem();
+    const session = store.createSession({
+      pillar: "image",
+      folderId: null,
+      title: "Usage",
+      modelId: "sana",
+    });
+    store.appendTurn({
+      sessionId: session.id,
+      role: "user",
+      content: "a fox",
+      inputTokens: 3,
+      tokensEstimated: true,
+      visualUnits: 0,
+    });
+    store.appendTurn({
+      sessionId: session.id,
+      role: "assistant",
+      content: "",
+      mediaRef: "/tmp/fox.png",
+      visualUnits: 1,
+    });
+    store.appendTurn({
+      sessionId: session.id,
+      role: "assistant",
+      content: "stub",
+      visualUnits: 0,
+    });
+    const turns = store.listTurns(session.id);
+    expect(turns[0]?.inputTokens).toBe(3);
+    expect(turns[0]?.tokensEstimated).toBe(true);
+    expect(turns[0]?.visualUnits).toBe(0);
+    expect(turns[1]?.visualUnits).toBe(1);
+    expect(turns[1]?.mediaRef).toBe("/tmp/fox.png");
+    expect(turns[2]?.visualUnits).toBe(0);
+    expect(turns[2]?.inputTokens).toBeUndefined();
+  });
 });

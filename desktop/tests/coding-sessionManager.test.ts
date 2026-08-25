@@ -140,8 +140,39 @@ describe("CodingSessionManager", () => {
     const resumed = mgr.resume(sessionId);
     expect(resumed.messages).toEqual(["Hello agent"]);
     expect(resumed.turns).toEqual([
-      { prompt: "Hello agent", assistantText: "Acknowledged: Hello agent" },
+      expect.objectContaining({
+        prompt: "Hello agent",
+        assistantText: "Acknowledged: Hello agent",
+        tokensEstimated: true,
+      }),
     ]);
+  });
+
+  it("persists reported usage from a done event without estimating", async () => {
+    const mgr = new CodingSessionManager({
+      now: () => new Date("2026-05-17T11:00:00Z"),
+      idFactory: () => "sess-usage",
+      agentRunner: async () => [
+        { kind: "token", text: "ok" },
+        {
+          kind: "done",
+          finishReason: "stop",
+          inputTokens: 40,
+          reasoningTokens: 2,
+          outputTokens: 10,
+        },
+      ],
+    });
+    const { sessionId } = mgr.start({ modelId: "gemma4:e4b" });
+    await mgr.sendMessage(sessionId, "hi");
+    expect(mgr.resume(sessionId).turns[0]).toEqual({
+      prompt: "hi",
+      assistantText: "ok",
+      inputTokens: 40,
+      reasoningTokens: 2,
+      outputTokens: 10,
+      tokensEstimated: false,
+    });
   });
 
   it("renames and deletes a session", async () => {
