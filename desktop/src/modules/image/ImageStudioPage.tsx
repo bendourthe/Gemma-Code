@@ -33,12 +33,11 @@ import {
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
 
-import { MediaComposer, MessageList, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
 import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
-import { ModelSelector } from "../../shared/chat/ModelSelector";
+import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   SETTINGS_MODELS_PATH,
-  GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
 import {
@@ -342,6 +341,26 @@ export function ImageStudioPage({
     },
     [studioClient, outputExists],
   );
+
+  const startFreshStudioSession = useCallback(async (): Promise<void> => {
+    setMessages([]);
+    lastOutputRef.current = null;
+    activeSessionIdRef.current = null;
+    if (backendDown) return;
+    try {
+      const session = await Promise.resolve(
+        studioClient.createSession({
+          folderId: null,
+          title: "New session",
+          modelId: selectedModelId,
+        }),
+      );
+      activeSessionIdRef.current = session.id;
+      setHistoryEpoch((n) => n + 1);
+    } catch {
+      // Local transcript already cleared; the old session stays in the pane.
+    }
+  }, [backendDown, studioClient, selectedModelId]);
 
   useEffect(() => {
     if (!initialSessionId) return;
@@ -647,17 +666,6 @@ export function ImageStudioPage({
     [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists],
   );
 
-  const onSelectModel = useCallback(
-    (id: string): void => {
-      if (id === GET_MORE_MODELS_ID) {
-        onGetMoreModels?.();
-        return;
-      }
-      setSelectedModelId(id);
-    },
-    [onGetMoreModels],
-  );
-
   const pickCandidate = useCallback(
     async (maskPngBase64: string): Promise<void> => {
       if (!pendingReplace) return;
@@ -723,12 +731,13 @@ export function ImageStudioPage({
     setFormEpoch((n) => n + 1);
   }
 
-  const selectorModels = useMemo(
-    () => [
-      ...models.map((m) => ({ id: m.id, displayName: m.displayName })),
-      { id: GET_MORE_MODELS_ID, displayName: "+ Get more models..." },
-    ],
-    [models],
+  const pickerModel = useMemo(
+    () => models.find((candidate) => candidate.id === selectedModelId),
+    [models, selectedModelId],
+  );
+  const contextUsage = useMemo(
+    () => composerSessionUsage(messages, pickerModel),
+    [messages, pickerModel],
   );
 
   return (
@@ -745,13 +754,6 @@ export function ImageStudioPage({
           borderBottom: "1px solid var(--border-1)",
         }}
       >
-        <ModelSelector
-          models={selectorModels}
-          value={selectedModelId}
-          onChange={onSelectModel}
-          disabled={isGenerating}
-          testId="image-model-select"
-        />
         {noneInstalled && !backendDown && (
           <button
             type="button"
@@ -973,6 +975,17 @@ export function ImageStudioPage({
           seededAttachment={seededAttachment}
           streaming={isGenerating}
         />
+        <ComposerContextRow usage={contextUsage} onStartNewSession={() => void startFreshStudioSession()}>
+          <QuickModelSwitcher
+            testId="image-model-select"
+            models={models}
+            taskType="image"
+            value={selectedModelId}
+            onChange={setSelectedModelId}
+            onGetMoreModels={onGetMoreModels}
+            disabled={isGenerating}
+          />
+        </ComposerContextRow>
       </div>
         </div>
       </div>

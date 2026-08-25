@@ -22,6 +22,7 @@ function videoModels(): { list: () => Promise<ListedModelDto[]> } {
         installed: true,
         source: "registry",
         vramGB: 5.5,
+        visualTokenBudget: { maxVideoFrames: 4 },
       },
     ],
   };
@@ -37,6 +38,9 @@ describe("VideoLabPage (chat)", () => {
     );
     expect(screen.getByTestId("video-lab-page")).toBeInTheDocument();
     expect(screen.getByTestId("video-model-select")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="video-model-select"]')).toBeTruthy();
+    expect(screen.getByTestId("video-lab-page").querySelector("header")?.querySelector('[data-testid="video-model-select"]')).toBeNull();
+    expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("video-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("video-advanced-settings")).toBeInTheDocument();
@@ -75,6 +79,7 @@ describe("VideoLabPage (chat)", () => {
     expect(media.getAttribute("src")).toBe("mock:///tmp/clip.mp4");
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
+    expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
   });
 
   it("does not generate until a conflicting active model switch is approved", async () => {

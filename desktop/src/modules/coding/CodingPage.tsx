@@ -21,7 +21,7 @@ import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
 import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
 import { SessionListPanel } from "./panels/SessionListPanel";
-import { MessageList, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   installedForTask,
@@ -596,6 +596,16 @@ export function CodingPage({
     [],
   );
 
+  const transcriptMessages = useMemo(() => turnsToMessages(turns, busy), [turns, busy]);
+  const pickerModel = useMemo(
+    () => listedModels.find((candidate) => candidate.id === modelId),
+    [listedModels, modelId],
+  );
+  const contextUsage = useMemo(
+    () => composerSessionUsage(transcriptMessages, pickerModel),
+    [transcriptMessages, pickerModel],
+  );
+
   return (
     <section
       data-testid="coding-page"
@@ -609,18 +619,6 @@ export function CodingPage({
       }}
     >
       <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-          <QuickModelSwitcher
-            testId="coding-model-select"
-            models={listedModels}
-            taskType="llm"
-            ownedIds={ownedIdSet(selection)}
-            value={modelId}
-            onChange={setModelId}
-            onGetMoreModels={onGetMoreModels}
-            disabled={Boolean(sessionId)}
-          />
-        </div>
         <label
           htmlFor="coding-workspace-path"
           style={{
@@ -710,7 +708,7 @@ export function CodingPage({
         {tab === "chat" && (
           <div data-testid="coding-chat">
             <MessageList
-              messages={turnsToMessages(turns, busy)}
+              messages={transcriptMessages}
               enableTools={true}
               emptyMessage={
                 "Start by asking a question, attaching a document, or typing / for commands."
@@ -746,6 +744,18 @@ export function CodingPage({
       {tab === "chat" && (
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <CodingInput disabled={busy} streaming={busy} onSubmit={handleSubmit} />
+          <ComposerContextRow usage={contextUsage} onStartNewSession={() => void handleNewSession()}>
+            <QuickModelSwitcher
+              testId="coding-model-select"
+              models={listedModels}
+              taskType="llm"
+              ownedIds={ownedIdSet(selection)}
+              value={modelId}
+              onChange={setModelId}
+              onGetMoreModels={onGetMoreModels}
+              disabled={Boolean(sessionId)}
+            />
+          </ComposerContextRow>
           {sessionId && (
             <div
               style={{

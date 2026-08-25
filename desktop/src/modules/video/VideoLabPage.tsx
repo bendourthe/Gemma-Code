@@ -29,12 +29,11 @@ import {
   useSidecarStatus,
 } from "../../lib/sidecarStatus";
 
-import { MediaComposer, MessageList, chatComposerAccept, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, chatComposerAccept, composerSessionUsage, type ChatMessage } from "../../shared/chat";
 import { isUsableVideoPath } from "../../shared/studio/usablePayload";
-import { ModelSelector } from "../../shared/chat/ModelSelector";
+import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   SETTINGS_MODELS_PATH,
-  GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
 import {
@@ -344,6 +343,27 @@ export function VideoLabPage({
     },
     [studioClient, outputExists],
   );
+
+  const startFreshStudioSession = useCallback(async (): Promise<void> => {
+    setMessages([]);
+    lastOutputRef.current = null;
+    lastJobIdRef.current = null;
+    activeSessionIdRef.current = null;
+    if (backendDown) return;
+    try {
+      const session = await Promise.resolve(
+        studioClient.createSession({
+          folderId: null,
+          title: "New session",
+          modelId: selectedModelId,
+        }),
+      );
+      activeSessionIdRef.current = session.id;
+      setHistoryEpoch((n) => n + 1);
+    } catch {
+      // Local transcript already cleared; the old session stays in the pane.
+    }
+  }, [backendDown, studioClient, selectedModelId]);
 
   useEffect(() => {
     if (!initialSessionId) return;
@@ -752,17 +772,6 @@ export function VideoLabPage({
     ],
   );
 
-  const onSelectModel = useCallback(
-    (id: string): void => {
-      if (id === GET_MORE_MODELS_ID) {
-        onGetMoreModels?.();
-        return;
-      }
-      setSelectedModelId(id);
-    },
-    [onGetMoreModels],
-  );
-
   function downloadVideo(messageId: string): void {
     const href =
       playlists.get(messageId)?.[0]?.src ??
@@ -820,12 +829,13 @@ export function VideoLabPage({
     setFormEpoch((n) => n + 1);
   }
 
-  const selectorModels = useMemo(
-    () => [
-      ...models.map((m) => ({ id: m.id, displayName: m.displayName })),
-      { id: GET_MORE_MODELS_ID, displayName: "+ Get more models..." },
-    ],
-    [models],
+  const pickerModel = useMemo(
+    () => models.find((candidate) => candidate.id === selectedModelId),
+    [models, selectedModelId],
+  );
+  const contextUsage = useMemo(
+    () => composerSessionUsage(messages, pickerModel),
+    [messages, pickerModel],
   );
 
   return (
@@ -842,13 +852,6 @@ export function VideoLabPage({
           borderBottom: "1px solid var(--border-1)",
         }}
       >
-        <ModelSelector
-          models={selectorModels}
-          value={selectedModelId}
-          onChange={onSelectModel}
-          disabled={isGenerating}
-          testId="video-model-select"
-        />
         {noneInstalled && !backendDown && (
           <button
             type="button"
@@ -1042,6 +1045,17 @@ export function VideoLabPage({
           audioEnabled={canAvatar}
           audioHint="Photo plus audio stay on this device."
         />
+        <ComposerContextRow usage={contextUsage} onStartNewSession={() => void startFreshStudioSession()}>
+          <QuickModelSwitcher
+            testId="video-model-select"
+            models={models}
+            taskType="video"
+            value={selectedModelId}
+            onChange={setSelectedModelId}
+            onGetMoreModels={onGetMoreModels}
+            disabled={isGenerating}
+          />
+        </ComposerContextRow>
       </div>
         </div>
       </div>

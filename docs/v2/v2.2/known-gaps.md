@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.7 Phase 2)
+**Last updated**: 2026-08-24 (v2.2.7 Phase 3)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,20 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.7
 
-**Last updated**: 2026-08-24 (Phase 2 - session token accounting)
+**Last updated**: 2026-08-24 (Phase 3 - context pill and 80% CTA)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 2 | 0 |
+| Deferred (DF) | 3 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. 79% has no CTA; 80% creates or selects a new session without deleting the old. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Chip copy is implemented twice (WN-7). DF-2 and DF-4 stay open from earlier cycles.
 
 ### Open this cycle
 
@@ -40,6 +40,13 @@ Settings and installer Context chips are unit-proven as `<val>k` with no trailin
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 2)
 - **Reason**: Unit fixtures persist `prompt_eval_count` / `eval_count` / `message.thinking` onto the chat done event and round-trip chat/studio/coding stores. A live Gemma 4 Ollama final chunk was not captured this phase. Coding agent turns estimate when the runner does not attach counters. not_observed != absent.
 - **Suggested next step**: Send one Chatbot turn against a local Ollama Gemma 4 model and confirm the persisted assistant row matches the final chunk; if thinking is in `message.thinking`, confirm it counts toward used tokens.
+
+##### DF-30 - Packaged four-tab Context meter and 80% CTA are unproven
+
+- **Source phase**: v2.2.7 Phase 3
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 3)
+- **Reason**: Component tests cover 79% without CTA, 80% CTA creating a new Chatbot session without deleting the old tree row, hidden bar when no window or visual budget, and pickers under `composer-context-row` on Chat/Agents/Images/Videos. A packaged Explorer was not clicked through this phase. not_observed != absent.
+- **Suggested next step**: On a packaged build, send Chatbot turns until the pill reaches 80%, accept Start a new session, confirm the old chat remains; peek Images/Videos and confirm the picker sits under the composer and peeking does not load weights.
 
 ##### WN-7 - Context chip formatters are duplicated across TypeScript and Python
 

@@ -23,6 +23,7 @@ function imageModels(): { list: () => Promise<ListedModelDto[]> } {
         installed: true,
         source: "registry",
         vramGB: 3.2,
+        visualTokenBudget: { maxImages: 4 },
       },
     ],
   };
@@ -37,6 +38,9 @@ describe("ImageStudioPage (chat)", () => {
       <ImageStudioPage client={new InMemoryDiffusionClient()} modelsClient={NO_MODELS} drainIntervalMs={20} />,
     );
     expect(screen.getByTestId("image-model-select")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="image-model-select"]')).toBeTruthy();
+    expect(screen.getByTestId("image-studio-page").querySelector("header")?.querySelector('[data-testid="image-model-select"]')).toBeNull();
+    expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("image-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("image-advanced-settings")).toBeInTheDocument();
@@ -68,6 +72,7 @@ describe("ImageStudioPage (chat)", () => {
     expect(client.lastRequest?.mode).toBe("txt2img");
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("sana-1.6b-1024");
+    expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
     // User bubble plus the auto-created session title both read the prompt.
     expect(screen.getAllByText("a fox").length).toBeGreaterThanOrEqual(1);
   });

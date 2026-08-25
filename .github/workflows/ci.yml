@@ -81,8 +81,10 @@ jobs:
       # hydrate and implicit last-output follow-up, Agents resume hydration,
       # and Chatbot append-then-remount. No live GPU in PR CI.
       # v2.2.7: the same job covers Settings Models context chips
-      # (128k / omit-on-null), chat/coding usage on done events, and
-      # studio persist of visualUnits. No live GPU in PR CI.
+      # (128k / omit-on-null), chat/coding usage on done events,
+      # studio persist of visualUnits, ContextUsageBar 79/80 CTA,
+      # and the composer picker row on Chat/Agents/Images/Videos.
+      # No live GPU in PR CI.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

@@ -174,6 +174,8 @@ describe("CodingPage", () => {
   it("renders the model selector and the chat empty state by default", () => {
     render(<CodingPage />);
     expect(screen.getByTestId("coding-model-select")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
+    expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
   });
 
@@ -295,6 +297,7 @@ describe("CodingPage", () => {
             type: "llm" as const,
             installed: true,
             source: "registry" as const,
+            contextWindow: 128000,
           },
           {
             id: "qwen2.5-coder:7b",
@@ -302,6 +305,7 @@ describe("CodingPage", () => {
             type: "llm" as const,
             installed: true,
             source: "registry" as const,
+            contextWindow: 32768,
           },
         ];
       },
@@ -311,6 +315,8 @@ describe("CodingPage", () => {
     await waitFor(() => {
       expect([...select.options].map((o) => o.value)).toContain("qwen2.5-coder:7b");
     });
+    expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
     await userEvent.selectOptions(select, "qwen2.5-coder:7b");
     expect(select.value).toBe("qwen2.5-coder:7b");
   });
