@@ -1,8 +1,10 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.8** working-local-studio cycle implemented 2026-08-24; package **2.2.8** pending tag).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.9** field-chrome-catalog-and-generate planned 2026-08-25; package still **2.2.8** until `/update release`).
 
-> **v2.2.8 CUT (2026-08-24)** -- [working-local-studio](v2/v2.2/plans/v2.2.8-working-local-studio.md) plus v2.2.6 session-memory and v2.2.7 context-meter, one tag. Package **2.2.8**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 closed observed; DF-4 live GPU; DF-32 packaged Hi; DF-35 packaged Hub latest). This release changes no opt-in capability, installer flag, or host surface.
+> **v2.2.9 PLANNED (2026-08-25)** -- [field-chrome-catalog-and-generate](v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md). Packaged Chatbot `Hi` observed on v2.2.8; remaining work is Chat chrome, thinking-orb captions, Image/Video history identity + typed generate errors, installer=Settings Models cards, Hub tag normalize. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-4 live GPU; DF-32/DF-35 close on implement). This cycle changes no opt-in capability, installer flag, or host surface.
+>
+> **v2.2.8 RELEASED (2026-08-25)** -- [working-local-studio](v2/v2.2/plans/v2.2.8-working-local-studio.md) plus v2.2.6 session-memory and v2.2.7 context-meter, one tag. Package **2.2.8**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 closed observed; DF-4 live GPU; DF-32 packaged Hi observed 2026-08-25, close in v2.2.9; DF-35 Active=latest observed with `v` prefix banner). This release changes no opt-in capability, installer flag, or host surface.
 >
 > **v2.2.5 RELEASED (2026-08-23)** -- field-repair cycle [v2.2.0](v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md) through [v2.2.5](v2/v2.2/plans/v2.2.5-first-successful-generation.md). Package **2.2.5**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 packaged Explorer, DF-4 live GPU generate). Cycle: sidecar start, honest catalog, Chatbot-first, alias-fold ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest. This release changes no opt-in capability, installer flag, or host surface.
 >
@@ -519,7 +521,8 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest | **Released (2026-08-23)** -- package 2.2.5; DF-2 and DF-4 remain open | `v2/v2.2/plans/v2.2.5-first-successful-generation.md` |
 | v2.2.6 | Session memory and studio history | **Released in v2.2.8 (2026-08-24)** -- Phases 1-6 landed | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
 | v2.2.7 | Context meter and transcript chrome | **Released in v2.2.8 (2026-08-24)** -- Phases 1-5 landed; DF-28 through DF-31 packaged/live soak remain open | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
-| v2.2.8 | Working local studio: minutes-class RPCs, shared FolderTree, Models sort, Hub quarantine apply | **Cut (2026-08-24)** -- package 2.2.8 pending tag; DF-32/33/34/35 and DF-4 remain open; DF-2 closed | `v2/v2.2/plans/v2.2.8-working-local-studio.md` |
+| v2.2.8 | Working local studio: minutes-class RPCs, shared FolderTree, Models sort, Hub quarantine apply | **Released (2026-08-25)** -- package 2.2.8 tagged; packaged Hi observed; DF-33/34 and DF-4 remain; DF-32/35 close in v2.2.9 | `v2/v2.2/plans/v2.2.8-working-local-studio.md` |
+| v2.2.9 | Field chrome, catalog identity, honest generate | **Planned (2026-08-25)** -- Phases 1-7 not started; package stays 2.2.8 until `/update release` | `v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 
