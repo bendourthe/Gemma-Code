@@ -20,24 +20,27 @@ import {
   VIDEO_HISTORY_COLLAPSE_KEY,
 } from "./historyPaneLayout";
 
+// v2.2.9 Phase 3.1 (T007): Chatbot FolderTree strings, not Sessions / Start a
+// new session (screenshots 6-7). Only the aria labels stay pillar-specific so
+// screen readers can tell the panes apart.
 const IMAGE_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions",
-  newItem: "New session",
-  emptyCta: "Start a new session",
-  treeAria: "Image sessions",
-  loadError: "Could not load sessions",
-  emptyHint: "No sessions yet.",
-  itemNoun: "session",
+  paneTitle: "Chats",
+  newItem: "New chat",
+  emptyCta: "Start a new chat",
+  treeAria: "Image chats",
+  loadError: "Could not load chats",
+  emptyHint: "No chats yet.",
+  itemNoun: "chat",
 };
 
 const VIDEO_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions",
-  newItem: "New session",
-  emptyCta: "Start a new session",
-  treeAria: "Video sessions",
-  loadError: "Could not load sessions",
-  emptyHint: "No sessions yet.",
-  itemNoun: "session",
+  paneTitle: "Chats",
+  newItem: "New chat",
+  emptyCta: "Start a new chat",
+  treeAria: "Video chats",
+  loadError: "Could not load chats",
+  emptyHint: "No chats yet.",
+  itemNoun: "chat",
 };
 
 export interface StudioHistoryPaneProps {
@@ -85,8 +88,8 @@ export function StudioHistoryPane({
       collapsed={collapsed}
       onToggle={toggle}
       toggleTestId={`${pillar}-history-collapse-toggle`}
-      expandLabel="Expand sessions"
-      collapseLabel="Collapse sessions"
+      expandLabel="Expand chats"
+      collapseLabel="Collapse chats"
     >
       {sidecarDown ? (
         <p

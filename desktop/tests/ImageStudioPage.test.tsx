@@ -39,12 +39,48 @@ describe("ImageStudioPage (chat)", () => {
     );
     expect(screen.getByTestId("image-model-select")).toBeInTheDocument();
     expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="image-model-select"]')).toBeTruthy();
-    expect(screen.getByTestId("image-studio-page").querySelector("header")?.querySelector('[data-testid="image-model-select"]')).toBeNull();
+    // v2.2.9 Phase 3.1 (T007): no header at all until it has visible children.
+    expect(screen.getByTestId("image-studio-page").querySelector(":scope > header")).toBeNull();
     expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("image-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("image-advanced-settings")).toBeInTheDocument();
     expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
+  });
+
+  // v2.2.9 Phase 3.1 (T007): with models installed the top bar would be empty
+  // chrome, so it is not rendered (render-when-children, not a CSS height).
+  // The Context bar still appears because the selected model publishes a
+  // visual budget (Phase 3.2, T008) -- 0% before any generation.
+  it("renders no header when models are installed and shows the visual Context bar", async () => {
+    render(
+      <ImageStudioPage client={new InMemoryDiffusionClient()} modelsClient={imageModels()} drainIntervalMs={20} />,
+    );
+    await waitFor(() => expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument());
+    expect(screen.getByTestId("context-usage-bar")).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("visual token budget"),
+    );
+    expect(screen.getByTestId("context-usage-percent")).toHaveTextContent("0%");
+    expect(screen.getByTestId("image-studio-page").querySelector(":scope > header")).toBeNull();
+  });
+
+  // v2.2.9 Phase 3.1 (T007): when no models are installed the get-more-models
+  // CTA keeps the header alive, so the control never becomes unreachable.
+  it("keeps the get-more-models CTA reachable when no models are installed", async () => {
+    const onGetMoreModels = vi.fn();
+    render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        modelsClient={NO_MODELS}
+        drainIntervalMs={20}
+        onGetMoreModels={onGetMoreModels}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("image-get-more-models")).toBeInTheDocument());
+    expect(screen.getByTestId("image-studio-page").querySelector(":scope > header")).not.toBeNull();
+    fireEvent.click(screen.getByTestId("image-get-more-models"));
+    expect(onGetMoreModels).toHaveBeenCalledTimes(1);
   });
 
   it("drops the four mode tabs", () => {

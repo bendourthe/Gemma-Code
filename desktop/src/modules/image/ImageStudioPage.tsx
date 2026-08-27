@@ -359,7 +359,7 @@ export function ImageStudioPage({
       const session = await Promise.resolve(
         studioClient.createSession({
           folderId: null,
-          title: "New session",
+          title: "New chat",
           modelId: selectedModelId,
         }),
       );
@@ -753,16 +753,20 @@ export function ImageStudioPage({
       data-testid="image-studio-page"
       style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, color: "var(--fg-0)" }}
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-3)",
-          padding: "var(--space-3) var(--space-4)",
-          borderBottom: "1px solid var(--border-1)",
-        }}
-      >
-        {noneInstalled && !backendDown && (
+      {/* v2.2.9 Phase 3.1 (T007): the header only exists when it has a visible
+          child. When models are installed it would be an empty padded bar
+          (screenshot 6), so it is not rendered at all. The none-installed CTA
+          keeps the header alive so "get more models" stays reachable. */}
+      {noneInstalled && !backendDown && (
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-3)",
+            padding: "var(--space-3) var(--space-4)",
+            borderBottom: "1px solid var(--border-1)",
+          }}
+        >
           <button
             type="button"
             data-testid="image-get-more-models"
@@ -771,11 +775,11 @@ export function ImageStudioPage({
           >
             No image models installed - get more models
           </button>
-        )}
-        <a data-testid="image-settings-link" href={SETTINGS_MODELS_PATH} style={{ display: "none" }}>
-          models settings
-        </a>
-      </header>
+        </header>
+      )}
+      <a data-testid="image-settings-link" href={SETTINGS_MODELS_PATH} style={{ display: "none" }}>
+        models settings
+      </a>
       {residency.pending && (
         <ModelSwitchDialog
           pending={residency.pending}

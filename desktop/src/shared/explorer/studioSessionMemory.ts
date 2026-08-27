@@ -14,7 +14,8 @@ export const UNREADABLE_OUTPUT_TEXT = "Last output is unreadable; cannot edit it
 
 export function sessionTitleFromPrompt(text: string): string {
   const trimmed = text.trim().replace(/\s+/g, " ");
-  if (!trimmed) return "New session";
+  // v2.2.9 Phase 3.1 (T007): Chatbot copy -- the studio rail is "Chats" now.
+  if (!trimmed) return "New chat";
   return trimmed.length > 48 ? `${trimmed.slice(0, 45)}...` : trimmed;
 }
 
