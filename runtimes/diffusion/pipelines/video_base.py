@@ -31,7 +31,7 @@ from typing import Any, Callable, Dict, Optional
 
 from .. import device, vram_lifecycle
 from . import video_params, video_workflow_metadata
-from .base import RuntimeNotReady
+from .base import RuntimeNotReady, classify_runtime_not_ready
 
 
 @dataclass(frozen=True)
@@ -153,9 +153,7 @@ class VideoPipelineRunner:
                 "error": "execution-failed",
                 "message": f"{type(exc).__name__}: {exc}",
             }
-        workflow = video_workflow_metadata.build_workflow(
-            parsed, _iso_timestamp()
-        )
+        workflow = video_workflow_metadata.build_workflow(parsed, _iso_timestamp())
         return {
             "ok": True,
             "jobId": job_id,
@@ -175,12 +173,15 @@ def _iso_timestamp() -> str:
 
 
 def fail_closed_execute(method_label: str) -> VideoExecuteFn:
-    """Refuse to complete a video job with no MP4 on a real host."""
+    """Refuse to complete a video job with no MP4 on a real host.
 
-    def execute(_ctx: VideoExecutionContext) -> VideoPipelineOutput:
-        raise RuntimeNotReady(
-            "video runtime is not ready: GPU or diffusion weights unavailable"
-        )
+    Raises a single typed `RuntimeNotReady` chosen by the documented probe
+    order in `base.classify_runtime_not_ready` (torch/CUDA first, then
+    weights for the requested model id).
+    """
+
+    def execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
+        raise classify_runtime_not_ready("video", getattr(ctx.params, "model_id", None))
 
     return execute
 

@@ -6,6 +6,12 @@ installer-provisioned weights from `~/.nexus/models/weights/<id>/` with
 `local_files_only=True` (never a silent Hugging Face download) and run
 diffusers. Missing GPU, missing weights, or a failed import become
 `RuntimeNotReady` so the Node sidecar can fail before `complete`.
+
+v2.2.9 T009: the not-ready reasons are typed, probed in a documented
+order (torch/CUDA in THIS Python environment first, then weights for the
+requested model id). Note that Ollama can drive the NVIDIA GPU through
+its own runtime, so the app telemetry footer showing VRAM never proves
+this diffusion venv has a CUDA torch build.
 """
 
 from __future__ import annotations
@@ -13,43 +19,27 @@ from __future__ import annotations
 import base64
 import io
 import os
-import re
 import traceback
 from pathlib import Path
-from typing import Optional
 
 from . import base
-from .base import ExecutionContext, PipelineOutput, RuntimeNotReady
+from .base import (
+    ExecutionContext,
+    PipelineOutput,
+    RuntimeNotReady,
+    models_root,
+    resolve_weights_dir,
+)
 from .video_base import VideoExecutionContext, VideoPipelineOutput
 
-_SAFE_DIR = re.compile(r"[^A-Za-z0-9._-]")
-
-
-def models_root() -> Path:
-    override = os.environ.get("NEXUS_MODELS_ROOT")
-    if override:
-        return Path(override)
-    return Path.home() / ".nexus" / "models"
-
-
-def resolve_weights_dir(model_id: str) -> Optional[Path]:
-    """Return the installer weights directory when it contains files."""
-    if not model_id:
-        return None
-    safe = _SAFE_DIR.sub("-", model_id)
-    candidates = [
-        models_root() / "weights" / model_id,
-        models_root() / "weights" / safe,
-    ]
-    for path in candidates:
-        if not path.is_dir():
-            continue
-        try:
-            next(path.iterdir())
-        except StopIteration:
-            continue
-        return path
-    return None
+__all__ = [
+    "models_root",
+    "resolve_weights_dir",
+    "image_execute",
+    "video_execute",
+    "gpu_ready",
+    "allow_cpu",
+]
 
 
 def allow_cpu() -> bool:
@@ -69,7 +59,7 @@ def gpu_ready() -> bool:
 def _require_accelerator() -> None:
     if gpu_ready() or allow_cpu():
         return
-    raise RuntimeNotReady("image runtime is not ready: GPU not available")
+    raise base.accelerator_not_ready("image")
 
 
 def _decode_pil(raw: str):
@@ -147,7 +137,7 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
     weights = resolve_weights_dir(model_id)
     if weights is None:
         raise RuntimeNotReady(
-            f"image runtime is not ready: weights not found for {model_id}"
+            base.weights_missing_message("image", model_id), kind="weights-missing"
         )
     if ctx.mode == "img2img" and model_id.lower().endswith("-int4"):
         raise RuntimeNotReady("img2img is not supported for INT4 SANA weights")
@@ -200,7 +190,7 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
 def _require_video_accelerator() -> None:
     if gpu_ready() or allow_cpu():
         return
-    raise RuntimeNotReady("video runtime is not ready: GPU not available")
+    raise base.accelerator_not_ready("video")
 
 
 def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
@@ -210,7 +200,7 @@ def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
     weights = resolve_weights_dir(model_id)
     if weights is None:
         raise RuntimeNotReady(
-            f"video runtime is not ready: weights not found for {model_id}"
+            base.weights_missing_message("video", model_id), kind="weights-missing"
         )
     try:
         import imageio  # type: ignore[import-not-found]

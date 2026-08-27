@@ -65,6 +65,34 @@ describe("diffusion dispatcher", () => {
     ).rejects.toThrow(IMAGE_RUNTIME_NOT_READY);
   });
 
+  it("surfaces the v2.2.9 typed cuda-torch-missing reason, not the combined string", async () => {
+    const runtime = new InMemoryDiffusionRuntime();
+    const typed =
+      "image runtime is not ready: no CUDA torch in the diffusion Python environment (torch is missing or a CPU-only build); app telemetry can still show NVIDIA VRAM because Ollama can use the GPU while this environment stays CPU-only";
+    runtime.setResponse("txt2img", {
+      ok: false,
+      error: "runtime-not-ready",
+      message: typed,
+    });
+    await expect(
+      buildJobRequest("txt2img", { modelId: "sdxl-turbo", prompt: "fox" }, runtime),
+    ).rejects.toThrow(typed);
+  });
+
+  it("surfaces the v2.2.9 typed weights-missing reason naming the model id", async () => {
+    const runtime = new InMemoryDiffusionRuntime();
+    const typed =
+      "image runtime is not ready: weights for model sdxl-turbo not found at C:\\Users\\op\\.nexus\\models\\weights\\sdxl-turbo";
+    runtime.setResponse("txt2img", {
+      ok: false,
+      error: "runtime-not-ready",
+      message: typed,
+    });
+    await expect(
+      buildJobRequest("txt2img", { modelId: "sdxl-turbo", prompt: "fox" }, runtime),
+    ).rejects.toThrow(/weights for model sdxl-turbo not found at/);
+  });
+
   it("rethrows runtime errors", async () => {
     const runtime = new InMemoryDiffusionRuntime();
     runtime.setError("img2img", "diffusion-runtime-down");

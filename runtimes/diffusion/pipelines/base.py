@@ -18,8 +18,10 @@ callback (no torch import).
 from __future__ import annotations
 
 import os
+import re
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from .. import budget, device
@@ -27,11 +29,17 @@ from . import params, workflow_metadata
 
 
 class RuntimeNotReady(RuntimeError):
-    """GPU, weights, or diffusion deps are missing. Fail before a fake complete."""
+    """GPU, weights, or diffusion deps are missing. Fail before a fake complete.
 
-    def __init__(self, message: str) -> None:
+    `kind` names the single probed failure (v2.2.9 T009):
+    `cuda-torch-missing`, `weights-missing`, `gpu-not-available`,
+    `diffusers-missing`, or the generic `runtime-not-ready`.
+    """
+
+    def __init__(self, message: str, kind: str = "runtime-not-ready") -> None:
         super().__init__(message)
         self.error = "runtime-not-ready"
+        self.kind = kind
 
 
 @dataclass(frozen=True)
@@ -199,13 +207,154 @@ def allow_stub() -> bool:
     return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
-def fail_closed_execute(mode_label: str) -> ExecuteFn:
-    """Refuse to complete with a decorative 1x1 PNG on a real host."""
+_SAFE_DIR = re.compile(r"[^A-Za-z0-9._-]")
 
-    def execute(_ctx: ExecutionContext) -> PipelineOutput:
-        raise RuntimeNotReady(
-            "image runtime is not ready: GPU or diffusion weights unavailable"
+
+def models_root() -> Path:
+    """Installer models root (`~/.nexus/models`, overridable for tests)."""
+    override = os.environ.get("NEXUS_MODELS_ROOT")
+    if override:
+        return Path(override)
+    return Path.home() / ".nexus" / "models"
+
+
+def resolve_weights_dir(model_id: str) -> Optional[Path]:
+    """Return the installer weights directory when it contains files."""
+    if not model_id:
+        return None
+    safe = _SAFE_DIR.sub("-", model_id)
+    candidates = [
+        models_root() / "weights" / model_id,
+        models_root() / "weights" / safe,
+    ]
+    for path in candidates:
+        if not path.is_dir():
+            continue
+        try:
+            next(path.iterdir())
+        except StopIteration:
+            continue
+        return path
+    return None
+
+
+def expected_weights_dir(model_id: str) -> Path:
+    """The primary path the installer would have provisioned for `model_id`."""
+    return models_root() / "weights" / model_id
+
+
+def torch_cuda_state() -> str:
+    """Classify the diffusion venv's torch/CUDA state (v2.2.9 T009).
+
+    Returns exactly one of:
+
+    - ``"ok"``: a CUDA torch build is installed and reports a usable device.
+    - ``"no-cuda-torch"``: torch is not importable in this environment, or
+      the installed torch is a CPU-only build (``torch.version.cuda`` is
+      unset). This is the packaged-app trap: the app telemetry footer can
+      show NVIDIA VRAM because Ollama uses the GPU through its own runtime
+      while this Python environment still has no CUDA torch.
+    - ``"no-gpu"``: torch is a CUDA build but no usable CUDA device was
+      detected (``torch.cuda.is_available()`` is false).
+    """
+    try:
+        import torch  # type: ignore[import-not-found]
+    except Exception:
+        return "no-cuda-torch"
+    cuda_build = getattr(getattr(torch, "version", None), "cuda", None)
+    if not cuda_build:
+        return "no-cuda-torch"
+    try:
+        if getattr(torch, "cuda", None) and torch.cuda.is_available():
+            return "ok"
+    except Exception:
+        return "no-gpu"
+    return "no-gpu"
+
+
+def cuda_torch_missing_message(kind: str) -> str:
+    """Kind 1: the diffusion Python environment has no CUDA torch."""
+    return (
+        f"{kind} runtime is not ready: no CUDA torch in the diffusion Python "
+        "environment (torch is missing or a CPU-only build); app telemetry can "
+        "still show NVIDIA VRAM because Ollama can use the GPU while this "
+        "environment stays CPU-only"
+    )
+
+
+def weights_missing_message(kind: str, model_id: str) -> str:
+    """Kind 2: weights for the requested model id are not on disk."""
+    return (
+        f"{kind} runtime is not ready: weights for model {model_id} "
+        f"not found at {expected_weights_dir(model_id)}"
+    )
+
+
+def gpu_unavailable_message(kind: str) -> str:
+    """Kind 3: CUDA torch is installed but no usable device is present."""
+    return (
+        f"{kind} runtime is not ready: GPU not available (CUDA torch is "
+        "installed but no usable CUDA device was detected)"
+    )
+
+
+def accelerator_not_ready(kind: str) -> RuntimeNotReady:
+    """Typed accelerator failure: CUDA-torch-missing vs GPU-not-available."""
+    if torch_cuda_state() == "no-cuda-torch":
+        return RuntimeNotReady(
+            cuda_torch_missing_message(kind), kind="cuda-torch-missing"
         )
+    return RuntimeNotReady(gpu_unavailable_message(kind), kind="gpu-not-available")
+
+
+def classify_runtime_not_ready(kind: str, model_id: Optional[str]) -> RuntimeNotReady:
+    """Build the single typed reason a generate cannot run (v2.2.9 T009).
+
+    Probe order is deterministic so exactly one failure kind is reported,
+    never a re-combined blur:
+
+    1. torch/CUDA in THIS Python environment: torch missing or a CPU-only
+       build reports `cuda-torch-missing`; a CUDA build with no usable
+       device reports `gpu-not-available`.
+    2. Weights: the installer path for `model_id` under the models root
+       (`~/.nexus/models/weights/<id>/`) must exist and be non-empty.
+    3. diffusers importability, then a generic wiring fallback.
+    """
+    state = torch_cuda_state()
+    if state == "no-cuda-torch":
+        return RuntimeNotReady(
+            cuda_torch_missing_message(kind), kind="cuda-torch-missing"
+        )
+    if state == "no-gpu":
+        return RuntimeNotReady(gpu_unavailable_message(kind), kind="gpu-not-available")
+    if model_id and resolve_weights_dir(model_id) is None:
+        return RuntimeNotReady(
+            weights_missing_message(kind, model_id), kind="weights-missing"
+        )
+    try:  # pragma: no cover - depends on host env
+        import diffusers  # type: ignore[import-not-found]  # noqa: F401
+    except Exception:
+        return RuntimeNotReady(
+            f"{kind} runtime is not ready: diffusers is not importable in "
+            "the diffusion Python environment",
+            kind="diffusers-missing",
+        )
+    return RuntimeNotReady(
+        f"{kind} runtime is not ready: the real executor is not wired for "
+        "this pipeline",
+        kind="runtime-not-ready",
+    )
+
+
+def fail_closed_execute(mode_label: str) -> ExecuteFn:
+    """Refuse to complete with a decorative 1x1 PNG on a real host.
+
+    Raises a single typed `RuntimeNotReady` chosen by the documented probe
+    order in `classify_runtime_not_ready` (torch/CUDA first, then weights).
+    """
+
+    def execute(ctx: ExecutionContext) -> PipelineOutput:
+        raise classify_runtime_not_ready("image", getattr(ctx.params, "model_id", None))
 
     return execute
 
