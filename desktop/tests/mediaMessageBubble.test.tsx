@@ -54,14 +54,16 @@ describe("MessageBubble media", () => {
     };
     render(<MessageBubble message={msg} />);
     expect(screen.getByTestId("message-pending-a2")).toBeInTheDocument();
-    const orb = screen.getByRole("img", { name: /agent composing/i });
+    // v2.2.9 T006: chat pending is a rotating-caption pill with one stable name.
+    const orb = screen.getByRole("img", { name: "Generating reply" });
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
+    expect(orb).toHaveAttribute("data-orb-pill", "true");
     expect(orb.querySelector("canvas")?.style.height).toBe("48px");
     expect(screen.getByTestId("message-pending-a2")).toHaveStyle({
       justifyContent: "center",
       width: "100%",
     });
-    expect(screen.getByText("Composing...")).toBeInTheDocument();
+    expect(screen.getByText(/^(Thinking|Searching|Working|Solving)\.\.\.$/)).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
   });
 

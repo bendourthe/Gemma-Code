@@ -257,9 +257,12 @@ describe("CodingPage", () => {
     render(<CodingPage />);
     await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
     await userEvent.click(screen.getByTestId("coding-input-submit"));
-    const orb = await screen.findByRole("img", { name: /agent working/i });
+    // v2.2.9 T006: shared bubble pending path is the rotating pill with one
+    // stable accessible name.
+    const orb = await screen.findByRole("img", { name: "Generating reply" });
     expect(orb).toHaveAttribute("data-agent-activity", "coding-tool-use");
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
+    expect(orb).toHaveAttribute("data-orb-pill", "true");
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     release();

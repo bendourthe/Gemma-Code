@@ -200,11 +200,13 @@ describe("<ChatPage>", () => {
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
-    const orb = await screen.findByRole("img", { name: /agent composing/i });
+    // v2.2.9 T006: pending orb is the pill with a stable accessible name.
+    const orb = await screen.findByRole("img", { name: "Generating reply" });
     expect(orb).toHaveAttribute("data-agent-activity", "chat-streaming");
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(orb).not.toHaveAttribute("data-orb-size", "inline");
-    expect(screen.getByText("Composing...")).toBeInTheDocument();
+    expect(orb).toHaveAttribute("data-orb-pill", "true");
+    expect(screen.getByText(/^(Thinking|Searching|Working|Solving)\.\.\.$/)).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-playing", "true");
@@ -257,7 +259,9 @@ describe("<ChatPage>", () => {
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
-    expect(await screen.findByText("Composing...")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^(Thinking|Searching|Working|Solving)\.\.\.$/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/sidecar response timeout/i)).toBeNull();
     release();
     expect(await screen.findByText("Hello there")).toBeInTheDocument();

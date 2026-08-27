@@ -1,5 +1,13 @@
 export { AgentStateOrb, type AgentStateOrbProps } from "./AgentStateOrb";
 export {
+  CAPTION_ROTATE_INTERVAL_MS,
+  PENDING_CAPTIONS,
+  pendingCaptionState,
+  shufflePendingCaptions,
+  usePendingCaptionRotator,
+  type PendingCaption,
+} from "./captionRotator";
+export {
   AGENT_ACTIVITIES,
   resolveAgentState,
   type AgentAccentToken,

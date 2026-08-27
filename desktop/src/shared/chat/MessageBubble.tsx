@@ -125,10 +125,15 @@ export function MessageBubble({
             minHeight: studioPending ? "12rem" : "5.5rem",
           }}
         >
+          {/* v2.2.9 Phase 2.1 (T006): chat/agents pending is a dark pill that
+              cycles Thinking / Searching / Working / Solving with one stable
+              accessible name. Image/Video pending stays the hero orb. */}
           <AgentStateOrb
             activity={message.activity ?? "chat-streaming"}
             size={studioPending ? "hero" : "bubble"}
             showCaption
+            rotateCaptions={!studioPending}
+            accessibleName={studioPending ? undefined : "Generating reply"}
             surfaceId={`message-${message.id}`}
           />
           {message.progress && message.progress.total > 0 && (
