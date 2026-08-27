@@ -1051,9 +1051,23 @@ export const handlers: Record<Method, HandlerFn> = {
   "chat.explorer.search": async (params) =>
     (await explorerOps()).search(ChatExplorerSearchRequest.parse(params ?? {})),
   // v2.2.0 Phase 5 (5.3): name a chat from its first message.
+  // v2.2.9 Phase 1.5 (T005): the generated title now PERSISTS through the
+  // explorer rename (machine path, never byUser), so the rail survives a
+  // reload instead of relying on the caller's setActiveChat. A title the user
+  // pinned (userRenamed) is never overwritten.
   "chat.generateTitle": async (params, ctx) => {
     const req = ChatGenerateTitleRequest.parse(params ?? {});
-    return generateChatTitle(req, ctx);
+    const result = await generateChatTitle(req, ctx);
+    try {
+      const ops = await explorerOps();
+      const chat = ops.getChat({ id: req.chatId });
+      if (chat && chat.userRenamed !== true && chat.title !== result.title) {
+        ops.renameChat({ id: req.chatId, title: result.title });
+      }
+    } catch {
+      // Titling is a convenience; a persistence failure must not fail the RPC.
+    }
+    return result;
   },
   // v2.2.6 Phase 1: named Image/Video studio sessions.
   "studio.session.tree": async (params) =>

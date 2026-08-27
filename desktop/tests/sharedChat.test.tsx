@@ -21,7 +21,8 @@ describe("<MessageBubble>", () => {
     const bubble = screen.getByTestId("message-bubble-m1");
     expect(bubble).toHaveTextContent("Hello world");
     expect(bubble).not.toHaveTextContent("You");
-    expect(screen.getByTestId("message-tokens-m1")).toHaveTextContent("\u2014");
+    // v2.2.9 Phase 1.3: unknown counts omit the token span (no em dash).
+    expect(screen.queryByTestId("message-tokens-m1")).toBeNull();
     expect(screen.queryByTestId("message-time-m1")).toBeNull();
     expect(bubble.getAttribute("data-role")).toBe("user");
     expect(bubble.style.maxWidth).toBe("80%");
@@ -34,8 +35,44 @@ describe("<MessageBubble>", () => {
     const bubble = screen.getByTestId("message-bubble-a1");
     expect(bubble).toHaveTextContent("Sure");
     expect(bubble).not.toHaveTextContent("Assistant");
-    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent("\u2014");
+    expect(screen.queryByTestId("message-tokens-a1")).toBeNull();
     expect(bubble.style.maxWidth).toBe("80%");
+  });
+
+  // v2.2.9 Phase 1.3 (T003): meta sits ABOVE the body in full words.
+  it("renders time and tokens above the message body", () => {
+    const msg: ChatMessage = {
+      id: "m2",
+      role: "assistant",
+      content: "The reply",
+      timestamp: new Date(2026, 7, 25, 20, 34).toISOString(),
+      reasoningTokens: 75,
+      outputTokens: 96,
+    };
+    render(<MessageBubble message={msg} locale="en-US" />);
+    const bubble = screen.getByTestId("message-bubble-m2");
+    const meta = screen.getByTestId("message-meta-m2");
+    const body = bubble.querySelector("p");
+    expect(body).not.toBeNull();
+    expect(meta.compareDocumentPosition(body as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("message-tokens-m2")).toHaveTextContent(
+      "171 tokens (75 reasoning + 96 output)",
+    );
+  });
+
+  it("renders no meta at all on a pending bubble (no clock, no token mark)", () => {
+    const msg: ChatMessage = {
+      id: "p1",
+      role: "assistant",
+      content: "",
+      pending: true,
+      timestamp: new Date(2026, 7, 25, 20, 34).toISOString(),
+    };
+    render(<MessageBubble message={msg} locale="en-US" />);
+    expect(screen.queryByTestId("message-meta-p1")).toBeNull();
+    expect(screen.queryByTestId("message-time-p1")).toBeNull();
+    expect(screen.queryByTestId("message-tokens-p1")).toBeNull();
+    expect(screen.getByTestId("message-bubble-p1").textContent ?? "").not.toContain("\u2014");
   });
 
   it("renders the system label", () => {
@@ -133,8 +170,10 @@ describe("<MessageList>", () => {
     expect(screen.getByTestId("message-day-2026-08-25")).toHaveTextContent("Tuesday, August 25, 2026");
     expect(screen.getAllByTestId(/^message-day-/)).toHaveLength(2);
     expect(screen.getByTestId("message-time-u1")).toHaveTextContent(/2:15/);
-    expect(screen.getByTestId("message-tokens-u1")).toHaveTextContent("12 in");
-    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent("12 think + 36 out");
+    expect(screen.getByTestId("message-tokens-u1")).toHaveTextContent("12 input tokens");
+    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent(
+      "48 tokens (12 reasoning + 36 output)",
+    );
     expect(screen.queryByTestId("message-time-missing")).toBeNull();
   });
 
@@ -151,7 +190,8 @@ describe("<MessageList>", () => {
     expect(screen.queryByTestId(/^message-day-/)).toBeNull();
     expect(screen.queryByTestId("message-time-u1")).toBeNull();
     expect(screen.queryByTestId("message-time-a1")).toBeNull();
-    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent("\u2014");
+    // Unknown assistant counts omit the token span entirely.
+    expect(screen.queryByTestId("message-tokens-a1")).toBeNull();
   });
 });
 

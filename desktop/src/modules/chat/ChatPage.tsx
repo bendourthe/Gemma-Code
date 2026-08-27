@@ -75,6 +75,7 @@ import {
   type AudioClient,
 } from "./audioClient";
 import { createBrowserMicRecorder, type MicRecorder } from "../../shared/chat/micRecorder";
+import { fallbackTitle } from "../../../sidecar/src/chat/titleGenerator";
 import { labelSttTranscript, STT_TRANSCRIPT_ORIGIN } from "./transcriptProvenance";
 import {
   INITIAL_VOICE_LOOP,
@@ -720,30 +721,34 @@ export function ChatPage({
         ...(origin ? { origin } : {}),
         ...estimatedUserUsage(userContent),
       });
-      // v2.2.0 Phase 8 (DF-13): name the chat from its first prompt.
-      //
-      // The generator and its IPC method have existed since Phase 5, but
-      // nothing ever called them, so every chat stayed "New chat". Fire only
-      // on the first message of a still-default chat: a chat the user already
-      // named must never be renamed out from under them, and re-titling on
-      // every send would fight the user's own rename.
-      if (
-        client.generateTitle &&
+      // v2.2.0 Phase 8 (DF-13) / v2.2.9 Phase 1.5 (T005): name the chat from
+      // its first prompt AND persist it. Fire only on the first message of a
+      // still-default chat: a chat the user already named must never be
+      // renamed out from under them, and re-titling on every send would fight
+      // the user's own rename. An empty prompt keeps "New chat".
+      const isFirstTitledSend =
         chat.messageCount === 0 &&
         chat.title === "New chat" &&
-        prompt.trim()
-      ) {
-        void client
-          .generateTitle(chat.id, prompt)
-          .then((result: { title: string }) => {
-            setActiveChat((prev) =>
-              prev && prev.id === chat.id ? { ...prev, title: result.title } : prev,
-            );
-            setTreeVersion((v) => v + 1);
-          })
-          // Titling is a convenience. If the local model is busy or missing,
-          // the chat keeps its default name rather than failing the send.
-          .catch(() => undefined);
+        chat.userRenamed !== true &&
+        prompt.trim().length > 0;
+      if (isFirstTitledSend) {
+        // Immediate prompt-derived fallback through the explorer rename
+        // (byUser false), so the rail never sits on "New chat" waiting for
+        // the 5s title RPC that contends with the live turn.
+        const immediate = fallbackTitle(prompt);
+        if (immediate !== "New chat") {
+          const chatId = chat.id;
+          void Promise.resolve(client.renameChat(chatId, immediate, false))
+            .then(() => {
+              setActiveChat((prev) =>
+                prev && prev.id === chatId ? { ...prev, title: immediate } : prev,
+              );
+              setTreeVersion((v) => v + 1);
+            })
+            // Titling is a convenience. If the sidecar is down, the chat
+            // keeps its default name rather than failing the send.
+            .catch(() => undefined);
+        }
       } else {
         // Async-safe touch: the IPC adapter rejects when the sidecar is down,
         // and an unhandled rejection here must never take the send down.
@@ -827,6 +832,28 @@ export function ChatPage({
       }
 
       const reply = await sendChatTurn(chat.id, baseId, prompt, imageGate.enabled ? sendImages : []);
+      // v2.2.9 Phase 1.5 (T005): refine the fallback title with the model
+      // AFTER the first assistant turn completes, so the title RPC never
+      // contends with the live reply. The sidecar persists the generated
+      // title through the explorer rename; the guard here keeps a user
+      // rename (byUser) from ever being overwritten locally.
+      if (isFirstTitledSend && client.generateTitle) {
+        const chatId = chat.id;
+        void client
+          .generateTitle(chat.id, prompt)
+          .then(async (result: { title: string }) => {
+            const current = await Promise.resolve(client.getChat(chatId)).catch(() => null);
+            if (current?.userRenamed === true) return;
+            if (!current || current.title !== result.title) {
+              await Promise.resolve(client.renameChat(chatId, result.title, false));
+            }
+            setActiveChat((prev) =>
+              prev && prev.id === chatId ? { ...prev, title: result.title } : prev,
+            );
+            setTreeVersion((v) => v + 1);
+          })
+          .catch(() => undefined);
+      }
       if (memoryHub) {
         void memoryHub.episodic
           .record({
@@ -1096,40 +1123,24 @@ export function ChatPage({
               </div>
             ) : null}
             {/*
-              v2.2.0 Phase 5 (5.4): the capture indicator survives the voice-row
-              removal. Knowing whether the microphone is open is real feedback,
-              not chrome -- it just does not need four buttons beside it.
+              v2.2.9 Phase 1.1 (T001): the indicator renders ONLY while the
+              microphone is actually open. The idle composer shows no "Mic
+              closed" leftover (screenshot 1).
             */}
-            <span
-              data-testid="chat-voice-capture-indicator"
-              data-visible={voiceLoop.captureVisible ? "true" : "false"}
-              role="status"
-              aria-live="polite"
-              style={{
-                fontSize: "var(--text-xs)",
-                color: voiceLoop.captureVisible ? "var(--accent-chatbot)" : "var(--fg-muted)",
-              }}
-            >
-              {voiceLoop.captureVisible ? "Recording -- microphone is open" : "Mic closed"}
-            </span>
-            <button
-              type="button"
-              data-testid="chat-persona-toggle"
-              aria-label="Persona"
-              aria-expanded={personaOpen}
-              disabled={!activeChat}
-              onClick={() => setPersonaOpen((v) => !v)}
-              style={{
-                alignSelf: "flex-start",
-                background: "transparent",
-                border: "none",
-                color: "var(--fg-muted)",
-                cursor: activeChat ? "pointer" : "default",
-                fontSize: "var(--text-sm)",
-              }}
-            >
-              Persona
-            </button>
+            {voiceLoop.captureVisible ? (
+              <span
+                data-testid="chat-voice-capture-indicator"
+                data-visible="true"
+                role="status"
+                aria-live="polite"
+                style={{
+                  fontSize: "var(--text-xs)",
+                  color: "var(--accent-chatbot)",
+                }}
+              >
+                Recording -- microphone is open
+              </span>
+            ) : null}
             {personaOpen && activeChat ? (
               <div
                 data-testid="chat-persona-popover"
@@ -1172,6 +1183,21 @@ export function ChatPage({
               onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
               submitAccentVar="--accent-chatbot"
               voiceModes={voiceModes}
+              // v2.2.9 Phase 1.1 (T001): Persona lives in the composer
+              // overflow, not as an always-visible footer label.
+              overflowActions={
+                activeChat
+                  ? [
+                      {
+                        id: "persona",
+                        label: "Persona",
+                        active: personaOpen,
+                        testId: "chat-persona-toggle",
+                        onSelect: () => setPersonaOpen((v) => !v),
+                      },
+                    ]
+                  : []
+              }
               accept={chatComposerAccept({ allowImages: imageGate.enabled, allowAudio: true })}
               placeholder="Type a message, attach a document, or record audio to transcribe locally."
               streaming={messages.some((m) => m.pending)}

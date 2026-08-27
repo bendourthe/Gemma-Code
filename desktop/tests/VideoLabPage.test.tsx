@@ -81,7 +81,9 @@ describe("VideoLabPage (chat)", () => {
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
+    // v2.2.9 Phase 1.3: these turns report no token usage, so the span is
+    // omitted rather than rendered as an em dash.
+    expect(screen.queryAllByTestId(/^message-tokens-/).length).toBe(0);
   });
 
   it("does not generate until a conflicting active model switch is approved", async () => {

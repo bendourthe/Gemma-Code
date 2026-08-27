@@ -72,10 +72,8 @@ describe("ChatPage voice loop", () => {
     };
     await openMicMenu();
     fireEvent.click(screen.getByTestId("media-composer-voice-voice-loop"));
-    expect(screen.getByTestId("chat-voice-capture-indicator")).toHaveAttribute(
-      "data-visible",
-      "false",
-    );
+    // v2.2.9 Phase 1.1 (T001): no indicator at all while the mic is closed.
+    expect(screen.queryByTestId("chat-voice-capture-indicator")).toBeNull();
     // Select push-to-talk, then trigger it: first click arms the mode, the
     // second starts capture.
     await openMicMenu();

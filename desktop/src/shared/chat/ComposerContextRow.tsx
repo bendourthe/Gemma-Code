@@ -26,11 +26,28 @@ export function ComposerContextRow({
           display: "flex",
           alignItems: "center",
           gap: "var(--space-3)",
-          flexWrap: "wrap",
+          // v2.2.9 Phase 1.2 (T002): one row. Wrapping is what produced the
+          // inverted screenshot-1 layout (picker dumped under a 9rem pill).
+          flexWrap: "nowrap",
         }}
       >
         {showBar ? <ContextUsageBar usage={usage} /> : null}
-        <div style={{ minWidth: 0, flex: "1 1 auto" }}>{children}</div>
+        {/*
+          Bounded picker: ~25-30% of the row when the Context bar is present,
+          with a min width that still fits long catalog display names such as
+          "Nemotron 3.5 Lightning 30B-A3B". Longer names ellipsize inside the
+          selector, which carries a title tooltip.
+        */}
+        <div
+          data-testid="composer-picker-slot"
+          style={
+            showBar
+              ? { minWidth: "14rem", maxWidth: "30%", flex: "0 1 30%", overflow: "hidden" }
+              : { minWidth: 0, flex: "1 1 auto" }
+          }
+        >
+          {children}
+        </div>
       </div>
       {usage.atOrAbove80 && onStartNewSession ? (
         <div

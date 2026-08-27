@@ -25,6 +25,10 @@ describe("<ChatPage>", () => {
     expect(screen.getByTestId("chat-page-empty")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
+    // v2.2.9 Phase 1.1 (T001): the idle composer shows no leftover chrome.
+    expect(screen.queryByText("Mic closed")).toBeNull();
+    expect(screen.queryByTestId("chat-voice-capture-indicator")).toBeNull();
+    expect(screen.queryByText("Persona")).toBeNull();
   });
 
   it("sends from the composer without a folder or existing chat", async () => {
@@ -43,9 +47,14 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     const textarea = screen.getByTestId("media-composer-textarea");
     await user.type(textarea, "hello from an empty rail{Enter}");
-    expect(await screen.findByText("hello from an empty rail")).toBeInTheDocument();
+    // The bubble AND (after auto-title) the rail row both carry the prompt.
+    expect((await screen.findAllByText("hello from an empty rail")).length).toBeGreaterThanOrEqual(1);
     expect(client.listTree().chats.length).toBe(1);
-    expect(client.listTree().chats[0]?.title).toBe("New chat");
+    // v2.2.9 Phase 1.5 (T005): the first send persists a prompt-derived title
+    // through the explorer rename, so the rail is never stuck on "New chat".
+    await waitFor(() =>
+      expect(client.listTree().chats[0]?.title).toBe("hello from an empty rail"),
+    );
   });
 
   it("does not send until a conflicting active model switch is approved", async () => {
@@ -127,7 +136,9 @@ describe("<ChatPage>", () => {
     expect(await screen.findByText("hello")).toBeInTheDocument();
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
+    // v2.2.9 Phase 1.3: only the user turn has a (estimated) token count here;
+    // the fake session reports no assistant usage, so that span is omitted.
+    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("prepends the per-chat persona onto the outbound message", async () => {
@@ -149,7 +160,10 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    // v2.2.7 Phase 3: persona is a labeled control under the composer, not a header gear.
+    // v2.2.9 Phase 1.1 (T001): persona lives in the composer overflow menu,
+    // never as an always-visible footer label.
+    expect(screen.queryByTestId("chat-persona-toggle")).toBeNull();
+    await user.click(screen.getByTestId("media-composer-overflow-toggle"));
     await user.click(screen.getByTestId("chat-persona-toggle"));
     fireEvent.change(screen.getByTestId("chat-persona"), { target: { value: "Be terse." } });
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
@@ -321,7 +335,8 @@ describe("<ChatPage>", () => {
       );
     });
     await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
-    expect(await screen.findByText("Hi")).toBeInTheDocument();
+    // v2.2.9 T005: the rail auto-title may also read "Hi", so match >= 1.
+    expect((await screen.findAllByText("Hi")).length).toBeGreaterThanOrEqual(1);
     await waitFor(() => {
       expect(start).toHaveBeenCalled();
     });
@@ -371,7 +386,8 @@ describe("<ChatPage>", () => {
       );
     });
     await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
-    expect(await screen.findByText("Hi")).toBeInTheDocument();
+    // v2.2.9 T005: the rail auto-title may also read "Hi", so match >= 1.
+    expect((await screen.findAllByText("Hi")).length).toBeGreaterThanOrEqual(1);
     await waitFor(() => {
       expect(start).toHaveBeenCalled();
     });
@@ -390,7 +406,8 @@ describe("<ChatPage>", () => {
       />,
     );
     await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
-    expect(await screen.findByText("Hi")).toBeInTheDocument();
+    // v2.2.9 T005: the rail auto-title may also read "Hi", so match >= 1.
+    expect((await screen.findAllByText("Hi")).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText(/is not installed/i)).toBeInTheDocument();
     expect(start).not.toHaveBeenCalled();
   });

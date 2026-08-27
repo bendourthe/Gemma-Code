@@ -45,7 +45,9 @@ export function ContextUsageBar({
     background: "color-mix(in srgb, var(--bg-1) 80%, transparent)",
     fontSize: "var(--text-xs)",
     color: "var(--fg-0)",
-    flex: "0 0 auto",
+    // v2.2.9 Phase 1.2 (T002): the Context pill is the WIDE control of the
+    // composer footer (~70-75% of the row); the picker trails, bounded.
+    flex: "3 1 auto",
   };
   const fill: CSSProperties = {
     position: "absolute",

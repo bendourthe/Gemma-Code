@@ -60,19 +60,27 @@ export function ModelSelector({
     lineHeight: 1.6,
   };
   return (
-    <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-      <span style={{ color: "var(--fg-muted)" }}>{label}</span>
+    <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", minWidth: 0 }}>
+      <span style={{ color: "var(--fg-muted)", flex: "0 0 auto" }}>{label}</span>
       <Select
         data-testid={testId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
+        // v2.2.9 Phase 1.2 (T002): a long display name ellipsizes inside the
+        // bounded picker and stays readable through the tooltip.
+        title={selected?.displayName}
         style={{
           padding: "var(--space-1) var(--space-2)",
           backgroundColor: "var(--bg-1)",
           color: "var(--fg-0)",
           border: "1px solid var(--border-1)",
           borderRadius: "var(--radius-md)",
+          minWidth: 0,
+          maxWidth: "100%",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
         {models.map((m) => (

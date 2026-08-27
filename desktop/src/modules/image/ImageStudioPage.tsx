@@ -190,6 +190,13 @@ export function ImageStudioPage({
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const activeSessionIdRef = useRef<string | null>(null);
+  // v2.2.9 Phase 1.4 (T004): state mirror of the ref so the history pane can
+  // bind its highlighted row to the session that is actually open.
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const setActiveSession = useCallback((id: string | null): void => {
+    activeSessionIdRef.current = id;
+    setActiveSessionId(id);
+  }, []);
   const lastOutputRef = useRef<string | null>(null);
   const [historyEpoch, setHistoryEpoch] = useState(0);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
@@ -304,20 +311,20 @@ export function ImageStudioPage({
             modelId: selectedModelId,
           }),
         );
-        activeSessionIdRef.current = session.id;
+        setActiveSession(session.id);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {
         return null;
       }
     },
-    [backendDown, studioClient, selectedModelId],
+    [backendDown, setActiveSession, studioClient, selectedModelId],
   );
 
   const hydrateSession = useCallback(
     (sessionId: string): void => {
       const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
-        activeSessionIdRef.current = sessionId;
+        setActiveSession(sessionId);
         lastOutputRef.current = lastRef;
         setMessages(studioTurnsToChatMessages(turns, { outputExists }));
       };
@@ -340,13 +347,13 @@ export function ImageStudioPage({
         },
       );
     },
-    [studioClient, outputExists],
+    [studioClient, outputExists, setActiveSession],
   );
 
   const startFreshStudioSession = useCallback(async (): Promise<void> => {
     setMessages([]);
     lastOutputRef.current = null;
-    activeSessionIdRef.current = null;
+    setActiveSession(null);
     if (backendDown) return;
     try {
       const session = await Promise.resolve(
@@ -356,12 +363,12 @@ export function ImageStudioPage({
           modelId: selectedModelId,
         }),
       );
-      activeSessionIdRef.current = session.id;
+      setActiveSession(session.id);
       setHistoryEpoch((n) => n + 1);
     } catch {
       // Local transcript already cleared; the old session stays in the pane.
     }
-  }, [backendDown, studioClient, selectedModelId]);
+  }, [backendDown, setActiveSession, studioClient, selectedModelId]);
 
   useEffect(() => {
     if (!initialSessionId) return;
@@ -804,6 +811,7 @@ export function ImageStudioPage({
           sidecarDown={backendDown}
           refreshToken={historyEpoch}
           onSelectSession={hydrateSession}
+          activeSessionId={activeSessionId}
         />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div

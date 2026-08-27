@@ -48,6 +48,12 @@ export interface StudioHistoryPaneProps {
   readonly onSelectSession?: (sessionId: string) => void;
   /** Bump after create/append so FolderTree re-reads the explorer. */
   readonly refreshToken?: number;
+  /**
+   * v2.2.9 Phase 1.4 (T004): the session the page has OPEN. When provided,
+   * the highlighted row is bound to it instead of drifting on pane-local
+   * click state.
+   */
+  readonly activeSessionId?: string | null;
 }
 
 export function StudioHistoryPane({
@@ -57,9 +63,16 @@ export function StudioHistoryPane({
   sidecarDown = false,
   onSelectSession,
   refreshToken,
+  activeSessionId,
 }: StudioHistoryPaneProps): JSX.Element {
   const explorer = useMemo(() => studioClientAsChatExplorer(client), [client]);
-  const [selected, setSelected] = useState<SelectedNode | null>(null);
+  const [localSelected, setLocalSelected] = useState<SelectedNode | null>(null);
+  // The open session id wins over local click state; folder clicks (no open
+  // session change) still show through the local fallback.
+  const selected: SelectedNode | null =
+    typeof activeSessionId === "string" && activeSessionId.length > 0
+      ? { kind: "chat", id: activeSessionId }
+      : localSelected;
   const copy = pillar === "video" ? VIDEO_COPY : IMAGE_COPY;
   const testId = pillar === "video" ? "video-history-pane" : "image-history-pane";
   const collapseKey = pillar === "video" ? VIDEO_HISTORY_COLLAPSE_KEY : IMAGE_HISTORY_COLLAPSE_KEY;
@@ -86,7 +99,7 @@ export function StudioHistoryPane({
         <FolderTree
           client={explorer}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={setLocalSelected}
           onOpenChat={(chat: Chat) => onSelectSession?.(chat.id)}
           defaultModelId={defaultModelId}
           copy={copy}

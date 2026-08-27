@@ -74,7 +74,9 @@ describe("ImageStudioPage (chat)", () => {
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("sana-1.6b-1024");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
+    // v2.2.9 Phase 1.3: these turns report no token usage, so the span is
+    // omitted rather than rendered as an em dash.
+    expect(screen.queryAllByTestId(/^message-tokens-/).length).toBe(0);
     // User bubble plus the auto-created session title both read the prompt.
     expect(screen.getAllByText("a fox").length).toBeGreaterThanOrEqual(1);
   });

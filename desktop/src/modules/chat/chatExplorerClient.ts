@@ -222,12 +222,19 @@ export class InMemoryChatExplorerClient implements SyncChatExplorerClient {
     return chat;
   }
 
-  renameChat(id: string, title: string): Chat {
+  renameChat(id: string, title: string, byUser?: boolean): Chat {
     const trimmed = title.trim();
     if (!trimmed) throw new Error("chat title is required");
     const chat = this.chats.get(id);
     if (!chat) throw new Error(`chat not found: ${id}`);
-    const updated: Chat = { ...chat, title: trimmed, updatedAt: Date.now() };
+    // v2.2.9 Phase 1.5 (T005): mirror the store contract -- a user rename
+    // pins the title so auto-titling can never overwrite it.
+    const updated: Chat = {
+      ...chat,
+      title: trimmed,
+      updatedAt: Date.now(),
+      ...(byUser === true ? { userRenamed: true } : {}),
+    };
     this.chats.set(id, updated);
     return updated;
   }
