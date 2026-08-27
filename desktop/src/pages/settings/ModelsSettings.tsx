@@ -26,13 +26,13 @@ import {
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
 import { filterCatalog, modelFitsHost } from "../../shared/models/modelLibrary";
+import { buildModelPills } from "../../shared/models/modelPills";
 import {
   FAVORITE_STORAGE_PREFIX,
   readFavorite,
   writeFavorite,
   type TaskKey,
 } from "../../shared/models/selectionPolicy";
-import { formatContextChip } from "../../../../core/registry/contextWindow";
 import type {
   DiskUsageDto,
   InstallProgressDto,
@@ -66,6 +66,10 @@ export interface ModelsSettingsProps {
 
 const TASK_TABS: readonly TaskKey[] = ["chat", "agentic", "image", "video", "audio", "document"];
 
+function isTaskKey(tab: CatalogTab): tab is TaskKey {
+  return (TASK_TABS as readonly string[]).includes(tab);
+}
+
 export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProps): JSX.Element {
   const [items, setItems] = useState<readonly ListedModelDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -79,10 +83,12 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   const [favorites, setFavorites] = useState<Partial<Record<string, string | null>>>(() => {
     const next: Partial<Record<string, string | null>> = {};
     for (const t of TASK_TABS) next[t] = readFavorite(t);
-    try {
-      next.other = window.localStorage.getItem(`${FAVORITE_STORAGE_PREFIX}other`);
-    } catch {
-      next.other = null;
+    for (const extra of ["embeddings", "other"] as const) {
+      try {
+        next[extra] = window.localStorage.getItem(`${FAVORITE_STORAGE_PREFIX}${extra}`);
+      } catch {
+        next[extra] = null;
+      }
     }
     return next;
   });
@@ -203,9 +209,11 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
     const current = favorites[tab] ?? null;
     const next = current === id ? null : id;
     setFavorites((prev) => ({ ...prev, [tab]: next }));
-    if (tab === "other") {
+    if (!isTaskKey(tab)) {
+      // Embeddings and Other are not TaskKey selection-policy tabs; the
+      // favorite is a plain per-tab preference key.
       try {
-        const key = `${FAVORITE_STORAGE_PREFIX}other`;
+        const key = `${FAVORITE_STORAGE_PREFIX}${tab}`;
         if (!next) window.localStorage.removeItem(key);
         else window.localStorage.setItem(key, next);
       } catch {
@@ -331,7 +339,8 @@ function ModelCard({
   const overBudget = modelFitsHost(item, hostVramGB) === false;
   const downloaded = item.installed && item.source !== "catalog-only";
   const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
-  const contextChip = formatContextChip(item);
+  // v2.2.9 Phase 5 (T010): the locked name-row pill set (shared card grammar).
+  const pills = buildModelPills(item);
   const card: CSSProperties = {
     ...cardStyle,
     ...(downloaded
@@ -358,8 +367,23 @@ function ModelCard({
       <div style={{ display: "flex", gap: "var(--space-3, 12px)", alignItems: "flex-start" }}>
         <ModelIcon type={item.type} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)", flexWrap: "wrap" }}>
+          {/* v2.2.9 Phase 5 (T010): one header row -- display name first, then
+              the locked fact pills (wrapping is fine); never under the
+              description. Badge and Also-agentic remain install affordances. */}
+          <div
+            data-testid={`models-header-${item.id}`}
+            style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)", flexWrap: "wrap" }}
+          >
             <span style={{ fontWeight: 600 }}>{item.displayName}</span>
+            {pills.length > 0 ? (
+              <span data-testid={`models-pills-${item.id}`} style={pillRowStyle}>
+                {pills.map((pill) => (
+                  <span key={pill} style={chipStyle}>
+                    {pill}
+                  </span>
+                ))}
+              </span>
+            ) : null}
             {kindLabel ? (
               <span data-testid={`models-badge-${item.id}`} style={badgeStyle(kindLabel)}>
                 {kindLabel}
@@ -372,34 +396,8 @@ function ModelCard({
           <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
             {item.family ?? "?"}
             {item.tag ? `:${item.tag}` : ""}
-            {item.task ? ` - ${item.task}` : ""} - {formatBytes(item.sizeBytes)} - {item.license ?? "license: ?"}
+            {item.task ? ` - ${item.task}` : ""} - {formatBytes(item.sizeBytes)}
             {typeof item.vramGB === "number" ? ` - ${item.vramGB} GB VRAM` : ""}
-          </div>
-          <div data-testid={`models-chips-${item.id}`} style={chipRowStyle}>
-            {item.origin ? (
-              <span data-testid={`models-chip-origin-${item.id}`} style={chipStyle}>
-                Origin: {item.origin}
-              </span>
-            ) : null}
-            {contextChip ? (
-              <span data-testid={`models-chip-context-${item.id}`} style={chipStyle}>
-                {contextChip}
-              </span>
-            ) : null}
-            {item.releaseDate ? (
-              <span data-testid={`models-chip-date-${item.id}`} style={chipStyle}>
-                Released: {item.releaseDate}
-              </span>
-            ) : null}
-            {item.uncensored === true ? (
-              <span data-testid={`models-chip-guardrails-${item.id}`} style={chipStyle}>
-                Uncensored
-              </span>
-            ) : item.uncensored === false ? (
-              <span data-testid={`models-chip-guardrails-${item.id}`} style={chipStyle}>
-                Censored
-              </span>
-            ) : null}
           </div>
           {item.description || (item.strengths && item.strengths.length > 0) || item.whyRecommended ? (
             <details data-testid={`models-row-${item.id}-details`} style={{ marginTop: 4 }}>
@@ -761,11 +759,11 @@ const copyStyle: CSSProperties = {
   color: "var(--fg-1, var(--fg-0))",
 };
 
-const chipRowStyle: CSSProperties = {
-  display: "flex",
+const pillRowStyle: CSSProperties = {
+  display: "inline-flex",
   flexWrap: "wrap",
+  alignItems: "center",
   gap: "6px",
-  marginTop: 6,
 };
 
 const chipStyle: CSSProperties = {

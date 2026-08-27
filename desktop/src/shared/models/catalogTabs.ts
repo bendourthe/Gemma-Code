@@ -8,6 +8,7 @@
 import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
 
 export type CatalogTab =
+  | "embeddings"
   | "chat"
   | "agentic"
   | "image"
@@ -16,7 +17,12 @@ export type CatalogTab =
   | "document"
   | "other";
 
+/**
+ * v2.2.9 Phase 5 (T010): Embeddings is its own first tab, before Chat --
+ * embed rows no longer park on Chat. Mirrors installer TYPE_TABS.
+ */
 export const CATALOG_TAB_DEFS: readonly { id: CatalogTab; label: string }[] = [
+  { id: "embeddings", label: "Embeddings" },
   { id: "chat", label: "Chat" },
   { id: "agentic", label: "Agentic" },
   { id: "image", label: "Image" },
@@ -27,7 +33,7 @@ export const CATALOG_TAB_DEFS: readonly { id: CatalogTab; label: string }[] = [
 
 const TASK_TAB: Record<string, CatalogTab> = {
   chat: "chat",
-  embed: "chat",
+  embed: "embeddings",
   agentic: "agentic",
   image: "image",
   video: "video",
@@ -37,7 +43,7 @@ const TASK_TAB: Record<string, CatalogTab> = {
 
 const TYPE_TAB: Partial<Record<ModelType, CatalogTab>> = {
   llm: "chat",
-  embed: "chat",
+  embed: "embeddings",
   image: "image",
   video: "video",
   audio: "audio",
@@ -284,10 +290,20 @@ export function collapseAndSortModels(
   return [...enabled, ...disabled];
 }
 
+/**
+ * v2.2.9 Phase 5 (T011) -- Settings order: installed-and-ready (downloaded)
+ * rows first, then the rest; each partition keeps the `collapseAndSortModels`
+ * (installer recommendation) order. The installer picker keeps pure installer
+ * order -- this partition is Settings-side only. Dual-asserted with installer
+ * `catalog_tab_sort.downloaded_first` via tests/fixtures/v2.2.9-catalog-tab-sort.json.
+ */
 export function visibleModelsOnTab(
   models: readonly ListedModelDto[],
   tab: CatalogTab,
   options: CatalogSortOptions = {},
 ): ListedModelDto[] {
-  return collapseAndSortModels(modelsOnTab(models, tab), options);
+  const ordered = collapseAndSortModels(modelsOnTab(models, tab), options);
+  const downloaded = ordered.filter(isDownloaded);
+  if (downloaded.length === 0) return ordered;
+  return [...downloaded, ...ordered.filter((m) => !isDownloaded(m))];
 }

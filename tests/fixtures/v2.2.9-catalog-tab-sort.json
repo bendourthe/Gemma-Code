@@ -1,0 +1,86 @@
+{
+  "comment": "v2.2.9 Phase 5 (T011) -- dual-asserted tab rows + sort. Installer order is pure collapse_and_sort (no downloaded boost); Settings order partitions installed-and-ready (downloaded) ids first, each partition keeping the installer order. Contract row: Gemma 4 12B and LFM2.5 2.6B downloaded, gpt-oss not -> Settings shows Gemma, LFM, gpt-oss while the installer shows Gemma, gpt-oss, LFM. Patient-tier Inkling-Small is a plain row on both surfaces (never a recommended default). Embed rows live on the Embeddings tab, not Chat.",
+  "hostVramGB": 16,
+  "gpuVendor": "nvidia",
+  "defaults": ["gemma-4-12b-it-gguf"],
+  "recommendOrder": ["gemma-4-12b-it-gguf", "gpt-oss:20b", "lfm2.5:2.6b"],
+  "models": [
+    {
+      "id": "gemma-4-12b-it-gguf",
+      "displayName": "Gemma 4 12B",
+      "family": "gemma4",
+      "type": "llm",
+      "task": "chat",
+      "agentic": true,
+      "vramGB": 11,
+      "tags": ["recommended"],
+      "releaseDate": "2026-05-01",
+      "installed": true,
+      "source": "registry"
+    },
+    {
+      "id": "gpt-oss:20b",
+      "displayName": "gpt-oss 20B",
+      "family": "gpt-oss",
+      "type": "llm",
+      "task": "agentic",
+      "agentic": true,
+      "vramGB": 16,
+      "tags": ["recommended"],
+      "releaseDate": "2025-08-05",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "lfm2.5:2.6b",
+      "displayName": "LFM2.5 2.6B",
+      "family": "lfm2.5",
+      "type": "llm",
+      "task": "agentic",
+      "agentic": true,
+      "vramGB": 3,
+      "tags": ["recommended"],
+      "releaseDate": "2026-08-04",
+      "installed": true,
+      "source": "registry"
+    },
+    {
+      "id": "inkling-small",
+      "displayName": "Inkling-Small (patient tier)",
+      "family": "inkling",
+      "type": "llm",
+      "task": "chat",
+      "agentic": true,
+      "vramGB": 8,
+      "tags": ["patient-tier", "opt-in"],
+      "releaseDate": "2026-07-30",
+      "installed": false,
+      "source": "catalog-only"
+    },
+    {
+      "id": "nomic-embed-text",
+      "displayName": "Nomic Embed Text",
+      "family": "nomic",
+      "type": "embed",
+      "task": "embed",
+      "vramGB": 1,
+      "tags": ["required"],
+      "releaseDate": "2024-02-14",
+      "installed": false,
+      "source": "catalog-only"
+    }
+  ],
+  "expectedInstallerIds": {
+    "embeddings": ["nomic-embed-text"],
+    "chat": ["gemma-4-12b-it-gguf", "inkling-small"],
+    "agentic": ["gemma-4-12b-it-gguf", "gpt-oss:20b", "lfm2.5:2.6b", "inkling-small"]
+  },
+  "expectedSettingsIds": {
+    "embeddings": ["nomic-embed-text"],
+    "chat": ["gemma-4-12b-it-gguf", "inkling-small"],
+    "agentic": ["gemma-4-12b-it-gguf", "lfm2.5:2.6b", "gpt-oss:20b", "inkling-small"]
+  },
+  "expectedSettingsIdsAfterGptOssDownload": {
+    "agentic": ["gemma-4-12b-it-gguf", "gpt-oss:20b", "lfm2.5:2.6b", "inkling-small"]
+  }
+}

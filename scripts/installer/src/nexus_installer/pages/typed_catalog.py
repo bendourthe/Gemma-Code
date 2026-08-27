@@ -38,12 +38,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import QPoint, QRect, QSize, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -64,11 +65,11 @@ from nexus_installer.catalog_tab_sort import (
 )
 from nexus_installer.constants import (
     ACCENT,
-    ACCENT_BRIGHT,
     BG_CARD,
     BORDER,
     BORDER_STRONG,
     ERROR,
+    FAMILY_TO_PUBLISHER,
     FS_BODY,
     FS_CAPTION,
     FS_H3,
@@ -95,6 +96,9 @@ if TYPE_CHECKING:
 
 TYPE_TABS: tuple[tuple[str, str, str], ...] = (
     # (section_key, tab_label, type_icon)
+    # v2.2.9 Phase 5 (T010): Embeddings is its own first tab; embed rows no
+    # longer park on Chat. Mirrored by desktop CATALOG_TAB_DEFS.
+    ("embeddings", "Embeddings", "[E]"),
     ("chat", "Chat", "[C]"),
     # v1.9.0 Phase 4 (T404): renamed from "Agentic Coding"; the tab now lists
     # agentic-capable chat models (the Gemma 4 family) alongside the coding
@@ -110,10 +114,10 @@ TYPE_TABS: tuple[tuple[str, str, str], ...] = (
 )
 
 # Fallback when an entry carries no `task` field: catalog `type` -> tab.
-# Embedding models render inside the Chat section (memory-layer support).
+# v2.2.9 Phase 5 (T010): embedding models render on their own Embeddings tab.
 CATALOG_TYPE_TO_TAB = {
     "llm": "chat",
-    "embed": "chat",
+    "embed": "embeddings",
     "image": "image",
     "video": "video",
     "audio": "audio",
@@ -124,12 +128,15 @@ CATALOG_TYPE_TO_TAB = {
 TASK_TO_TAB = {
     "chat": "chat",
     "agentic": "agentic",
-    "embed": "chat",
+    "embed": "embeddings",
     "image": "image",
     "video": "video",
     "audio": "audio",
     "document": "document",
 }
+
+# Tab -> the catalog `task` restored when an entry carries no task of its own.
+_TAB_TO_FALLBACK_TASK = {"chat": "chat", "embeddings": "embed"}
 
 
 # v1.12.0 Phase 3 (Q1) -- extreme-low-bit (BitNet-class) tier gate. Mirrors the
@@ -167,20 +174,10 @@ def _extreme_low_bit_allowed(entry: dict) -> bool:
     return not any(vendor in hay for vendor in _BLOCKED_VENDORS)
 
 
-# v1.12.0 Phase 4 (E1/E3) -- the disk-offload "patient" tier gate. A catalog
-# entry tagged "patient-tier" (a large MoE streamed off disk, sub-1-tok/s) is
-# HIDDEN from the picker unless the operator opts in via NEXUS_PATIENT_TIER=1.
-# Below the single-GPU ceiling + non-interactive, so off by default.
-_PATIENT_TIER_TAG = "patient-tier"
-
-
-def _is_patient_tier_entry(entry: dict) -> bool:
-    tags = entry.get("tags")
-    return isinstance(tags, list) and _PATIENT_TIER_TAG in tags
-
-
-def _patient_tier_allowed() -> bool:
-    return os.environ.get("NEXUS_PATIENT_TIER", "") == "1"
+# v2.2.9 Phase 5 (T011): the v1.12.0 NEXUS_PATIENT_TIER hide is removed --
+# patient-tier rows (Inkling-Small) are ordinary catalog rows in the wizard,
+# exactly as in Settings (same rows on both surfaces). They are still never a
+# recommended.json default, so they stay opt-in without being invisible.
 
 
 @dataclass(frozen=True)
@@ -199,7 +196,9 @@ class CatalogModel:
     context_window_in: int
     context_window_out: int
     multimodal: bool
-    uncensored: bool
+    # v2.2.9 Phase 5 (T010): tri-state -- None means the catalog carries no
+    # guardrails signal, so the Guardrails pill is omitted (never invented).
+    uncensored: bool | None
     description: str
     strengths: tuple[str, ...] = ()
     why_recommended: str = ""
@@ -223,6 +222,10 @@ class CatalogModel:
     role: str = ""
     # v1.18 DF-6 -- optional chip; omitted JSON keeps this False (no "unverified" pill).
     tool_calling_verified: bool = False
+    # v2.2.9 Phase 5 (T010) -- pill-derivation sources (WN-7 dual-asserted
+    # grammar shared with desktop modelPills.ts).
+    modalities: tuple[str, ...] = ()
+    vision: bool | None = None
 
     @property
     def is_text_model(self) -> bool:
@@ -322,6 +325,123 @@ def format_context_chip(
     return f"Context: {format_context_window_k(shown)}"
 
 
+# ---------------------------------------------------------------------------
+# v2.2.9 Phase 5 (T010) -- the shared card grammar. One name-row pill set,
+# derivation locked and dual-asserted against desktop modelPills.ts via
+# tests/fixtures/v2.2.9-model-pills.json (WN-7 discipline). A pill whose
+# source value is missing is omitted -- never "Unknown", never an invented
+# "Community".
+# ---------------------------------------------------------------------------
+
+_RELEASE_MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+
+
+def format_released_pill(release_date: str) -> str | None:
+    """``Released: May 2026`` from ISO ``YYYY-MM[-DD]`` (en-US month, ASCII)."""
+    parts = (release_date or "").strip().split("-")
+    try:
+        year = int(parts[0])
+        month = int(parts[1])
+    except (IndexError, ValueError):
+        return None
+    if year <= 0 or not 1 <= month <= 12:
+        return None
+    return f"Released: {_RELEASE_MONTHS[month - 1]} {year}"
+
+
+def format_context_window_pill(tokens: int) -> str | None:
+    """``Context window: 262k tokens`` (raw count below 1k); None when absent."""
+    if tokens <= 0:
+        return None
+    if tokens < 1000:
+        return f"Context window: {tokens} tokens"
+    return f"Context window: {tokens // 1000}k tokens"
+
+
+def multimodal_pill_value(
+    modalities: Sequence[str], vision: bool | None
+) -> bool | None:
+    """Yes when modalities go beyond text or vision is true; None when unsignaled."""
+    if not modalities and vision is None:
+        return None
+    if vision is True:
+        return True
+    return any(m != "text" for m in modalities)
+
+
+def derive_fact_pills(
+    *,
+    family: str,
+    origin: str,
+    task: str,
+    type_: str,
+    agentic: bool,
+    context_tokens: int,
+    modalities: Sequence[str],
+    vision: bool | None,
+    uncensored: bool | None,
+    license_name: str,
+    release_date: str,
+) -> list[str]:
+    """The ordered name-row pills (locked v2.2.9 grammar).
+
+    Order: Company, Country, Agentic, Context window, Multimodal, Guardrails,
+    License, Released. Any pill whose source value is missing is omitted.
+    """
+    pills: list[str] = []
+    publisher = FAMILY_TO_PUBLISHER.get(family, "")
+    if publisher and publisher != "Community":
+        pills.append(f"Company: {publisher}")
+    if origin:
+        pills.append(f"Country: {origin}")
+    if task in ("chat", "agentic") or type_ in ("llm", "chat", "agentic"):
+        pills.append(f"Agentic: {'Yes' if agentic else 'No'}")
+    context_pill = format_context_window_pill(context_tokens)
+    if context_pill:
+        pills.append(context_pill)
+    multimodal = multimodal_pill_value(modalities, vision)
+    if multimodal is not None:
+        pills.append(f"Multimodal: {'Yes' if multimodal else 'No'}")
+    if uncensored is not None:
+        pills.append(f"Guardrails: {'Uncensored' if uncensored else 'Censored'}")
+    if license_name:
+        pills.append(f"License: {license_name}")
+    released = format_released_pill(release_date)
+    if released:
+        pills.append(released)
+    return pills
+
+
+def build_fact_pills(model: CatalogModel) -> list[str]:
+    """The locked pill row for a loaded catalog model (name-row order)."""
+    return derive_fact_pills(
+        family=model.family,
+        origin=model.origin,
+        task=model.task,
+        type_=model.type,
+        agentic=model.agentic,
+        context_tokens=model.context_window_in or model.context_window_out,
+        modalities=model.modalities,
+        vision=model.vision,
+        uncensored=model.uncensored,
+        license_name=model.license_name,
+        release_date=model.release_date,
+    )
+
+
 def _coerce_float(value: object, default: float = 0.0) -> float:
     try:
         return float(value)  # type: ignore[arg-type]
@@ -350,18 +470,20 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
             # Extreme-low-bit (BitNet-class) tier stays hidden until opt-in + an
             # independent benchmark (the Q1 gate); default no-op.
             continue
-        if _is_patient_tier_entry(entry) and not _patient_tier_allowed():
-            # Patient (disk-offload) tier stays hidden unless opted in (E1/E3 gate).
-            continue
         strengths = entry.get("strengths")
         if not isinstance(strengths, list):
             strengths = []
+        modalities = entry.get("modalities")
+        if not isinstance(modalities, list):
+            modalities = []
+        raw_uncensored = entry.get("uncensored")
+        raw_vision = entry.get("vision")
         models.append(
             CatalogModel(
                 id=entry.get("id", ""),
                 display_name=entry.get("displayName") or entry.get("id", ""),
                 type=tab,
-                task=raw_task or ("chat" if tab == "chat" else tab),
+                task=raw_task or _TAB_TO_FALLBACK_TASK.get(tab, tab),
                 size_gb=_coerce_float(entry.get("sizeGB")),
                 required_vram_gb=_coerce_int(
                     entry.get("requiredVramGB", entry.get("vramGB"))
@@ -382,7 +504,7 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                     field="contextWindowOut",
                 ),
                 multimodal=bool(entry.get("multimodal")),
-                uncensored=bool(entry.get("uncensored")),
+                uncensored=(None if raw_uncensored is None else bool(raw_uncensored)),
                 description=str(entry.get("description") or ""),
                 strengths=tuple(str(s) for s in strengths),
                 why_recommended=str(entry.get("whyRecommended") or ""),
@@ -399,6 +521,8 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 min_ollama_version=str(entry.get("minOllamaVersion") or ""),
                 role=str(entry.get("role") or ""),
                 tool_calling_verified=bool(entry.get("toolCallingVerified")),
+                modalities=tuple(str(m) for m in modalities),
+                vision=None if raw_vision is None else bool(raw_vision),
             )
         )
     return models
@@ -532,6 +656,81 @@ class TypedSelection:
         return sum(lookup[mid].size_gb for mid in self.selected if mid in lookup)
 
 
+class _FlowLayout(QLayout):
+    """Left-to-right layout that wraps items onto new lines (Qt flow example).
+
+    v2.2.9 Phase 5 (T010): the card name row hosts the display name plus the
+    fact pills; wrapping keeps every pill on the (multi-line) name row instead
+    of pushing them under the description.
+    """
+
+    def __init__(self, parent: QWidget | None = None, spacing: int = 6) -> None:
+        super().__init__(parent)
+        self._items: list = []
+        self.setSpacing(spacing)
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item) -> None:  # noqa: N802
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int):  # noqa: N802
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index: int):  # noqa: N802
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self):  # noqa: N802
+        return Qt.Orientations(Qt.Orientation(0))
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect: QRect) -> None:  # noqa: N802
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return self.minimumSize()
+
+    def minimumSize(self) -> QSize:  # noqa: N802
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        size += QSize(
+            margins.left() + margins.right(), margins.top() + margins.bottom()
+        )
+        return size
+
+    def _do_layout(self, rect: QRect, *, test_only: bool) -> int:
+        x = rect.x()
+        y = rect.y()
+        line_height = 0
+        for item in self._items:
+            hint = item.sizeHint()
+            next_x = x + hint.width() + self.spacing()
+            if next_x - self.spacing() > rect.right() and line_height > 0:
+                x = rect.x()
+                y += line_height + self.spacing()
+                next_x = x + hint.width() + self.spacing()
+                line_height = 0
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), hint))
+            x = next_x
+            line_height = max(line_height, hint.height())
+        return y + line_height - rect.y()
+
+
 class _ModelCard(QWidget):
     """One model card with metadata, Phase 4 copy, and checkbox."""
 
@@ -588,12 +787,25 @@ class _ModelCard(QWidget):
         self.checkbox.setChecked(checked)
         title_row.addWidget(self.checkbox)
 
+        # v2.2.9 Phase 5 (T010): the name row is a wrapping flow of the display
+        # name followed by the locked fact pills (Company, Country, Agentic,
+        # Context window, Multimodal, Guardrails, License, Released). Pills sit
+        # on this row, never under the description.
+        header = QWidget()
+        header.setObjectName("cardHeaderRow")
+        header_flow = _FlowLayout(header)
         title = QLabel(model.display_name)
         title.setStyleSheet(
             f"color: {title_color}; font-weight: bold; background: transparent;"
         )
-        title.setWordWrap(True)
-        title_row.addWidget(title, stretch=1)
+        header_flow.addWidget(title)
+        for pill_text in build_fact_pills(model):
+            header_flow.addWidget(_pill(pill_text))
+        if model.tool_calling_verified:
+            header_flow.addWidget(
+                _pill("Tool calling verified", color=accent, border=accent)
+            )
+        title_row.addWidget(header, stretch=1)
 
         status = QLabel(badge_text)
         status.setStyleSheet(
@@ -654,46 +866,8 @@ class _ModelCard(QWidget):
             best_for.setWordWrap(True)
             layout.addWidget(best_for)
 
-        # --- Compact fact pills: only the few key facts (T023). "Best at" moves
-        #     to the Best-for line above; the always-on Guardrails pill becomes
-        #     an Uncensored flag shown only when there is no content filter. ---
-        chip_row = QHBoxLayout()
-        chip_row.setSpacing(6)
-        chip_row.setContentsMargins(28, 2, 0, 0)
-        if model.origin:
-            chip_row.addWidget(_pill(f"Origin: {model.origin}"))
-        if model.tool_calling_verified:
-            chip_row.addWidget(
-                _pill("Tool calling verified", color=accent, border=accent)
-            )
-        if model.is_text_model:
-            agentic_color = accent if model.agentic else TEXT_MUTED
-            chip_row.addWidget(
-                _pill(
-                    f"Agentic: {'Yes' if model.agentic else 'No'}",
-                    color=agentic_color,
-                    border=agentic_color,
-                )
-            )
-        context_chip = format_context_chip(
-            model.context_window_in, model.context_window_out
-        )
-        if context_chip:
-            chip_row.addWidget(_pill(context_chip))
-        if model.multimodal:
-            chip_row.addWidget(
-                _pill("Multimodal", color=ACCENT_BRIGHT, border=ACCENT_BRIGHT)
-            )
-        if model.guardrails_label == "Uncensored":
-            chip_row.addWidget(_pill("Uncensored", color=WARNING, border=WARNING))
-        if model.license_name:
-            chip_row.addWidget(_pill(model.license_name))
-        # v1.14.0 Phase 3: release date as a first-class pill (was inline in the
-        # title); year-month keeps the chip compact.
-        if model.release_date:
-            chip_row.addWidget(_pill(f"Released {model.release_date[:7]}"))
-        chip_row.addStretch()
-        layout.addLayout(chip_row)
+        # v2.2.9 Phase 5 (T010): the old under-description chip row is gone --
+        # every fact pill lives on the name row above (shared card grammar).
 
         # v1.19.0 Phase 1: ungated commercial-use restriction (not a download
         # gate). Rendered on the card so the cap cannot be silently dropped.
@@ -1010,7 +1184,9 @@ class TypedCatalogPage(QWidget):
 
         gpu_vendor = state.gpu_vendor or "none"
         tier = resolve_tier(state.vram_mb, gpu_vendor)
-        recommend_order = list(self._matrix.get(tier, {}).get(section_key, []))
+        # recommended.json keeps its "embed" section key; the tab key differs.
+        matrix_key = "embed" if section_key == "embeddings" else section_key
+        recommend_order = list(self._matrix.get(tier, {}).get(matrix_key, []))
         models = self._sorted_section_models(
             section_key,
             host_vram_gb,
@@ -1354,9 +1530,14 @@ __all__ = [
     "CatalogModel",
     "TypedCatalogPage",
     "TypedSelection",
+    "build_fact_pills",
     "compatibility_badge",
+    "derive_fact_pills",
     "format_context_chip",
     "format_context_window_k",
+    "format_context_window_pill",
+    "format_released_pill",
     "load_catalog_models",
+    "multimodal_pill_value",
     "parse_context_window",
 ]

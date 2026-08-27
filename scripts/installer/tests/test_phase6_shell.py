@@ -297,7 +297,8 @@ class TestCategoryFlow:
         ok, msg = page.validate()
         assert ok is False
         assert "Image" in msg
-        assert page._tabs.currentIndex() == 2  # switched to the Image tab
+        # v2.2.9 Phase 5: Embeddings precedes Chat, so Image is tab index 3.
+        assert page._tabs.currentIndex() == 3  # switched to the Image tab
 
     def test_explicit_skip_decides_category(self, qt_app: object) -> None:
         page = self._page()

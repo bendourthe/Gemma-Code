@@ -147,11 +147,15 @@ describe("ModelsSettings", () => {
     window.localStorage.clear();
   });
 
-  it("renders installer-parity catalog tabs after loading", async () => {
+  it("renders installer-parity catalog tabs after loading, Embeddings first", async () => {
     await loaded(client());
-    for (const id of ["chat", "agentic", "image", "video", "audio", "document"]) {
+    for (const id of ["embeddings", "chat", "agentic", "image", "video", "audio", "document"]) {
       expect(screen.getByTestId(`models-tab-${id}`)).toBeInTheDocument();
     }
+    // v2.2.9 Phase 5 (T010): Embeddings precedes Chat in the tab strip.
+    const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
+    expect(tabs.indexOf("Embeddings")).toBe(0);
+    expect(tabs.indexOf("Embeddings")).toBeLessThan(tabs.indexOf("Chat"));
     expect(screen.getByTestId("models-tab-other")).toBeInTheDocument();
     expect(screen.getByTestId("models-panel-chat")).toBeInTheDocument();
     expect(screen.getByTestId("models-row-gemma4:e4b")).toBeInTheDocument();
@@ -267,6 +271,39 @@ describe("ModelsSettings", () => {
     await waitFor(() => {
       expect(screen.getByTestId("models-disk-summary").textContent).toMatch(/Models occupy/);
     });
+  });
+
+  it("places embed models on the Embeddings tab, not Chat", async () => {
+    const embedClient: ModelsClient = {
+      async list() {
+        return [
+          {
+            id: "nomic-embed-text",
+            displayName: "Nomic Embed Text",
+            family: "nomic",
+            type: "embed",
+            task: "embed",
+            installed: true,
+            source: "registry",
+            license: "Apache-2.0",
+          },
+        ];
+      },
+      install() {
+        return Object.assign({ cancel() {} }, { done: Promise.resolve() });
+      },
+      async remove() {},
+      async diskUsage() {
+        return { usedBytes: 0, freeBytes: null };
+      },
+    };
+    render(<ModelsSettings client={embedClient} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    // Chat is the default tab; the embed row must not park there.
+    expect(screen.queryByTestId("models-row-nomic-embed-text")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("models-tab-embeddings"));
+    expect(screen.getByTestId("models-row-nomic-embed-text")).toBeInTheDocument();
+    expect(screen.getByTestId("models-downloaded-nomic-embed-text")).toBeInTheDocument();
   });
 
   it("places audio models on the Audio tab", async () => {
@@ -396,7 +433,7 @@ describe("ModelsSettings", () => {
     expect(note.querySelector("a")?.getAttribute("href")).toBe("https://www.liquid.ai/lfm-license");
   });
 
-  it("shows a Context chip for LFM 128000 and omits it when the window is null", async () => {
+  it("renders the locked name-row pills, in order, on the header row", async () => {
     const lfmClient: ModelsClient = {
       async list() {
         return [
@@ -411,6 +448,10 @@ describe("ModelsSettings", () => {
             vramGB: 3,
             contextWindow: 128000,
             origin: "USA",
+            agentic: true,
+            modalities: ["text"],
+            license: "LFM Open License v1.0",
+            releaseDate: "2026-08-04",
           },
           {
             id: "split-ctx",
@@ -437,16 +478,32 @@ describe("ModelsSettings", () => {
     render(<ModelsSettings client={lfmClient} />);
     await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    expect(screen.getByTestId("models-chip-context-lfm2.5:2.6b").textContent).toBe("Context: 128k");
-    expect(screen.getByTestId("models-chip-context-lfm2.5:2.6b").textContent).not.toMatch(/\bin\b/);
-    expect(screen.getByTestId("models-chip-context-split-ctx").textContent).toBe("Context: 32k / 8k");
+    // v2.2.9 Phase 5 (T010): golden pill row (dual-asserted with the installer).
+    const pillRow = screen.getByTestId("models-pills-lfm2.5:2.6b");
+    expect(Array.from(pillRow.children).map((c) => c.textContent)).toEqual([
+      "Company: Liquid AI",
+      "Country: USA",
+      "Agentic: Yes",
+      "Context window: 128k tokens",
+      "Multimodal: No",
+      "License: LFM Open License v1.0",
+      "Released: August 2026",
+    ]);
+    // Pills sit inside the header (name) row, not under the description.
+    const header = screen.getByTestId("models-header-lfm2.5:2.6b");
+    expect(header.contains(pillRow)).toBe(true);
+    expect(header.firstChild?.textContent).toBe("LFM2.5 2.6B");
+    // The split-window row derives its pill from the in-window.
+    expect(screen.getByTestId("models-pills-split-ctx").textContent).toContain(
+      "Context window: 32k tokens",
+    );
   });
 
-  it("does not invent a 128k chip for gemma without a catalog window or a null diffusion row", async () => {
+  it("does not invent a 128k pill for gemma without a catalog window or a null diffusion row", async () => {
     await loaded(client());
-    expect(screen.queryByTestId("models-chip-context-gemma4:e4b")).not.toBeInTheDocument();
+    expect(screen.getByTestId("models-pills-gemma4:e4b").textContent).not.toMatch(/Context window/);
     fireEvent.click(screen.getByTestId("models-tab-video"));
-    expect(screen.queryByTestId("models-chip-context-ltx-video")).not.toBeInTheDocument();
+    expect(screen.getByTestId("models-pills-ltx-video").textContent).not.toMatch(/Context window/);
     expect(screen.getByTestId("models-row-ltx-video")).toBeInTheDocument();
   });
 
@@ -522,10 +579,16 @@ describe("ModelsSettings", () => {
     expect(rows[1]).toHaveAttribute("data-over-budget", "true");
     expect(screen.getByTestId("models-badge-sana-1.6b-4k").textContent).toBe("Needs 20 GB VRAM");
     expect(screen.getByTestId("models-badge-sana-sprint-1024").textContent).toBe("Recommended");
-    expect(screen.getByTestId("models-chip-origin-sana-1.6b-4k").textContent).toMatch(/USA/);
-    expect(screen.getByTestId("models-chip-date-sana-1.6b-4k").textContent).toMatch(/2025-09-10/);
-    expect(screen.getByTestId("models-chip-guardrails-sana-1.6b-4k").textContent).toBe("Censored");
-    expect(screen.queryByTestId("models-chip-context-sana-1.6b-4k")).not.toBeInTheDocument();
+    // v2.2.9 Phase 5 (T010): the locked name-row pills replace the old chips.
+    const pills = Array.from(screen.getByTestId("models-pills-sana-1.6b-4k").children).map(
+      (c) => c.textContent,
+    );
+    expect(pills).toEqual([
+      "Company: NVIDIA",
+      "Country: USA",
+      "Guardrails: Censored",
+      "Released: September 2025",
+    ]);
   });
 
   it("shows Retry when Qwen 3.5 4B was selected at install but is not on disk", async () => {
