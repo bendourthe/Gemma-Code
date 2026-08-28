@@ -1,8 +1,8 @@
 # Known Gaps - v2.2
 
 **Project**: Nexus AI Studio
-**Status**: in-progress
-**Last updated**: 2026-08-27 (v2.2.9 Phase 7)
+**Status**: finalized
+**Last updated**: 2026-08-28 (v2.2.9 release preparation)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,22 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.9
 
-**Last updated**: 2026-08-27 (Phase 7 - architecture, known-gaps, and CI)
+**Last updated**: 2026-08-28 (release preparation - approved field-QA deferral)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 2 | 2 |
+| Deferred (DF) | 3 | 2 |
 | Bugs / regressions (BG) | 0 | 1 |
 | Warnings (WN) | 2 | 0 |
 | Missing tests / coverage gaps (MT) | 2 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-6 landed on `develop` at unit/integration evidence (desktop 1603 tests across 182 files, root 5488 tests, installer pytest 1120, python diffusion 261). The 2026-08-25 operator field session (screenshots 1-10, inventoried in the v2.2.9 plan) is the packaged-observation evidence base for this reconciliation. It closes DF-32 and DF-35 (recorded under v2.2.8 Resolved, their origin cycle) and DF-28 and DF-31 (below). DF-30 is partially observed (Context pill on packaged Chatbot; the 80% CTA was not observed) and stays open under v2.2.7 with an annotation. DF-29 and DF-25 are not evidenced by the session and stay open unchanged. DF-4 stays open: no GPU PNG/MP4 was recorded; screenshot 7 showed the old combined fail-closed string, which Phase 4's typed CUDA-missing / weights-missing / GPU-not-ready errors have since replaced, so the operator will now see different copy. DF-33, DF-23, DF-24, DF-26, and DF-27 carry from earlier cycles. DF-34 stays open because the 2026-08-25 Settings/installer screenshots predate the Phase 5 shared card grammar. Every v2.2.9 UI change is unit-proven but no packaged build has been run since Phases 1-6 landed (DF-36). not_observed != absent throughout.
+Phases 1-7 landed at unit/integration evidence. Release preparation passed aggregate root coverage (5488 tests, 88.56% lines), desktop coverage (1603 tests across 182 files, 88.61% lines), installer pytest (1160 passed, 3 skipped), and python diffusion (261 passed). Those aggregate gates provide release-level evidence but cannot retroactively close MT-4's missing per-phase measurements. The 2026-08-25 operator field session (screenshots 1-10, inventoried in the v2.2.9 plan) is the packaged-observation evidence base for this reconciliation. It closes DF-32 and DF-35 (recorded under v2.2.8 Resolved, their origin cycle) and DF-28 and DF-31 (below). DF-30 is partially observed (Context pill on packaged Chatbot; the 80% CTA was not observed) and stays open under v2.2.7 with an annotation. DF-29 and DF-25 are not evidenced by the session and stay open unchanged. DF-4 stays open: no GPU PNG/MP4 was recorded; screenshot 7 showed the old combined fail-closed string, which Phase 4's typed CUDA-missing / weights-missing / GPU-not-ready errors have since replaced, so the operator will now see different copy. DF-33, DF-23, DF-24, DF-26, and DF-27 carry from earlier cycles. DF-34 stays open because the 2026-08-25 Settings/installer screenshots predate the Phase 5 shared card grammar. The unsigned Windows installer was rebuilt and passed three smoke probes, but the v2.2.9 operator checklist items 1-7 were explicitly deferred and remain not observed as DF-36. Release audit also proved raw Tauri desktop bundles cannot start the sidecar reliably without the installer-provisioned Node 22.11.0 runtime, so they are withheld under DF-38. not_observed != absent throughout.
+
+> Finalized on 2026-08-28 at the 2.2.9 bump. Open items will be ingested by /generate-plan when the next version's plan is created.
 
 ### Open this cycle
 
@@ -31,14 +33,14 @@ Phases 1-6 landed on `develop` at unit/integration evidence (desktop 1603 tests 
 
 - **Source phase**: v2.2.9 Phases 1-6
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Operator field checklist)
-- **Reason**: The v2.2.9 UI changes (meta above the bubble, orb caption rotator, studio Chats copy, visual Context bar, typed generate errors in the UI, catalog name-row pills, Hub sync staging) are unit-proven across the desktop, root, installer, and python diffusion suites, but no packaged build has been run since Phases 1-6 landed. The 2026-08-25 screenshots predate every Phase 1-6 change. not_observed != absent.
-- **Suggested next step**: Rebuild the unsigned Windows installer and run the plan's operator field checklist items 1-7 (chrome/picker split, meta and titles after `Hi`, composing pill, studio history and Context, typed generate outcome, installer = Settings cards, Hub banner/sync).
+- **Reason**: The v2.2.9 UI changes (meta above the bubble, orb caption rotator, studio Chats copy, visual Context bar, typed generate errors in the UI, catalog name-row pills, Hub sync staging) are unit-proven across the desktop, root, installer, and python diffusion suites. The final unsigned Windows installer was rebuilt during release preparation and passed version, registry, and embedded-desktop-payload probes, but those probes do not observe the seven visual/operator behaviors. The 2026-08-25 screenshots predate every Phase 1-6 change. not_observed != absent.
+- **Suggested next step**: Run the plan's operator field checklist items 1-7 against the rebuilt unsigned Windows installer (chrome/picker split, meta and titles after `Hi`, composing pill, studio history and Context, typed generate outcome, installer = Settings cards, Hub banner/sync).
 
 ##### WN-8 - Root vitest run mutates the memory-tier benchmark fixture
 
 - **Source phase**: v2.2.9 Phases 1-6 verification
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Phase 7.7); commit `f7120ae`
-- **Reason**: The root vitest suite rewrites timing fields in `tests/fixtures/memory-tier-benchmark-results/2026-05-26/results.json` on every run. Twice this cycle the fixture had to be restored to keep the working tree clean (see commit `f7120ae`, `chore(tests): restore benchmark fixture mutated by root test run`).
+- **Reason**: The root vitest suite rewrites timing fields in `tests/fixtures/memory-tier-benchmark-results/2026-05-26/results.json` on every run. Release preparation reproduced the timing-only drift during root coverage, desktop coverage, and the canonical package test run; the fixture was restored after verification. See commit `f7120ae`, `chore(tests): restore benchmark fixture mutated by root test run`, for the earlier occurrence.
 - **Suggested next step**: Make the benchmark write its results to a temp directory instead of the tracked fixture, or gitignore the timing fields it mutates.
 
 ##### WN-9 - Desktop suite 5000ms-timeout flakes under host load
@@ -48,6 +50,13 @@ Phases 1-6 landed on `develop` at unit/integration evidence (desktop 1603 tests 
 - **Reason**: Under host load, desktop tests intermittently exceed the 5000ms per-test timeout across unrelated files. Observed twice this cycle; quiet-machine reruns pass all 1603 tests across 182 files. These are environment-load timeouts of the WN-2 renderer-environment class, not failed assertions.
 - **Suggested next step**: Rerun the desktop suite on a quiet machine before treating a timeout as a regression; consider raising the timeout for known-slow suites or isolating the desktop job in CI.
 
+##### MT-4 - Per-phase line coverage was not measured this cycle
+
+- **Source phase**: v2.2.9 Phases 1-6
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (phase stability gates)
+- **Reason**: Desktop, root, installer, and Python suites passed at phase boundaries without coverage instrumentation. Aggregate root and desktop coverage passed during release preparation, but that final-state measurement cannot reconstruct the per-phase percentages the plan requested.
+- **Suggested next step**: Require and record the applicable coverage command at each phase boundary in the next release plan so missing per-phase evidence cannot recur.
+
 ##### DF-37 - Typed diffusion error kinds are prose-only across the wire
 
 - **Source phase**: v2.2.9 Phase 7 (Goal-vs-codebase review finding on Phase 4)
@@ -55,19 +64,19 @@ Phases 1-6 landed on `develop` at unit/integration evidence (desktop 1603 tests 
 - **Reason**: `RuntimeNotReady.kind` (`cuda-torch-missing` / `weights-missing` / `gpu-not-available`) is machine-readable inside Python, but `runtimes/diffusion/main.py` serializes only the message text, so TypeScript sees the classification as prose. The UI goal (operators can tell the cases apart) is met; downstream code cannot branch on kind.
 - **Suggested next step**: If any consumer needs to branch on failure kind, add a `kind` field to the diffusion error envelope and thread it through `resultGuard`.
 
+##### DF-38 - Raw Tauri desktop bundles are not self-contained release artifacts
+
+- **Source phase**: v2.2.9 release preparation
+- **Plan reference**: release packaging audit; carried architectural gap DF-1 from v2.2.0
+- **Reason**: `tauri.conf.json` packages the sidecar bundle but not Node. The desktop resolves Node through `NEXUS_NODE_PATH`, installer-written `~/.nexus/runtime.json`, the installer-provisioned path, then bare `node` on `PATH`; only the Python provisioning installer downloads checksummed Node 22.11.0 and writes the manifest. The sidecar's `better-sqlite3` targets Node ABI 127, so another system Node can spawn and then fail on the first SQLite open. The former universal macOS path also carried only one host-architecture native addon. Publishing those raw bundles would overstate standalone support, so v2.2.9 attaches only the complete Windows installer and three platform VSIXes.
+- **Suggested next step**: Bundle a pinned per-target Node runtime through Tauri `externalBin` or resources, resolve it before installer/PATH fallbacks, build architecture-correct macOS artifacts, and pass clean-host sidecar health checks before restoring standalone desktop attachments.
+
 ##### MT-5 - Publisher map and Agentic-pill guard have no cross-language parity test
 
 - **Source phase**: v2.2.9 Phase 7 (Goal-vs-codebase review finding on Phase 5)
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Phase 5.1, WN-7 discipline)
 - **Reason**: `FAMILY_TO_PUBLISHER` is duplicated verbatim (27 entries, currently byte-identical) in installer `constants.py` and desktop `modelPills.ts`, but no test asserts full-map parity; only the 6 fixture families are cross-checked. The Agentic pill guards are also not textually identical (the installer's `type` field carries tab keys, so its condition has extra arms); they agree on the fixture and real catalog shapes but are not provably equivalent for arbitrary inputs.
 - **Suggested next step**: Generate one side's map from the other (or add a parity test that reads both files), and align the Agentic guard inputs so the two conditions are structurally identical.
-
-##### MT-4 - Per-phase line coverage was not measured this cycle
-
-- **Source phase**: v2.2.9 Phases 1-6
-- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (phase stability gates)
-- **Reason**: The desktop, root, installer, and python suites ran green at each phase boundary, but without `--coverage`, so no line-coverage percentage was recorded for v2.2.9.
-- **Suggested next step**: Run `test:shell:coverage` (and the root coverage script) and record the numbers in the release evidence.
 
 ### Resolved this phase
 

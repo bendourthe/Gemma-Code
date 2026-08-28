@@ -297,6 +297,7 @@ STEP_NAMES: list[str] = [
     "Install Path",
     "Models",
     "Configuration",
+    "VS Code",
     "Review",
     "Installing",
     "Complete",

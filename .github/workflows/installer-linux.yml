@@ -1,25 +1,27 @@
-name: Installer build (Linux)
+name: Installer rehearsal (Linux, non-release)
 
-# Builds NexusSetup-x86_64.AppImage -- the Linux one-shot installer. v1.9.0
-# Phase 1 (T102/T103) made the PyInstaller onefile (spec APP_NAME
-# "nexus-setup") the distributable directly: build-linux.sh freezes it into a
-# staging dir and packages exactly one artifact,
+# Manual non-release rehearsal for the Linux Python wizard build. v1.9.0 Phase
+# 1 (T102/T103) made the PyInstaller onefile (spec APP_NAME "nexus-setup") the
+# distributable directly: build-linux.sh freezes it into a staging dir and
+# packages exactly one artifact,
 # dist/NexusSetup-x86_64.AppImage, at the repo root. There is no NSIS/outer-
 # shell layer on any platform anymore.
 #
-# Runtime note: the AppImage links against glibc 2.31+ and needs FUSE
+# This workflow is intentionally dispatch-only and its artifact is not a
+# v2.2.9 release asset because the Python wizard does not stage the desktop
+# payload on Linux. Tag releases publish the platform VSIX only; raw Tauri
+# desktop bundles are withheld until they embed the pinned runtime.
+#
+# Runtime note: the AppImage links against glibc 2.35+ and needs FUSE
 # (libfuse2) to mount; both caveats are documented on the download page.
 
 on:
   workflow_dispatch:
     inputs:
       reason:
-        description: "Reason for the manual run"
+        description: "Reason for the manual non-release rehearsal"
         required: false
         default: "manual rehearsal"
-  push:
-    tags:
-      - "v*"
 
 concurrency:
   group: installer-build-linux-${{ github.workflow }}-${{ github.ref }}
@@ -27,8 +29,8 @@ concurrency:
 
 jobs:
   build-linux-installer:
-    name: Build Nexus AppImage
-    runs-on: ubuntu-latest
+    name: Build manual Linux installer rehearsal
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -53,28 +55,26 @@ jobs:
           chmod +x /tmp/appimagetool
           sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
 
-      # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
-      # root workspace (the repo root IS the nexus-coding extension package,
-      # same as release.yml's build-vsix job).
+      # The wizard bundles the VSIX (PyInstaller datas). The canonical script
+      # packages the root workspace and rebuilds native modules for VS Code
+      # Electron before the installer consumes the artifact.
       - name: Build VSIX (Nexus Coding extension)
-        run: |
-          npm ci --prefer-offline --no-audit
-          npm run build
-          npx vsce package --no-dependencies
+        shell: pwsh
+        run: ./scripts/build-vsix.ps1 -SkipTests
 
-      - name: Build installer (PyInstaller onefile + AppImage)
+      - name: Build non-release installer rehearsal (PyInstaller onefile + AppImage)
         env:
-          # ubuntu-latest runners have no usable /dev/fuse; build-linux.sh
+          # Hosted Ubuntu runners have no usable /dev/fuse; build-linux.sh
           # also sets this, but keep it on the job so a stale script still
           # has a chance.
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: bash scripts/installer/build/build-linux.sh
 
-      - name: Upload artifact
+      - name: Upload non-release rehearsal artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: NexusSetup-linux
+          name: NexusSetup-linux-rehearsal
           path: dist/NexusSetup-x86_64.AppImage
           if-no-files-found: warn
           retention-days: 14

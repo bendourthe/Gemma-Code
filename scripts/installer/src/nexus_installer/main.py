@@ -2,7 +2,7 @@
 
 Supports two modes:
 
-- Interactive GUI (default): launches the PyQt5 wizard with all 9 pages.
+- Interactive GUI (default): launches the PyQt5 wizard with all 10 pages.
 - ``--headless``: runs the full install engine without a GUI. Useful for
   CI smoke tests and scripted installs. In headless mode, `--json-output`
   emits a machine-parseable JSON summary on stdout. Exit code is 0 on
@@ -15,9 +15,18 @@ import argparse
 import contextlib
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from nexus_installer import __version__
+
+if TYPE_CHECKING:
+    from nexus_installer.engine.installer import InstallEngine
+    from nexus_installer.installer_state import InstallerState
+    from nexus_installer.pages.complete import CompletePage
+    from nexus_installer.pages.installing import InstallingPage
+    from nexus_installer.window import InstallerWindow
 
 
 def _prompt_resume() -> bool:
@@ -380,6 +389,41 @@ def _run_preflight(args: argparse.Namespace) -> int:
     return 0
 
 
+def _register_gui_pages(
+    window: InstallerWindow,
+    state: InstallerState,
+    *,
+    on_engine_created: Callable[[InstallEngine], None] | None = None,
+) -> tuple[InstallingPage, CompletePage]:
+    """Register the canonical interactive wizard route in display order."""
+    from nexus_installer.pages.complete import CompletePage
+    from nexus_installer.pages.configuration import ConfigurationPage
+    from nexus_installer.pages.gpu_detection import GpuDetectionPage
+    from nexus_installer.pages.install_path import InstallPathPage
+    from nexus_installer.pages.installing import InstallingPage
+    from nexus_installer.pages.prerequisites import PrerequisitesPage
+    from nexus_installer.pages.review import ReviewPage
+    from nexus_installer.pages.typed_catalog import TypedCatalogPage
+    from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
+    from nexus_installer.pages.welcome import WelcomePage
+
+    window.add_page(WelcomePage(state))
+    window.add_page(PrerequisitesPage(state))
+    window.add_page(GpuDetectionPage(state))
+    window.add_page(InstallPathPage(state))
+    # The typed catalog produces `state.selected_model_ids` for the
+    # protocol-routed install step.
+    window.add_page(TypedCatalogPage(state))
+    window.add_page(ConfigurationPage(state))
+    window.add_page(VsCodeExtensionPage(state))
+    window.add_page(ReviewPage(state))
+    installing_page = InstallingPage(state, on_engine_created=on_engine_created)
+    window.add_page(installing_page)
+    complete_page = CompletePage(state)
+    window.add_page(complete_page)
+    return installing_page, complete_page
+
+
 def main() -> None:
     """Parse arguments and dispatch to GUI or headless mode."""
     args = _build_arg_parser().parse_args()
@@ -411,15 +455,6 @@ def main() -> None:
     from PyQt5.QtWidgets import QApplication
 
     from nexus_installer.installer_state import InstallerState
-    from nexus_installer.pages.complete import CompletePage
-    from nexus_installer.pages.configuration import ConfigurationPage
-    from nexus_installer.pages.gpu_detection import GpuDetectionPage
-    from nexus_installer.pages.install_path import InstallPathPage
-    from nexus_installer.pages.installing import InstallingPage
-    from nexus_installer.pages.prerequisites import PrerequisitesPage
-    from nexus_installer.pages.review import ReviewPage
-    from nexus_installer.pages.typed_catalog import TypedCatalogPage
-    from nexus_installer.pages.welcome import WelcomePage
     from nexus_installer.window import InstallerWindow
 
     # Windows: set an explicit AppUserModelID before the first window is created
@@ -531,22 +566,11 @@ def main() -> None:
         tray=tray_controller,
     )
 
-    window.add_page(WelcomePage(state))
-    window.add_page(PrerequisitesPage(state))
-    window.add_page(GpuDetectionPage(state))
-    window.add_page(InstallPathPage(state))
-    # v1.8.0 Phase 4: the typed catalog (Chat / Agentic / Image / Video /
-    # Audio, hardware-tier defaults) replaces the single-model page and
-    # produces `state.selected_model_ids` for the protocol-routed step.
-    window.add_page(TypedCatalogPage(state))
-    window.add_page(ConfigurationPage(state))
-    window.add_page(ReviewPage(state))
-    installing_page = InstallingPage(
-        state, on_engine_created=controller.on_engine_created
+    installing_page, complete_page = _register_gui_pages(
+        window,
+        state,
+        on_engine_created=controller.on_engine_created,
     )
-    window.add_page(installing_page)
-    complete_page = CompletePage(state)
-    window.add_page(complete_page)
 
     # v1.15.0 Phase 3 (Issue 2): "Retry failed downloads" on the Complete page
     # re-runs just the failed model ids (via the engine's resume path), then

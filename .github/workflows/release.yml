@@ -4,9 +4,9 @@ on:
   push:
     tags:
       - "v*.*.*"
-  # Rebuild and attach assets to an already-published tag (the tagged
-  # commit cannot pick up a later workflow fix). Builds HEAD of the ref
-  # this workflow is dispatched against.
+  # Rebuild and attach assets to an existing tag only when the selected ref
+  # resolves to that exact tagged commit. This prevents attaching assets built
+  # from different code to an older release.
   workflow_dispatch:
     inputs:
       tag_name:
@@ -15,18 +15,59 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
 
-  # -- Build VSIX (Linux, fast) -----------------------------------------------
+  # -- Validate release identity ----------------------------------------------
 
-  build-vsix:
-    name: Build VSIX
+  release-metadata:
+    name: Validate release metadata
     runs-on: ubuntu-latest
     outputs:
-      vsix_name: ${{ steps.package.outputs.vsix_name }}
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ steps.metadata.outputs.version }}
+      tag_name: ${{ steps.metadata.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+
+      - name: Match package version, tag, and checked-out commit
+        id: metadata
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          EXPECTED_TAG="v${VERSION}"
+          if [ "$RELEASE_TAG" != "$EXPECTED_TAG" ]; then
+            echo "Release tag $RELEASE_TAG does not match package version $EXPECTED_TAG" >&2
+            exit 1
+          fi
+          git fetch --force --tags origin
+          TAG_SHA=$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")
+          CURRENT_SHA=$(git rev-parse HEAD)
+          if [ "$TAG_SHA" != "$CURRENT_SHA" ] || [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "Release tag $RELEASE_TAG does not resolve to the checked-out workflow commit" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  # -- Re-run the release gate on the tagged commit ---------------------------
+
+  release-verification:
+    name: Verify release source
+    runs-on: ubuntu-latest
+    needs: release-metadata
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
@@ -35,29 +76,75 @@ jobs:
           node-version: "22"
           cache: "npm"
 
-      - run: npm ci --prefer-offline --no-audit
+      - name: Install workspace dependencies
+        run: npm ci --prefer-offline --no-audit
 
-      - run: npm run lint
-      - run: npm run test
-      - run: npm run build
+      - name: Lint extension source
+        run: npm run lint --silent
 
-      - name: Read version
-        id: version
+      - name: Test extension source
+        run: npm run test --silent
+
+      - name: Build extension source
+        run: npm run build --silent
+
+  # -- Build native VSIX packages (3-OS) --------------------------------------
+
+  build-vsix:
+    name: Build VSIX (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    needs: [release-metadata, release-verification]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+            vsce_os: win32
+            vsce_arch: x64
+          - platform: macos
+            os: macos-15
+            vsce_os: darwin
+            vsce_arch: arm64
+          - platform: linux
+            # Build the native VSIX on Ubuntu 22.04 so its glibc floor stays
+            # at the documented 2.35 baseline.
+            os: ubuntu-22.04
+            vsce_os: linux
+            vsce_arch: x64
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Build and package VSIX for VS Code Electron
+        shell: pwsh
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          $HostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+          $ExpectedArch = "${{ matrix.vsce_arch }}"
+          if ($HostArch -ne $ExpectedArch) {
+            throw "Runner architecture mismatch for ${{ matrix.platform }}: expected $ExpectedArch, found $HostArch"
+          }
+          $Target = "${{ matrix.vsce_os }}-$ExpectedArch"
+          ./scripts/build-vsix.ps1 -SkipTests -Target $Target
+          $Vsix = "nexus-coding-${{ needs.release-metadata.outputs.version }}-$Target.vsix"
+          if (-not (Test-Path -LiteralPath $Vsix)) {
+            throw "Expected VSIX was not produced: $Vsix"
+          }
 
-      - name: Package VSIX
-        id: package
-        run: |
-          npx vsce package --no-dependencies
-          VSIX="nexus-coding-${{ steps.version.outputs.version }}.vsix"
-          echo "vsix_name=$VSIX" >> "$GITHUB_OUTPUT"
+      - name: Smoke-test packaged VSIX on VS Code 1.134.0
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: npm run test:vsix-runtime -- --vsix "nexus-coding-${{ needs.release-metadata.outputs.version }}-win32-x64.vsix"
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: vsix
-          path: "*.vsix"
+          name: vsix-${{ matrix.platform }}
+          path: nexus-coding-${{ needs.release-metadata.outputs.version }}-${{ matrix.vsce_os }}-*.vsix
+          if-no-files-found: error
           retention-days: 30
 
   # -- Build Windows installer (PyQt5) ----------------------------------------
@@ -83,7 +170,7 @@ jobs:
       - name: Download VSIX artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: vsix
+          name: vsix-windows
           path: .
 
       - name: Download Windows desktop bundle
@@ -95,97 +182,28 @@ jobs:
       - name: Build installer
         run: pwsh -NonInteractive -File scripts/installer/build/build-windows.ps1 -SkipSign
 
+      - name: Smoke-test the installer
+        shell: pwsh
+        run: pwsh -NonInteractive -File scripts/installer/build/smoke-windows-exe.ps1
+
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: installer-windows
           path: dist/NexusSetup.exe
           retention-days: 30
 
-  # -- Build macOS installer (PyQt5) ------------------------------------------
-
-  build-installer-macos:
-    name: Build macOS installer
-    runs-on: macos-latest
-    needs: build-vsix
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Download VSIX artifact
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: vsix
-          path: .
-
-      - name: Build installer
-        run: bash scripts/installer/build/build-macos.sh
-
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: installer-macos
-          path: dist/NexusSetup.dmg
-          retention-days: 30
-
-  # -- Build Linux installer (PyQt5) ------------------------------------------
-
-  build-installer-linux:
-    name: Build Linux installer
-    runs-on: ubuntu-latest
-    needs: build-vsix
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libxcb-xinerama0 libxkbcommon-x11-0
-
-      - name: Download VSIX artifact
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: vsix
-          path: .
-
-      - name: Build installer
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-        run: bash scripts/installer/build/build-linux.sh
-
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: installer-linux
-          path: dist/NexusSetup-x86_64.AppImage
-          retention-days: 30
-
-  # -- Build Nexus desktop bundles (Tauri, 3-OS) -------------------------------
+  # -- Build the private Windows desktop payload -------------------------------
   #
-  # v1.8.0 Phase 1 (T101): the one-shot installer fetches the desktop app from
-  # the GitHub release at install time, so every release must publish
-  # versioned, checksummed Tauri bundles for all three platforms. Runs on tag
-  # pushes only (this workflow's sole trigger); rehearse with a pre-release
-  # tag on a scratch branch. tauri.conf.json's version is synced from the
-  # semantic-release-owned package.json at build time, never by hand.
+  # The complete Windows wizard embeds this matching Tauri bundle. Raw Tauri
+  # bundles are not v2.2.9 release assets because they do not carry the pinned
+  # Node runtime and runtime manifest supplied by the provisioning installer.
+  # tauri.conf.json's version is synced from package.json at build time.
 
   desktop-bundle:
-    name: Desktop bundle (${{ matrix.platform }})
-    runs-on: ${{ matrix.os }}
-    needs: build-vsix
+    name: Windows desktop payload (installer input)
+    runs-on: windows-latest
+    needs: [release-metadata, release-verification]
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows
-            os: windows-latest
-          - platform: macos
-            os: macos-latest
-          - platform: linux
-            os: ubuntu-latest
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
@@ -194,17 +212,7 @@ jobs:
           node-version: "22"
           cache: "npm"
 
-      - name: Install Linux Tauri prerequisites
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-
-      - name: Add macOS universal targets
-        if: matrix.platform == 'macos'
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Cache cargo registry + target
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -213,9 +221,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             desktop/src-tauri/target
-          key: ${{ matrix.os }}-desktop-bundle-cargo-${{ hashFiles('desktop/src-tauri/Cargo.toml') }}
+          key: windows-desktop-payload-cargo-${{ hashFiles('desktop/src-tauri/Cargo.toml') }}
           restore-keys: |
-            ${{ matrix.os }}-desktop-bundle-cargo-
+            windows-desktop-payload-cargo-
 
       - name: Install workspace deps
         run: npm ci --prefer-offline --no-audit
@@ -223,73 +231,48 @@ jobs:
       - name: Sync tauri.conf.json version from package.json
         run: node scripts/sync-tauri-version.mjs
 
+      - name: Remove cached Tauri bundle outputs
+        shell: pwsh
+        run: |
+          $RepoRoot = (Resolve-Path -LiteralPath '.').Path
+          $BundleDirs = @(
+            'desktop/src-tauri/target/release/bundle',
+            'desktop/src-tauri/target/universal-apple-darwin/release/bundle'
+          )
+          foreach ($RelativePath in $BundleDirs) {
+            $Candidate = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $RelativePath))
+            $WorkspacePrefix = $RepoRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+            if (-not $Candidate.StartsWith($WorkspacePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+              throw "Refusing to remove bundle path outside the workspace: $Candidate"
+            }
+            if (Test-Path -LiteralPath $Candidate) {
+              Remove-Item -LiteralPath $Candidate -Recurse -Force
+            }
+          }
+
       - name: Build sidecar bundle (fail-fast)
         working-directory: desktop
         run: npm run build:sidecar
 
-      - name: Tauri build (windows / linux)
-        if: matrix.platform != 'macos'
+      - name: Build Windows Tauri payload
         working-directory: desktop
         run: npm run build:shell
 
-      - name: Tauri build (macos, universal)
-        if: matrix.platform == 'macos'
-        working-directory: desktop
-        run: npm run build:shell -- --target universal-apple-darwin
-
-      - name: Stage bundle under its canonical release name (windows)
-        if: matrix.platform == 'windows'
+      - name: Stage current Windows payload
         shell: pwsh
         run: |
-          $v = "${{ needs.build-vsix.outputs.version }}"
-          New-Item -ItemType Directory -Force bundle-out | Out-Null
-          Copy-Item "desktop/src-tauri/target/release/bundle/nsis/*-setup.exe" "bundle-out/Nexus-Desktop_${v}_x64-setup.exe"
-
-      - name: Stage bundle under its canonical release name (macos)
-        if: matrix.platform == 'macos'
-        run: |
-          V="${{ needs.build-vsix.outputs.version }}"
-          mkdir -p bundle-out
-          cp desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg "bundle-out/Nexus-Desktop_${V}_universal.dmg"
-
-      - name: Stage bundles under their canonical release names (linux)
-        if: matrix.platform == 'linux'
-        run: |
-          V="${{ needs.build-vsix.outputs.version }}"
-          mkdir -p bundle-out
-          # Cargo cache restores prior-version bundles. A multi-file glob
-          # makes `cp a b destfile` treat destfile as a directory and fail.
-          stage_one() {
-            local dir="$1"
-            local pattern="$2"
-            local dest="$3"
-            shopt -s nullglob
-            local matches=( "$dir"/$pattern )
-            shopt -u nullglob
-            if [ ${#matches[@]} -eq 0 ]; then
-              echo "No files matched $dir/$pattern"
-              ls -la "$dir" || true
-              exit 1
-            fi
-            local pick=""
-            local f
-            for f in "${matches[@]}"; do
-              case "$(basename "$f")" in
-                *"$V"*) pick="$f"; break ;;
-              esac
-            done
-            if [ -z "$pick" ]; then
-              pick=$(ls -t "${matches[@]}" | head -1)
-            fi
-            echo "Staging $pick -> $dest"
-            cp "$pick" "$dest"
+          $v = "${{ needs.release-metadata.outputs.version }}"
+          $BundleDir = "desktop/src-tauri/target/release/bundle/nsis"
+          $Matches = @(Get-ChildItem -LiteralPath $BundleDir -Filter "Nexus AI Studio_${v}_x64-setup.exe" -File)
+          if ($Matches.Count -ne 1) {
+            throw "Expected exactly one Windows desktop bundle for version $v; found $($Matches.Count)"
           }
-          stage_one desktop/src-tauri/target/release/bundle/appimage "*.AppImage" "bundle-out/Nexus-Desktop_${V}_amd64.AppImage"
-          stage_one desktop/src-tauri/target/release/bundle/deb "*.deb" "bundle-out/Nexus-Desktop_${V}_amd64.deb"
+          New-Item -ItemType Directory -Force bundle-out | Out-Null
+          Copy-Item -LiteralPath $Matches[0].FullName "bundle-out/Nexus-Desktop_${v}_x64-setup.exe"
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: desktop-bundle-${{ matrix.platform }}
+          name: desktop-bundle-windows
           path: bundle-out/*
           retention-days: 30
 
@@ -298,7 +281,9 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-vsix, build-installer-windows, build-installer-macos, build-installer-linux, desktop-bundle]
+    needs: [release-metadata, release-verification, build-vsix, build-installer-windows]
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
@@ -306,7 +291,17 @@ jobs:
 
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: vsix
+          name: vsix-windows
+          path: artifacts/
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vsix-macos
+          path: artifacts/
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vsix-linux
           path: artifacts/
 
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
@@ -314,73 +309,66 @@ jobs:
           name: installer-windows
           path: artifacts/
 
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: installer-macos
-          path: artifacts/
-
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: installer-linux
-          path: artifacts/
-
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: desktop-bundle-windows
-          path: artifacts/
-
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: desktop-bundle-macos
-          path: artifacts/
-
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: desktop-bundle-linux
-          path: artifacts/
-
-      # v1.8.0 Phase 1 (T102): one SHA256SUMS.txt covering every attached
-      # asset -- the installer's desktop_provisioner verifies its downloads
-      # against this file (fail closed). The explicit file list makes the
-      # release fail loudly if any expected asset is missing.
-      - name: Generate SHA256SUMS.txt (installer verification source)
+      # One SHA256SUMS.txt covers every attached binary. The explicit list
+      # fails closed if a platform VSIX or the complete Windows installer is
+      # missing, and deliberately excludes raw Tauri bundles.
+      - name: Generate SHA256SUMS.txt
         run: |
-          VERSION="${{ needs.build-vsix.outputs.version }}"
+          VERSION="${{ needs.release-metadata.outputs.version }}"
           cd artifacts
+          shopt -s nullglob
+          VSIX_FILES=(nexus-coding-${VERSION}-*.vsix)
+          if [ ${#VSIX_FILES[@]} -ne 3 ]; then
+            echo "Expected 3 platform-specific VSIX files, found ${#VSIX_FILES[@]}" >&2
+            exit 1
+          fi
           sha256sum \
-            "${{ needs.build-vsix.outputs.vsix_name }}" \
+            "${VSIX_FILES[@]}" \
             NexusSetup.exe \
-            NexusSetup.dmg \
-            NexusSetup-x86_64.AppImage \
-            "Nexus-Desktop_${VERSION}_x64-setup.exe" \
-            "Nexus-Desktop_${VERSION}_universal.dmg" \
-            "Nexus-Desktop_${VERSION}_amd64.AppImage" \
-            "Nexus-Desktop_${VERSION}_amd64.deb" \
             > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Extract release notes from CHANGELOG
         id: changelog
         run: |
-          VERSION="${{ needs.build-vsix.outputs.version }}"
-          NOTES=$(awk "/^#+ \\[?${VERSION}\\]?/{flag=1; next} /^#+ /{flag=0} flag" CHANGELOG.md)
+          VERSION="${{ needs.release-metadata.outputs.version }}"
+          NOTES=$(awk -v version="$VERSION" '
+            index($0, "# [" version "]") == 1 { flag=1; next }
+            flag && /^# / { exit }
+            flag { print }
+          ' CHANGELOG.md)
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
           echo "$NOTES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      - name: Revalidate annotated tag immediately before publication
+        env:
+          RELEASE_TAG: ${{ needs.release-metadata.outputs.tag_name }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          REMOTE_TAGS=$(git ls-remote --tags origin "refs/tags/${RELEASE_TAG}" "refs/tags/${RELEASE_TAG}^{}")
+          TAG_SHA=$(printf '%s\n' "$REMOTE_TAGS" | awk '$2 ~ /\^\{\}$/ {print $1; exit}')
+          if [ -z "$TAG_SHA" ]; then
+            echo "Annotated release tag ${RELEASE_TAG} is missing or has no peeled commit on origin" >&2
+            exit 1
+          fi
+          if [ "$TAG_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Release tag ${RELEASE_TAG} moved during the workflow: expected ${EXPECTED_SHA}, found ${TAG_SHA}" >&2
+            exit 1
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name || github.ref_name }}
-          name: "Nexus v${{ needs.build-vsix.outputs.version }}"
+          tag_name: ${{ needs.release-metadata.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          name: "Nexus v${{ needs.release-metadata.outputs.version }}"
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
-          prerelease: ${{ contains(github.ref, '-') || contains(github.event.inputs.tag_name, '-') }}
+          prerelease: ${{ contains(needs.release-metadata.outputs.tag_name, '-') }}
           fail_on_unmatched_files: true
           files: |
-            artifacts/${{ needs.build-vsix.outputs.vsix_name }}
+            artifacts/nexus-coding-*.vsix
             artifacts/NexusSetup.exe
-            artifacts/NexusSetup.dmg
-            artifacts/NexusSetup-x86_64.AppImage
-            artifacts/Nexus-Desktop_*
             artifacts/SHA256SUMS.txt

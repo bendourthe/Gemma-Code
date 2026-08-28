@@ -51,22 +51,29 @@ if (Test-Path $HubCatalog) {
 Write-Host "[3/5] Locating artifacts..." -ForegroundColor Cyan
 $Version = (Get-Content "$RepoRoot\package.json" | ConvertFrom-Json).version
 Write-Host "  Version: $Version"
-# vsce emits nexus-coding-*.vsix (the root package name); the legacy
-# gemma-code-*.vsix glob is a fallback until the NAME.P1.A compat sweep.
-$Vsix = $null
-foreach ($pattern in @("nexus-coding-*.vsix", "gemma-code-*.vsix")) {
+$VsixArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+if ($VsixArch -notin @('x64', 'arm64')) {
+    Write-Host "ERROR: unsupported Windows VSIX architecture: $VsixArch" -ForegroundColor Red
+    exit 1
+}
+$VsixName = "nexus-coding-$Version-win32-$VsixArch.vsix"
+$VsixCandidates = @(
     foreach ($dir in @($RepoRoot, "$RepoRoot\scripts\installer")) {
-        if (-not $Vsix) {
-            $Vsix = Get-ChildItem "$dir\$pattern" -ErrorAction SilentlyContinue |
-                Select-Object -First 1
+        $candidate = Join-Path $dir $VsixName
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            Get-Item -LiteralPath $candidate
         }
     }
+)
+if ($VsixCandidates.Count -ne 1) {
+    Write-Host "ERROR: expected exactly one Windows VSIX named $VsixName; found $($VsixCandidates.Count)." -ForegroundColor Red
+    foreach ($candidate in $VsixCandidates) {
+        Write-Host "  $($candidate.FullName)" -ForegroundColor Red
+    }
+    exit 1
 }
-if ($Vsix) {
-    Write-Host "  VSIX: $($Vsix.FullName)"
-} else {
-    Write-Host "  WARNING: No VSIX found. Installer will not bundle the extension." -ForegroundColor Yellow
-}
+$Vsix = $VsixCandidates[0]
+Write-Host "  VSIX: $($Vsix.FullName)"
 
 # v1.11.0 Phase 4 (T401): stage the desktop-app bundle for embedding. The
 # installer no longer fetches the desktop app from GitHub releases at install
