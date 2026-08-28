@@ -8,8 +8,8 @@ name: Installer rehearsal (macOS, non-release)
 #
 # This workflow is intentionally dispatch-only and its artifact is not a
 # v2.2.9 release asset because the Python wizard does not stage the desktop
-# payload on macOS. Tag releases run release.yml and publish the checksummed
-# Tauri desktop DMG directly.
+# payload on macOS. Tag releases publish the platform VSIX only; raw Tauri
+# desktop bundles are withheld until they embed the pinned runtime.
 #
 # Notarization stays best-effort: without APPLE_DEVELOPER_ID secrets the step
 # warns and exits 0 (unsigned DMG; Gatekeeper caveats are documented on the
