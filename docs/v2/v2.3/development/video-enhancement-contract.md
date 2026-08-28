@@ -133,7 +133,7 @@ Validation rejects a non-UUID request ID, an empty or overlong opaque parent job
 - Processing FPS, elapsed milliseconds, and remaining milliseconds when finite and non-negative.
 - Human-safe message with ANSI sequences and canonical paths removed.
 
-Video2X emits carriage-return-delimited ANSI stdout. The adapter must split on both carriage return and newline, strip ANSI, bound retained output, and treat malformed or non-finite telemetry as indeterminate progress rather than a job failure.
+Video2X emits carriage-return-delimited ANSI stdout. The adapter must split on both carriage return and newline, strip ANSI, retain output on valid UTF-8 codepoint boundaries within the byte cap, and treat malformed, non-finite, or regressing telemetry as indeterminate progress rather than a job failure. Progress and successful-result elapsed claims may not exceed the request timeout.
 
 ### Cancellation
 
@@ -144,11 +144,11 @@ The service accepts an `AbortSignal` for each invocation. Cancellation is author
 3. After a bounded grace period, terminate the isolated process group or Windows job object; force-kill after a second bound.
 4. Return `cancelled` regardless of child exit code.
 5. Never validate, promote, index, or expose an output after Nexus cancellation.
-6. Delete or quarantine only the exact job-owned staging and intermediate paths.
+6. Delete or quarantine only the exact job-owned staging and intermediate paths. If process-tree termination cannot be proven, return the authoritative terminal failure with `terminationConfirmed: false`, retain the exact root in quarantine, and never validate, delete, or expose its contents from the finishing invocation.
 
 ### Result and error contract
 
-Phase 2 backend success returns `ok: true`, outcome `staged`, request ID, parent and child job IDs, immutable source identity, exact job-owned staged path, backend data, normalized stage parameters, timings, warnings, and observed progress facts. It is not a public completed generation and is not downloadable. Phase 3 alone may transform a staged result into outcome `completed` after ffprobe validation, source rehash, provenance embedding, atomic promotion, durable indexing, and session linkage all succeed.
+Phase 2 backend success returns `ok: true`, outcome `staged`, request ID, parent and child job IDs, immutable source identity, exact job-owned staged path, backend data, the actual execution platform and selected device, normalized per-stage processor/model/scalar argument fields, semantic stage parameters, timings bounded by the request timeout, warnings, and observed progress facts. Processor, model, device, and normalized arguments come from the same adapter execution that produced the staged file; Phase 3 must not reconstruct them from a preset or run a second capability probe. It is not a public completed generation and is not downloadable. Phase 3 alone may transform a staged result into outcome `completed` after ffprobe validation, source rehash, provenance embedding, atomic promotion, durable indexing, and session linkage all succeed.
 
 Failure returns `ok: false` and one typed code:
 
@@ -178,7 +178,7 @@ Every probe and enhancement process must use a direct executable plus an argumen
 
 - Use `windowsHide: true` where applicable.
 - Start enhancement in a fresh, empty, job-owned working directory rather than the repository or source directory. Video2X searches relative `models/` before installation locations, so this prevents hostile `cwd/models` shadowing.
-- Scrub inherited loader and Vulkan override variables such as `APPDIR`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_*`, `VK_ICD_FILENAMES`, `VK_LAYER_PATH`, and `VK_INSTANCE_LAYERS` unless a future explicit compatibility contract allows one.
+- Scrub inherited loader, managed-runtime injection, and Vulkan override variables, including `APPDIR`, `GLIBC_TUNABLES`, every `LD_*`, `DYLD_*`, `VK_*`, `COR_*`, `CORECLR_*`, `COMPlus_*`, and `DOTNET_*` name, unless a future explicit compatibility contract allows one.
 - Pass canonical source, staging, and intermediate paths only as discrete arguments.
 - Refuse a destination that already exists, aliases the source, resolves outside the exact job root, or is reachable through a symlink escape.
 - Isolate the process tree so cancellation affects only that job.
@@ -190,15 +190,16 @@ Every probe and enhancement process must use a direct executable plus an argumen
 Windows uses a dedicated sidecar helper boundary rather than the existing terminal sandbox, which wraps `cmd.exe /c` and is incompatible with this contract. The helper must:
 
 1. Receive the canonical executable, string-array argv, working directory, scrubbed environment, and timeout through an exclusive job-owned structured manifest. It must reject unknown fields and delete the manifest after loading.
-2. Be launched by Node through a fixed PowerShell executable and fixed helper-file arguments with `shell: false`; no media path or backend flag may enter a PowerShell or `cmd.exe` command string.
+2. Be launched by Node through an absolute PowerShell executable with `-NoProfile`, `-NonInteractive`, and one fixed encoded helper program under `shell: false`; no generated script, media path, backend flag, or request environment value may enter a PowerShell or `cmd.exe` command string.
 3. Call `CreateProcessW` with the exact canonical executable in `lpApplicationName`, a writable command-line buffer produced by tested Microsoft C-runtime argv quoting, and `CREATE_SUSPENDED`.
 4. Use `STARTUPINFOEX` plus `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` so only stdin, stdout, and stderr are inherited.
 5. Create a job object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, assign the suspended process, and resume it only after successful assignment.
 6. Hold the job handle for the full invocation. Killing the helper closes the handle and terminates Video2X descendants; no `taskkill`, PID-tree walk, or child cooperation is the safety boundary.
 7. Expose an AVX2 probe mode that calls `IsProcessorFeaturePresent(40)` and returns a closed structured result.
-8. Refuse capability with `process_host_unavailable` if PowerShell, helper compilation/loading, handle-list setup, job assignment, or AVX2 probing cannot be proven. There is no unconfined Windows fallback.
+8. Authenticate the manifest and fixed C# source paths and SHA-256 values through a minimal loader environment containing only required Windows roots, temporary-directory values, and those four Nexus controls. Compile the authenticated C# source in memory; never load a mutable generated assembly.
+9. Refuse capability with `process_host_unavailable` if PowerShell, helper compilation/loading, handle-list setup, job assignment, or AVX2 probing cannot be proven. There is no unconfined Windows fallback.
 
-The helper source and compiled assembly live in an exclusive Nexus job directory, are hashed before load, and are removed during exact-path cleanup. Phase 2 tests must cover Windows quoting for spaces, quotes, backslashes, ampersands, pipes, percent signs, carets, and Unicode paths; Phase 5 must execute a real packaged Windows cancellation and descendant-kill probe before promotion from candidate support.
+The manifest and fixed helper source live in an exclusive Nexus control directory, are authenticated against out-of-band hashes before use, and are removed only after canonical directory-identity validation. The fixed encoded PowerShell program and in-memory compiled type leave no mutable script or assembly to replace. Phase 2 tests must cover Windows quoting for spaces, quotes, backslashes, ampersands, pipes, percent signs, carets, and Unicode paths; Phase 5 must execute a real packaged Windows cancellation and descendant-kill probe before promotion from candidate support.
 
 Microsoft API contracts:
 
@@ -206,7 +207,7 @@ Microsoft API contracts:
 - `CreateProcessW` process and command-line contract: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
 - `AssignProcessToJobObject`: https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject
 
-On Linux, Node launches the canonical executable directly with `shell: false` in a new process group. Cancellation signals the negative process-group ID after setting Nexus cancellation state, escalates after bounded grace periods, and never falls back to a shell command.
+On Linux, Node launches the canonical executable directly with `shell: false` in a new process group. Cancellation signals the negative process-group ID after setting Nexus cancellation state, escalates after bounded grace periods, and never falls back to a shell command. If the process group remains observable or its disappearance cannot be proven, the host returns `terminationConfirmed: false`, starts only bounded best-effort background reaping, and leaves the exact job root quarantined.
 
 The tagged grammar is:
 
@@ -221,12 +222,12 @@ The adapter must use `--list-devices`, not stale prose aliases such as `--list-g
 Video2X opens or truncates its destination early and may leave partial output after failure or cancellation. Every invocation therefore writes to a unique `*.partial.mp4` under the job root. The runtime uses this sequence:
 
 1. Canonicalize and ffprobe the completed source; calculate its SHA-256 immediately before work.
-2. Create a new child job and exclusive job root; reject collisions rather than reuse a directory.
+2. Create a new child job and exclusive job root whose leaf is the first 32 lowercase hexadecimal characters of the SHA-256 digest of the persisted child-job ID, without placing the raw ID in the path; reject collisions rather than reuse or delete a pre-existing directory. This exact derivation lets restart recovery address only that child's root without a broad directory scan.
 3. Run each process stage into a new non-existing partial or intermediate file.
-4. On ordinary exit 0, ffprobe the last staged output and verify a video stream, positive size and duration, expected dimensions, expected rational frame rate, and duration within the larger of one source frame or 250 ms of the source.
+4. On ordinary exit 0, ffprobe the last staged output and verify a video stream, positive size and duration, expected dimensions, expected rational frame rate, and duration within the larger of one source frame or 250 ms of the source. After validation, calculate `preProvenanceContainerSha256` over those exact staged bytes.
 5. Verify the original source still has the same canonical identity, size, and SHA-256.
-6. Embed the complete Nexus enhancement provenance into a job-owned staged copy. Metadata failure is fatal, not a swallowed warning.
-7. Re-run ffprobe, calculate the final staged output SHA-256, and verify the source hash again.
+6. Embed the complete Nexus enhancement provenance, including `preProvenanceContainerSha256` and a stable `provenanceRecordId`, into a job-owned staged copy. Metadata failure is fatal, not a swallowed warning. Embedded metadata must not contain a placeholder or claim for the hash of its own final container bytes.
+7. Re-run ffprobe, calculate `publishedContainerSha256` over the exact post-embedding staged bytes, and verify the source hash again. Store this final hash only in the durable index.
 8. Atomically rename on the same filesystem to a unique final output path that does not exist.
 9. Commit queue, generation-index, source-link, and session-reference records before exposing a download or completion event.
 
@@ -236,14 +237,15 @@ If validation, provenance, or indexing fails, the runtime returns a typed failur
 
 ## Provenance contract
 
-The enhanced MP4 metadata and durable generation index must record:
+The enhanced MP4 metadata and durable generation index must record the fields below, except that `publishedContainerSha256` is durable-index-only because embedding a container's own final hash would be self-referential:
 
 - Schema version and Nexus release.
 - Parent generation job ID, enhancement request ID, and child job ID.
 - Source canonical identity, SHA-256, byte size, duration, dimensions, and rational FPS.
-- Output SHA-256, byte size, duration, dimensions, and rational FPS.
+- Output `preProvenanceContainerSha256`, byte size, duration, dimensions, and rational FPS in both records; stable `provenanceRecordId` in both records; and final `publishedContainerSha256` only in the durable index.
 - Backend name, compatibility ID, version, executable SHA-256, and `user-supplied-unverified` status.
-- Ordered stages with processor, model, scale or frame multiplier, normalized argument fields, start/end timestamps, duration, child exit code, and outcome.
+- Actual execution platform and selected Vulkan device summary, captured by the adapter invocation that produced the staged file.
+- Ordered stages with processor, model, scale or frame multiplier, bounded scalar normalized argument fields, start/end timestamps, duration, child exit code, and outcome.
 - Selected preset IDs and whether routing was explicit or derived.
 - Vulkan device summary without sensitive paths.
 - Validation results and any `not_observed` fields.
@@ -253,7 +255,7 @@ Provenance stores normalized semantic parameters, not a shell command string. Ab
 
 ## Restart and concurrency semantics
 
-Enhancement jobs do not blindly resume a native process after application restart. A persisted `running` enhancement becomes `interrupted`, its process-owned partials are quarantined or removed by exact path, and the user may request a new child job with a new identity. Completed source and enhanced outputs remain immutable. Two concurrent requests for the same source use distinct child IDs, job roots, intermediate files, final names, cancellation signals, and provenance records.
+Enhancement jobs do not blindly resume a native process after application restart. A persisted `running` enhancement becomes `interrupted`; its exact process-owned root is recovered from the persisted child ID through the same deterministic hashed-root function, and its partials are quarantined or removed by exact path without scanning or deleting sibling job roots. The user may request a new child job with a new identity. Completed source and enhanced outputs remain immutable. Two concurrent requests for the same source use distinct child IDs, job roots, intermediate files, final names, cancellation signals, and provenance records.
 
 The queue must retain the scheduler `JobHandle` so cancellation reaches the running `AbortSignal`; changing only the SQLite state is insufficient. `parentId` must be accepted at enqueue time and exposed through sidecar and desktop job DTOs.
 
