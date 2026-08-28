@@ -2,6 +2,14 @@
  * v2.2.5 Phase 2 -- classify a Python diffusion result before the studio
  * pump emits `complete`. Empty, 1x1, or ok:false payloads are typed
  * pre-complete errors, never a successful generate.
+ *
+ * v2.2.9 T009 -- the Python runtime now raises three DISTINCT typed
+ * reasons (no CUDA torch in the diffusion venv / weights missing for the
+ * named model id / GPU not available). Any `ok: false` message from the
+ * runtime MUST pass through to the UI verbatim; the combined constants
+ * below are last-resort fallbacks used only when the runtime returned no
+ * message at all (empty or 1x1 payloads with no envelope). Never collapse
+ * a typed runtime message back into these constants.
  */
 
 import {

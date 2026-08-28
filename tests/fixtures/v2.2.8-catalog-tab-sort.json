@@ -103,7 +103,8 @@
     }
   ],
   "expectedIds": {
-    "chat": ["nomic-embed-text", "gemma-e4b", "qwen-compat", "gemma-26b"],
+    "embeddings": ["nomic-embed-text"],
+    "chat": ["gemma-e4b", "qwen-compat", "gemma-26b"],
     "image": ["sana-sprint", "sana-4k"]
   }
 }

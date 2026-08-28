@@ -107,4 +107,20 @@ describe("sessionContextUsage", () => {
     expect(result.percent).toBe(50);
     expect(result.atOrAbove80).toBe(false);
   });
+
+  // v2.2.9 Phase 3.2 (T008): video rows publish maxVideoFrames, not maxImages.
+  it("falls back to maxVideoFrames when maxImages is absent (video rows)", () => {
+    const result = sessionContextUsage({
+      turns: [
+        { role: "assistant", visualUnits: 1 },
+        { role: "assistant", visualUnits: 1 },
+      ],
+      contextWindow: null,
+      visualTokenBudget: { maxVideoFrames: 8 },
+    });
+    expect(result.denominatorKind).toBe("visual");
+    expect(result.usedTokens).toBe(2);
+    expect(result.percent).toBe(25);
+    expect(result.atOrAbove80).toBe(false);
+  });
 });

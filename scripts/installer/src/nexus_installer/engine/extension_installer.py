@@ -1,16 +1,127 @@
-﻿"""VS Code extension installation via the code CLI."""
+"""VS Code extension installation via the code CLI."""
 
 from __future__ import annotations
 
 import glob
 import os
+import re
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from nexus_installer.engine.platform_utils import run_command
 from nexus_installer.installer_state import InstallerState
 
 EXTENSION_ID = "nexus-coding.nexus-coding"
 LEGACY_EXTENSION_ID = "gemma-code.gemma-code"
+SUPPORTED_VSCODE_VERSION = "1.134.0"
+
+_SEMVER_LINE = re.compile(
+    r"^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$"
+)
+_CLI_SUFFIXES = (".cmd", ".exe", ".bat", ".com")
+
+
+@dataclass(frozen=True)
+class VsCodeCliStatus:
+    """Compatibility result for one VS Code-like command-line executable."""
+
+    path: str | None
+    cli_name: str | None
+    version: str | None
+    supported: bool
+    reason: str
+
+
+def parse_vscode_version(output: str) -> str | None:
+    """Return the first standalone semantic version in `code --version` output."""
+    for raw_line in output.lstrip("\ufeff").splitlines():
+        match = _SEMVER_LINE.fullmatch(raw_line.strip())
+        if match:
+            return match.group(1)
+    return None
+
+
+def _cli_name(cli_path: str) -> str:
+    """Normalize a CLI path to its executable name on every supported OS."""
+    name = os.path.basename(cli_path.replace("\\", "/")).lower()
+    for suffix in _CLI_SUFFIXES:
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
+def inspect_vscode_cli(
+    cli_path: str,
+    *,
+    cli_name: str | None = None,
+    run_fn=None,
+) -> VsCodeCliStatus:
+    """Verify that a CLI is Microsoft stable VS Code 1.134.0 exactly."""
+    normalized_name = (cli_name or _cli_name(cli_path)).lower()
+    if normalized_name != "code":
+        return VsCodeCliStatus(
+            path=cli_path,
+            cli_name=normalized_name,
+            version=None,
+            supported=False,
+            reason="unsupported-cli",
+        )
+
+    command_runner = run_fn or run_command
+    exit_code, stdout, _ = command_runner([cli_path, "--version"], timeout=30)
+    if exit_code != 0:
+        return VsCodeCliStatus(
+            path=cli_path,
+            cli_name=normalized_name,
+            version=None,
+            supported=False,
+            reason="version-check-failed",
+        )
+
+    version = parse_vscode_version(stdout)
+    if version is None:
+        return VsCodeCliStatus(
+            path=cli_path,
+            cli_name=normalized_name,
+            version=None,
+            supported=False,
+            reason="version-unreadable",
+        )
+    if version != SUPPORTED_VSCODE_VERSION:
+        return VsCodeCliStatus(
+            path=cli_path,
+            cli_name=normalized_name,
+            version=version,
+            supported=False,
+            reason="version-mismatch",
+        )
+    return VsCodeCliStatus(
+        path=cli_path,
+        cli_name=normalized_name,
+        version=version,
+        supported=True,
+        reason="supported",
+    )
+
+
+def _unsupported_host_message(status: VsCodeCliStatus) -> str:
+    if status.reason == "unsupported-cli":
+        return (
+            f"Skipped: {status.cli_name or 'the detected editor CLI'} is not "
+            "Microsoft stable VS Code. The bundled extension supports only "
+            f"Microsoft VS Code {SUPPORTED_VSCODE_VERSION}."
+        )
+    if status.reason == "version-mismatch":
+        return (
+            f"Skipped: Microsoft VS Code {status.version} is installed, but the "
+            "bundled extension requires Microsoft VS Code "
+            f"{SUPPORTED_VSCODE_VERSION} exactly."
+        )
+    return (
+        "Skipped: the Microsoft VS Code version could not be verified. The "
+        "bundled extension is installed only when the stable `code` CLI reports "
+        f"version {SUPPORTED_VSCODE_VERSION} exactly."
+    )
 
 
 class ExtensionInstaller:
@@ -46,9 +157,18 @@ class ExtensionInstaller:
             log("VSIX file not found. Skipping extension installation.", "error")
             return False
 
+        # The page check is advisory. Re-read the executable identity and version
+        # here so a PATH or editor update between selection and installation
+        # cannot feed an ABI-incompatible native module to VS Code.
+        vscode_status = inspect_vscode_cli(vscode)
+        if not vscode_status.supported:
+            state.record_skipped_step("extension")
+            log(_unsupported_host_message(vscode_status), "warn")
+            return True
+
         log(f"Installing extension from {vsix_path}...", "info")
         code, stdout, stderr = run_command(
-            [vscode, "--install-extension", vsix_path, "--force"],
+            [vscode, "--install-extension", vsix_path],
             timeout=120,
         )
         if code != 0:
@@ -100,3 +220,13 @@ class ExtensionInstaller:
             if matches:
                 return matches[0]
         return None
+
+
+__all__ = [
+    "EXTENSION_ID",
+    "ExtensionInstaller",
+    "SUPPORTED_VSCODE_VERSION",
+    "VsCodeCliStatus",
+    "inspect_vscode_cli",
+    "parse_vscode_version",
+]

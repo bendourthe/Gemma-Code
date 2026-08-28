@@ -1,25 +1,27 @@
-name: Installer build (macOS)
+name: Installer rehearsal (macOS, non-release)
 
-# Builds NexusSetup.dmg -- the macOS one-shot installer. v1.9.0 Phase 1
+# Manual non-release rehearsal for the macOS Python wizard build. v1.9.0 Phase 1
 # (T102/T103) made the PyInstaller onefile (spec APP_NAME "Nexus AI Studio
 # Setup") the distributable directly: build-macos.sh freezes it into a staging
 # dir and packages exactly one artifact, dist/NexusSetup.dmg, at the repo root.
 # There is no NSIS/outer-shell layer on any platform anymore.
 #
+# This workflow is intentionally dispatch-only and its artifact is not a
+# v2.2.9 release asset because the Python wizard does not stage the desktop
+# payload on macOS. Tag releases publish the platform VSIX only; raw Tauri
+# desktop bundles are withheld until they embed the pinned runtime.
+#
 # Notarization stays best-effort: without APPLE_DEVELOPER_ID secrets the step
 # warns and exits 0 (unsigned DMG; Gatekeeper caveats are documented on the
-# download page). Signing + notarization is a recorded deferral for this cycle.
+# download page). Signing + notarization remains rehearsal-only here.
 
 on:
   workflow_dispatch:
     inputs:
       reason:
-        description: "Reason for the manual run"
+        description: "Reason for the manual non-release rehearsal"
         required: false
         default: "manual rehearsal"
-  push:
-    tags:
-      - "v*"
 
 concurrency:
   group: installer-build-macos-${{ github.workflow }}-${{ github.ref }}
@@ -27,7 +29,7 @@ concurrency:
 
 jobs:
   build-macos-installer:
-    name: Build Nexus DMG
+    name: Build manual macOS installer rehearsal
     runs-on: macos-latest
     timeout-minutes: 120
     steps:
@@ -42,16 +44,14 @@ jobs:
           node-version: "22.x"
           cache: "npm"
 
-      # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
-      # root workspace (the repo root IS the nexus-coding extension package,
-      # same as release.yml's build-vsix job).
+      # The wizard bundles the VSIX (PyInstaller datas). The canonical script
+      # packages the root workspace and rebuilds native modules for VS Code
+      # Electron before the installer consumes the artifact.
       - name: Build VSIX (Nexus Coding extension)
-        run: |
-          npm ci --prefer-offline --no-audit
-          npm run build
-          npx vsce package --no-dependencies
+        shell: pwsh
+        run: ./scripts/build-vsix.ps1 -SkipTests
 
-      - name: Build installer (PyInstaller onefile + DMG)
+      - name: Build non-release installer rehearsal (PyInstaller onefile + DMG)
         run: bash scripts/installer/build/build-macos.sh
 
       - name: Sign + notarize (best-effort)
@@ -82,11 +82,11 @@ jobs:
             "$DMG_PATH" || true
           xcrun stapler staple "$DMG_PATH" || true
 
-      - name: Upload artifact
+      - name: Upload non-release rehearsal artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: NexusSetup-macos
+          name: NexusSetup-macos-rehearsal
           path: dist/NexusSetup.dmg
           if-no-files-found: warn
           retention-days: 14

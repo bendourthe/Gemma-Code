@@ -67,3 +67,16 @@ class TestReviewSummary:
         page._rebuild_summary()
         text = page._summary_label.text()
         assert "none selected" in text
+
+    def test_unavailable_extension_is_not_queued_in_summary(self, qt_app) -> None:
+        from nexus_installer.pages.review import ReviewPage
+
+        state = InstallerState()
+        state.components_to_install = [
+            component
+            for component in state.components_to_install
+            if component != "extension"
+        ]
+        page = ReviewPage(state)
+        page._rebuild_summary()
+        assert _COMPONENT_LABELS["extension"] not in page._summary_label.text()

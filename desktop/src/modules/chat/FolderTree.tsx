@@ -350,7 +350,9 @@ export function FolderTree({
             return client.renameFolder(node.id, nextName);
           }
           if (node.kind === "chat" && node.chat) {
-            return client.renameChat(node.chat.id, nextName);
+            // v2.2.9 Phase 1.5 (T005): an inline rename is a USER rename, so
+            // it pins the title against auto-titling (byUser).
+            return client.renameChat(node.chat.id, nextName, true);
           }
           return undefined;
         },
@@ -1011,11 +1013,17 @@ function rowStyle(node: FlatNode, selected: boolean, collapsed = false): CSSProp
     alignItems: "center",
     gap: "var(--space-2)",
     padding: "var(--space-1) var(--space-2)",
-    backgroundColor: selected ? "var(--bg-1)" : "transparent",
+    // v2.2.9 Phase 1.4 (T004): the pane is already --bg-1, so a --bg-1 fill
+    // made the selected row invisible. Mix on --fg-0 plus a 4px accent bar.
+    backgroundColor: selected
+      ? "color-mix(in srgb, var(--fg-0) 12%, transparent)"
+      : "transparent",
     borderLeft:
       node.kind === "folder" && node.color
         ? `4px solid ${node.color}`
-        : "4px solid transparent",
+        : selected
+          ? "4px solid var(--accent-chatbot, var(--accent-coding))"
+          : "4px solid transparent",
     cursor: "pointer",
     fontSize: "var(--text-sm)",
   };

@@ -885,6 +885,10 @@
       "tag": "1.6b-int4",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576
+      },
       "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
       "origin": "USA",
       "description": "NVIDIA's SANA 1.5 1.6B INT4 is a compressed image model from the USA that fits 5 GB GPUs. The low-VRAM way to still get 1024px generation (needs the nunchaku runtime).",
@@ -942,6 +946,10 @@
       "tag": "1.6b-4k",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 16777216
+      },
       "displayName": "SANA 1.6B 4K",
       "origin": "USA",
       "description": "NVIDIA's SANA 1.6B 4K is an ultra-high-resolution image model from the USA for 20 GB GPUs. Native 4096px, poster-scale output without upscalers.",
@@ -992,6 +1000,10 @@
       "tag": "1024",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576
+      },
       "displayName": "SANA Sprint 1024px",
       "origin": "USA",
       "description": "NVIDIA's SANA Sprint is a one-step image model from the USA. The speed tier behind Image Studio's Fast Preview toggle, at the same 6 GB footprint as SANA 1.5.",
@@ -1043,6 +1055,10 @@
       "tag": "1.6b-2k",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 4194304
+      },
       "displayName": "SANA 1.6B 2K",
       "origin": "USA",
       "description": "NVIDIA's SANA 1.6B 2K is a high-resolution image model from the USA for 12 GB GPUs. Native 2048px generation on the efficient SANA core.",
@@ -1093,6 +1109,10 @@
       "tag": "1.6b-1024",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576
+      },
       "displayName": "SANA 1.5 1.6B 1024px",
       "origin": "USA",
       "description": "NVIDIA's SANA 1.5 1.6B is an efficient 1024px image model from the USA. About 2x faster than SDXL Turbo on 6 GB VRAM, with permissive Apache-2.0 weights.",
@@ -1144,6 +1164,10 @@
       "tag": "v5.0",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576
+      },
       "displayName": "RealVisXL V5.0",
       "origin": "Community",
       "description": "RealVisXL V5.0 is a photorealistic image model from the open-source community: a fine-tune of SDXL by SG161222 with no built-in content filter. The uncensored photorealism default for 16 GB+ GPUs.",
@@ -1196,6 +1220,10 @@
       "tag": "hiera-tiny",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576
+      },
       "displayName": "SAM2 Hiera Tiny",
       "releaseDate": "2024-08-01",
       "origin": "USA",
@@ -1248,6 +1276,10 @@
       "tag": "v9",
       "type": "image",
       "task": "image",
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576
+      },
       "displayName": "Juggernaut XL v9",
       "origin": "USA",
       "description": "Juggernaut XL v9 is a photorealistic image model from the USA: a community fine-tune of SDXL by KandooAI and RunDiffusion with no built-in content filter. The uncensored photorealism default for 8-12 GB GPUs.",
@@ -1300,6 +1332,10 @@
       "tag": "1.5-int8",
       "type": "video",
       "task": "video",
+      "visualTokenBudget": {
+        "maxVideoFrames": 8,
+        "maxVideoSeconds": 8
+      },
       "displayName": "LongCat Video Avatar 1.5 INT8",
       "origin": "China",
       "description": "Meituan's LongCat-Video-Avatar 1.5 INT8 is an official audio-driven talking-head model from China. Photo plus audio become a lip-synced clip on a diffusion-pro host. Not a recommended.json default.",
@@ -1394,6 +1430,10 @@
       "tag": "2b-720p",
       "type": "video",
       "task": "video",
+      "visualTokenBudget": {
+        "maxVideoFrames": 8,
+        "maxVideoSeconds": 8
+      },
       "displayName": "SANA-Video 2B 720p",
       "origin": "USA",
       "description": "NVIDIA's SANA-Video 2B is a fast 720p text-to-video model from the USA for 12 GB GPUs. The efficiency pick: faster than the Wan family, higher fidelity than LTX-Video.",
@@ -1450,6 +1490,10 @@
       "tag": "5b",
       "type": "video",
       "task": "video",
+      "visualTokenBudget": {
+        "maxVideoFrames": 121,
+        "maxVideoSeconds": 5
+      },
       "displayName": "Wan 2.2 TI2V 5B",
       "origin": "China",
       "description": "Alibaba's Wan 2.2 TI2V is a 5B text-and-image-to-video model from China that reaches 720p at 24 fps on a single 24 GB card, with no built-in content filter. The higher-resolution local-video default.",
@@ -1522,6 +1566,10 @@
       "tag": "1.3b",
       "type": "video",
       "task": "video",
+      "visualTokenBudget": {
+        "maxVideoFrames": 81,
+        "maxVideoSeconds": 5
+      },
       "displayName": "Wan 2.1 T2V 1.3B",
       "origin": "China",
       "description": "Alibaba's Wan 2.1 T2V is a 1.3B text-to-video model from China that runs on ~8 GB VRAM at 480p, with no built-in content filter. The consumer-hardware entry point for local video.",

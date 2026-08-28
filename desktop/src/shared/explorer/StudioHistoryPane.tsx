@@ -20,24 +20,27 @@ import {
   VIDEO_HISTORY_COLLAPSE_KEY,
 } from "./historyPaneLayout";
 
+// v2.2.9 Phase 3.1 (T007): Chatbot FolderTree strings, not Sessions / Start a
+// new session (screenshots 6-7). Only the aria labels stay pillar-specific so
+// screen readers can tell the panes apart.
 const IMAGE_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions",
-  newItem: "New session",
-  emptyCta: "Start a new session",
-  treeAria: "Image sessions",
-  loadError: "Could not load sessions",
-  emptyHint: "No sessions yet.",
-  itemNoun: "session",
+  paneTitle: "Chats",
+  newItem: "New chat",
+  emptyCta: "Start a new chat",
+  treeAria: "Image chats",
+  loadError: "Could not load chats",
+  emptyHint: "No chats yet.",
+  itemNoun: "chat",
 };
 
 const VIDEO_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions",
-  newItem: "New session",
-  emptyCta: "Start a new session",
-  treeAria: "Video sessions",
-  loadError: "Could not load sessions",
-  emptyHint: "No sessions yet.",
-  itemNoun: "session",
+  paneTitle: "Chats",
+  newItem: "New chat",
+  emptyCta: "Start a new chat",
+  treeAria: "Video chats",
+  loadError: "Could not load chats",
+  emptyHint: "No chats yet.",
+  itemNoun: "chat",
 };
 
 export interface StudioHistoryPaneProps {
@@ -48,6 +51,12 @@ export interface StudioHistoryPaneProps {
   readonly onSelectSession?: (sessionId: string) => void;
   /** Bump after create/append so FolderTree re-reads the explorer. */
   readonly refreshToken?: number;
+  /**
+   * v2.2.9 Phase 1.4 (T004): the session the page has OPEN. When provided,
+   * the highlighted row is bound to it instead of drifting on pane-local
+   * click state.
+   */
+  readonly activeSessionId?: string | null;
 }
 
 export function StudioHistoryPane({
@@ -57,9 +66,16 @@ export function StudioHistoryPane({
   sidecarDown = false,
   onSelectSession,
   refreshToken,
+  activeSessionId,
 }: StudioHistoryPaneProps): JSX.Element {
   const explorer = useMemo(() => studioClientAsChatExplorer(client), [client]);
-  const [selected, setSelected] = useState<SelectedNode | null>(null);
+  const [localSelected, setLocalSelected] = useState<SelectedNode | null>(null);
+  // The open session id wins over local click state; folder clicks (no open
+  // session change) still show through the local fallback.
+  const selected: SelectedNode | null =
+    typeof activeSessionId === "string" && activeSessionId.length > 0
+      ? { kind: "chat", id: activeSessionId }
+      : localSelected;
   const copy = pillar === "video" ? VIDEO_COPY : IMAGE_COPY;
   const testId = pillar === "video" ? "video-history-pane" : "image-history-pane";
   const collapseKey = pillar === "video" ? VIDEO_HISTORY_COLLAPSE_KEY : IMAGE_HISTORY_COLLAPSE_KEY;
@@ -72,8 +88,8 @@ export function StudioHistoryPane({
       collapsed={collapsed}
       onToggle={toggle}
       toggleTestId={`${pillar}-history-collapse-toggle`}
-      expandLabel="Expand sessions"
-      collapseLabel="Collapse sessions"
+      expandLabel="Expand chats"
+      collapseLabel="Collapse chats"
     >
       {sidecarDown ? (
         <p
@@ -86,7 +102,7 @@ export function StudioHistoryPane({
         <FolderTree
           client={explorer}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={setLocalSelected}
           onOpenChat={(chat: Chat) => onSelectSession?.(chat.id)}
           defaultModelId={defaultModelId}
           copy={copy}

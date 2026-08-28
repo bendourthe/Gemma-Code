@@ -91,6 +91,8 @@ export function MessageBubble({
       style={bubbleStyle(message, selectable)}
     >
       {caption}
+      {/* v2.2.9 Phase 1.3 (T003): meta sits ABOVE the body, never on pending rows. */}
+      {message.pending ? null : <BubbleMeta message={message} locale={locale} />}
       {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
       {message.attachments && message.attachments.length > 0 && (
         <div
@@ -123,10 +125,15 @@ export function MessageBubble({
             minHeight: studioPending ? "12rem" : "5.5rem",
           }}
         >
+          {/* v2.2.9 Phase 2.1 (T006): chat/agents pending is a dark pill that
+              cycles Thinking / Searching / Working / Solving with one stable
+              accessible name. Image/Video pending stays the hero orb. */}
           <AgentStateOrb
             activity={message.activity ?? "chat-streaming"}
             size={studioPending ? "hero" : "bubble"}
             showCaption
+            rotateCaptions={!studioPending}
+            accessibleName={studioPending ? undefined : "Generating reply"}
             surfaceId={`message-${message.id}`}
           />
           {message.progress && message.progress.total > 0 && (
@@ -192,7 +199,6 @@ export function MessageBubble({
           ))}
         </ul>
       )}
-      <BubbleMeta message={message} locale={locale} />
     </article>
   );
 }
@@ -203,8 +209,11 @@ function BubbleMeta({
 }: {
   message: ChatMessage;
   locale?: string;
-}): JSX.Element {
+}): JSX.Element | null {
   const when = parseMessageTime(message.timestamp);
+  const tokens = formatBubbleTokens(message);
+  // Nothing known: no empty chrome row above the text.
+  if (!when && tokens.length === 0) return null;
   return (
     <div
       data-testid={`message-meta-${message.id}`}
@@ -212,7 +221,7 @@ function BubbleMeta({
         display: "flex",
         alignItems: "baseline",
         gap: "var(--space-2)",
-        marginTop: "var(--space-1)",
+        marginBottom: "var(--space-1)",
         color: "var(--fg-muted)",
         fontSize: "var(--text-xs)",
       }}
@@ -225,7 +234,9 @@ function BubbleMeta({
           {formatBubbleTime(when, locale)}
         </time>
       ) : null}
-      <span data-testid={`message-tokens-${message.id}`}>{formatBubbleTokens(message)}</span>
+      {tokens.length > 0 ? (
+        <span data-testid={`message-tokens-${message.id}`}>{tokens}</span>
+      ) : null}
     </div>
   );
 }

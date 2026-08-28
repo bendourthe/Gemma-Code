@@ -1,38 +1,126 @@
 # Known Gaps - v2.2
 
 **Project**: Nexus AI Studio
-**Status**: in-progress
-**Last updated**: 2026-08-24 (v2.2.8 Phase 6)
+**Status**: finalized
+**Last updated**: 2026-08-28 (v2.2.9 release preparation)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md), [plans/v2.2.6-session-memory-and-studio-history.md](plans/v2.2.6-session-memory-and-studio-history.md), [plans/v2.2.7-context-meter-and-transcript-chrome.md](plans/v2.2.7-context-meter-and-transcript-chrome.md), [plans/v2.2.8-working-local-studio.md](plans/v2.2.8-working-local-studio.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [plans/v2.2.5-first-successful-generation.md](plans/v2.2.5-first-successful-generation.md), [plans/v2.2.6-session-memory-and-studio-history.md](plans/v2.2.6-session-memory-and-studio-history.md), [plans/v2.2.7-context-meter-and-transcript-chrome.md](plans/v2.2.7-context-meter-and-transcript-chrome.md), [plans/v2.2.8-working-local-studio.md](plans/v2.2.8-working-local-studio.md), [plans/v2.2.9-field-chrome-catalog-and-generate.md](plans/v2.2.9-field-chrome-catalog-and-generate.md)
 
-## v2.2.8
+## v2.2.9
 
-**Last updated**: 2026-08-24 (Phase 6 - architecture, known-gaps, and CI)
+**Last updated**: 2026-08-28 (release preparation - approved field-QA deferral)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 4 | 1 |
+| Deferred (DF) | 3 | 2 |
+| Bugs / regressions (BG) | 0 | 1 |
+| Warnings (WN) | 2 | 0 |
+| Missing tests / coverage gaps (MT) | 2 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phases 1-7 landed at unit/integration evidence. Release preparation passed aggregate root coverage (5488 tests, 88.56% lines), desktop coverage (1603 tests across 182 files, 88.61% lines), installer pytest (1160 passed, 3 skipped), and python diffusion (261 passed). Those aggregate gates provide release-level evidence but cannot retroactively close MT-4's missing per-phase measurements. The 2026-08-25 operator field session (screenshots 1-10, inventoried in the v2.2.9 plan) is the packaged-observation evidence base for this reconciliation. It closes DF-32 and DF-35 (recorded under v2.2.8 Resolved, their origin cycle) and DF-28 and DF-31 (below). DF-30 is partially observed (Context pill on packaged Chatbot; the 80% CTA was not observed) and stays open under v2.2.7 with an annotation. DF-29 and DF-25 are not evidenced by the session and stay open unchanged. DF-4 stays open: no GPU PNG/MP4 was recorded; screenshot 7 showed the old combined fail-closed string, which Phase 4's typed CUDA-missing / weights-missing / GPU-not-ready errors have since replaced, so the operator will now see different copy. DF-33, DF-23, DF-24, DF-26, and DF-27 carry from earlier cycles. DF-34 stays open because the 2026-08-25 Settings/installer screenshots predate the Phase 5 shared card grammar. The unsigned Windows installer was rebuilt and passed three smoke probes, but the v2.2.9 operator checklist items 1-7 were explicitly deferred and remain not observed as DF-36. Release audit also proved raw Tauri desktop bundles cannot start the sidecar reliably without the installer-provisioned Node 22.11.0 runtime, so they are withheld under DF-38. not_observed != absent throughout.
+
+> Finalized on 2026-08-28 at the 2.2.9 bump. Open items will be ingested by /generate-plan when the next version's plan is created.
+
+### Open this cycle
+
+##### DF-36 - Packaged v2.2.9 chrome and catalog surfaces are unproven
+
+- **Source phase**: v2.2.9 Phases 1-6
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Operator field checklist)
+- **Reason**: The v2.2.9 UI changes (meta above the bubble, orb caption rotator, studio Chats copy, visual Context bar, typed generate errors in the UI, catalog name-row pills, Hub sync staging) are unit-proven across the desktop, root, installer, and python diffusion suites. The final unsigned Windows installer was rebuilt during release preparation and passed version, registry, and embedded-desktop-payload probes, but those probes do not observe the seven visual/operator behaviors. The 2026-08-25 screenshots predate every Phase 1-6 change. not_observed != absent.
+- **Suggested next step**: Run the plan's operator field checklist items 1-7 against the rebuilt unsigned Windows installer (chrome/picker split, meta and titles after `Hi`, composing pill, studio history and Context, typed generate outcome, installer = Settings cards, Hub banner/sync).
+
+##### WN-8 - Root vitest run mutates the memory-tier benchmark fixture
+
+- **Source phase**: v2.2.9 Phases 1-6 verification
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Phase 7.7); commit `f7120ae`
+- **Reason**: The root vitest suite rewrites timing fields in `tests/fixtures/memory-tier-benchmark-results/2026-05-26/results.json` on every run. Release preparation reproduced the timing-only drift during root coverage, desktop coverage, and the canonical package test run; the fixture was restored after verification. See commit `f7120ae`, `chore(tests): restore benchmark fixture mutated by root test run`, for the earlier occurrence.
+- **Suggested next step**: Make the benchmark write its results to a temp directory instead of the tracked fixture, or gitignore the timing fields it mutates.
+
+##### WN-9 - Desktop suite 5000ms-timeout flakes under host load
+
+- **Source phase**: v2.2.9 Phases 1-6 verification
+- **Plan reference**: WN-2 class (`docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` Phase 8.5)
+- **Reason**: Under host load, desktop tests intermittently exceed the 5000ms per-test timeout across unrelated files. Observed twice this cycle; quiet-machine reruns pass all 1603 tests across 182 files. These are environment-load timeouts of the WN-2 renderer-environment class, not failed assertions.
+- **Suggested next step**: Rerun the desktop suite on a quiet machine before treating a timeout as a regression; consider raising the timeout for known-slow suites or isolating the desktop job in CI.
+
+##### MT-4 - Per-phase line coverage was not measured this cycle
+
+- **Source phase**: v2.2.9 Phases 1-6
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (phase stability gates)
+- **Reason**: Desktop, root, installer, and Python suites passed at phase boundaries without coverage instrumentation. Aggregate root and desktop coverage passed during release preparation, but that final-state measurement cannot reconstruct the per-phase percentages the plan requested.
+- **Suggested next step**: Require and record the applicable coverage command at each phase boundary in the next release plan so missing per-phase evidence cannot recur.
+
+##### DF-37 - Typed diffusion error kinds are prose-only across the wire
+
+- **Source phase**: v2.2.9 Phase 7 (Goal-vs-codebase review finding on Phase 4)
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Phase 4.1)
+- **Reason**: `RuntimeNotReady.kind` (`cuda-torch-missing` / `weights-missing` / `gpu-not-available`) is machine-readable inside Python, but `runtimes/diffusion/main.py` serializes only the message text, so TypeScript sees the classification as prose. The UI goal (operators can tell the cases apart) is met; downstream code cannot branch on kind.
+- **Suggested next step**: If any consumer needs to branch on failure kind, add a `kind` field to the diffusion error envelope and thread it through `resultGuard`.
+
+##### DF-38 - Raw Tauri desktop bundles are not self-contained release artifacts
+
+- **Source phase**: v2.2.9 release preparation
+- **Plan reference**: release packaging audit; carried architectural gap DF-1 from v2.2.0
+- **Reason**: `tauri.conf.json` packages the sidecar bundle but not Node. The desktop resolves Node through `NEXUS_NODE_PATH`, installer-written `~/.nexus/runtime.json`, the installer-provisioned path, then bare `node` on `PATH`; only the Python provisioning installer downloads checksummed Node 22.11.0 and writes the manifest. The sidecar's `better-sqlite3` targets Node ABI 127, so another system Node can spawn and then fail on the first SQLite open. The former universal macOS path also carried only one host-architecture native addon. Publishing those raw bundles would overstate standalone support, so v2.2.9 attaches only the complete Windows installer and three platform VSIXes.
+- **Suggested next step**: Bundle a pinned per-target Node runtime through Tauri `externalBin` or resources, resolve it before installer/PATH fallbacks, build architecture-correct macOS artifacts, and pass clean-host sidecar health checks before restoring standalone desktop attachments.
+
+##### MT-5 - Publisher map and Agentic-pill guard have no cross-language parity test
+
+- **Source phase**: v2.2.9 Phase 7 (Goal-vs-codebase review finding on Phase 5)
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Phase 5.1, WN-7 discipline)
+- **Reason**: `FAMILY_TO_PUBLISHER` is duplicated verbatim (27 entries, currently byte-identical) in installer `constants.py` and desktop `modelPills.ts`, but no test asserts full-map parity; only the 6 fixture families are cross-checked. The Agentic pill guards are also not textually identical (the installer's `type` field carries tab keys, so its condition has extra arms); they agree on the fixture and real catalog shapes but are not provably equivalent for arbitrary inputs.
+- **Suggested next step**: Generate one side's map from the other (or add a parity test that reads both files), and align the Agentic guard inputs so the two conditions are structurally identical.
+
+### Resolved this phase
+
+##### BG-55 - Stub PNGs could be enabled on a real host via the env flag alone
+
+- **Source phase**: v2.2.9 Phase 4 (found and fixed in Phase 7 Goal-vs-codebase review)
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Locked product decisions: Generate honesty)
+- **Resolution**: `allow_stub()` in `runtimes/diffusion/pipelines/base.py` treated `NEXUS_DIFFUSION_ALLOW_STUB=1` as sufficient outside pytest (an OR-gate), violating the "no stub PNG on a real host" lock, and `test_stub_stays_pytest_gated` certified the permissive behavior under a name claiming the strict one. Fixed: stub output is now allowed only under pytest (`PYTEST_CURRENT_TEST`); the flag alone never enables it, and the test now asserts flag-without-pytest is refused.
+- **Evidence**: `runtimes/diffusion/pipelines/base.py` (`allow_stub`), `tests/python/diffusion/test_real_execute.py` (`test_stub_stays_pytest_gated`), python suite 261 passed.
+
+##### DF-28 - Packaged Settings and installer Context chips are unproven
+
+- **Source phase**: carried from v2.2.7 Phase 1; closed v2.2.9 Phase 7
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshots 8-9, Phase 7.2)
+- **Resolution**: The 2026-08-25 field session screenshotted both surfaces this row asked for: screenshot 9 shows the packaged Settings > Models tab rendering per-model Origin/Context/Released chips, and screenshot 8 shows the running installer Models tab rendering `Context: 256k`-class pills. The not_observed condition this row tracked (no packaged Settings screenshot and no running-wizard screenshot) no longer holds. The SANA no-fake-128k detail was not individually captured, and v2.2.9 Phase 5 replaced the chip grammar with the shared name-row pills, so verification of the new grammar travels with DF-34 and DF-36, not this row.
+- **Evidence**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshot 8 -- Installer Models; Screenshot 9 -- Settings Models vs installer).
+
+##### DF-31 - Packaged transcript date, time, and token chrome is unproven
+
+- **Source phase**: carried from v2.2.7 Phase 4; closed v2.2.9 Phase 7
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshot 2, Phase 7.2)
+- **Resolution**: Screenshot 2 (2026-08-25) shows the packaged Chatbot transcript rendering the clock and per-role token chrome this row asked to observe (an `8:34 p.m.` clock, user `1 in`, assistant `75 think + 96 out`). The chrome rendered as v2.2.7 specified it. Agents/Images/Videos meta was not individually screenshotted, and v2.2.9 Phase 1 supersedes the `N in` / em-dash format this row described (full-word token copy, meta above the bubble, no pending meta), so packaged verification of the new copy travels with DF-36 (field checklist item 2), not this row.
+- **Evidence**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshot 2 -- First packaged Chatbot reply, and Overview).
+
+DF-32 and DF-35 are recorded as Resolved under v2.2.8 (their origin cycle), observed in the same 2026-08-25 session. Live GPU generate stays DF-4. Packaged v2.2.9 chrome stays DF-36.
+
+## v2.2.8
+
+**Last updated**: 2026-08-27 (v2.2.9 Phase 7 reconciliation; previously 2026-08-24, Phase 6 - architecture, known-gaps, and CI)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 2 | 3 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Packaged Explorer launch is observed (DF-2 closed). Hub apply quarantines high-severity skills and still moves Active to the fetched tag (`PromptInjectionScanner` stays on); packaged Active = GitHub latest remains not_observed (DF-35). Pack-time snapshots still refuse a stale 3.12.0 catalog. Settings Models and the installer Models tab share one collapse/sort contract; packaged Settings vs installer screenshots remain not_observed (DF-34). The module rail has a small top inset. Chat/Agents pending orbs use the 48px `bubble` preset, centered; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Four tabs share FolderTree chrome (280px / 56px icon rail). Agents folders are a local overlay (DF-33). Packaged Chatbot `Hi` remains not_observed (DF-32). DF-4, DF-23, DF-24, DF-25, DF-26, and DF-27 stay open from earlier cycles. Desktop Agents `SessionListPanel.tsx` was removed; Agents history is FolderTree only.
+Packaged Explorer launch is observed (DF-2 closed). Hub apply quarantines high-severity skills and still moves Active to the fetched tag (`PromptInjectionScanner` stays on); packaged Active = GitHub latest was observed 2026-08-25 (DF-35 closed below; the residual false `3.21.0 to v3.21.0` banner was fixed by v2.2.9 Phase 6 tag normalize). Pack-time snapshots still refuse a stale 3.12.0 catalog. Settings Models and the installer Models tab share one collapse/sort contract; packaged Settings vs installer screenshots against the current (v2.2.9 Phase 5) shared card grammar remain not_observed (DF-34). The module rail has a small top inset. Chat/Agents pending orbs use the 48px `bubble` preset, centered; Image/Video pending stays hero. `thinking-orbs` is not a dependency. Four tabs share FolderTree chrome (280px / 56px icon rail). Agents folders are a local overlay (DF-33). Packaged Chatbot `Hi` was observed 2026-08-25 (DF-32 closed below). DF-4, DF-23, DF-24, DF-25, DF-26, and DF-27 stay open from earlier cycles. Desktop Agents `SessionListPanel.tsx` was removed; Agents history is FolderTree only.
 
 ### Open this cycle
-
-##### DF-32 - Packaged Chatbot Hi and Agents turn remain unproven
-
-- **Source phase**: v2.2.8 Phase 1
-- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 1 Stability Gate)
-- **Reason**: Unit tests prove the timeout table, slow-stream copy, and Gemma alias probe. A packaged Explorer `Hi` against local Ollama was not recorded this phase. not_observed != absent.
-- **Suggested next step**: On a packaged Windows build, send Chatbot `Hi` and one Agents turn. Expect a local reply or a typed Ollama/weights error, never `sidecar response timeout`. Confirm Settings shows Gemma 4 12B as Downloaded when `ollama list` has `gemma4:12b`.
 
 ##### DF-33 - Agents folders are a local overlay, not sidecar schema
 
@@ -45,15 +133,8 @@ Packaged Explorer launch is observed (DF-2 closed). Hub apply quarantines high-s
 
 - **Source phase**: v2.2.8 Phase 4
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 4 Stability Gate)
-- **Reason**: A shared golden fixture dual-asserts installer `collapse_and_sort` and desktop `visibleModelsOnTab`. Compact cards and the Downloaded highlight are unit-proven. A packaged Explorer Settings tab was not screenshotted next to the installer Models tab this phase. not_observed != absent.
-- **Suggested next step**: On the same host, open Settings > Models and the installer Models tab. Confirm Chat order, family collapse, gray over-budget last, and that Gemma 4 12B is Downloaded when `ollama list` has `gemma4:12b`.
-
-##### DF-35 - Packaged Hub apply of GitHub latest remains unproven
-
-- **Source phase**: v2.2.8 Phase 5
-- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 5 Stability Gate)
-- **Reason**: Fixture apply with one planted jailbreak quarantines that skill, keeps clean skills enabled, and writes Active as the fixture tag. The scanner stays on. A packaged Explorer Update now / Sync now against live `bendourthe/Nexus-Hub` `/releases/latest` was not recorded this phase. not_observed != absent.
-- **Suggested next step**: On a packaged Windows build with network, press Update now. Confirm Active matches GitHub latest, the scanner is still on, quarantined skills (if any) are listed and not enabled, and the previous catalog is not left at 3.12.0.
+- **Reason**: A shared golden fixture dual-asserts installer `collapse_and_sort` and desktop `visibleModelsOnTab`. Compact cards and the Downloaded highlight are unit-proven. The 2026-08-25 field session did screenshot packaged Settings (screenshot 9) next to the installer (screenshot 8), but both showed the pre-v2.2.9 divergent cards; that divergence is what drove v2.2.9 Phase 5's shared card grammar (name-row pills, Embeddings tab first, Inkling-Small in both). Those screenshots predate the new grammar and cannot close this row. not_observed != absent.
+- **Suggested next step**: On a rebuilt packaged build, open Settings > Models and the installer Models tab on the same host and confirm both render the v2.2.9 shared name-row pill grammar with Embeddings first and Inkling-Small present (DF-36 field checklist item 6), plus Chat order, family collapse, gray over-budget last, and Gemma 4 12B Downloaded when `ollama list` has `gemma4:12b`.
 
 ### Resolved this phase
 
@@ -64,11 +145,25 @@ Packaged Explorer launch is observed (DF-2 closed). Hub apply quarantines high-s
 - **Resolution**: Operator packaged-Explorer screenshots after v2.2.6 (2026-08-24) showed Explorer launched. The remaining field failures were generation RPC timeout and Hub apply, not a blank window. Recorded as observed in the v2.2.8 plan Review verdict.
 - **Evidence**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Review verdict: Packaged Explorer launch (DF-2) is now observed).
 
-Hub quarantine apply remains unit/integration evidence. Packaged Hub update stays DF-23 plus DF-35. Live GPU generate stays DF-4.
+##### DF-32 - Packaged Chatbot Hi and Agents turn remain unproven
+
+- **Source phase**: v2.2.8 Phase 1; closed v2.2.9 Phase 7
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 1 Stability Gate); close recorded in `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshot 2, Overview)
+- **Resolution**: The 2026-08-25 operator field session recorded packaged Chatbot `Hi` completing with a local reply, not a `sidecar response timeout` (v2.2.9 plan Screenshot 2, titled "First packaged Chatbot reply (DF-32 observed)"; Overview: the packaged session proved Chatbot `Hi` now returns a local reply). A packaged Agents turn was not separately screenshotted; that residual packaged pass rides the DF-36 field checklist rather than keeping this row open.
+- **Evidence**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshot 2 -- First packaged Chatbot reply (DF-32 observed)).
+
+##### DF-35 - Packaged Hub apply of GitHub latest remains unproven
+
+- **Source phase**: v2.2.8 Phase 5; closed v2.2.9 Phase 7
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.8-working-local-studio.md` (Phase 5 Stability Gate); close recorded in `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshot 10)
+- **Resolution**: Screenshot 10 (2026-08-25) shows the packaged build with Active `3.21.0` matching GitHub latest `v3.21.0`, the scanner still on, and a quarantined skill listed and not enabled. The residual defect was the false `Update available: 3.21.0 to v3.21.0` banner produced by raw-string tag compare; v2.2.9 Phase 6 normalizes tags (strip leading `v`, case-insensitive) before both compare sites. The live git-clone Update path itself stays DF-23.
+- **Evidence**: `docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` (Screenshot 10 -- Skills Hub); `desktop/src/lib/hubTags.ts`; `desktop/tests/SkillsSettings.test.tsx` (3.21.0 equals v3.21.0; banner absent when normalized tags match).
+
+Hub quarantine apply remains unit/integration evidence. Packaged Hub update against a live git clone stays DF-23. Live GPU generate stays DF-4.
 
 ## v2.2.7
 
-**Last updated**: 2026-08-24 (Phase 5 - architecture, known-gaps, and CI)
+**Last updated**: 2026-08-27 (v2.2.9 Phase 7 reconciliation; previously 2026-08-24, Phase 5 - architecture, known-gaps, and CI)
 
 ### Summary
 
@@ -81,7 +176,7 @@ Hub quarantine apply remains unit/integration evidence. Packaged Hub update stay
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Phase 5 deleted unused `Breadcrumb.tsx` and rebuilt an unsigned Windows installer for the operator field checklist. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 was later closed in v2.2.8 Phase 6 (observed 2026-08-24). DF-4 stays open from earlier cycles.
+Settings and installer Context chips are unit-proven as `<val>k` with no trailing `in`. Chat/coding fixture streams persist Ollama `prompt_eval_count` / `eval_count` (plus thinking estimates). Missing usage stores null. All four composers host the Context pill (or hide it when no window or visual budget exists) with the model picker under the typing area. Transcripts show one date heading per local day, a discrete clock on each bubble, and tokens by role (user `N in`; assistant think+out or an em dash). Phase 5 deleted unused `Breadcrumb.tsx` and rebuilt an unsigned Windows installer for the operator field checklist. Packaged Settings/installer chips remain not_observed (DF-28). Live Ollama thinking-in-message is not_observed (DF-29). Packaged four-tab meter and 80% CTA remain not_observed (DF-30). Packaged transcript chrome remains not_observed (DF-31). Chip copy is implemented twice (WN-7). DF-2 was later closed in v2.2.8 Phase 6 (observed 2026-08-24). DF-4 stays open from earlier cycles. DF-28 and DF-31 were later closed in v2.2.9 Phase 7 (observed 2026-08-25 field session); DF-30 was partially observed in that session (Context pill on packaged Chatbot; 80% CTA not observed) and stays open; DF-29 was not evidenced and stays open.
 
 ### Open this cycle
 
@@ -89,29 +184,29 @@ Settings and installer Context chips are unit-proven as `<val>k` with no trailin
 
 - **Source phase**: v2.2.7 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 1)
-- **Reason**: ModelsSettings and installer `_ModelCard` tests show `Context: 128k` for LFM and omit the chip on null diffusion rows. A packaged Explorer Settings tab and a running installer wizard were not screenshotted this phase. not_observed != absent.
-- **Suggested next step**: Open Settings > Models on a packaged build and the installer Models tab; confirm Gemma / Qwen / LFM chips match catalog.json and SANA has no fake 128k.
+- **Reason**: Closed in v2.2.9 Phase 7. The 2026-08-25 field session screenshotted the packaged Settings > Models tab (screenshot 9, chips rendering) and the running installer Models tab (screenshot 8, `Context: 256k`-class pills). Historical row kept so v2.2.7 readers can follow the close; the chip grammar itself was superseded by the v2.2.9 Phase 5 shared name-row pills.
+- **Suggested next step**: None. See v2.2.9 Resolved DF-28 (new-grammar verification travels with DF-34 and DF-36).
 
 ##### DF-29 - Live Ollama usage and thinking fields are unproven
 
 - **Source phase**: v2.2.7 Phase 2
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 2)
-- **Reason**: Unit fixtures persist `prompt_eval_count` / `eval_count` / `message.thinking` onto the chat done event and round-trip chat/studio/coding stores. A live Gemma 4 Ollama final chunk was not captured this phase. Coding agent turns estimate when the runner does not attach counters. not_observed != absent.
+- **Reason**: Unit fixtures persist `prompt_eval_count` / `eval_count` / `message.thinking` onto the chat done event and round-trip chat/studio/coding stores. A live Gemma 4 Ollama final chunk was not captured this phase. Coding agent turns estimate when the runner does not attach counters. The 2026-08-25 field session (v2.2.9 plan screenshot 2) shows `75 think + 96 out` rendering on a packaged reply, which is consistent with live usage persist but does not verify that the persisted row matches the final Ollama chunk, so this row stays open. not_observed != absent.
 - **Suggested next step**: Send one Chatbot turn against a local Ollama Gemma 4 model and confirm the persisted assistant row matches the final chunk; if thinking is in `message.thinking`, confirm it counts toward used tokens.
 
 ##### DF-30 - Packaged four-tab Context meter and 80% CTA are unproven
 
 - **Source phase**: v2.2.7 Phase 3
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 3)
-- **Reason**: Component tests cover 79% without CTA, 80% CTA creating a new Chatbot session without deleting the old tree row, hidden bar when no window or visual budget, and pickers under `composer-context-row` on Chat/Agents/Images/Videos. A packaged Explorer was not clicked through this phase. not_observed != absent.
-- **Suggested next step**: On a packaged build, send Chatbot turns until the pill reaches 80%, accept Start a new session, confirm the old chat remains; peek Images/Videos and confirm the picker sits under the composer and peeking does not load weights.
+- **Reason**: Component tests cover 79% without CTA, 80% CTA creating a new Chatbot session without deleting the old tree row, hidden bar when no window or visual budget, and pickers under `composer-context-row` on Chat/Agents/Images/Videos. Partially observed 2026-08-25: the Context pill rendered on packaged Chatbot (v2.2.9 plan screenshot 1, which also drove the Phase 1 width rebalance), but the 80% CTA was not observed, and Images/Videos showed no meter because pre-v2.2.9 studio rows had no visual budget (added in v2.2.9 Phase 3). Partial observation is an annotation, not a close. not_observed != absent.
+- **Suggested next step**: On a rebuilt packaged build, send Chatbot turns until the pill reaches 80%, accept Start a new session, confirm the old chat remains; confirm the Images/Videos Context pill now fills against `visualTokenBudget` and that peeking does not load weights (DF-36 field checklist item 4).
 
 ##### DF-31 - Packaged transcript date, time, and token chrome is unproven
 
 - **Source phase**: v2.2.7 Phase 4
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` (Phase 4)
-- **Reason**: MessageList tests cover one heading per local day, discrete en-US clock text, skipped epoch timestamps, user `N in`, assistant `think + out`, and an em dash when unknown. Chat/Agents/Images/Videos smokes assert time and token testids after a turn. A packaged Explorer was not screenshotted this phase. not_observed != absent.
-- **Suggested next step**: Open all four modes on a packaged build; confirm one date heading per day, a clock on each bubble, user input tokens, and assistant reasoning+output or an em dash.
+- **Reason**: Closed in v2.2.9 Phase 7. The 2026-08-25 field session (v2.2.9 plan screenshot 2) shows the packaged Chatbot transcript rendering the clock and per-role token chrome this row asked for (`8:34 p.m.`, user `1 in`, assistant `75 think + 96 out`). Historical row kept so v2.2.7 readers can follow the close; the `N in` / em-dash copy this row verified was superseded by v2.2.9 Phase 1 full-word meta above the bubble.
+- **Suggested next step**: None. See v2.2.9 Resolved DF-31 (new-copy verification travels with DF-36).
 
 ##### WN-7 - Context chip formatters are duplicated across TypeScript and Python
 
@@ -126,7 +221,7 @@ None. Usage persist is new work, not a prior BG.
 
 ## v2.2.6
 
-**Last updated**: 2026-08-24 (Phase 6 - architecture, gaps, and CI)
+**Last updated**: 2026-08-27 (v2.2.9 Phase 7 reconciliation; previously 2026-08-24, Phase 6 - architecture, gaps, and CI)
 
 ### Summary
 
@@ -154,14 +249,14 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-51 through B
 
 - **Source phase**: carried from v2.2.5
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (operator field checklist)
-- **Reason**: Fail-closed envelopes and last-output follow-up are unit-proven. An operator GPU generate that paints a SANA image or a video clip was not recorded this session.
-- **Suggested next step**: Run one Image Studio generate and one Video Lab generate on a host with weights and GPU, or confirm the typed runtime-not-ready string in the UI when GPU is absent.
+- **Reason**: Fail-closed envelopes and last-output follow-up are unit-proven. An operator GPU generate that paints a SANA image or a video clip was not recorded this session. Still open after the 2026-08-25 field session: screenshot 7 (v2.2.9 plan) recorded a packaged Image generate fail-closing with the combined `GPU or diffusion weights unavailable` string on a host showing 15 GB free NVIDIA VRAM; that observes fail-closed behavior, not a generate. v2.2.9 Phase 4 has since split that combined string into typed CUDA-missing vs weights-missing vs GPU-not-ready messages, so the operator will now see one of the typed strings instead.
+- **Suggested next step**: Run one Image Studio generate and one Video Lab generate on a host with weights and CUDA-enabled diffusion Python, and record the PNG/MP4; or confirm the new typed CUDA/weights/GPU message in the UI (DF-36 field checklist item 5). The combined-only string is now a miss.
 
 ##### DF-25 - Packaged session persist (quit/reopen) is unproven
 
 - **Source phase**: v2.2.6 Phases 1-5
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` (Phase 6.2)
-- **Reason**: Image/Video SQLite, Agents `sessions.json`, and Chatbot explorer DB round-trips are unit-proven. A packaged Explorer quit/reopen soak was not run. not_observed != absent.
+- **Reason**: Image/Video SQLite, Agents `sessions.json`, and Chatbot explorer DB round-trips are unit-proven. A packaged Explorer quit/reopen soak was not run. The 2026-08-25 field session (v2.2.9 plan) did not include a quit/reopen, so this row is unchanged. not_observed != absent.
 - **Suggested next step**: Install the unsigned Windows build, take one turn in each pillar, quit, reopen, and record whether the same session hydrates.
 
 ##### DF-26 - Video remount cannot restore `continueFrom`
@@ -310,7 +405,7 @@ Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, D
 
 - **Source phase**: v2.2.4 Phase 6 / 7
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md` (Phase 6 residual, Phase 7.2)
-- **Reason**: Vitest and Rust prove `skills.sync` waits up to 10 minutes and Hub timeout copy. A packaged Windows build pulling a real Nexus-Hub clone over the network was not run. not_observed != absent; packaged Hub update is unproven here.
+- **Reason**: Vitest and Rust prove `skills.sync` waits up to 10 minutes and Hub timeout copy. A packaged Windows build pulling a real Nexus-Hub clone over the network was not run. Still open after the 2026-08-25 field session: screenshot 10 (v2.2.9 plan) shows packaged Active matching GitHub latest `v3.21.0` (which closed DF-35), but no clone log was captured and the tag could have come from the pack-time snapshot, so the live git-clone Update path remains undistinguished. not_observed != absent; packaged Hub update over a live clone is unproven here.
 - **Suggested next step**: Run Update now from a packaged shell with network, confirm the clone finishes, and capture log evidence.
 
 ##### DF-24 - Unix installer complete-path snapshot write is not proven

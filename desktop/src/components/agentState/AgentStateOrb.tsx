@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useActiveMotionSurface, useAllowsMotion, useReducedMotion } from "../../motion";
 import type { AgentActivity } from "./mapping";
 import { resolveAgentState } from "./mapping";
+import { pendingCaptionState, usePendingCaptionRotator } from "./captionRotator";
 import {
   clampOrbDpr,
   createOrbDots,
@@ -24,6 +25,18 @@ export interface AgentStateOrbProps {
   size?: OrbSizePreset;
   /** Show the mapped activity label beside or below the orb. */
   showCaption?: boolean;
+  /**
+   * v2.2.9 T006 -- pending pill mode. Cycles Thinking / Searching / Working /
+   * Solving (shuffled once per mount, ~2.4s interval) inside a dark pill and
+   * drives the matching particle grammar. Reduced-motion: the first fixed
+   * caption, static, no rotation. Implies `showCaption`.
+   */
+  rotateCaptions?: boolean;
+  /**
+   * Stable accessible name. Required so a rotating caption never floods a
+   * screen reader; defaults to "Generating reply" while rotating.
+   */
+  accessibleName?: string;
   /** Recede-when-active id. Defaults to a stable per-activity value. */
   surfaceId?: string;
   className?: string;
@@ -48,6 +61,8 @@ export function AgentStateOrb({
   activity,
   size = "inline",
   showCaption = false,
+  rotateCaptions = false,
+  accessibleName,
   surfaceId,
   className,
   ...rest
@@ -61,6 +76,14 @@ export function AgentStateOrb({
   const allowed = useAllowsMotion("orb");
   const paused = reduce || !visible || !allowed;
   const cssSize = orbPixelSize(size);
+  // Rotator hook is unconditional (hooks rule); it schedules an interval only
+  // while rotation is requested and motion is allowed.
+  const rotatingCaption = usePendingCaptionRotator(rotateCaptions && !reduce);
+  const captionShown = showCaption || rotateCaptions;
+  const captionText = rotateCaptions ? rotatingCaption : `${mapping.label}...`;
+  const engineState = rotateCaptions ? pendingCaptionState(rotatingCaption) : mapping.state;
+  const hostLabel =
+    accessibleName ?? (rotateCaptions ? "Generating reply" : `Agent ${mapping.label.toLowerCase()}`);
 
   useActiveMotionSurface(id, activity !== "idle" && allowed);
 
@@ -104,8 +127,8 @@ export function AgentStateOrb({
         : 0;
 
     const paint = (t: number): void => {
-      stepOrbDots(dots, mapping.state, t);
-      drawOrbFrame(ctx, dots, canvas.width, dpr, fill, mapping.state, t);
+      stepOrbDots(dots, engineState, t);
+      drawOrbFrame(ctx, dots, canvas.width, dpr, fill, engineState, t);
     };
 
     const loop = (now: number): void => {
@@ -146,32 +169,41 @@ export function AgentStateOrb({
         document.removeEventListener("visibilitychange", onVisibility);
       }
     };
-  }, [allowed, cssSize, mapping.accentFallback, mapping.accentToken, mapping.state, reduce, size, visible]);
+  }, [allowed, cssSize, engineState, mapping.accentFallback, mapping.accentToken, reduce, size, visible]);
 
   return (
     <div
       ref={hostRef}
       role="img"
-      aria-label={`Agent ${mapping.label.toLowerCase()}`}
+      aria-label={hostLabel}
       data-testid={rest["data-testid"] ?? "agent-state-orb"}
-      data-agent-state={mapping.state}
+      data-agent-state={engineState}
       data-agent-activity={activity}
       data-orb-size={size}
+      data-orb-pill={rotateCaptions ? "true" : undefined}
       data-reduced-motion={reduce ? "true" : "false"}
       data-orb-paused={paused ? "true" : "false"}
       className={className}
       style={{
-        width: showCaption ? "auto" : cssSize,
-        height: showCaption ? "auto" : cssSize,
+        width: captionShown ? "auto" : cssSize,
+        height: captionShown ? "auto" : cssSize,
         flex: "none",
         display: "flex",
-        flexDirection: size === "inline" ? "row" : "column",
+        // The pending pill is a horizontal capsule: orb left, caption right.
+        flexDirection: rotateCaptions || size === "inline" ? "row" : "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: showCaption ? "var(--space-2)" : undefined,
-        borderRadius: showCaption ? undefined : "50%",
-        boxShadow:
-          !showCaption && size !== "inline" && activity !== "idle"
+        gap: captionShown ? "var(--space-2)" : undefined,
+        borderRadius: rotateCaptions ? "999px" : captionShown ? undefined : "50%",
+        // Dark pill chrome (thinking-orbs reference grammar, Nexus tokens only).
+        padding: rotateCaptions ? "var(--space-1) var(--space-3) var(--space-1) var(--space-2)" : undefined,
+        border: rotateCaptions ? "1px solid var(--border-1)" : undefined,
+        backgroundColor: rotateCaptions
+          ? "color-mix(in srgb, var(--bg-0, #101014) 88%, transparent)"
+          : undefined,
+        boxShadow: rotateCaptions
+          ? `0 0 14px color-mix(in srgb, ${mapping.accentFallback} 18%, transparent)`
+          : !captionShown && size !== "inline" && activity !== "idle"
             ? `0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent)`
             : undefined,
       }}
@@ -186,17 +218,21 @@ export function AgentStateOrb({
           width: cssSize,
           height: cssSize,
           filter:
-            showCaption && size !== "inline" && activity !== "idle"
+            captionShown && size !== "inline" && activity !== "idle"
               ? `drop-shadow(0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent))`
               : undefined,
         }}
       />
-      {showCaption ? (
+      {captionShown ? (
+        // The rotating caption stays out of the accessibility tree: the host
+        // exposes one stable name, so screen readers never hear the cycle.
         <span
           data-testid={`${rest["data-testid"] ?? "agent-state-orb"}-caption`}
+          aria-hidden="true"
+          aria-live="off"
           style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)", whiteSpace: "nowrap" }}
         >
-          {mapping.label}...
+          {captionText}
         </span>
       ) : null}
     </div>

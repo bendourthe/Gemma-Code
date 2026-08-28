@@ -16,7 +16,6 @@ export { ContextUsageBar, type ContextUsageBarProps } from "./ContextUsageBar";
 export { ComposerContextRow, type ComposerContextRowProps } from "./ComposerContextRow";
 export { composerSessionUsage, usageTurnsFromMessages } from "./usageTurnsFromMessages";
 export {
-  UNKNOWN_TOKEN_MARK,
   calendarDayKey,
   formatBubbleTime,
   formatBubbleTokens,

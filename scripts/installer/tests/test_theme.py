@@ -1,4 +1,4 @@
-﻿"""Tests for theme generation and constants completeness."""
+"""Tests for theme generation and constants completeness."""
 
 from __future__ import annotations
 
@@ -134,6 +134,6 @@ class TestConstants:
         assert len(constants.FONT_MONO) > 0
 
     def test_step_names_count(self) -> None:
-        assert len(constants.STEP_NAMES) == 9
+        assert len(constants.STEP_NAMES) == 10
         assert constants.STEP_NAMES[0] == "Welcome"
         assert constants.STEP_NAMES[-1] == "Complete"

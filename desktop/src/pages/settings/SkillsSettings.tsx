@@ -11,6 +11,14 @@
  *     weekly" toggle.
  *   - Quarantined: skills the prompt-injection scanner flagged at `high`
  *     severity; rendered separately with a "Review and approve" action.
+ *
+ * v2.2.9 Phase 6 (T012): Hub tags are normalized (`hubTags.ts`) before every
+ * compare and display, so Active `3.21.0` never implies an update to upstream
+ * `v3.21.0`. The Sync now + auto-update row is the first control under the
+ * Active/Upstream lines. While syncing, a small Phase 2 `AgentStateOrb` plus
+ * staged status copy replace the frozen label; the stages are derived only
+ * from observables (the load-time upstream tag and the single sync RPC
+ * result), never from fabricated progress.
  *   - Per-namespace lists: `builtin`, `user`, `nexus-hub`. Each row shows
  *     the namespaced id, the source tag (when nexus-hub), and a small
  *     `diverged` badge for names that exist in more than one namespace
@@ -20,7 +28,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Switch } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
+import { displayHubTag, hubTagsEqual } from "../../lib/hubTags";
 
 import type { SkillRecord, SkillNamespace } from "../../../../core/skills/SkillCatalog";
 import type { ScanResult } from "../../../../core/skills/PromptInjectionScanner";
@@ -52,6 +62,15 @@ export interface SkillsSettingsClient {
 export interface SkillsSettingsProps {
   client: SkillsSettingsClient;
 }
+
+/**
+ * Delay before the staged sync status flips from "New version found" to
+ * "Installing version X now". Both statements are already true when the
+ * apply-RPC is dispatched (the upstream tag was observed at load time and the
+ * RPC installs); the beat only makes the first stage readable. Exported for
+ * fake-timer tests.
+ */
+export const SYNC_STAGE_INSTALLING_DELAY_MS = 700;
 
 export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
   const [items, setItems] = useState<readonly SkillRowDto[]>([]);
@@ -121,23 +140,49 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
 
   async function handleSyncNow(): Promise<void> {
     setSyncing(true);
-    setSyncStatus(null);
+    // Staged status, derived from observables only. The sidecar sync is one
+    // RPC with no progress events, so the honest stages are: (a) the upstream
+    // tag fetched at load time already proves a newer version exists ("New
+    // version found", then "Installing ... now" while that apply-RPC runs),
+    // or (b) nothing newer is known, so the RPC is "Checking for updates...".
+    // The up-to-date claim is only made from the RPC result, never before.
+    const newerKnown =
+      activeTag !== null && upstreamTag !== null && !hubTagsEqual(activeTag, upstreamTag);
+    let stageTimer: number | null = null;
+    if (newerKnown) {
+      const installTag = displayHubTag(upstreamTag) ?? upstreamTag;
+      setSyncStatus("New version found");
+      stageTimer = window.setTimeout(() => {
+        setSyncStatus(`Installing version ${installTag} now`);
+      }, SYNC_STAGE_INSTALLING_DELAY_MS);
+    } else {
+      setSyncStatus("Checking for updates...");
+    }
     try {
       const result = await client.syncNow();
+      if (stageTimer !== null) {
+        window.clearTimeout(stageTimer);
+        stageTimer = null;
+      }
+      const resultTag = displayHubTag(result.tag) ?? result.tag;
+      // applied => the catalog swap finished; already-up-to-date returns
+      // applied=false with the tag we are on. Anything else did not install.
       setSyncStatus(
-        result.applied
-          ? `Synced ${result.tag} (${result.summary})`
-          : `Sync prepared ${result.tag} but did not apply: ${result.summary}`,
+        result.applied || hubTagsEqual(result.tag, activeTag)
+          ? `Harness up-to-date with Nexus-Hub version ${resultTag} (${result.summary})`
+          : `Sync blocked: ${result.summary}`,
       );
       await refresh();
     } catch (e) {
       const msg = messageFor(e);
+      setSyncStatus("Sync blocked");
       setError(
         /sidecar response timeout/i.test(msg)
           ? "Hub fetch did not finish. Check the network and retry Update now. The sidecar is still running."
           : msg,
       );
     } finally {
+      if (stageTimer !== null) window.clearTimeout(stageTimer);
       setSyncing(false);
     }
   }
@@ -187,15 +232,50 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
       <header style={headerStyle}>
         <h1 style={{ margin: 0 }}>Skills</h1>
         <div data-testid="skills-tag-summary" style={{ color: "var(--fg-muted)" }}>
-          Active: <strong data-testid="skills-active-tag">{activeTag ?? "none"}</strong>
-          {upstreamTag && upstreamTag !== activeTag && (
+          Active: <strong data-testid="skills-active-tag">{displayHubTag(activeTag) ?? "none"}</strong>
+          {/* Normalized compare: `3.21.0` and `v3.21.0` are the same release,
+              so the header must not imply an update when they match. */}
+          {upstreamTag && !hubTagsEqual(upstreamTag, activeTag) && (
             <>
               {" "}- Upstream latest:{" "}
-              <strong data-testid="skills-upstream-tag">{upstreamTag}</strong>
+              <strong data-testid="skills-upstream-tag">{displayHubTag(upstreamTag)}</strong>
             </>
           )}
         </div>
       </header>
+
+      {/* v2.2.9 T012: Sync now + auto-update is the FIRST control on the page,
+          directly under the Active / Upstream lines. */}
+      <div data-testid="skills-controls-row" style={controlsRowStyle}>
+        <Button
+          type="button"
+          testId="skills-sync-now"
+          onClick={handleSyncNow}
+          disabled={syncing}
+          busy={syncing}
+        >
+          {syncing ? "Syncing..." : "Sync now"}
+        </Button>
+        <Switch
+          testId="skills-auto-sync"
+          checked={autoSync}
+          onChange={(next) => void handleAutoSyncToggle(next)}
+          label="Auto-update to latest Nexus-Hub release"
+        />
+        {syncing && (
+          <AgentStateOrb
+            activity="model-loading"
+            size="inline"
+            accessibleName="Syncing Nexus-Hub"
+            data-testid="skills-sync-orb"
+          />
+        )}
+        {syncStatus && (
+          <span data-testid="skills-sync-status" style={{ color: "var(--fg-muted)" }}>
+            {syncStatus}
+          </span>
+        )}
+      </div>
 
       {backendDown && (
         <SidecarDownBanner
@@ -221,9 +301,9 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
           </Button>
         </div>
       )}
-      {!loading && activeTag !== null && upstreamTag !== null && upstreamTag !== activeTag && (
+      {!loading && activeTag !== null && upstreamTag !== null && !hubTagsEqual(upstreamTag, activeTag) && (
         <div data-testid="skills-update-available" style={bannerStyle}>
-          Update available: {activeTag} to {upstreamTag}.{" "}
+          Update available: {displayHubTag(activeTag)} to {displayHubTag(upstreamTag)}.{" "}
           <Button
             type="button"
             testId="skills-update-now"
@@ -240,29 +320,6 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
         {error ?? ""}
       </div>
 
-      <div style={controlsRowStyle}>
-        <Button
-          type="button"
-          testId="skills-sync-now"
-          onClick={handleSyncNow}
-          disabled={syncing}
-          busy={syncing}
-        >
-          {syncing ? "Syncing..." : "Sync now"}
-        </Button>
-        <Switch
-          testId="skills-auto-sync"
-          checked={autoSync}
-          onChange={(next) => void handleAutoSyncToggle(next)}
-          label="Auto-update to latest Nexus-Hub release"
-        />
-        {syncStatus && (
-          <span data-testid="skills-sync-status" style={{ color: "var(--fg-muted)" }}>
-            {syncStatus}
-          </span>
-        )}
-      </div>
-
       {loading ? (
         <p data-testid="skills-loading">Loading skills...</p>
       ) : (
@@ -272,6 +329,12 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
               title="Quarantined"
               testId="section-quarantined"
               accent="warning"
+              description={
+                "A quarantined skill is not enabled: the prompt-injection scanner " +
+                "found a high-severity pattern in its files, so the sync blocked it " +
+                "instead of activating it. Review and approve is an explicit trust " +
+                "decision to enable the skill despite the finding below."
+              }
               items={grouped.quarantined}
               renderRow={(item) => (
                 <QuarantineRow
@@ -329,14 +392,21 @@ interface SectionProps {
   items: readonly SkillRowDto[];
   renderRow: (item: SkillRowDto) => JSX.Element;
   accent?: "warning";
+  /** Explanatory copy under the heading (v2.2.9 6.2: quarantine rationale). */
+  description?: string;
 }
 
-function Section({ title, testId, items, renderRow, accent }: SectionProps): JSX.Element {
+function Section({ title, testId, items, renderRow, accent, description }: SectionProps): JSX.Element {
   return (
     <section data-testid={testId} style={sectionStyle}>
       <h2 style={{ margin: "0 0 var(--space-2, 8px)", color: accent === "warning" ? "var(--accent-warning, #d97706)" : undefined }}>
         {title} <span data-testid={`${testId}-count`} style={{ color: "var(--fg-muted)" }}>({items.length})</span>
       </h2>
+      {description && (
+        <p data-testid={`${testId}-description`} style={{ margin: 0, color: "var(--fg-muted)", fontSize: "0.9em" }}>
+          {description}
+        </p>
+      )}
       {items.length === 0 ? (
         <p style={{ color: "var(--fg-muted)" }}>No skills in this section.</p>
       ) : (

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  CATALOG_TAB_DEFS,
   catalogTabsFor,
   cardBadgeLabel,
   collapseAndSortModels,
@@ -12,6 +13,7 @@ import {
   recommendationKind,
   sortModelsOnTab,
   visibleModelsOnTab,
+  type CatalogTab,
 } from "../src/shared/models/catalogTabs";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
@@ -19,24 +21,46 @@ function model(partial: Partial<ListedModelDto> & Pick<ListedModelDto, "id" | "d
   return partial;
 }
 
-const GOLDEN = JSON.parse(
-  readFileSync(
-    resolve(dirname(fileURLToPath(import.meta.url)), "../../tests/fixtures/v2.2.8-catalog-tab-sort.json"),
-    "utf8",
-  ),
-) as {
+interface SortFixture {
   hostVramGB: number;
   gpuVendor: string;
   defaults: string[];
   recommendOrder: string[];
   models: ListedModelDto[];
   expectedIds: Record<string, string[]>;
-};
+  expectedInstallerIds: Record<string, string[]>;
+  expectedSettingsIds: Record<string, string[]>;
+  expectedSettingsIdsAfterGptOssDownload: Record<string, string[]>;
+}
+
+function fixture(name: string): SortFixture {
+  return JSON.parse(
+    readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), `../../tests/fixtures/${name}`),
+      "utf8",
+    ),
+  ) as SortFixture;
+}
+
+const GOLDEN = fixture("v2.2.8-catalog-tab-sort.json");
+const GOLDEN_V229 = fixture("v2.2.9-catalog-tab-sort.json");
+
+function sortOptions(data: SortFixture) {
+  return {
+    hostVramGB: data.hostVramGB,
+    gpuVendor: data.gpuVendor,
+    defaults: new Set(data.defaults),
+    recommendOrder: data.recommendOrder,
+  };
+}
 
 describe("catalogTabs", () => {
-  it("maps task chat and embed onto Chat, and agentic-capable chat onto both Chat and Agentic", () => {
+  it("maps embed onto the Embeddings tab, and agentic-capable chat onto both Chat and Agentic", () => {
     expect(primaryCatalogTab({ task: "chat", type: "llm" })).toBe("chat");
-    expect(primaryCatalogTab({ task: "embed", type: "embed" })).toBe("chat");
+    // v2.2.9 Phase 5 (T010): embeddings stop parking on Chat.
+    expect(primaryCatalogTab({ task: "embed", type: "embed" })).toBe("embeddings");
+    expect(primaryCatalogTab({ type: "embed" })).toBe("embeddings");
+    expect(catalogTabsFor({ task: "embed", type: "embed" })).toEqual(["embeddings"]);
     expect(catalogTabsFor({ task: "chat", type: "llm", agentic: true })).toEqual(["chat", "agentic"]);
     expect(catalogTabsFor({ task: "agentic", type: "llm" })).toEqual(["agentic"]);
   });
@@ -130,20 +154,66 @@ describe("catalogTabs", () => {
   });
 
   it("matches the shared v2.2.8 golden fixture (hideBelow + family collapse + over-budget last)", () => {
-    const opts = {
-      hostVramGB: GOLDEN.hostVramGB,
-      gpuVendor: GOLDEN.gpuVendor,
-      defaults: new Set(GOLDEN.defaults),
-      recommendOrder: GOLDEN.recommendOrder,
-    };
+    const opts = sortOptions(GOLDEN);
     expect(visibleModelsOnTab(GOLDEN.models, "chat", opts).map((m) => m.id)).toEqual(
       GOLDEN.expectedIds.chat,
+    );
+    expect(visibleModelsOnTab(GOLDEN.models, "embeddings", opts).map((m) => m.id)).toEqual(
+      GOLDEN.expectedIds.embeddings,
     );
     expect(visibleModelsOnTab(GOLDEN.models, "image", opts).map((m) => m.id)).toEqual(
       GOLDEN.expectedIds.image,
     );
     expect(GOLDEN.expectedIds.chat).not.toContain("gemma-e2b");
     expect(GOLDEN.expectedIds.chat).not.toContain("kimi-hidden");
+    expect(GOLDEN.expectedIds.chat).not.toContain("nomic-embed-text");
+  });
+
+  it("puts the Embeddings tab first, before Chat (installer TYPE_TABS parity)", () => {
+    expect(CATALOG_TAB_DEFS.map((d) => d.id)).toEqual([
+      "embeddings",
+      "chat",
+      "agentic",
+      "image",
+      "video",
+      "audio",
+      "document",
+    ]);
+    expect(CATALOG_TAB_DEFS[0]!.label).toBe("Embeddings");
+  });
+
+  it("matches the v2.2.9 fixture: Settings is downloaded-first, installer order untouched", () => {
+    const opts = sortOptions(GOLDEN_V229);
+    for (const [tab, expected] of Object.entries(GOLDEN_V229.expectedSettingsIds)) {
+      expect(
+        visibleModelsOnTab(GOLDEN_V229.models, tab as CatalogTab, opts).map((m) => m.id),
+      ).toEqual(expected);
+    }
+    for (const [tab, expected] of Object.entries(GOLDEN_V229.expectedInstallerIds)) {
+      expect(
+        collapseAndSortModels(modelsOnTab(GOLDEN_V229.models, tab as CatalogTab), opts).map(
+          (m) => m.id,
+        ),
+      ).toEqual(expected);
+    }
+  });
+
+  it("moves gpt-oss above LFM within the downloaded partition once installed", () => {
+    const models = GOLDEN_V229.models.map((m) =>
+      m.id === "gpt-oss:20b" ? { ...m, installed: true, source: "registry" as const } : m,
+    );
+    expect(
+      visibleModelsOnTab(models, "agentic", sortOptions(GOLDEN_V229)).map((m) => m.id),
+    ).toEqual(GOLDEN_V229.expectedSettingsIdsAfterGptOssDownload.agentic);
+  });
+
+  it("lists the patient-tier Inkling-Small row on both surfaces (no env gate)", () => {
+    expect(GOLDEN_V229.expectedInstallerIds.chat).toContain("inkling-small");
+    expect(GOLDEN_V229.expectedSettingsIds.chat).toContain("inkling-small");
+    const ids = visibleModelsOnTab(GOLDEN_V229.models, "chat", sortOptions(GOLDEN_V229)).map(
+      (m) => m.id,
+    );
+    expect(ids).toContain("inkling-small");
   });
 
   it("does not hide an already-downloaded row below hideBelowVramGB", () => {

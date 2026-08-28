@@ -954,6 +954,33 @@ describe("catalog", () => {
     expect(gemma?.visualTokenBudget?.maxVideoFrames).toBe(8);
   });
 
+  // v2.2.9 Phase 3.2 (T008): every image/video row carries a visual budget so
+  // the studio Context bar has an honest denominator, and none of them invents
+  // an LLM context window.
+  it("gives every image/video row a visualTokenBudget and no fake context window (v2.2.9 Phase 3.2)", async () => {
+    const file = await loadCatalog();
+    const rows = file.models.filter((m) => m.type === "image" || m.type === "video");
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const budget = row.visualTokenBudget;
+      expect(budget, `${row.id} must carry visualTokenBudget`).toBeDefined();
+      const cap = row.type === "image" ? budget?.maxImages : budget?.maxVideoFrames;
+      expect(cap ?? 0, `${row.id} needs a positive visual cap`).toBeGreaterThan(0);
+      expect(row.contextWindow ?? null, `${row.id} must not invent an LLM window`).toBeNull();
+    }
+    // The schema accepts the field on image/video rows (not just chat VLMs).
+    expect(() => validateCatalog(file)).not.toThrow();
+  });
+
+  it("keeps the published Wan frame counts honest and the SANA defaults conservative (v2.2.9 Phase 3.2)", async () => {
+    const file = await loadCatalog();
+    expect(findSpec(file, "wan2.1-t2v-1.3b")?.visualTokenBudget?.maxVideoFrames).toBe(81);
+    expect(findSpec(file, "wan2.2-ti2v-5b")?.visualTokenBudget?.maxVideoFrames).toBe(121);
+    // No better published number: core/chat/vision.ts defaults (8 frames / 8 s).
+    expect(findSpec(file, "sana-video-2b-720p")?.visualTokenBudget?.maxVideoFrames).toBe(8);
+    expect(findSpec(file, "sana-1.6b-1024")?.visualTokenBudget?.maxImages).toBe(1);
+  });
+
   it("ships SAM2 as an Apache-2.0 utility, not a generator (v2.1.0 Phase 4)", async () => {
     const file = await loadCatalog();
     const sam2 = findSpec(file, "sam2:hiera-tiny");

@@ -81,7 +81,7 @@ class InstallerWindow(QMainWindow):
     # v1.1.0 Phase 14.8 -- index of the Review page in the wizard chain. The
     # final disk + hardware guard fires when the user clicks "Install" on
     # this page. Kept as a class attribute so test code can override it.
-    review_page_index: int = 6
+    review_page_index: int = STEP_NAMES.index("Review")
 
     def __init__(
         self, state: InstallerState | None = None, *, frameless: bool | None = None
@@ -545,10 +545,9 @@ class InstallerWindow(QMainWindow):
         if result.ok:
             return True
         QMessageBox.critical(self, "Insufficient disk space", result.message)
-        # Bounce the user back to the model picker page (one step before
-        # configuration / review). The page index for the wizard chain is
-        # Models (the typed catalog) = 4 in `STEP_NAMES`.
-        target = max(0, self.review_page_index - 2)
+        # Bounce the user back to the model picker page, regardless of how many
+        # choice pages sit between Models and Review.
+        target = STEP_NAMES.index("Models")
         self.switch_page(target)
         return False
 

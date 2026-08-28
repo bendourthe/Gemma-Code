@@ -18,12 +18,15 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$ExePath = (Join-Path (Resolve-Path "$PSScriptRoot\..\..\..").Path "dist\NexusSetup.exe"),
-    [string]$DistDir = (Resolve-Path "$PSScriptRoot\..\..\..").Path
+    [string]$ExePath,
+    [string]$DistDir
 )
 
 $ErrorActionPreference = 'Stop'
 $failures = @()
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
+if (-not $DistDir) { $DistDir = $RepoRoot }
+if (-not $ExePath) { $ExePath = Join-Path $RepoRoot 'dist\NexusSetup.exe' }
 
 function Assert-True {
     param([bool]$Condition, [string]$Label)

@@ -181,6 +181,13 @@ export function VideoLabPage({
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const activeSessionIdRef = useRef<string | null>(null);
+  // v2.2.9 Phase 1.4 (T004): state mirror of the ref so the history pane can
+  // bind its highlighted row to the session that is actually open.
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const setActiveSession = useCallback((id: string | null): void => {
+    activeSessionIdRef.current = id;
+    setActiveSessionId(id);
+  }, []);
   const lastOutputRef = useRef<string | null>(null);
   const lastJobIdRef = useRef<string | null>(null);
   const [historyEpoch, setHistoryEpoch] = useState(0);
@@ -305,20 +312,20 @@ export function VideoLabPage({
             modelId: selectedModelId,
           }),
         );
-        activeSessionIdRef.current = session.id;
+        setActiveSession(session.id);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {
         return null;
       }
     },
-    [backendDown, studioClient, selectedModelId],
+    [backendDown, setActiveSession, studioClient, selectedModelId],
   );
 
   const hydrateSession = useCallback(
     (sessionId: string): void => {
       const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
-        activeSessionIdRef.current = sessionId;
+        setActiveSession(sessionId);
         lastOutputRef.current = lastRef;
         lastJobIdRef.current = null;
         setMessages(studioTurnsToChatMessages(turns, { outputExists, mediaKind: "video" }));
@@ -342,29 +349,29 @@ export function VideoLabPage({
         },
       );
     },
-    [studioClient, outputExists],
+    [studioClient, outputExists, setActiveSession],
   );
 
   const startFreshStudioSession = useCallback(async (): Promise<void> => {
     setMessages([]);
     lastOutputRef.current = null;
     lastJobIdRef.current = null;
-    activeSessionIdRef.current = null;
+    setActiveSession(null);
     if (backendDown) return;
     try {
       const session = await Promise.resolve(
         studioClient.createSession({
           folderId: null,
-          title: "New session",
+          title: "New chat",
           modelId: selectedModelId,
         }),
       );
-      activeSessionIdRef.current = session.id;
+      setActiveSession(session.id);
       setHistoryEpoch((n) => n + 1);
     } catch {
       // Local transcript already cleared; the old session stays in the pane.
     }
-  }, [backendDown, studioClient, selectedModelId]);
+  }, [backendDown, setActiveSession, studioClient, selectedModelId]);
 
   useEffect(() => {
     if (!initialSessionId) return;
@@ -850,16 +857,20 @@ export function VideoLabPage({
       data-testid="video-lab-page"
       style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, color: "var(--fg-0)" }}
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-3)",
-          padding: "var(--space-3) var(--space-4)",
-          borderBottom: "1px solid var(--border-1)",
-        }}
-      >
-        {noneInstalled && !backendDown && (
+      {/* v2.2.9 Phase 3.1 (T007): the header only exists when it has a visible
+          child. When models are installed it would be an empty padded bar
+          (screenshot 6), so it is not rendered at all. The none-installed CTA
+          keeps the header alive so "get more models" stays reachable. */}
+      {noneInstalled && !backendDown && (
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-3)",
+            padding: "var(--space-3) var(--space-4)",
+            borderBottom: "1px solid var(--border-1)",
+          }}
+        >
           <button
             type="button"
             data-testid="video-get-more-models"
@@ -868,11 +879,11 @@ export function VideoLabPage({
           >
             No video models installed - get more models
           </button>
-        )}
-        <a data-testid="video-settings-link" href={SETTINGS_MODELS_PATH} style={{ display: "none" }}>
-          models settings
-        </a>
-      </header>
+        </header>
+      )}
+      <a data-testid="video-settings-link" href={SETTINGS_MODELS_PATH} style={{ display: "none" }}>
+        models settings
+      </a>
       {residency.pending && (
         <ModelSwitchDialog
           pending={residency.pending}
@@ -908,6 +919,7 @@ export function VideoLabPage({
           sidecarDown={backendDown}
           refreshToken={historyEpoch}
           onSelectSession={hydrateSession}
+          activeSessionId={activeSessionId}
         />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div

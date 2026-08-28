@@ -2,13 +2,11 @@
  * v2.2.7 Phase 4 -- messenger date, discrete clock, and per-bubble tokens.
  *
  * Missing or epoch-zero createdAt skips the clock (never "Jan 1 1970").
- * Unknown token counts render an em dash, not 0.
+ * v2.2.9 Phase 1.3: unknown token counts omit the span entirely (no em dash,
+ * no guessed 0), and known counts render in full words.
  */
 
 import type { ChatMessage } from "./types";
-
-/** Product lock: unknown token counts show an em dash, not a guessed 0. */
-export const UNKNOWN_TOKEN_MARK = "\u2014";
 
 export function parseMessageTime(timestamp?: string | null): Date | null {
   if (typeof timestamp !== "string" || timestamp.trim().length === 0) return null;
@@ -54,21 +52,36 @@ function numericOrNull(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-/** User: `12 in`. Assistant: `12 think + 36 out`, `48 out`, or em dash. */
+function tokenWord(count: number, label: string): string {
+  return count === 1 ? `1 ${label} token` : `${count} ${label} tokens`;
+}
+
+/**
+ * v2.2.9 Phase 1.3 (T003) -- full-word token copy.
+ *
+ * User: `1 input token` / `N input tokens`. Assistant: `171 tokens
+ * (75 reasoning + 96 output)` when both parts are known (total = sum),
+ * `N output tokens` or `N reasoning tokens` when only one is. Unknown counts
+ * return an empty string so the caller omits the span (never an em dash,
+ * never a guessed 0).
+ */
 export function formatBubbleTokens(message: Pick<ChatMessage, "role" | "inputTokens" | "reasoningTokens" | "outputTokens">): string {
   if (message.role === "user") {
     const input = numericOrNull(message.inputTokens);
-    return input === null ? UNKNOWN_TOKEN_MARK : `${input} in`;
+    return input === null ? "" : tokenWord(input, "input");
   }
   if (message.role === "assistant") {
-    const think = numericOrNull(message.reasoningTokens);
-    const out = numericOrNull(message.outputTokens);
-    if (think !== null && out !== null) return `${think} think + ${out} out`;
-    if (think !== null) return `${think} think`;
-    if (out !== null) return `${out} out`;
-    return UNKNOWN_TOKEN_MARK;
+    const reasoning = numericOrNull(message.reasoningTokens);
+    const output = numericOrNull(message.outputTokens);
+    if (reasoning !== null && output !== null) {
+      const total = reasoning + output;
+      return `${total} token${total === 1 ? "" : "s"} (${reasoning} reasoning + ${output} output)`;
+    }
+    if (reasoning !== null) return tokenWord(reasoning, "reasoning");
+    if (output !== null) return tokenWord(output, "output");
+    return "";
   }
-  return UNKNOWN_TOKEN_MARK;
+  return "";
 }
 
 export function withLiveTimestamp(message: ChatMessage): ChatMessage {

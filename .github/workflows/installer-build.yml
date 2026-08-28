@@ -8,14 +8,14 @@ name: Installer build (Windows)
 # (no generic pre-wizard dialog). The pipeline sketch lives in
 # scripts/installer/build/windows-pipeline.md.
 #
-# The exe is SLIM by design (operator decision 2026-07-03): the wizard
-# downloads dependencies, models, and the desktop app at install time, all
-# SHA-256-verified.
+# The exe embeds the host-matched VSIX and current-version Tauri desktop
+# installer. The wizard downloads the remaining dependencies and models at
+# install time under their existing verification contracts.
 #
-# Trigger: workflow_dispatch only. Tag-triggered Windows publishing lives
-# in release.yml, which waits for the desktop-bundle artifact the wizard
-# embeds. This rehearsal workflow does not build Tauri, so a tag trigger
-# here would fail closed on the missing NSIS payload.
+# Trigger: workflow_dispatch only. Tag-triggered Windows publishing lives in
+# release.yml. This standalone rehearsal builds the exact current-version
+# Tauri NSIS payload locally before freezing the wizard, so it exercises the
+# same fail-closed desktop-payload contract without depending on another job.
 
 on:
   workflow_dispatch:
@@ -56,15 +56,33 @@ jobs:
           $version = (Get-Content package.json | ConvertFrom-Json).version
           Write-Host "package.json version: $version"
 
-      # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
-      # root workspace (the repo root IS the nexus-coding extension package,
-      # same as release.yml's build-vsix job).
+      # The wizard bundles the VSIX (PyInstaller datas). The canonical script
+      # packages the root workspace and rebuilds native modules for VS Code
+      # Electron before the installer consumes the artifact.
       - name: Build VSIX (Nexus Coding extension)
         shell: pwsh
+        run: ./scripts/build-vsix.ps1 -SkipTests
+
+      - name: Sync Tauri version from package.json
+        run: node scripts/sync-tauri-version.mjs
+
+      - name: Build desktop sidecar (fail-fast)
+        working-directory: desktop
+        run: npm run build:sidecar
+
+      - name: Build current-version Windows desktop bundle
+        working-directory: desktop
+        run: npm run build:shell
+
+      - name: Verify exact current-version desktop bundle
+        shell: pwsh
         run: |
-          npm ci --prefer-offline --no-audit
-          npm run build
-          npx vsce package --no-dependencies
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $bundleDir = "desktop/src-tauri/target/release/bundle/nsis"
+          $matches = @(Get-ChildItem -LiteralPath $bundleDir -Filter "Nexus AI Studio_${version}_x64-setup.exe" -File)
+          if ($matches.Count -ne 1) {
+            throw "Expected exactly one Windows desktop bundle for version $version; found $($matches.Count)"
+          }
 
       - name: Build NexusSetup.exe (PyInstaller onefile)
         shell: pwsh

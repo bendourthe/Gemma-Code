@@ -1,0 +1,150 @@
+{
+  "comment": "v2.2.9 Phase 5 (T010) -- dual-asserted golden card pills (WN-7 discipline). Both nexus_installer.pages.typed_catalog.derive_fact_pills (Qt) and desktop/src/shared/models/modelPills.buildModelPills (React) must produce exactly these strings, in this order, for each case. Derivation is locked: Company from FAMILY_TO_PUBLISHER (omit unmapped/Community), Country from origin, Agentic Yes/No on LLM rows only, Context window from contextWindowIn/contextWindow, Multimodal from modalities-beyond-text or vision, Guardrails from the uncensored tri-state (false -> Censored, true -> Uncensored, missing -> omitted), License verbatim, Released as en-US Month YYYY (ASCII). A pill with a missing source value is omitted -- never Unknown, never an invented Community.",
+  "cases": [
+    {
+      "name": "gemma-4-12b full row renders every pill in the locked order",
+      "model": {
+        "id": "gemma-4-12b-it-gguf",
+        "displayName": "Gemma 4 12B",
+        "family": "gemma4",
+        "type": "llm",
+        "task": "chat",
+        "origin": "USA",
+        "agentic": true,
+        "contextWindow": 262144,
+        "modalities": ["text", "image"],
+        "vision": true,
+        "uncensored": false,
+        "license": "Gemma Terms of Use",
+        "releaseDate": "2026-05-01"
+      },
+      "expected": [
+        "Company: Google",
+        "Country: USA",
+        "Agentic: Yes",
+        "Context window: 262k tokens",
+        "Multimodal: Yes",
+        "Guardrails: Censored",
+        "License: Gemma Terms of Use",
+        "Released: May 2026"
+      ]
+    },
+    {
+      "name": "embeddinggemma omits Agentic (non-LLM) and Guardrails (uncensored missing)",
+      "model": {
+        "id": "embeddinggemma",
+        "displayName": "EmbeddingGemma 300M",
+        "family": "embeddinggemma",
+        "type": "embed",
+        "task": "embed",
+        "origin": "USA",
+        "agentic": false,
+        "contextWindow": 2048,
+        "modalities": ["text"],
+        "license": "Gemma Terms of Use",
+        "releaseDate": "2025-09-04"
+      },
+      "expected": [
+        "Company: Google",
+        "Country: USA",
+        "Context window: 2k tokens",
+        "Multimodal: No",
+        "License: Gemma Terms of Use",
+        "Released: September 2025"
+      ]
+    },
+    {
+      "name": "Community-mapped family omits the Company pill and sparse fields are omitted",
+      "model": {
+        "id": "kokoro-82m",
+        "displayName": "Kokoro 82M",
+        "family": "kokoro",
+        "type": "audio",
+        "task": "audio",
+        "uncensored": false,
+        "license": "Apache-2.0",
+        "releaseDate": "2025-01-15"
+      },
+      "expected": [
+        "Guardrails: Censored",
+        "License: Apache-2.0",
+        "Released: January 2025"
+      ]
+    },
+    {
+      "name": "uncensored image model renders Guardrails: Uncensored and no Agentic pill",
+      "model": {
+        "id": "juggernaut-xl-v9",
+        "displayName": "Juggernaut XL v9",
+        "family": "sdxl",
+        "type": "image",
+        "task": "image",
+        "origin": "USA",
+        "uncensored": true,
+        "license": "CreativeML Open RAIL-M",
+        "releaseDate": "2024-02-19"
+      },
+      "expected": [
+        "Company: Stability AI",
+        "Country: USA",
+        "Guardrails: Uncensored",
+        "License: CreativeML Open RAIL-M",
+        "Released: February 2024"
+      ]
+    },
+    {
+      "name": "unmapped family never renders Unknown or Community",
+      "model": {
+        "id": "mystery",
+        "displayName": "Mystery",
+        "family": "totally-new-lab",
+        "type": "llm",
+        "task": "chat",
+        "agentic": false
+      },
+      "expected": ["Agentic: No"]
+    },
+    {
+      "name": "text-only modalities on an agentic LLM gives Multimodal: No",
+      "model": {
+        "id": "lfm2.5:2.6b",
+        "displayName": "LFM2.5 2.6B",
+        "family": "lfm2.5",
+        "type": "llm",
+        "task": "agentic",
+        "origin": "USA",
+        "agentic": true,
+        "contextWindow": 128000,
+        "modalities": ["text"],
+        "license": "LFM Open License v1.0",
+        "releaseDate": "2026-08-04"
+      },
+      "expected": [
+        "Company: Liquid AI",
+        "Country: USA",
+        "Agentic: Yes",
+        "Context window: 128k tokens",
+        "Multimodal: No",
+        "License: LFM Open License v1.0",
+        "Released: August 2026"
+      ]
+    },
+    {
+      "name": "sub-1k context window renders raw token count",
+      "model": {
+        "id": "tiny-ctx",
+        "displayName": "Tiny Context",
+        "family": "gpt-oss",
+        "type": "llm",
+        "task": "chat",
+        "agentic": false,
+        "contextWindowIn": 512
+      },
+      "expected": [
+        "Company: OpenAI",
+        "Agentic: No",
+        "Context window: 512 tokens"
+      ]
+    }
+  ]
+}

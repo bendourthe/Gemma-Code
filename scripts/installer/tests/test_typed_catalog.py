@@ -232,7 +232,9 @@ class TestLoadCatalog:
         models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
         assert models["gemma4:e4b"].type == "chat"
         assert models["qwen2.5-coder:7b"].type == "agentic"
-        assert models["nomic-embed-text"].type == "chat"  # embed renders in Chat
+        # v2.2.9 Phase 5: embed renders on its own Embeddings tab, not Chat.
+        assert models["nomic-embed-text"].type == "embeddings"
+        assert models["nomic-embed-text"].task == "embed"
         assert models["juggernaut-xl-v9"].type == "image"
         assert models["wan2.1-t2v-1.3b"].type == "video"
 
@@ -279,7 +281,9 @@ class TestLoadCatalog:
         assert parse_context_window("nope") == 0
         assert parse_context_window(128000) == 128000
 
-    def test_tool_calling_verified_defaults_false_and_parses_true(self, tmp_path: Path) -> None:
+    def test_tool_calling_verified_defaults_false_and_parses_true(
+        self, tmp_path: Path
+    ) -> None:
         path = tmp_path / "catalog.json"
         path.write_text(
             json.dumps(
@@ -471,13 +475,20 @@ class TestTypedCatalogPage:
             page._tabs.tabText(i).replace("\u2713 ", "")
             for i in range(page._tabs.count())
         ]
-        # v1.16.0 Phase 3 (A5): "Document" joins the section list for the
-        # OCR / parsing models.
-        assert labels == ["Chat", "Agentic", "Image", "Video", "Audio", "Document"]
+        # v2.2.9 Phase 5 (T010): Embeddings is the first tab, before Chat.
+        assert labels == [
+            "Embeddings",
+            "Chat",
+            "Agentic",
+            "Image",
+            "Video",
+            "Audio",
+            "Document",
+        ]
 
     def test_audio_tab_shows_empty_state(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
-        assert page._tabs.tabText(4).replace("\u2713 ", "") == "Audio"
+        assert page._tabs.tabText(5).replace("\u2713 ", "") == "Audio"
 
     def test_gpu_tier_defaults_pre_ticked(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)
@@ -615,8 +626,13 @@ class TestTypedCatalogPage:
             "chat", 8, "nvidia", {"gemma4:e4b", "nomic-embed-text"}
         )
         enabled = [m.id for m in models if m.required_vram_gb <= 8]
-        assert enabled[0] == "nomic-embed-text"
+        # v2.2.9 Phase 5: embed rows live on the Embeddings tab, not Chat.
+        assert "nomic-embed-text" not in enabled
         assert enabled.index("gemma4:e4b") < enabled.index("legacy-text-no-task")
+        embed_models = page._sorted_section_models(
+            "embeddings", 8, "nvidia", {"nomic-embed-text"}
+        )
+        assert [m.id for m in embed_models] == ["nomic-embed-text"]
 
     def test_try_advance_tab_walks_tabs_then_stops(
         self, qt_app, tmp_path: Path
@@ -804,7 +820,7 @@ class TestCatalogTabMapping:
         ("raw_type", "tab"),
         [
             ("llm", "chat"),
-            ("embed", "chat"),
+            ("embed", "embeddings"),
             ("image", "image"),
             ("video", "video"),
             ("audio", "audio"),
@@ -818,7 +834,7 @@ class TestCatalogTabMapping:
         [
             ("chat", "chat"),
             ("agentic", "agentic"),
-            ("embed", "chat"),
+            ("embed", "embeddings"),
             ("image", "image"),
             ("video", "video"),
             ("audio", "audio"),
@@ -866,14 +882,16 @@ class TestPhase3Collapse:
 
         card = self._card(tmp_path)
         texts = [lbl.text() for lbl in card.findChildren(QLabel)]
-        # A "Released 2026-05" pill exists...
-        assert any("Released 2026-05" in t for t in texts)
+        # v2.2.9 Phase 5: the Released pill is en-US Month YYYY, on the name row.
+        assert "Released: May 2026" in texts
         # ...and the plain title carries the name only (no inline date suffix).
         assert "Test Image Model" in texts
         assert not any("Test Image Model" in t and "2026" in t for t in texts)
-        assert not any(t.startswith("Context:") for t in texts)
+        assert not any(t.startswith("Context window:") for t in texts)
 
-    def test_text_model_context_chip_is_128k_without_in(self, qt_app, tmp_path: Path) -> None:
+    def test_text_model_context_chip_is_128k_without_in(
+        self, qt_app, tmp_path: Path
+    ) -> None:
         from PyQt5.QtWidgets import QLabel
         from nexus_installer.pages.typed_catalog import _ModelCard
 
@@ -900,10 +918,12 @@ class TestPhase3Collapse:
             gpu_vendor="nvidia",
         )
         texts = [lbl.text() for lbl in card.findChildren(QLabel)]
-        assert "Context: 128k" in texts
+        assert "Context window: 128k tokens" in texts
         assert not any("k in" in t for t in texts)
 
-    def test_document_row_with_window_still_gets_a_chip(self, qt_app, tmp_path: Path) -> None:
+    def test_document_row_with_window_still_gets_a_chip(
+        self, qt_app, tmp_path: Path
+    ) -> None:
         from PyQt5.QtWidgets import QLabel
         from nexus_installer.pages.typed_catalog import _ModelCard
 
@@ -930,7 +950,7 @@ class TestPhase3Collapse:
             gpu_vendor="nvidia",
         )
         texts = [lbl.text() for lbl in card.findChildren(QLabel)]
-        assert "Context: 32k" in texts
+        assert "Context window: 32k tokens" in texts
 
     def test_low_vram_collapses_chat_to_small_tier(self, qt_app) -> None:
         # On a 4 GB GPU the gemma4 chat best-fit is the small e2b tier; the
@@ -965,7 +985,16 @@ class TestPhase3Collapse:
 
     def test_tab_order_matches_dod_sections(self) -> None:
         keys = [key for key, _, _ in TYPE_TABS]
-        assert keys == ["chat", "agentic", "image", "video", "audio", "document"]
+        # v2.2.9 Phase 5 (T010): Embeddings leads, before Chat.
+        assert keys == [
+            "embeddings",
+            "chat",
+            "agentic",
+            "image",
+            "video",
+            "audio",
+            "document",
+        ]
 
 
 class TestV21CatalogVisibility:
@@ -974,8 +1003,7 @@ class TestV21CatalogVisibility:
     def test_muse_hidden_on_12gb(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=12 * 1024))
         ids = {
-            m.id
-            for m in page._sorted_section_models("agentic", 12, "nvidia", set())
+            m.id for m in page._sorted_section_models("agentic", 12, "nvidia", set())
         }
         assert not any(i.startswith("muse-glimmer") for i in ids)
         assert not any(i.startswith("nemotron-lightning") for i in ids)
@@ -983,8 +1011,7 @@ class TestV21CatalogVisibility:
     def test_muse_visible_on_24gb(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=24 * 1024))
         ids = {
-            m.id
-            for m in page._sorted_section_models("agentic", 24, "nvidia", set())
+            m.id for m in page._sorted_section_models("agentic", 24, "nvidia", set())
         }
         assert "muse-glimmer:30b" in ids
         assert "nemotron-lightning:30b-a3b" in ids
@@ -992,8 +1019,7 @@ class TestV21CatalogVisibility:
     def test_lightning_offload_fits_16gb(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=16 * 1024))
         ids = {
-            m.id
-            for m in page._sorted_section_models("agentic", 16, "nvidia", set())
+            m.id for m in page._sorted_section_models("agentic", 16, "nvidia", set())
         }
         assert "nemotron-lightning:30b-a3b-offload" in ids
         fitting = [

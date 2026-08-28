@@ -7,6 +7,12 @@
  * `/repos/bendourthe/Nexus-Hub/releases/latest` on 2026-08-24). Existing
  * waivers stay one (skill, rule) pair. New Hub skills are NOT blanket-muted.
  * A planted jailbreak in a non-allowlisted path is quarantined, not allowlisted.
+ * v2.2.9 Phase 6.2: reviewed against Hub **v3.21.0** -- one new waiver for
+ * `workflow/cross-project-comparison` after reading the flagged line (73) in
+ * the quarantined v3.21.0 copy: its Step 1.5 "Source Security Scan" QUOTES
+ * `"ignore previous instructions"-style payloads` as a pattern to scan
+ * external sources FOR (defensive teaching, same class as the
+ * `prompt-injection-defense` waiver below), not an operational instruction.
  *
  * The `PromptInjectionScanner` is (correctly) fail-closed and conservative, so
  * it flags security-education / config-example content in the Hub's own curated
@@ -33,7 +39,7 @@
 import type { ScanSuppression } from "./PromptInjectionScanner.js";
 
 /** Hub release this allowlist was last reviewed against. Not a pin. */
-export const HUB_ALLOWLIST_REVIEWED_TAG = "v3.20.1";
+export const HUB_ALLOWLIST_REVIEWED_TAG = "v3.21.0";
 
 export const HUB_SKILL_SCAN_ALLOWLIST: readonly ScanSuppression[] = Object.freeze([
   {
@@ -75,6 +81,11 @@ export const HUB_SKILL_SCAN_ALLOWLIST: readonly ScanSuppression[] = Object.freez
     source: "security/skill-security-scan/SKILL.md",
     ruleId: "injection.jailbreak.ignore-previous",
     reason: "Meta-documentation on scanning that names the string as a benign producer-catalog example.",
+  },
+  {
+    source: "workflow/cross-project-comparison/SKILL.md",
+    ruleId: "injection.jailbreak.ignore-previous",
+    reason: "Step 1.5 'Source Security Scan' names '\"ignore previous instructions\"-style payloads' as adversarial content the agent must scan external sources FOR, delegating to prompt-injection-defense -- security teaching, not an instruction to the assistant.",
   },
   {
     source: "workflow/skill-eval-loop/SKILL.md",

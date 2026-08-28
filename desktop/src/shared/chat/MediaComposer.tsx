@@ -70,6 +70,12 @@ export interface MediaComposerProps {
    * without the five-button row that used to sit above the composer.
    */
   voiceModes?: readonly VoiceModeOption[];
+  /**
+   * v2.2.9 Phase 1.1 (T001) -- optional overflow menu in the composer's right
+   * control cluster. Chat parks Persona here so the footer carries no leftover
+   * always-visible label. Omitted by default, so the studios are unchanged.
+   */
+  overflowActions?: readonly ComposerOverflowAction[];
 }
 
 /** One entry in the mic dropdown. */
@@ -77,6 +83,16 @@ export interface VoiceModeOption {
   readonly id: string;
   readonly label: string;
   readonly active?: boolean;
+  onSelect(): void;
+}
+
+/** One entry in the composer overflow menu. */
+export interface ComposerOverflowAction {
+  readonly id: string;
+  readonly label: string;
+  readonly active?: boolean;
+  /** Test id override so callers keep stable hooks (e.g. chat-persona-toggle). */
+  readonly testId?: string;
   onSelect(): void;
 }
 
@@ -144,10 +160,13 @@ export function MediaComposer({
   audioHint,
   micRecorder: micRecorderOverride,
   voiceModes = [],
+  overflowActions = [],
 }: MediaComposerProps): JSX.Element {
   const [text, setText] = useState("");
   // v2.2.0 Phase 5 (5.4): mic menu + auto-grow ref (focus state already exists).
   const [micMenuOpen, setMicMenuOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const hasOverflow = overflowActions.length > 0;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -383,7 +402,7 @@ export function MediaComposer({
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
           rows={1}
-          style={inFieldTextareaStyle(audioEnabled)}
+          style={inFieldTextareaStyle(audioEnabled, hasOverflow)}
         />
 
         <div data-testid="media-composer-actions" style={rightControlsStyle}>
@@ -425,6 +444,19 @@ export function MediaComposer({
           >
             +
           </button>
+          {hasOverflow ? (
+            <button
+              type="button"
+              aria-label="More composer options"
+              data-testid="media-composer-overflow-toggle"
+              aria-expanded={overflowOpen}
+              disabled={disabled}
+              onClick={() => setOverflowOpen((v) => !v)}
+              style={clusterIconStyle}
+            >
+              ...
+            </button>
+          ) : null}
           <button
             type="button"
             aria-label={submitLabel}
@@ -437,6 +469,31 @@ export function MediaComposer({
           </button>
         </div>
 
+        {overflowOpen && hasOverflow ? (
+          <div
+            data-testid="media-composer-overflow-menu"
+            role="menu"
+            aria-label="More composer options"
+            style={micMenuStyle}
+          >
+            {overflowActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                role="menuitem"
+                data-testid={action.testId ?? `media-composer-action-${action.id}`}
+                aria-pressed={action.active ? true : undefined}
+                onClick={() => {
+                  action.onSelect();
+                  setOverflowOpen(false);
+                }}
+                style={micMenuItemStyle(action.active)}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {micMenuOpen && audioEnabled ? (
           <div
             data-testid="media-composer-mic-menu"
@@ -513,14 +570,15 @@ function composerStyle(dragActive: boolean): CSSProperties {
  * Padding reserves exactly the space the in-field controls occupy, so typed
  * text can never render underneath them however long the message gets.
  */
-function inFieldTextareaStyle(audioEnabled: boolean): CSSProperties {
+function inFieldTextareaStyle(audioEnabled: boolean, hasOverflow = false): CSSProperties {
   return {
     display: "block",
     width: "100%",
     boxSizing: "border-box",
     paddingLeft: "var(--space-3, 8px)",
-    // Right cluster: + and send, plus mic and chevron when audio is on.
-    paddingRight: audioEnabled ? 190 : 84,
+    // Right cluster: + and send, plus mic and chevron when audio is on, plus
+    // the overflow toggle when a caller supplies overflow actions.
+    paddingRight: (audioEnabled ? 190 : 84) + (hasOverflow ? 28 : 0),
     paddingTop: "var(--space-3, 8px)",
     paddingBottom: "var(--space-3, 8px)",
     backgroundColor: "transparent",

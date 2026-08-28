@@ -39,12 +39,48 @@ describe("VideoLabPage (chat)", () => {
     expect(screen.getByTestId("video-lab-page")).toBeInTheDocument();
     expect(screen.getByTestId("video-model-select")).toBeInTheDocument();
     expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="video-model-select"]')).toBeTruthy();
-    expect(screen.getByTestId("video-lab-page").querySelector("header")?.querySelector('[data-testid="video-model-select"]')).toBeNull();
+    // v2.2.9 Phase 3.1 (T007): no header at all until it has visible children.
+    expect(screen.getByTestId("video-lab-page").querySelector(":scope > header")).toBeNull();
     expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("video-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("video-advanced-settings")).toBeInTheDocument();
     expect(screen.getByTestId("video-history-pane")).toBeInTheDocument();
+  });
+
+  // v2.2.9 Phase 3.1 (T007): with models installed the top bar would be empty
+  // chrome, so it is not rendered (render-when-children, not a CSS height).
+  // The Context bar still appears because the selected model publishes a
+  // visual budget (Phase 3.2, T008) -- 0% before any generation.
+  it("renders no header when models are installed and shows the visual Context bar", async () => {
+    render(
+      <VideoLabPage client={new InMemoryVideoClient()} modelsClient={videoModels()} drainIntervalMs={20} />,
+    );
+    await waitFor(() => expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument());
+    expect(screen.getByTestId("context-usage-bar")).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("visual token budget"),
+    );
+    expect(screen.getByTestId("context-usage-percent")).toHaveTextContent("0%");
+    expect(screen.getByTestId("video-lab-page").querySelector(":scope > header")).toBeNull();
+  });
+
+  // v2.2.9 Phase 3.1 (T007): when no models are installed the get-more-models
+  // CTA keeps the header alive, so the control never becomes unreachable.
+  it("keeps the get-more-models CTA reachable when no models are installed", async () => {
+    const onGetMoreModels = vi.fn();
+    render(
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={NO_MODELS}
+        drainIntervalMs={20}
+        onGetMoreModels={onGetMoreModels}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("video-get-more-models")).toBeInTheDocument());
+    expect(screen.getByTestId("video-lab-page").querySelector(":scope > header")).not.toBeNull();
+    fireEvent.click(screen.getByTestId("video-get-more-models"));
+    expect(onGetMoreModels).toHaveBeenCalledTimes(1);
   });
 
   it("drops the mode select (intent is attachment-inferred)", () => {
@@ -81,7 +117,9 @@ describe("VideoLabPage (chat)", () => {
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(2);
+    // v2.2.9 Phase 1.3: these turns report no token usage, so the span is
+    // omitted rather than rendered as an em dash.
+    expect(screen.queryAllByTestId(/^message-tokens-/).length).toBe(0);
   });
 
   it("does not generate until a conflicting active model switch is approved", async () => {

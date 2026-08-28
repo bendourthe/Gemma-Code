@@ -17,6 +17,8 @@
 # Do not clone Hub.
 # v2.2.8 Phase 6: T009/T010 catalog_tab_sort and T012 pack-time 3.12.0
 # refusal stay in this job. No live GPU. Do not clone Hub.
+# v2.2.9: packaging contract tests also own the VS Code/Electron ABI pin,
+# target-qualified VSIX builders, release routing, and archive exclusions.
 # PRs to main use the same path filter. workflow_dispatch always runs.
 name: Installer tests
 
@@ -25,6 +27,10 @@ on:
     branches-ignore: ["dependabot/**"]
     paths:
       - "scripts/installer/**"
+      - "scripts/build-vsix.ps1"
+      - "package.json"
+      - "package-lock.json"
+      - ".vscodeignore"
       - "desktop/src-tauri/**"
       - "desktop/sidecar/**"
       - "core/registry/catalog.json"
@@ -37,11 +43,20 @@ on:
       - "core/config/**"
       - "tests/fixtures/v2.2.8-catalog-tab-sort.json"
       - "desktop/src/shared/models/catalogTabs.ts"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/installer-build.yml"
+      - ".github/workflows/installer-macos.yml"
+      - ".github/workflows/installer-linux.yml"
       - ".github/workflows/installer-tests.yml"
   pull_request:
     branches: ["main"]
     paths:
       - "scripts/installer/**"
+      - "scripts/build-vsix.ps1"
+      - "package.json"
+      - "package-lock.json"
+      - ".vscodeignore"
       - "desktop/src-tauri/**"
       - "desktop/sidecar/**"
       - "core/registry/catalog.json"
@@ -54,6 +69,11 @@ on:
       - "core/config/**"
       - "tests/fixtures/v2.2.8-catalog-tab-sort.json"
       - "desktop/src/shared/models/catalogTabs.ts"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/installer-build.yml"
+      - ".github/workflows/installer-macos.yml"
+      - ".github/workflows/installer-linux.yml"
       - ".github/workflows/installer-tests.yml"
   workflow_dispatch: {}
 

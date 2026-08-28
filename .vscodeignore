@@ -13,6 +13,14 @@ assets/**
 !assets/vector.svg
 !assets/specialists/**
 coverage/**
+.coverage
+.coverage.*
+.pytest_cache/**
+**/.pytest_cache/**
+.ruff_cache/**
+**/.ruff_cache/**
+*.log
+**/*.log
 
 # Build artifacts that are not extension output
 out/test/**
@@ -22,12 +30,21 @@ out/**/*.map
 .vscode/**
 .vscode-test/**
 .claude/**
+.agents/**
+.codex/**
+.husky/**
+.nexus/**
 .github/**
 .gitignore
 .gitattributes
 .npmrc
+.npmignore
+.releaserc.json
 .eslintignore
 eslint.config.mjs
+commitlint.config.cjs
+clean-state-checklist.md
+tsconfig.base.json
 tsconfig.json
 CHANGELOG.md
 README.md

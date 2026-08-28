@@ -92,6 +92,8 @@ export interface ChatExplorerOps {
   deleteFolder(input: { id: string }): { ok: true };
   createChat(input: { folderId: string | null; title: string; modelId: string }): Chat;
   renameChat(input: { id: string; title: string; byUser?: boolean }): Chat;
+  /** v2.2.9 Phase 1.5 (T005): lets auto-titling check `userRenamed` before persisting. */
+  getChat(input: { id: string }): Chat | null;
   moveChat(input: { id: string; folderId: string | null }): Chat;
   deleteChat(input: { id: string }): { ok: true };
   setPersona(input: { id: string; persona: string | null }): { ok: true };
@@ -125,6 +127,7 @@ export function createChatExplorerOps(
       input.byUser === true
         ? store.renameChatByUser(input.id, input.title)
         : store.renameChat(input.id, input.title),
+    getChat: (input) => store.getChat(input.id),
     moveChat: (input) => store.moveChat(input.id, input.folderId),
     deleteChat: (input) => {
       store.deleteChat(input.id);

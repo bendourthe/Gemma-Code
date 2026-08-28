@@ -102,9 +102,7 @@ def collapse_and_sort(
 ) -> list[str]:
     """Return collapsed ids: required, recommended, compatible, over-budget."""
     default_ids = defaults or set()
-    rec_rank = {
-        model_id: index for index, model_id in enumerate(recommend_order or ())
-    }
+    rec_rank = {model_id: index for index, model_id in enumerate(recommend_order or ())}
     visible = [r for r in rows if not is_hidden_by_vram_floor(r, host_vram_gb)]
 
     by_family: dict[str, list[Mapping[str, Any]]] = {}
@@ -128,22 +126,16 @@ def collapse_and_sort(
         disabled.extend(m for m in kept if is_over_budget(m, host_vram_gb, gpu_vendor))
         if not rest:
             continue
-        fitting = [
-            m for m in rest if not is_over_budget(m, host_vram_gb, gpu_vendor)
-        ]
+        fitting = [m for m in rest if not is_over_budget(m, host_vram_gb, gpu_vendor)]
         over = [m for m in rest if is_over_budget(m, host_vram_gb, gpu_vendor)]
         if fitting:
-            in_defaults = [
-                m for m in fitting if str(m.get("id") or "") in default_ids
-            ]
+            in_defaults = [m for m in fitting if str(m.get("id") or "") in default_ids]
             pool = in_defaults or fitting
             best = min(pool, key=lambda m: (-row_vram(m), display_name(m)))
             enabled.append(best)
             disabled.extend(over)
         else:
-            disabled.append(
-                min(rest, key=lambda m: (row_vram(m), display_name(m)))
-            )
+            disabled.append(min(rest, key=lambda m: (row_vram(m), display_name(m))))
 
     def enabled_key(m: Mapping[str, Any]) -> tuple:
         return (
@@ -158,3 +150,40 @@ def collapse_and_sort(
     enabled.sort(key=enabled_key)
     disabled.sort(key=lambda m: (row_vram(m), display_name(m)))
     return [str(m.get("id") or "") for m in enabled + disabled]
+
+
+def is_downloaded_row(row: Mapping[str, Any]) -> bool:
+    """Installed-and-ready: probed on disk from a real source (not catalog-only)."""
+    return bool(row.get("installed")) and row.get("source") not in (
+        None,
+        "catalog-only",
+    )
+
+
+def downloaded_first(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    host_vram_gb: int | float | None,
+    gpu_vendor: str = "nvidia",
+    defaults: set[str] | None = None,
+    recommend_order: Sequence[str] | None = None,
+) -> list[str]:
+    """Settings-only order (v2.2.9 Phase 5, T011).
+
+    Partition installed-and-ready (downloaded) ids first, then the rest; each
+    partition keeps the ``collapse_and_sort`` (installer recommendation) order.
+    The installer picker itself never uses this -- it keeps pure installer
+    order. Dual-asserted with desktop ``visibleModelsOnTab`` via
+    tests/fixtures/v2.2.9-catalog-tab-sort.json.
+    """
+    ordered = collapse_and_sort(
+        rows,
+        host_vram_gb=host_vram_gb,
+        gpu_vendor=gpu_vendor,
+        defaults=defaults,
+        recommend_order=recommend_order,
+    )
+    by_id = {str(r.get("id") or ""): r for r in rows}
+    downloaded = [i for i in ordered if is_downloaded_row(by_id.get(i, {}))]
+    downloaded_set = set(downloaded)
+    return downloaded + [i for i in ordered if i not in downloaded_set]

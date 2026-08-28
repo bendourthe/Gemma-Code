@@ -55,6 +55,33 @@ describe("<FolderTree>", () => {
     expect(tree.children.length).toBe(0);
   });
 
+  // v2.2.9 Phase 1.4 (T004): the selected row must be visibly distinct on a
+  // --bg-1 pane -- a --bg-1 fill was invisible (screenshot 2).
+  it("gives the selected chat row a contrast fill, an accent bar, and aria-selected", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "Open me", modelId: "m" });
+    const other = client.createChat({ folderId: null, title: "Not open", modelId: "m" });
+    render(
+      <FolderTree
+        client={client}
+        storageAdapter={storageAdapter}
+        selected={{ kind: "chat", id: chat.id }}
+      />,
+    );
+    const row = screen.getByTestId(`tree-row-chat-${chat.id}`);
+    const idle = screen.getByTestId(`tree-row-chat-${other.id}`);
+    expect(row).toHaveAttribute("aria-selected", "true");
+    expect(idle).toHaveAttribute("aria-selected", "false");
+    // Contrast: never the pane background token, never transparent.
+    expect(row.style.backgroundColor).not.toBe("var(--bg-1)");
+    expect(row.style.backgroundColor).not.toBe("transparent");
+    expect(row.style.backgroundColor).not.toBe(idle.style.backgroundColor);
+    // 4px accent left bar marks the open chat.
+    expect(row.style.borderLeft).toContain("4px solid");
+    expect(row.style.borderLeft).not.toContain("transparent");
+    expect(idle.style.borderLeft).toContain("transparent");
+  });
+
   it("creates a new folder via the toolbar button", async () => {
     const client = setupClient();
     client.createFolder({ parentId: null, name: "Existing" });
