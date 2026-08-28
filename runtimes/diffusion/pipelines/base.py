@@ -200,10 +200,9 @@ def diffusers_available() -> bool:
 
 
 def allow_stub() -> bool:
-    """True in pytest and when an operator explicitly opts into stub PNGs."""
-    flag = os.environ.get("NEXUS_DIFFUSION_ALLOW_STUB", "").strip().lower()
-    if flag in {"1", "true", "yes"}:
-        return True
+    """True only under pytest. NEXUS_DIFFUSION_ALLOW_STUB is test-scoped: the
+    flag alone never enables stub output on a real host (v2.2.9 lock: no stub
+    PNG outside the test harness)."""
     return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 

@@ -109,6 +109,20 @@ jobs:
       # Hub quarantine apply. test-ts covers NexusHubSyncer quarantine.
       # installer-tests covers catalog_tab_sort + stale 3.12.0 pack refusal.
       # Do not add a live GPU or live Hub clone.
+      # v2.2.9 (T014): the same jobs cover the new contracts. test:shell covers
+      # composer chrome (recording-only mic indicator, Context flex 3 / picker
+      # 30%), meta-above-bubble full-word tokens with no pending meta, the
+      # pendingCaptionRotator pill (fixed list, reduced-motion, stable name,
+      # no thinking-orbs dependency), studio header render-when-children +
+      # Chats copy, composerSessionUsage visual budget, typed diffusion
+      # strings through resultGuard/dispatcher, modelPills + catalogTabs
+      # downloaded-first + Embeddings-first, hubTags normalize + SkillsSettings
+      # staged sync/quarantine copy. test-ts covers catalog visualTokenBudget
+      # rows and the PromptInjectionScanner one-pair waiver. pytest (runtimes/)
+      # covers the typed CUDA/weights/GPU kinds and pytest-only stub gating.
+      # installer-tests covers Embeddings-first TYPE_TABS, name-row fact pills,
+      # patient-tier visible + never-recommended, downloaded_first partition.
+      # Do not add a live GPU or live Hub clone.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

@@ -310,13 +310,14 @@ def test_torch_cuda_state_classifies_fake_torch(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_stub_stays_pytest_gated(monkeypatch: pytest.MonkeyPatch):
-    """NEXUS_DIFFUSION_ALLOW_STUB remains test-only; no stub on real hosts."""
+    """Stub output is pytest-only: the env flag alone never enables it on a
+    real host (v2.2.9 Goal-review fix: the flag used to be an OR-gate)."""
     monkeypatch.delenv("NEXUS_DIFFUSION_ALLOW_STUB", raising=False)
     assert base.allow_stub() is True  # pytest sets PYTEST_CURRENT_TEST
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     assert base.allow_stub() is False
     monkeypatch.setenv("NEXUS_DIFFUSION_ALLOW_STUB", "1")
-    assert base.allow_stub() is True
+    assert base.allow_stub() is False  # flag without pytest: still no stub
 
 
 def test_typed_messages_are_ascii_only(monkeypatch: pytest.MonkeyPatch):
