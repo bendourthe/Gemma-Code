@@ -13,19 +13,17 @@
 .PARAMETER OutputDir
     Directory where the final .vsix file is written. Defaults to the repo root.
 
-.PARAMETER ElectronVersion
-    Electron version that `better-sqlite3` is rebuilt against (v1.15.0 Phase 7).
-    MUST match the Electron shipped by the target VS Code build, or the packaged
-    native module fails to load at runtime with a NODE_MODULE_VERSION mismatch,
-    which aborts extension activation. Defaults to $DefaultElectronVersion below;
-    override when packaging for a different VS Code baseline, or set the
-    NEXUS_ELECTRON_VERSION environment variable.
+.PARAMETER Target
+    VSCE platform target for the native module (for example `win32-x64`,
+    `darwin-arm64`, or `linux-x64`). Defaults to the current OS and architecture.
+    The target is validated and included in the VSIX filename and manifest so an
+    installer cannot silently consume a native binary built for another host.
 #>
 [CmdletBinding()]
 param(
     [switch]$SkipTests,
     [string]$OutputDir,
-    [string]$ElectronVersion
+    [string]$Target
 )
 
 Set-StrictMode -Version Latest
@@ -59,6 +57,47 @@ function Invoke-Step {
     Log-Success $Label
 }
 
+function Resolve-VsceTarget {
+    param([string]$RequestedTarget)
+
+    $AllowedTargets = @(
+        'win32-x64',
+        'win32-arm64',
+        'darwin-x64',
+        'darwin-arm64',
+        'linux-x64',
+        'linux-arm64'
+    )
+
+    $Architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+    if ($Architecture -notin @('x64', 'arm64')) {
+        throw "Unsupported VSIX architecture: $Architecture"
+    }
+
+    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+        $Platform = 'win32'
+    } elseif ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
+        $Platform = 'darwin'
+    } elseif ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)) {
+        $Platform = 'linux'
+    } else {
+        throw 'Unsupported VSIX operating system.'
+    }
+
+    $HostTarget = "$Platform-$Architecture"
+    $Resolved = if ($RequestedTarget) { $RequestedTarget.ToLowerInvariant() } else { $HostTarget }
+
+    if ($Resolved -notin $AllowedTargets) {
+        throw "Unsupported VSCE target: $Resolved"
+    }
+
+    if ($Resolved -ne $HostTarget) {
+        throw "VSCE target $Resolved does not match build host $HostTarget. Native modules must be built on their target OS and architecture."
+    }
+
+    return $Resolved
+}
+
 # ── Resolve paths ────────────────────────────────────────────────────────────
 
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path
@@ -70,15 +109,12 @@ $OutWebview = Join-Path $OutDir 'webview'
 $OutBackend = Join-Path $OutDir 'backend'
 $OutSkills  = Join-Path $OutDir 'skills'
 
-# v1.15.0 Phase 7 (Issue 6): the Electron ABI that better-sqlite3 is rebuilt for.
-# Precedence: -ElectronVersion parameter > NEXUS_ELECTRON_VERSION env var >
-# the default baseline. Keep the default in step with the Electron shipped by
-# the minimum supported VS Code (see engines.vscode in package.json); a mismatch
-# ships a native module that cannot load, which kills extension activation.
-$DefaultElectronVersion = '36.4.0'
-$ResolvedElectronVersion = $DefaultElectronVersion
-if ($env:NEXUS_ELECTRON_VERSION) { $ResolvedElectronVersion = $env:NEXUS_ELECTRON_VERSION }
-if ($ElectronVersion) { $ResolvedElectronVersion = $ElectronVersion }
+# v2.2.9 release preparation: better-sqlite3 is rebuilt for the Electron runtime
+# shipped by the one supported VS Code host (see engines.vscode in package.json).
+# This value is intentionally not overridable because an ABI mismatch produces a
+# VSIX that installs successfully but aborts extension activation at runtime.
+$SupportedElectronVersion = '42.8.1'
+$ResolvedTarget = Resolve-VsceTarget $Target
 
 Push-Location $RepoRoot
 
@@ -114,18 +150,17 @@ try {
 
     # ── Step 4b: Rebuild native modules for VS Code Electron ─────────────────
 
-    Invoke-Step "Rebuild better-sqlite3 for VS Code Electron $ResolvedElectronVersion" {
+    Invoke-Step "Rebuild better-sqlite3 for VS Code Electron $SupportedElectronVersion" {
         # @electron/rebuild streams progress to stderr; under Windows PowerShell
         # 5.1 with ErrorActionPreference=Stop the first stderr line is promoted to
         # a terminating NativeCommandError and aborts the build before it can
         # finish. Drop to Continue inside this step so only a non-zero exit code
         # (checked by Invoke-Step via $LASTEXITCODE) fails it.
         #
-        # v1.15.0 Phase 7 (Issue 6): the version is no longer hardcoded. Shipping
-        # a module built for the wrong Electron ABI is what makes the extension
-        # fail to activate ("command not found" + forever-loading views).
+        # Shipping a module built for the wrong Electron ABI is what makes the
+        # extension fail to activate ("command not found" + forever-loading views).
         $ErrorActionPreference = 'Continue'
-        npx @electron/rebuild --version $ResolvedElectronVersion --only better-sqlite3 --force
+        npx @electron/rebuild --version $SupportedElectronVersion --only better-sqlite3 --force
     }
 
     # ── Step 5: Bundle webview assets ────────────────────────────────────────
@@ -162,16 +197,16 @@ try {
 
     # ── Step 8: Package VSIX ─────────────────────────────────────────────────
 
-    Invoke-Step 'vsce package (create VSIX)' {
+    Invoke-Step "vsce package (create $ResolvedTarget VSIX)" {
         # vsce also streams progress/warnings to stderr; same PS 5.1 guard as the
         # electron-rebuild step above (Invoke-Step still gates on $LASTEXITCODE).
         $ErrorActionPreference = 'Continue'
         $Version = (Get-Content (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
         # v1.11.0 Phase 4 (T403): the artifact carries the product name
         # (nexus-coding), closing the NAME.P1.A remnant for this artifact.
-        $VsixName = "nexus-coding-$Version.vsix"
+        $VsixName = "nexus-coding-$Version-$ResolvedTarget.vsix"
         $VsixOut  = Join-Path $OutputDir $VsixName
-        npx vsce package --out $VsixOut
+        npx vsce package --target $ResolvedTarget --out $VsixOut
         if ($LASTEXITCODE -eq 0) {
             Log-Success "VSIX written to: $VsixOut"
         }

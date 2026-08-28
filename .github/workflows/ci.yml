@@ -327,12 +327,9 @@ jobs:
 
   # -- VSIX packaging smoke check (v0.8.0 Phase 7 post-CI audit) ------------
   #
-  # The extension ships as a `.vsix` produced by `vsce package`. Building
-  # it on every push catches `files`/`.vscodeignore` drift, missing assets,
-  # and missing prebuilds that would otherwise only surface at release time.
-  # `vsce package --no-dependencies` skips the npm production prune step
-  # because the workflow already ran `npm ci` (so node_modules is consistent
-  # with package-lock.json and vsce's prune-then-reinstall is redundant).
+  # The extension ships as a `.vsix` produced by the canonical build script.
+  # Building it on every push catches `files`/`.vscodeignore` drift, missing
+  # assets, and native modules built for Node instead of VS Code Electron.
   # The produced VSIX is uploaded as a 7-day artifact so a reviewer can pull
   # it down and load it into VS Code to verify the install path manually.
 
@@ -346,14 +343,13 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-      - run: npm ci --prefer-offline --no-audit
-      - run: npm run build
-      - name: vsce package --no-dependencies
-        run: npx --yes @vscode/vsce package --no-dependencies --out gemma-code-ci.vsix
+      - name: Build VSIX with Electron native modules
+        shell: pwsh
+        run: ./scripts/build-vsix.ps1 -SkipTests
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: vsix-smoke
-          path: gemma-code-ci.vsix
+          path: nexus-coding-*.vsix
           retention-days: 7
 
   # -- v0.8.0 Phase 6.5 (item C6) -------------------------------------------

@@ -5,6 +5,8 @@ v1.0.0 Phase 2.5).
 Platform-adaptive: detects OS at build time and sets appropriate options.
 """
 
+import json
+import platform
 import sys
 from pathlib import Path
 
@@ -44,17 +46,43 @@ else:
 # into ~/.nexus-ai/catalog/ by NexusHubSyncer (no baseline payload in the exe).
 datas = []
 
-# VSIX file. vsce emits `nexus-coding-*.vsix` (the root package name) since
-# the v1.1.0 rename; the legacy `gemma-code-*.vsix` glob is kept as a
-# fallback until the NAME.P1.A compat sweep retires it.
-vsix_candidates = (
-    list(REPO_ROOT.glob("nexus-coding-*.vsix"))
-    + list((REPO_ROOT / "scripts" / "installer").glob("nexus-coding-*.vsix"))
-    + list(REPO_ROOT.glob("gemma-code-*.vsix"))
-    + list((REPO_ROOT / "scripts" / "installer").glob("gemma-code-*.vsix"))
-)
-if vsix_candidates:
-    datas.append((str(vsix_candidates[0]), "."))
+# VSIX file. Native Node modules make the archive platform-specific, so the
+# frozen installer must contain exactly one archive matching this build host.
+if sys.platform == "win32":
+    vsix_platform = "win32"
+elif sys.platform == "darwin":
+    vsix_platform = "darwin"
+elif sys.platform.startswith("linux"):
+    vsix_platform = "linux"
+else:
+    raise SystemExit(f"unsupported VSIX build platform: {sys.platform}")
+
+machine = platform.machine().lower()
+if machine in {"amd64", "x86_64"}:
+    vsix_arch = "x64"
+elif machine in {"arm64", "aarch64"}:
+    vsix_arch = "arm64"
+else:
+    raise SystemExit(f"unsupported VSIX build architecture: {machine}")
+
+product_version = json.loads(
+    (REPO_ROOT / "package.json").read_text(encoding="utf-8")
+)["version"]
+vsix_name = f"nexus-coding-{product_version}-{vsix_platform}-{vsix_arch}.vsix"
+vsix_candidates = [
+    path
+    for path in (
+        REPO_ROOT / vsix_name,
+        REPO_ROOT / "scripts" / "installer" / vsix_name,
+    )
+    if path.is_file()
+]
+if len(vsix_candidates) != 1:
+    raise SystemExit(
+        f"expected exactly one host-matched VSIX named {vsix_name}; "
+        f"found {len(vsix_candidates)}"
+    )
+datas.append((str(vsix_candidates[0]), "."))
 
 # Model-registry data files (v1.8.0 Phase 6, T601 / closes OSI004.P4.C): the
 # typed catalog page and the engine's model router resolve these via
@@ -72,12 +100,10 @@ catalog_path = REPO_ROOT / "core" / "registry" / "catalog.json"
 if not catalog_path.is_file():
     raise SystemExit(f"catalog.json missing: expected {catalog_path}")
 sys.path.insert(0, str(INSTALLER_ROOT / "src"))
-import json as _json  # noqa: E402
-
 from nexus_installer.catalog_invariants import validate_catalog  # noqa: E402
 
 catalog_problems = validate_catalog(
-    _json.loads(catalog_path.read_text(encoding="utf-8"))
+    json.loads(catalog_path.read_text(encoding="utf-8"))
 )
 if catalog_problems:
     raise SystemExit(

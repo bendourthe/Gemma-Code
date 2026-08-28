@@ -4,6 +4,36 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-28] v2.2.9 - Field chrome, catalog identity, and honest generation (release preparation)
+
+Index: [plan](v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md), [history](v2/v2.2/development/history/), [gaps](v2/v2.2/known-gaps.md). Changelog is authoritative.
+
+### What Changed
+
+- Prepared product version **2.2.9** (root `package.json` and `tauri.conf.json` via `sync-tauri-version.mjs`). `desktop/package.json` and `Cargo.toml` stay 1.5.0. Installer `__version__` stays 1.1.0.
+- Completed Chatbot and studio chrome, typed diffusion readiness errors, installer/Settings model identity, and honest Hub sync/quarantine copy.
+- Routed release and CI-smoke VSIX packaging through `scripts/build-vsix.ps1`, which emits OS/architecture-qualified artifacts and fail-closed rebuilds `better-sqlite3` 12.11.1 for VS Code 1.134.0's Electron 42.8.1 ABI.
+- Excluded local `.nexus/` session state, developer harness files, test caches, logs, and build-only root configuration from the VSIX. The rebuilt 2.2.9 artifact contains no forbidden entries and includes the Electron-rebuilt native module.
+- This release changes no opt-in capability or installer flag. The optional extension's supported host is narrowed to exact VS Code 1.134.0; the Windows desktop application is unaffected by that host pin.
+- The Windows wizard now offers and installs the VSIX only for Microsoft stable VS Code 1.134.0, rechecks the host immediately before installation, and does not force-install on unsupported hosts. The tag workflow publishes the complete Windows provisioning installer plus platform VSIXes. Raw Tauri desktop bundles are withheld because they do not embed the pinned Node runtime and runtime manifest; DF-1 tracks self-contained Node bundling, while DF-24 separately tracks the missing Unix selected-model snapshot write.
+- The final installer gate passed 1160 tests with 3 skips and 48 focused packaging contracts. The unsigned `NexusSetup.exe` is 230.3 MB with SHA-256 `7C622166DED5EF5F3792D54A378DCE2E2A48E4DE751950A32E28389B5CC531F8`; version, bundled-registry, embedded-desktop-payload, and embedded target-VSIX checks passed.
+- The release asset contract is five attachments: three platform VSIXes, `NexusSetup.exe`, and `SHA256SUMS.txt`. The Windows Tauri bundle remains a private installer input; macOS/Linux Python installer workflows are manual non-release rehearsals and no longer trigger on release tags.
+
+### Why It Changed
+
+`/update release` after v2.2.9 Phase 7. Automated and internal compatibility evidence is supported. Packaged Windows field QA remains not proven here as DF-36, and live GPU generation remains not proven here as DF-4.
+
+### Decisions Made
+
+- Pinned the v2.2.9 feature boundary to `9f155e5` so the two later v2.3 planning commits are excluded from the release candidate.
+- Approved the legacy integration exception because v2.2.9 landed directly on `develop` without a pull request. The release does not rewrite that history.
+- Accepted the unsigned Windows installer rebuild and smoke probes as packaging evidence while explicitly deferring operator checklist items 1-7 to DF-36.
+- Recorded fresh aggregate root and desktop coverage as release evidence. MT-4 remains open because aggregate release coverage cannot retroactively supply the missing per-phase measurements. WN-8 remains open because coverage/package test runs reproduced timing-only benchmark-fixture drift, which was restored before commit.
+- Nexus-Hub-only scripts (`check_version_sync.py`, `generate_manifest.py`, `check_release_preconditions.py`) are absent here and were not invented.
+- Tagging, pushing, GitHub Release publication, main integration, and the develop backmerge remain behind separate publication approval.
+
+---
+
 ## [2026-08-24] v2.2.8 - Working local studio (release)
 
 Index: [plan](v2/v2.2/plans/v2.2.8-working-local-studio.md), [history](v2/v2.2/development/history/), [gaps](v2/v2.2/known-gaps.md). Changelog is authoritative.

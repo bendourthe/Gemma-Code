@@ -3,7 +3,7 @@
 **Owner**: installer (PyQt wizard)
 **Status**: single-onefile pipeline (v1.9.0 Phase 1)
 
-Produces `dist/NexusSetup.exe` -- the Windows one-shot installer. Since v1.9.0 Phase 1 the PyInstaller onefile IS the distributable: there is no NSIS outer shell and no separate wizard exe, so double-clicking `NexusSetup.exe` opens exactly one modern branded window (no generic pre-wizard dialog). The exe is slim by design -- the wizard downloads dependencies, models, the VS Code extension, and the desktop app at install time, each SHA-256-verified.
+Produces `dist/NexusSetup.exe` -- the Windows one-shot installer. Since v1.9.0 Phase 1 the PyInstaller onefile IS the distributable: there is no NSIS outer shell and no separate wizard exe, so double-clicking `NexusSetup.exe` opens exactly one modern branded window (no generic pre-wizard dialog). The exe embeds the platform-matched VS Code extension and Windows desktop payload; the wizard downloads the remaining dependencies and models at install time.
 
 ## High-level steps
 
@@ -15,7 +15,7 @@ Produces `dist/NexusSetup.exe` -- the Windows one-shot installer. Since v1.9.0 P
                               |
 +----------------------------------------------------------+
 | 2. Build the VSIX (bundled into the exe by PyInstaller)  |
-|    npm ci && npm run build && npx vsce package           |
+|    scripts/build-vsix.ps1 -SkipTests                     |
 +----------------------------------------------------------+
                               |
 +----------------------------------------------------------+
@@ -36,10 +36,7 @@ Produces `dist/NexusSetup.exe` -- the Windows one-shot installer. Since v1.9.0 P
 +----------------------------------------------------------+
 ```
 
-`scripts/installer/build/build-windows.ps1` runs steps 1-5. The macOS
-(`build-macos.sh`) and Linux (`build-linux.sh`) scripts follow the same
-contract: one PyInstaller onefile, packaged into exactly one artifact at the
-repo-root `dist/` (`NexusSetup.dmg` / `NexusSetup-x86_64.AppImage`).
+`scripts/build-vsix.ps1` runs step 2 before the installer build. It infers the host OS and architecture, rebuilds the native module for VS Code 1.134.0's Electron 42.8.1 runtime, and emits an exact target-qualified filename. `scripts/installer/build/build-windows.ps1` then requires that one matching VSIX and runs the remaining build steps. The macOS (`build-macos.sh`) and Linux (`build-linux.sh`) scripts follow the same contract: one PyInstaller onefile, packaged into exactly one artifact at the repo-root `dist/` (`NexusSetup.dmg` / `NexusSetup-x86_64.AppImage`).
 
 ## Output contract
 
@@ -57,6 +54,7 @@ and `release.yml`).
 
 ```powershell
 # from the repository root
+pwsh -File scripts/build-vsix.ps1 -SkipTests
 pwsh -File scripts/installer/build/build-windows.ps1 -SkipSign
 pwsh -File scripts/installer/build/smoke-windows-exe.ps1
 # dist/NexusSetup.exe is the artifact

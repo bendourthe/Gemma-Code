@@ -1,6 +1,35 @@
 # Unreleased
 
-Post-cut work on `develop` after tag `v2.2.8`. No version bump. No retag.
+Post-cut work on `develop` after tag `v2.2.9`. No version bump. No retag.
+
+# [2.2.9](https://github.com/bendourthe/Nexus-AI/compare/v2.2.8...v2.2.9) (2026-08-28)
+
+Field chrome, catalog identity, and honest generation after v2.2.8. Local-only. Packaged Windows visual behavior remains not proven here (DF-36), and live GPU image/video generation remains not proven here (DF-4).
+
+This release changes no opt-in capability or installer flag. The packaged desktop application is Windows-only in v2.2.9; macOS and Linux receive the optional platform VSIX but no raw Tauri desktop package. The optional extension requires VS Code 1.134.0 exactly because its bundled `better-sqlite3` 12.11.1 native module targets that host's Electron 42.8.1 runtime; other VS Code versions are not supported by this release artifact.
+
+
+### Features
+
+* **Chat chrome:** clean up the composer, split Context from the model picker, move full-word time/token meta above bubbles, select the active row, and persist the first generated title ([b7d519c](https://github.com/bendourthe/Nexus-AI/commit/b7d519c))
+* **Thinking state:** rotate reduced-motion-safe Thinking, Searching, Working, and Solving captions while a local reply is composing ([6949a02](https://github.com/bendourthe/Nexus-AI/commit/6949a02))
+* **Studio identity:** align Image and Video history copy and selection with Chatbot, and meter studio sessions against their visual-token budgets ([fcb22f1](https://github.com/bendourthe/Nexus-AI/commit/fcb22f1))
+* **Generate honesty:** distinguish CUDA, weights, and GPU readiness failures instead of collapsing them into one fallback string ([9995a80](https://github.com/bendourthe/Nexus-AI/commit/9995a80), [ecf818d](https://github.com/bendourthe/Nexus-AI/commit/ecf818d))
+* **Catalog identity:** put Embeddings first, share the installer/Settings name-row pill grammar including Inkling-Small, and sort downloaded Settings models first ([c29b21e](https://github.com/bendourthe/Nexus-AI/commit/c29b21e))
+* **Hub sync:** normalize leading `v` tags, report staged sync progress honestly, and explain quarantine while the injection scanner stays enabled ([fb5b5bb](https://github.com/bendourthe/Nexus-AI/commit/fb5b5bb))
+
+
+### Bug Fixes
+
+* **Diffusion safety:** restrict stub images to pytest so an environment flag alone cannot enable fake output on a real host ([ecf818d](https://github.com/bendourthe/Nexus-AI/commit/ecf818d))
+* **Packaging:** build OS/architecture-qualified VSIX files through the canonical fail-closed Electron native-module pipeline, upgrade `better-sqlite3` to 12.11.1 for Electron 42.8.1 compatibility, pin the extension and Windows wizard to exact Microsoft stable VS Code 1.134.0, publish the complete Windows provisioning installer, withhold raw Tauri bundles that do not embed Node 22.11.0, and exclude local session state, harness files, test caches, logs, and build-only configuration from the artifact
+
+
+### Documentation
+
+* **v2.2.9:** record the implementation plan, phase evidence, preserved known gaps, and unsigned installer smoke proof ([71dc6e8](https://github.com/bendourthe/Nexus-AI/commit/71dc6e8), [ecf818d](https://github.com/bendourthe/Nexus-AI/commit/ecf818d), [9f155e5](https://github.com/bendourthe/Nexus-AI/commit/9f155e5))
+
+Plan: [v2.2.9](docs/v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md). Gaps: [docs/v2/v2.2/known-gaps.md](docs/v2/v2.2/known-gaps.md).
 
 # [2.2.8](https://github.com/bendourthe/Nexus-AI/compare/v2.2.5...v2.2.8) (2026-08-24)
 
