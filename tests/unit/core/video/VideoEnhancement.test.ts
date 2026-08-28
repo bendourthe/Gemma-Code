@@ -198,6 +198,7 @@ function failure(
       retryable: true,
       stage: "preflight",
       diagnostics: null,
+      terminationConfirmed: null,
     },
   };
 }
@@ -2239,14 +2240,14 @@ describe("core video import boundary", () => {
     );
   });
 
-  it("keeps the narrow barrel from re-exporting process-bound metadata", () => {
+  it("keeps the video barrel free of process-bound imports", () => {
     const indexPath = path.resolve(
       __dirname,
       "../../../../core/video/index.ts",
     );
     const indexText = readFileSync(indexPath, "utf8");
     expect(indexText).toContain('from "./VideoEnhancement.js"');
-    expect(indexText).not.toContain("WorkflowMetadata");
+    expect(indexText).toContain('from "./WorkflowMetadata.js"');
     expect(indexText).not.toContain("child_process");
   });
 });

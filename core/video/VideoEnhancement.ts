@@ -315,6 +315,7 @@ export interface VideoEnhancementError {
   readonly retryable: boolean;
   readonly stage: VideoEnhancementProgressStage;
   readonly diagnostics: string | null;
+  readonly terminationConfirmed: boolean | null;
 }
 
 export interface VideoEnhancementStagedSuccess {
@@ -459,6 +460,7 @@ const ERROR_FIELDS = new Set([
   "retryable",
   "stage",
   "diagnostics",
+  "terminationConfirmed",
 ]);
 const STAGE_EXECUTION_FIELDS = new Set([
   "stageIndex",
@@ -743,6 +745,7 @@ function invalidRequest(message: string): VideoEnhancementRequestValidation {
     retryable: false,
     stage: "preflight" as const,
     diagnostics: null,
+    terminationConfirmed: null,
   });
   return Object.freeze({
     ok: false,
@@ -1725,6 +1728,10 @@ function normalizeBackendFailure(
     typeof errorValue.retryable !== "boolean" ||
     !isProgressStage(errorValue.stage) ||
     !(
+      errorValue.terminationConfirmed === null ||
+      typeof errorValue.terminationConfirmed === "boolean"
+    ) ||
+    !(
       errorValue.diagnostics === null ||
       isSafeMultilineText(errorValue.diagnostics, MAX_ERROR_DIAGNOSTIC_LENGTH)
     )
@@ -1737,6 +1744,7 @@ function normalizeBackendFailure(
     retryable: errorValue.retryable,
     stage: errorValue.stage,
     diagnostics: errorValue.diagnostics,
+    terminationConfirmed: errorValue.terminationConfirmed,
   });
   return Object.freeze({
     ok: false,
@@ -1777,6 +1785,7 @@ function failure(
     retryable: code === "cancelled",
     stage,
     diagnostics: null,
+    terminationConfirmed: null,
   });
   return Object.freeze({
     ok: false,

@@ -720,6 +720,125 @@ describe("Video2X executable resolution and capability", () => {
   );
 });
 
+describe("Video2X interrupted-artifact recovery", () => {
+  it("removes only the authorized stale root and permits the same child ID after restart", async () => {
+    const childJobId = "interrupted-child-restart";
+    const jobRoot = path.join(stagingRoot, video2xJobRootLeaf(childJobId));
+    const unrelatedRoot = path.join(stagingRoot, "unrelated-job-root");
+    await fs.mkdir(path.join(jobRoot, "work-1"), {
+      recursive: true,
+      mode: 0o700,
+    });
+    await fs.writeFile(path.join(jobRoot, "stage-1.partial.mp4"), "partial");
+    await fs.mkdir(unrelatedRoot, { recursive: true, mode: 0o700 });
+    const unrelatedMarker = path.join(unrelatedRoot, "preserve.txt");
+    await fs.writeFile(unrelatedMarker, "unrelated");
+
+    const restarted = createAdapter(new FakeVideoProcess());
+    await expect(
+      restarted.recoverInterruptedArtifacts([
+        childJobId,
+        childJobId,
+        "interrupted-child-without-artifacts",
+      ]),
+    ).resolves.toEqual([
+      {
+        childJobId,
+        disposition: "removed",
+        reason: "removed",
+      },
+      {
+        childJobId: "interrupted-child-without-artifacts",
+        disposition: "absent",
+        reason: "not_found",
+      },
+    ]);
+    await expect(fs.access(jobRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.readFile(unrelatedMarker, "utf8")).resolves.toBe(
+      "unrelated",
+    );
+
+    const runResult = await restarted.run(await requestFor(), {
+      childJobId,
+      signal: new AbortController().signal,
+    });
+    expect(runResult.ok).toBe(true);
+  });
+
+  it("preserves a symlinked deterministic root and its external target", async () => {
+    const childJobId = "interrupted-child-symlink";
+    const jobRoot = path.join(stagingRoot, video2xJobRootLeaf(childJobId));
+    const externalRoot = path.join(sandbox, "external-owned-root");
+    await fs.mkdir(stagingRoot, { recursive: true, mode: 0o700 });
+    await fs.mkdir(externalRoot, { recursive: true, mode: 0o700 });
+    const externalMarker = path.join(externalRoot, "preserve.txt");
+    await fs.writeFile(externalMarker, "external");
+    await fs.symlink(
+      externalRoot,
+      jobRoot,
+      HOST_PLATFORM === "win32" ? "junction" : "dir",
+    );
+
+    await expect(
+      createAdapter(new FakeVideoProcess()).recoverInterruptedArtifacts([
+        childJobId,
+      ]),
+    ).resolves.toEqual([
+      {
+        childJobId,
+        disposition: "preserved",
+        reason: "untrusted_job_root",
+      },
+    ]);
+    expect((await fs.lstat(jobRoot)).isSymbolicLink()).toBe(true);
+    await expect(fs.readFile(externalMarker, "utf8")).resolves.toBe("external");
+  });
+
+  it("preserves a deterministic root whose identity changes before removal", async () => {
+    const childJobId = "interrupted-child-replaced";
+    const jobRoot = path.join(stagingRoot, video2xJobRootLeaf(childJobId));
+    await fs.mkdir(jobRoot, { recursive: true, mode: 0o700 });
+    await fs.writeFile(path.join(jobRoot, "partial.mp4"), "partial");
+    const baseFilesystem = realFilesystem();
+    const removed: string[] = [];
+    let childObservations = 0;
+    const filesystem: Video2xFileSystem = {
+      ...baseFilesystem,
+      async lstat(target) {
+        const stat = await baseFilesystem.lstat(target);
+        if (path.resolve(target) !== path.resolve(jobRoot)) return stat;
+        childObservations += 1;
+        if (childObservations === 1) return stat;
+        return {
+          ...statView(stat, false),
+          dev: stat.dev === 1 ? 2 : 1,
+          ino: stat.ino === 1 ? 2 : 1,
+        };
+      },
+      async rm(target, options) {
+        removed.push(target);
+        return baseFilesystem.rm(target, options);
+      },
+    };
+
+    await expect(
+      createAdapter(new FakeVideoProcess(), {
+        filesystem,
+      }).recoverInterruptedArtifacts([childJobId]),
+    ).resolves.toEqual([
+      {
+        childJobId,
+        disposition: "preserved",
+        reason: "cleanup_failed",
+      },
+    ]);
+    expect(removed).not.toContain(jobRoot);
+    await expect(
+      fs.readFile(path.join(jobRoot, "partial.mp4"), "utf8"),
+    ).resolves.toBe("partial");
+  });
+});
+
 describe("Video2X staged execution", () => {
   it("uses exact shell-free argv, a private cwd, scrubbed env, and preserves the source", async () => {
     const runner = new FakeVideoProcess();
@@ -936,7 +1055,7 @@ describe("Video2X staged execution", () => {
     });
     expect(runResult).toMatchObject({
       ok: false,
-      error: { code: "process_timeout" },
+      error: { code: "process_timeout", terminationConfirmed: true },
     });
     expect(await fs.readdir(stagingRoot)).toEqual([]);
     await expect(fs.readFile(sourcePath, "utf8")).resolves.toBe(
@@ -975,7 +1094,10 @@ describe("Video2X staged execution", () => {
         childJobId,
         signal: new AbortController().signal,
       });
-      expect(runResult).toMatchObject({ ok: false, error: { code } });
+      expect(runResult).toMatchObject({
+        ok: false,
+        error: { code, terminationConfirmed: false },
+      });
       if (runResult.ok) throw new Error("expected failure");
       expect(runResult.error.diagnostics).toMatch(/quarantined/i);
       expect(runResult.error.diagnostics).not.toContain(jobRoot);
@@ -1024,7 +1146,10 @@ describe("Video2X staged execution", () => {
         childJobId: `failure-${code}`,
         signal: new AbortController().signal,
       });
-      expect(runResult).toMatchObject({ ok: false, error: { code } });
+      expect(runResult).toMatchObject({
+        ok: false,
+        error: { code, terminationConfirmed: true },
+      });
       expect(await fs.readdir(stagingRoot)).toEqual([]);
     },
   );
@@ -1040,7 +1165,7 @@ describe("Video2X staged execution", () => {
     });
     expect(runResult).toMatchObject({
       ok: false,
-      error: { code: "process_failed" },
+      error: { code: "process_failed", terminationConfirmed: false },
     });
   });
 

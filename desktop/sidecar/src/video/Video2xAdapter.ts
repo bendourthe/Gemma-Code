@@ -170,6 +170,19 @@ export interface Video2xAdapterOptions {
   readonly readinessTtlMs?: number;
 }
 
+export type Video2xInterruptedArtifactRecoveryReason =
+  | "not_found"
+  | "removed"
+  | "untrusted_staging_root"
+  | "untrusted_job_root"
+  | "cleanup_failed";
+
+export interface Video2xInterruptedArtifactRecovery {
+  readonly childJobId: string;
+  readonly disposition: "absent" | "removed" | "preserved";
+  readonly reason: Video2xInterruptedArtifactRecoveryReason;
+}
+
 interface Video2xResolvedRuntime {
   readonly executablePath: string;
   readonly executableSha256: string;
@@ -232,6 +245,15 @@ interface OwnedPrivateRoot {
   readonly identity: FileIdentity;
   readonly baseIdentity: FileIdentity;
 }
+
+type ExistingStagingRoot =
+  | { readonly status: "missing" }
+  | { readonly status: "untrusted" }
+  | {
+      readonly status: "trusted";
+      readonly path: string;
+      readonly identity: FileIdentity;
+    };
 
 interface ReadinessObservation {
   readonly availability: VideoEnhancementPresetAvailability;
@@ -1060,6 +1082,41 @@ export class Video2xAdapter implements VideoEnhancementBackend {
     });
   }
 
+  /**
+   * Reconcile only deterministic roots authorized by durable interrupted jobs.
+   * The staging directory is never enumerated, and an untrusted or replaced
+   * path is preserved so startup cleanup cannot cross an ownership boundary.
+   */
+  async recoverInterruptedArtifacts(
+    childJobIds: readonly string[],
+  ): Promise<readonly Video2xInterruptedArtifactRecovery[]> {
+    const uniqueIds = [...new Set(childJobIds)];
+    if (uniqueIds.length === 0) return Object.freeze([]);
+
+    const stagingRoot = await this.inspectExistingStagingRoot();
+    if (stagingRoot.status !== "trusted") {
+      const disposition =
+        stagingRoot.status === "missing" ? "absent" : "preserved";
+      const reason =
+        stagingRoot.status === "missing"
+          ? "not_found"
+          : "untrusted_staging_root";
+      return Object.freeze(
+        uniqueIds.map((childJobId) =>
+          Object.freeze({ childJobId, disposition, reason }),
+        ),
+      );
+    }
+
+    const results: Video2xInterruptedArtifactRecovery[] = [];
+    for (const childJobId of uniqueIds) {
+      results.push(
+        await this.recoverInterruptedArtifact(childJobId, stagingRoot),
+      );
+    }
+    return Object.freeze(results);
+  }
+
   async probe(signal?: AbortSignal): Promise<VideoEnhancementCapability> {
     const deadline = new AdapterDeadline(
       Math.min(MAX_NODE_TIMEOUT_MS, this.probeTimeoutMs * 4),
@@ -1175,6 +1232,7 @@ export class Video2xAdapter implements VideoEnhancementBackend {
     const diagnostics = new TailBuffer(this.diagnosticLimit);
     let finalOutputIdentity: VerifiedOutput | null = null;
     let terminationWasUnconfirmed = false;
+    let terminationConfirmed: boolean | null = null;
     const ensureActive = (stage: VideoEnhancementProgressStage): void => {
       try {
         deadline.throwIfInactive();
@@ -1296,6 +1354,8 @@ export class Video2xAdapter implements VideoEnhancementBackend {
             redactions,
           });
         } catch (error) {
+          terminationWasUnconfirmed = true;
+          terminationConfirmed = false;
           throw new AdapterFailure(
             deadline.currentReason() === "cancelled"
               ? "cancelled"
@@ -1312,6 +1372,7 @@ export class Video2xAdapter implements VideoEnhancementBackend {
         diagnostics.add(capture.stdout);
         diagnostics.add("\n");
         diagnostics.add(capture.stderr);
+        terminationConfirmed = capture.result.terminationConfirmed;
 
         if (!capture.result.terminationConfirmed) {
           terminationWasUnconfirmed = true;
@@ -1557,6 +1618,7 @@ export class Video2xAdapter implements VideoEnhancementBackend {
         failure.stage,
         failure.retryable,
         diagnostic,
+        failure.terminationConfirmed ?? terminationConfirmed,
       );
     }
   }
@@ -2444,6 +2506,113 @@ export class Video2xAdapter implements VideoEnhancementBackend {
     }
   }
 
+  private async inspectExistingStagingRoot(): Promise<ExistingStagingRoot> {
+    const implementation = platformPath(this.platform);
+    if (!implementation.isAbsolute(this.stagingRoot)) {
+      return { status: "untrusted" };
+    }
+    try {
+      const configuredRootStat = await this.filesystem.lstat(this.stagingRoot);
+      const canonicalBase = await this.filesystem.realpath(this.stagingRoot);
+      const baseStat = await this.filesystem.stat(canonicalBase);
+      const normalizedConfiguredRoot = implementation.resolve(this.stagingRoot);
+      if (
+        configuredRootStat.isSymbolicLink() ||
+        !configuredRootStat.isDirectory() ||
+        !baseStat.isDirectory() ||
+        configuredRootStat.dev !== baseStat.dev ||
+        configuredRootStat.ino !== baseStat.ino ||
+        !this.isPrivateDirectory(baseStat) ||
+        !platformEquals(normalizedConfiguredRoot, canonicalBase, this.platform)
+      ) {
+        return { status: "untrusted" };
+      }
+      return {
+        status: "trusted",
+        path: canonicalBase,
+        identity: { dev: baseStat.dev, ino: baseStat.ino },
+      };
+    } catch (error) {
+      return isMissingFileError(error)
+        ? { status: "missing" }
+        : { status: "untrusted" };
+    }
+  }
+
+  private async recoverInterruptedArtifact(
+    childJobId: string,
+    stagingRoot: Extract<ExistingStagingRoot, { readonly status: "trusted" }>,
+  ): Promise<Video2xInterruptedArtifactRecovery> {
+    const implementation = platformPath(this.platform);
+    const candidate = implementation.join(
+      stagingRoot.path,
+      video2xJobRootLeaf(childJobId),
+    );
+    if (!isContained(stagingRoot.path, candidate, this.platform)) {
+      return Object.freeze({
+        childJobId,
+        disposition: "preserved",
+        reason: "untrusted_job_root",
+      });
+    }
+
+    try {
+      const linkStat = await this.filesystem.lstat(candidate);
+      const canonical = await this.filesystem.realpath(candidate);
+      const stat = await this.filesystem.stat(canonical);
+      const identity = { dev: linkStat.dev, ino: linkStat.ino };
+      if (
+        linkStat.isSymbolicLink() ||
+        !linkStat.isDirectory() ||
+        !stat.isDirectory() ||
+        !this.isPrivateDirectory(linkStat) ||
+        !sameIdentity(identity, { dev: stat.dev, ino: stat.ino }) ||
+        !platformEquals(candidate, canonical, this.platform) ||
+        !isContained(stagingRoot.path, canonical, this.platform)
+      ) {
+        return Object.freeze({
+          childJobId,
+          disposition: "preserved",
+          reason: "untrusted_job_root",
+        });
+      }
+
+      const cleanup = await this.cleanupOwnedRoot({
+        path: canonical,
+        basePath: stagingRoot.path,
+        identity,
+        baseIdentity: stagingRoot.identity,
+      });
+      return Object.freeze(
+        cleanup === "removed"
+          ? {
+              childJobId,
+              disposition: "removed" as const,
+              reason: "removed" as const,
+            }
+          : {
+              childJobId,
+              disposition: "preserved" as const,
+              reason: "cleanup_failed" as const,
+            },
+      );
+    } catch (error) {
+      return Object.freeze(
+        isMissingFileError(error)
+          ? {
+              childJobId,
+              disposition: "absent" as const,
+              reason: "not_found" as const,
+            }
+          : {
+              childJobId,
+              disposition: "preserved" as const,
+              reason: "untrusted_job_root" as const,
+            },
+      );
+    }
+  }
+
   private async createStageWorkRoot(
     jobRoot: OwnedPrivateRoot,
     stageIndex: number,
@@ -2816,6 +2985,7 @@ export class Video2xAdapter implements VideoEnhancementBackend {
     stage: VideoEnhancementProgressStage,
     retryable: boolean,
     diagnostics: string | null,
+    terminationConfirmed: boolean | null = null,
   ): VideoEnhancementFailure {
     const messages: Record<VideoEnhancementErrorCode, string> = {
       invalid_request: "The video enhancement request is invalid.",
@@ -2840,7 +3010,14 @@ export class Video2xAdapter implements VideoEnhancementBackend {
       requestId: request.requestId,
       parentJobId: request.parentJobId,
       childJobId,
-      error: { code, message: messages[code], retryable, stage, diagnostics },
+      error: {
+        code,
+        message: messages[code],
+        retryable,
+        stage,
+        diagnostics,
+        terminationConfirmed,
+      },
     };
   }
 }
@@ -2851,6 +3028,7 @@ class AdapterFailure extends Error {
     readonly stage: VideoEnhancementProgressStage,
     readonly retryable: boolean,
     readonly detail: string,
+    readonly terminationConfirmed: boolean | null = null,
   ) {
     super(detail);
     this.name = "AdapterFailure";

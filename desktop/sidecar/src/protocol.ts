@@ -137,6 +137,10 @@ export const IPC_METHODS = [
   "generation.queue.cancel",
   "generation.queue.reorder",
   "generation.queue.pendingCount",
+  "video.enhancement.capability",
+  "video.enhancement.enqueue",
+  "video.enhancement.list",
+  "video.enhancement.cancel",
   // v2.2.3 Phase 5 -- read-only Studio GPU occupancy for submit-time gates.
   "generation.scheduler.snapshot",
   // v2.1.0 Phase 5 -- local Unsloth Core fine-tuning pillar.
@@ -170,7 +174,17 @@ export type PingResponseT = z.infer<typeof PingResponse>;
 
 // ---- Coding session lifecycle ------------------------------------------------
 
-export const ModelFamily = z.enum(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes", "muse-glimmer", "nemotron-lightning", "gpt-oss"]);
+export const ModelFamily = z.enum([
+  "gemma",
+  "llama",
+  "qwen",
+  "deepseek",
+  "lfm2.5",
+  "hermes",
+  "muse-glimmer",
+  "nemotron-lightning",
+  "gpt-oss",
+]);
 export type ModelFamilyT = z.infer<typeof ModelFamily>;
 
 export const CodingSessionStartRequest = z
@@ -183,7 +197,9 @@ export const CodingSessionStartRequest = z
     workspacePath: z.string().min(1).optional(),
   })
   .strict();
-export type CodingSessionStartRequestT = z.infer<typeof CodingSessionStartRequest>;
+export type CodingSessionStartRequestT = z.infer<
+  typeof CodingSessionStartRequest
+>;
 
 export const CodingSessionStartResponse = z
   .object({
@@ -193,7 +209,9 @@ export const CodingSessionStartResponse = z
     createdAt: z.string().min(1),
   })
   .strict();
-export type CodingSessionStartResponseT = z.infer<typeof CodingSessionStartResponse>;
+export type CodingSessionStartResponseT = z.infer<
+  typeof CodingSessionStartResponse
+>;
 
 export const CodingSessionSendMessageRequest = z
   .object({
@@ -281,7 +299,9 @@ export const ChatSessionStartResponse = z
     createdAt: z.string().min(1),
   })
   .strict();
-export type ChatSessionStartResponseT = z.infer<typeof ChatSessionStartResponse>;
+export type ChatSessionStartResponseT = z.infer<
+  typeof ChatSessionStartResponse
+>;
 
 export const ChatSessionSendMessageRequest = z
   .object({
@@ -292,10 +312,14 @@ export const ChatSessionSendMessageRequest = z
   })
   .strict()
   .refine(
-    (value) => value.message.trim().length > 0 || (value.images !== undefined && value.images.length > 0),
+    (value) =>
+      value.message.trim().length > 0 ||
+      (value.images !== undefined && value.images.length > 0),
     { message: "message or images required" },
   );
-export type ChatSessionSendMessageRequestT = z.infer<typeof ChatSessionSendMessageRequest>;
+export type ChatSessionSendMessageRequestT = z.infer<
+  typeof ChatSessionSendMessageRequest
+>;
 
 export const ChatSessionEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("token"), text: z.string() }),
@@ -327,7 +351,9 @@ export const EpisodicMemoryRecordRequest = z
     scopeId: z.string().nullable().optional(),
   })
   .strict();
-export const EpisodicMemoryRecordResponse = z.object({ ok: z.literal(true) }).strict();
+export const EpisodicMemoryRecordResponse = z
+  .object({ ok: z.literal(true) })
+  .strict();
 
 export const EpisodicMemorySearchRequest = z
   .object({
@@ -352,12 +378,16 @@ export const EpisodicMemorySearchResponse = z
 export const CodingSessionCancelRequest = z
   .object({ sessionId: z.string().min(1) })
   .strict();
-export type CodingSessionCancelRequestT = z.infer<typeof CodingSessionCancelRequest>;
+export type CodingSessionCancelRequestT = z.infer<
+  typeof CodingSessionCancelRequest
+>;
 
 export const CodingSessionCancelResponse = z
   .object({ sessionId: z.string().min(1), cancelled: z.boolean() })
   .strict();
-export type CodingSessionCancelResponseT = z.infer<typeof CodingSessionCancelResponse>;
+export type CodingSessionCancelResponseT = z.infer<
+  typeof CodingSessionCancelResponse
+>;
 
 export const CodingSessionSummary = z
   .object({
@@ -375,7 +405,9 @@ export const CodingSessionListRequest = z.object({}).strict();
 export const CodingSessionListResponse = z
   .object({ sessions: z.array(CodingSessionSummary) })
   .strict();
-export type CodingSessionListResponseT = z.infer<typeof CodingSessionListResponse>;
+export type CodingSessionListResponseT = z.infer<
+  typeof CodingSessionListResponse
+>;
 
 export const CodingSessionResumeRequest = z
   .object({ sessionId: z.string().min(1) })
@@ -403,7 +435,9 @@ export const CodingSessionResumeResponse = z
     turns: z.array(CodingSessionTurn),
   })
   .strict();
-export type CodingSessionResumeResponseT = z.infer<typeof CodingSessionResumeResponse>;
+export type CodingSessionResumeResponseT = z.infer<
+  typeof CodingSessionResumeResponse
+>;
 
 export const CodingSessionRenameRequest = z
   .object({
@@ -411,20 +445,28 @@ export const CodingSessionRenameRequest = z
     title: z.string().min(1),
   })
   .strict();
-export type CodingSessionRenameRequestT = z.infer<typeof CodingSessionRenameRequest>;
+export type CodingSessionRenameRequestT = z.infer<
+  typeof CodingSessionRenameRequest
+>;
 export const CodingSessionRenameResponse = z
   .object({ session: CodingSessionSummary })
   .strict();
-export type CodingSessionRenameResponseT = z.infer<typeof CodingSessionRenameResponse>;
+export type CodingSessionRenameResponseT = z.infer<
+  typeof CodingSessionRenameResponse
+>;
 
 export const CodingSessionDeleteRequest = z
   .object({ sessionId: z.string().min(1) })
   .strict();
-export type CodingSessionDeleteRequestT = z.infer<typeof CodingSessionDeleteRequest>;
+export type CodingSessionDeleteRequestT = z.infer<
+  typeof CodingSessionDeleteRequest
+>;
 export const CodingSessionDeleteResponse = z
   .object({ sessionId: z.string(), deleted: z.literal(true) })
   .strict();
-export type CodingSessionDeleteResponseT = z.infer<typeof CodingSessionDeleteResponse>;
+export type CodingSessionDeleteResponseT = z.infer<
+  typeof CodingSessionDeleteResponse
+>;
 
 // ---- Panel data (Memory / Trace / Sessions) ---------------------------------
 
@@ -513,7 +555,12 @@ export type CodingTraceSubscribeResponseT = z.infer<
 
 // ---- Diffusion runtime (Phase 6) --------------------------------------------
 
-export const DiffusionMode = z.enum(["txt2img", "img2img", "inpaint", "outpaint"]);
+export const DiffusionMode = z.enum([
+  "txt2img",
+  "img2img",
+  "inpaint",
+  "outpaint",
+]);
 export type DiffusionModeT = z.infer<typeof DiffusionMode>;
 
 export const DiffusionSampler = z.enum([
@@ -536,7 +583,12 @@ export const DiffusionLoRA = z
   .strict();
 export type DiffusionLoRAT = z.infer<typeof DiffusionLoRA>;
 
-export const ControlNetPreprocessor = z.enum(["pose", "depth", "canny", "none"]);
+export const ControlNetPreprocessor = z.enum([
+  "pose",
+  "depth",
+  "canny",
+  "none",
+]);
 export type ControlNetPreprocessorT = z.infer<typeof ControlNetPreprocessor>;
 
 export const DiffusionControlNet = z
@@ -604,7 +656,9 @@ export const DiffusionOutpaintRequest = Txt2ImgBase.extend({
   direction: OutpaintDirection,
   pixels: z.number().int().min(8).max(1024),
 }).strict();
-export type DiffusionOutpaintRequestT = z.infer<typeof DiffusionOutpaintRequest>;
+export type DiffusionOutpaintRequestT = z.infer<
+  typeof DiffusionOutpaintRequest
+>;
 
 export const DiffusionSegmentHint = z
   .object({
@@ -642,7 +696,9 @@ export const DiffusionSegmentResponse = z
     candidates: z.array(DiffusionSegmentCandidate).optional(),
   })
   .strict();
-export type DiffusionSegmentResponseT = z.infer<typeof DiffusionSegmentResponse>;
+export type DiffusionSegmentResponseT = z.infer<
+  typeof DiffusionSegmentResponse
+>;
 
 export const DiffusionHealthResponse = z
   .object({
@@ -663,7 +719,9 @@ export const DiffusionVersionResponse = z
     protocol: z.string(),
   })
   .strict();
-export type DiffusionVersionResponseT = z.infer<typeof DiffusionVersionResponse>;
+export type DiffusionVersionResponseT = z.infer<
+  typeof DiffusionVersionResponse
+>;
 
 export const DiffusionEventEnvelope = z
   .object({
@@ -676,6 +734,11 @@ export const DiffusionEventEnvelope = z
     conditioningPreview: z.string().optional(),
     offloadStrategy: z.string().optional(),
     outputPath: z.string().optional(),
+    outputId: z.string().min(1).optional(),
+    outputHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     png: z.string().optional(),
     message: z.string().optional(),
   })
@@ -755,7 +818,11 @@ export const ChatExplorerCreateChatRequest = z
   .strict();
 export const ChatExplorerChatResponse = ChatChatDto;
 export const ChatExplorerRenameChatRequest = z
-  .object({ id: z.string(), title: z.string().min(1), byUser: z.boolean().optional() })
+  .object({
+    id: z.string(),
+    title: z.string().min(1),
+    byUser: z.boolean().optional(),
+  })
   .strict();
 export const ChatExplorerMoveChatRequest = z
   .object({ id: z.string(), folderId: z.string().nullable() })
@@ -784,10 +851,14 @@ export const ChatExplorerListMessagesResponse = z.object({
 export const ChatExplorerSearchRequest = z
   .object({ query: z.string(), limit: z.number().int().positive().optional() })
   .strict();
-export const ChatExplorerSearchResponse = z.object({ hits: z.array(z.unknown()) });
+export const ChatExplorerSearchResponse = z.object({
+  hits: z.array(z.unknown()),
+});
 
 const StudioPillarSchema = z.enum(["image", "video"]);
-export const StudioSessionTreeRequest = z.object({ pillar: StudioPillarSchema }).strict();
+export const StudioSessionTreeRequest = z
+  .object({ pillar: StudioPillarSchema })
+  .strict();
 export const StudioSessionTreeResponse = z.object({ tree: z.unknown() });
 export const StudioSessionCreateFolderRequest = z
   .object({
@@ -866,7 +937,10 @@ export const StudioSessionTurnResponse = z.object({
   visualUnits: z.number().int().nonnegative().nullable().optional(),
 });
 export const StudioSessionListTurnsRequest = z
-  .object({ sessionId: z.string(), limit: z.number().int().positive().optional() })
+  .object({
+    sessionId: z.string(),
+    limit: z.number().int().positive().optional(),
+  })
   .strict();
 export const StudioSessionListTurnsResponse = z.object({
   turns: z.array(StudioSessionTurnResponse),
@@ -874,7 +948,11 @@ export const StudioSessionListTurnsResponse = z.object({
 
 // v2.2.0 Phase 5 (5.3) -- auto-title a chat from its first message.
 export const ChatGenerateTitleRequest = z
-  .object({ chatId: z.string(), firstMessage: z.string().min(1), modelId: z.string().optional() })
+  .object({
+    chatId: z.string(),
+    firstMessage: z.string().min(1),
+    modelId: z.string().optional(),
+  })
   .strict();
 export const ChatGenerateTitleResponse = z.object({
   title: z.string(),
@@ -971,7 +1049,9 @@ export const SkillsListResponse = z.object({
 
 export const SkillsAutoSyncGetRequest = z.object({}).strict();
 export const SkillsAutoSyncGetResponse = z.object({ enabled: z.boolean() });
-export const SkillsAutoSyncSetRequest = z.object({ enabled: z.boolean() }).strict();
+export const SkillsAutoSyncSetRequest = z
+  .object({ enabled: z.boolean() })
+  .strict();
 export const SkillsAutoSyncSetResponse = z.object({ enabled: z.boolean() });
 
 // v2.2.0 Phase 3 (3.3) -- hub command discovery for the Agentic composer.
@@ -1120,7 +1200,9 @@ export const DiffusionVideoJobAccepted = z
     provenance: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
-export type DiffusionVideoJobAcceptedT = z.infer<typeof DiffusionVideoJobAccepted>;
+export type DiffusionVideoJobAcceptedT = z.infer<
+  typeof DiffusionVideoJobAccepted
+>;
 
 export const DiffusionVideoWorkflow = z
   .object({
@@ -1170,8 +1252,359 @@ export const GenerationJobState = z.enum([
 export const GenerationJobPriority = z.enum(["interactive", "batch"]);
 export const GenerationPillar = z.enum(["image", "video"]);
 
+export const VideoEnhancementFrameRate = z
+  .object({
+    numerator: z.number().int().positive().safe(),
+    denominator: z.number().int().positive().safe(),
+  })
+  .strict();
+
+export const VideoEnhancementSource = z
+  .object({
+    path: z.string().min(1),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    sizeBytes: z.number().int().positive().safe(),
+    durationSeconds: z.number().finite().positive(),
+    width: z.number().int().positive().safe(),
+    height: z.number().int().positive().safe(),
+    frameRate: VideoEnhancementFrameRate,
+  })
+  .strict();
+
+const VideoEnhancementRequestCommon = {
+  requestId: z.string().uuid(),
+  parentJobId: z.string().min(1).max(256),
+  source: VideoEnhancementSource,
+  requestedAt: z.string().datetime({ offset: true }),
+  timeoutMs: z.number().int().min(60_000).max(86_400_000),
+} as const;
+
+export const VideoEnhancementRequest = z.discriminatedUnion("mode", [
+  z
+    .object({
+      ...VideoEnhancementRequestCommon,
+      mode: z.literal("upscale"),
+      upscalePreset: z.enum([
+        "animation-upscale-2x",
+        "animation-upscale-4x",
+        "general-upscale-4x",
+      ]),
+    })
+    .strict(),
+  z
+    .object({
+      ...VideoEnhancementRequestCommon,
+      mode: z.literal("interpolate"),
+      interpolationPreset: z.literal("smooth-2x"),
+    })
+    .strict(),
+  z
+    .object({
+      ...VideoEnhancementRequestCommon,
+      mode: z.literal("upscale_interpolate"),
+      upscalePreset: z.enum([
+        "animation-upscale-2x",
+        "animation-upscale-4x",
+        "general-upscale-4x",
+      ]),
+      interpolationPreset: z.literal("smooth-2x"),
+    })
+    .strict(),
+]);
+export type VideoEnhancementRequestT = z.infer<typeof VideoEnhancementRequest>;
+
+export const GenerationEnhancementMetadata = z
+  .object({
+    request: VideoEnhancementRequest,
+    sourceOutputId: z.string().min(1),
+    backendId: z.string().min(1),
+  })
+  .strict();
+export type GenerationEnhancementMetadataT = z.infer<
+  typeof GenerationEnhancementMetadata
+>;
+
+const VideoEnhancementPresetAvailability = z
+  .object({
+    state: z.enum(["available", "unavailable", "unverified"]),
+    reason: z.string().nullable(),
+  })
+  .strict();
+
+const VideoEnhancementCapabilityReason = z.enum([
+  "missing_configuration",
+  "invalid_path",
+  "unsupported_platform",
+  "unsupported_architecture",
+  "process_host_unavailable",
+  "cpu_probe_failed",
+  "missing_avx2",
+  "incompatible_version",
+  "incompatible_grammar",
+  "probe_timeout",
+  "probe_failed",
+  "no_vulkan_device",
+  "model_unavailable",
+  "internal_error",
+]);
+
+const VideoEnhancementCapabilityBase = {
+  backend: z
+    .object({
+      id: z.string().min(1),
+      compatibilityId: z.string().min(1),
+      version: z.string().min(1),
+      executableSha256: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
+      provenance: z.literal("user-supplied-unverified"),
+      configurationSource: z.enum(["environment", "setting"]).nullable(),
+    })
+    .strict(),
+  platform: z
+    .object({
+      os: z.enum(["win32", "linux", "darwin", "other"]),
+      architecture: z.enum(["x64", "arm64", "other"]),
+      avx2: z.enum(["available", "unavailable", "unknown"]),
+    })
+    .strict(),
+  devices: z.array(
+    z
+      .object({
+        id: z.number().int().nonnegative().safe(),
+        type: z.enum(["discrete_gpu", "integrated_gpu"]),
+        name: z.string().min(1),
+        selected: z.boolean(),
+      })
+      .strict(),
+  ),
+  presets: z
+    .object({
+      "animation-upscale-2x": VideoEnhancementPresetAvailability,
+      "animation-upscale-4x": VideoEnhancementPresetAvailability,
+      "general-upscale-4x": VideoEnhancementPresetAvailability,
+      "smooth-2x": VideoEnhancementPresetAvailability,
+    })
+    .strict(),
+  probedAt: z.string().datetime({ offset: true }),
+  diagnostic: z.string().nullable(),
+} as const;
+
+export const VideoEnhancementCapability = z.discriminatedUnion("status", [
+  z
+    .object({
+      ...VideoEnhancementCapabilityBase,
+      status: z.literal("ready"),
+      reason: z.null(),
+    })
+    .strict(),
+  z
+    .object({
+      ...VideoEnhancementCapabilityBase,
+      status: z.literal("unavailable"),
+      reason: VideoEnhancementCapabilityReason,
+    })
+    .strict(),
+  z
+    .object({
+      ...VideoEnhancementCapabilityBase,
+      status: z.literal("unsupported"),
+      reason: VideoEnhancementCapabilityReason,
+    })
+    .strict(),
+]);
+
+export const VideoEnhancementProgress = z
+  .object({
+    requestId: z.string().min(1),
+    childJobId: z.string().min(1).max(256),
+    stage: z.enum([
+      "preflight",
+      "upscale",
+      "interpolate",
+      "validate",
+      "provenance",
+      "publish",
+    ]),
+    stageIndex: z.number().int().positive().safe(),
+    stageCount: z.number().int().positive().safe(),
+    processedFrames: z.number().int().nonnegative().safe().optional(),
+    totalFrames: z.number().int().positive().safe().optional(),
+    percent: z.number().finite().min(0).max(100).optional(),
+    processingFps: z.number().finite().nonnegative().optional(),
+    elapsedMs: z.number().finite().nonnegative().optional(),
+    remainingMs: z.number().finite().nonnegative().optional(),
+    message: z.string(),
+  })
+  .strict();
+
+export const VideoEnhancementRuntimeError = z
+  .object({
+    code: z.enum([
+      "invalid_request",
+      "backend_unavailable",
+      "unsupported_platform",
+      "incompatible_backend",
+      "model_unavailable",
+      "source_changed",
+      "source_invalid",
+      "output_conflict",
+      "process_timeout",
+      "process_failed",
+      "cancelled",
+      "output_invalid",
+      "provenance_failed",
+      "publish_failed",
+      "internal_error",
+      "ineligible_source",
+      "id_conflict",
+      "invalid_state",
+      "not_found",
+      "interrupted",
+    ]),
+    message: z.string().min(1),
+    retryable: z.boolean(),
+    stage: VideoEnhancementProgress.shape.stage,
+    diagnostics: z.string().nullable(),
+    terminationConfirmed: z.boolean().nullable(),
+  })
+  .strict();
+
+export const VideoEnhancementOutput = z
+  .object({
+    outputId: z.string().min(1).max(256),
+    path: z.string().min(1),
+    contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sizeBytes: z.number().int().positive().safe(),
+    durationSeconds: z.number().finite().positive(),
+    width: z.number().int().positive().safe(),
+    height: z.number().int().positive().safe(),
+    frameRate: VideoEnhancementFrameRate,
+    provenanceRecordId: z.string().min(1).max(256),
+    preProvenanceContainerSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    publishedContainerSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    workflow: z.record(z.unknown()),
+    durableProvenance: z.record(z.unknown()),
+  })
+  .strict();
+
+export const VideoEnhancementJob = z
+  .object({
+    childJobId: z.string().min(1).max(256),
+    parentJobId: z.string().min(1).max(256),
+    sourceOutputId: z.string().min(1).max(256),
+    backendId: z.literal("video2x"),
+    state: z.enum([
+      "queued",
+      "running",
+      "interrupted",
+      "succeeded",
+      "failed",
+      "cancelled",
+      "timed_out",
+    ]),
+    priority: z.enum(["interactive", "batch"]),
+    estimatedVramGB: z.number().finite().positive(),
+    request: VideoEnhancementRequest,
+    idempotencyKey: z.string().nullable(),
+    attempt: z.number().int().positive().safe(),
+    retryOfChildJobId: z.string().min(1).max(256).nullable(),
+    cancelRequested: z.boolean(),
+    progress: VideoEnhancementProgress.nullable(),
+    error: VideoEnhancementRuntimeError.nullable(),
+    output: VideoEnhancementOutput.nullable(),
+    createdAt: z.string().datetime({ offset: true }),
+    startedAt: z.string().datetime({ offset: true }).nullable(),
+    finishedAt: z.string().datetime({ offset: true }).nullable(),
+  })
+  .strict();
+
+const VideoEnhancementEnqueueCommon = {
+  parentJobId: z.string().min(1).max(256),
+  sourceOutputId: z.string().min(1).max(256),
+  timeoutMs: z.number().int().min(60_000).max(86_400_000).optional(),
+  priority: z.enum(["interactive", "batch"]).optional(),
+  idempotencyKey: z.string().min(1).max(256).optional(),
+  retryOfChildJobId: z.string().min(1).max(256).optional(),
+} as const;
+
+export const VideoEnhancementEnqueueRequest = z.discriminatedUnion("mode", [
+  z
+    .object({
+      ...VideoEnhancementEnqueueCommon,
+      mode: z.literal("upscale"),
+      upscalePreset: z.enum([
+        "animation-upscale-2x",
+        "animation-upscale-4x",
+        "general-upscale-4x",
+      ]),
+    })
+    .strict(),
+  z
+    .object({
+      ...VideoEnhancementEnqueueCommon,
+      mode: z.literal("interpolate"),
+      interpolationPreset: z.literal("smooth-2x"),
+    })
+    .strict(),
+  z
+    .object({
+      ...VideoEnhancementEnqueueCommon,
+      mode: z.literal("upscale_interpolate"),
+      upscalePreset: z.enum([
+        "animation-upscale-2x",
+        "animation-upscale-4x",
+        "general-upscale-4x",
+      ]),
+      interpolationPreset: z.literal("smooth-2x"),
+    })
+    .strict(),
+]);
+
+export const VideoEnhancementEnqueueResponse = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      created: z.boolean(),
+      job: VideoEnhancementJob,
+    })
+    .strict(),
+  z
+    .object({ ok: z.literal(false), error: VideoEnhancementRuntimeError })
+    .strict(),
+]);
+
+export const VideoEnhancementCapabilityRequest = z.object({}).strict();
+export const VideoEnhancementCapabilityResponse = z
+  .object({ capability: VideoEnhancementCapability })
+  .strict();
+export const VideoEnhancementListRequest = z
+  .object({ parentJobId: z.string().min(1).max(256) })
+  .strict();
+export const VideoEnhancementListResponse = z
+  .object({ jobs: z.array(VideoEnhancementJob) })
+  .strict();
+export const VideoEnhancementCancelRequest = z
+  .object({ childJobId: z.string().min(1).max(256) })
+  .strict();
+export const VideoEnhancementCancelResponse = z
+  .object({ job: VideoEnhancementJob.nullable() })
+  .strict();
+
+export type VideoEnhancementJobT = z.infer<typeof VideoEnhancementJob>;
+export type VideoEnhancementCapabilityT = z.infer<
+  typeof VideoEnhancementCapability
+>;
+
 export const GenerationBatchSpec = z.union([
-  z.object({ kind: z.literal("seed-range"), start: z.number(), end: z.number() }).strict(),
+  z
+    .object({
+      kind: z.literal("seed-range"),
+      start: z.number(),
+      end: z.number(),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal("prompt-matrix"),
@@ -1196,6 +1629,8 @@ export const GenerationJobDto = z
     pillar: GenerationPillar,
     jobType: z.string(),
     parameters: z.record(z.string(), z.unknown()),
+    parentId: z.string().nullable(),
+    enhancement: GenerationEnhancementMetadata.nullable(),
     state: GenerationJobState,
     priority: GenerationJobPriority,
     sortOrder: z.number(),
@@ -1207,7 +1642,9 @@ export const GenerationJobDto = z
 export const GenerationQueueListRequest = z
   .object({ states: z.array(GenerationJobState).optional() })
   .strict();
-export const GenerationQueueListResponse = z.object({ jobs: z.array(GenerationJobDto) }).strict();
+export const GenerationQueueListResponse = z
+  .object({ jobs: z.array(GenerationJobDto) })
+  .strict();
 
 export const GenerationQueueEnqueueRequest = z
   .object({
@@ -1224,7 +1661,9 @@ export const GenerationQueueEnqueueResponse = z
   .object({ jobs: z.array(GenerationJobDto) })
   .strict();
 
-export const GenerationQueueCancelRequest = z.object({ id: z.string().min(1) }).strict();
+export const GenerationQueueCancelRequest = z
+  .object({ id: z.string().min(1) })
+  .strict();
 export const GenerationQueueCancelResponse = z
   .object({ job: GenerationJobDto.nullable() })
   .strict();
@@ -1232,7 +1671,9 @@ export const GenerationQueueCancelResponse = z
 export const GenerationQueueReorderRequest = z
   .object({ ids: z.array(z.string().min(1)).min(1) })
   .strict();
-export const GenerationQueueReorderResponse = z.object({ ok: z.literal(true) }).strict();
+export const GenerationQueueReorderResponse = z
+  .object({ ok: z.literal(true) })
+  .strict();
 
 export const GenerationQueuePendingCountRequest = z.object({}).strict();
 export const GenerationQueuePendingCountResponse = z
@@ -1257,7 +1698,9 @@ export const GenerationSchedulerActiveJob = z
     startedAt: z.number(),
   })
   .strict();
-export type GenerationSchedulerActiveJobT = z.infer<typeof GenerationSchedulerActiveJob>;
+export type GenerationSchedulerActiveJobT = z.infer<
+  typeof GenerationSchedulerActiveJob
+>;
 export const GenerationSchedulerQueuedJob = z
   .object({
     id: z.string().min(1),
@@ -1282,7 +1725,12 @@ export type GenerationSchedulerSnapshotResponseT = z.infer<
 
 // ---- v2.1.0 Phase 5 -- local fine-tuning pillar -----------------------------
 
-export const TuningProvisionStatus = z.enum(["pending", "ready", "failed", "unsupported"]);
+export const TuningProvisionStatus = z.enum([
+  "pending",
+  "ready",
+  "failed",
+  "unsupported",
+]);
 export const TuningJobState = z.enum([
   "queued",
   "running",
@@ -1389,9 +1837,13 @@ export const TuningJobStartResponse = z.object({ job: TuningJobDto }).strict();
 export const TuningJobListRequest = z
   .object({ states: z.array(TuningJobState).optional() })
   .strict();
-export const TuningJobListResponse = z.object({ jobs: z.array(TuningJobDto) }).strict();
+export const TuningJobListResponse = z
+  .object({ jobs: z.array(TuningJobDto) })
+  .strict();
 
-export const TuningJobCancelRequest = z.object({ id: z.string().min(1) }).strict();
+export const TuningJobCancelRequest = z
+  .object({ id: z.string().min(1) })
+  .strict();
 export const TuningJobCancelResponse = z
   .object({ job: TuningJobDto.nullable() })
   .strict();
@@ -1459,7 +1911,9 @@ export const MediaSampleVideoFramesRequest = z
     maxFrames: z.number().int().min(1).max(24).optional(),
   })
   .strict();
-export type MediaSampleVideoFramesRequestT = z.infer<typeof MediaSampleVideoFramesRequest>;
+export type MediaSampleVideoFramesRequestT = z.infer<
+  typeof MediaSampleVideoFramesRequest
+>;
 
 export const MediaSampleVideoFramesResponse = z
   .object({
@@ -1467,12 +1921,20 @@ export const MediaSampleVideoFramesResponse = z
     notice: z.string().optional(),
   })
   .strict();
-export type MediaSampleVideoFramesResponseT = z.infer<typeof MediaSampleVideoFramesResponse>;
+export type MediaSampleVideoFramesResponseT = z.infer<
+  typeof MediaSampleVideoFramesResponse
+>;
 
 export const CodingParseDocumentStatusRequest = z.object({}).strict();
-export const CodingParseDocumentStatusResponse = z.object({ enabled: z.boolean() }).strict();
-export const CodingParseDocumentSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
-export const CodingParseDocumentSetEnabledResponse = z.object({ enabled: z.boolean() }).strict();
+export const CodingParseDocumentStatusResponse = z
+  .object({ enabled: z.boolean() })
+  .strict();
+export const CodingParseDocumentSetEnabledRequest = z
+  .object({ enabled: z.boolean() })
+  .strict();
+export const CodingParseDocumentSetEnabledResponse = z
+  .object({ enabled: z.boolean() })
+  .strict();
 
 // ---- v1.1.0 Phase 11 -- VS Code extension surface ---------------------------
 
@@ -1584,7 +2046,9 @@ export const ModelsRegistryListResponse = z
     selection: SelectionSnapshotSchema.nullable().optional(),
   })
   .strict();
-export type ModelsRegistryListResponseT = z.infer<typeof ModelsRegistryListResponse>;
+export type ModelsRegistryListResponseT = z.infer<
+  typeof ModelsRegistryListResponse
+>;
 
 export const ModelsRemoveRequest = z.object({ id: z.string().min(1) }).strict();
 export type ModelsRemoveRequestT = z.infer<typeof ModelsRemoveRequest>;
@@ -1597,10 +2061,14 @@ export const ModelsDiskUsageResponse = z
   .strict();
 export type ModelsDiskUsageResponseT = z.infer<typeof ModelsDiskUsageResponse>;
 
-export const ModelsInstallRequest = z.object({ id: z.string().min(1) }).strict();
+export const ModelsInstallRequest = z
+  .object({ id: z.string().min(1) })
+  .strict();
 export type ModelsInstallRequestT = z.infer<typeof ModelsInstallRequest>;
 
-export const ModelsInstallAccepted = z.object({ jobId: z.string().min(1) }).strict();
+export const ModelsInstallAccepted = z
+  .object({ jobId: z.string().min(1) })
+  .strict();
 export type ModelsInstallAcceptedT = z.infer<typeof ModelsInstallAccepted>;
 
 export const ModelsInstallEvent = z
@@ -1614,16 +2082,26 @@ export const ModelsInstallEvent = z
   .strict();
 export type ModelsInstallEventT = z.infer<typeof ModelsInstallEvent>;
 
-export const ModelsInstallDrainRequest = z.object({ jobId: z.string().min(1) }).strict();
-export type ModelsInstallDrainRequestT = z.infer<typeof ModelsInstallDrainRequest>;
+export const ModelsInstallDrainRequest = z
+  .object({ jobId: z.string().min(1) })
+  .strict();
+export type ModelsInstallDrainRequestT = z.infer<
+  typeof ModelsInstallDrainRequest
+>;
 
 export const ModelsInstallDrainResponse = z
   .object({ events: z.array(ModelsInstallEvent), done: z.boolean() })
   .strict();
-export type ModelsInstallDrainResponseT = z.infer<typeof ModelsInstallDrainResponse>;
+export type ModelsInstallDrainResponseT = z.infer<
+  typeof ModelsInstallDrainResponse
+>;
 
-export const ModelsInstallCancelRequest = z.object({ jobId: z.string().min(1) }).strict();
-export type ModelsInstallCancelRequestT = z.infer<typeof ModelsInstallCancelRequest>;
+export const ModelsInstallCancelRequest = z
+  .object({ jobId: z.string().min(1) })
+  .strict();
+export type ModelsInstallCancelRequestT = z.infer<
+  typeof ModelsInstallCancelRequest
+>;
 
 // v1.16.0 Phase 1 (adoption item A1) -- local serving gateway. `serving.status`
 // reports whether the loopback OpenAI/Anthropic API is enabled and listening,
@@ -1646,8 +2124,12 @@ export const ServingStatusResponse = z
   .strict();
 export type ServingStatusResponseT = z.infer<typeof ServingStatusResponse>;
 
-export const ServingSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
-export type ServingSetEnabledRequestT = z.infer<typeof ServingSetEnabledRequest>;
+export const ServingSetEnabledRequest = z
+  .object({ enabled: z.boolean() })
+  .strict();
+export type ServingSetEnabledRequestT = z.infer<
+  typeof ServingSetEnabledRequest
+>;
 
 // v1.18.0 Phase 5 (OI-A3) -- ACP agent on the shared loopback listener.
 export const AcpEmptyRequest = z.object({}).strict();
@@ -1678,7 +2160,11 @@ export type AcpSetEnabledRequestT = z.infer<typeof AcpSetEnabledRequest>;
 export const MetricsEmptyRequest = z.object({}).strict();
 export type MetricsEmptyRequestT = z.infer<typeof MetricsEmptyRequest>;
 
-export const TokenSourceSchema = z.enum(["reported", "estimated", "unavailable"]);
+export const TokenSourceSchema = z.enum([
+  "reported",
+  "estimated",
+  "unavailable",
+]);
 
 export const InferenceMetricEntry = z
   .object({
@@ -1716,7 +2202,9 @@ export const MetricsInferenceResponse = z
     recent: z.array(InferenceMetricEntry),
   })
   .strict();
-export type MetricsInferenceResponseT = z.infer<typeof MetricsInferenceResponse>;
+export type MetricsInferenceResponseT = z.infer<
+  typeof MetricsInferenceResponse
+>;
 
 // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing. A parse is a
 // long-running job: accept (-> jobId) -> drain (progress + terminal result) ->
@@ -1836,7 +2324,9 @@ export const OcrParseResult = z
   .strict();
 export type OcrParseResultT = z.infer<typeof OcrParseResult>;
 
-export const OcrJobDrainRequest = z.object({ jobId: z.string().min(1) }).strict();
+export const OcrJobDrainRequest = z
+  .object({ jobId: z.string().min(1) })
+  .strict();
 export type OcrJobDrainRequestT = z.infer<typeof OcrJobDrainRequest>;
 
 export const OcrJobDrainResponse = z
@@ -1848,7 +2338,9 @@ export const OcrJobDrainResponse = z
   .strict();
 export type OcrJobDrainResponseT = z.infer<typeof OcrJobDrainResponse>;
 
-export const OcrJobCancelRequest = z.object({ jobId: z.string().min(1) }).strict();
+export const OcrJobCancelRequest = z
+  .object({ jobId: z.string().min(1) })
+  .strict();
 export type OcrJobCancelRequestT = z.infer<typeof OcrJobCancelRequest>;
 
 export const OcrOkResponse = z.object({ ok: z.literal(true) }).strict();
@@ -1950,7 +2442,9 @@ export const McpRegistrySetToolDeniedRequest = z
     denied: z.boolean(),
   })
   .strict();
-export type McpRegistrySetToolDeniedRequestT = z.infer<typeof McpRegistrySetToolDeniedRequest>;
+export type McpRegistrySetToolDeniedRequestT = z.infer<
+  typeof McpRegistrySetToolDeniedRequest
+>;
 
 export const McpRegistrySetToolDeniedResponse = z
   .object({
@@ -1959,9 +2453,16 @@ export const McpRegistrySetToolDeniedResponse = z
     servers: z.array(McpRegistryServer),
   })
   .strict();
-export type McpRegistrySetToolDeniedResponseT = z.infer<typeof McpRegistrySetToolDeniedResponse>;
+export type McpRegistrySetToolDeniedResponseT = z.infer<
+  typeof McpRegistrySetToolDeniedResponse
+>;
 
-export const AskInboxState = z.enum(["pending", "approved", "denied", "expired"]);
+export const AskInboxState = z.enum([
+  "pending",
+  "approved",
+  "denied",
+  "expired",
+]);
 export const AskInboxRunMode = z.enum(["headless", "scheduled"]);
 
 export const ParkedAskDto = z
@@ -2028,7 +2529,9 @@ export const AskInboxPendingCountResponse = z
     pending: z.number().int().nonnegative(),
   })
   .strict();
-export type AskInboxPendingCountResponseT = z.infer<typeof AskInboxPendingCountResponse>;
+export type AskInboxPendingCountResponseT = z.infer<
+  typeof AskInboxPendingCountResponse
+>;
 
 export const AskSchedulerListRequest = z.object({}).strict();
 export const ScheduledRunDto = z
@@ -2050,7 +2553,9 @@ export const AskSchedulerListResponse = z
     schedules: z.array(ScheduledRunDto),
   })
   .strict();
-export type AskSchedulerListResponseT = z.infer<typeof AskSchedulerListResponse>;
+export type AskSchedulerListResponseT = z.infer<
+  typeof AskSchedulerListResponse
+>;
 
 export const AskSchedulerSetEnabledRequest = z
   .object({
@@ -2065,9 +2570,7 @@ export const AskSchedulerSetEnabledResponse = z
   })
   .strict();
 
-export const SettingsGetRequest = z
-  .object({ key: z.string().min(1) })
-  .strict();
+export const SettingsGetRequest = z.object({ key: z.string().min(1) }).strict();
 export type SettingsGetRequestT = z.infer<typeof SettingsGetRequest>;
 
 export const SettingsGetResponse = z
@@ -2096,7 +2599,9 @@ export const CredentialsStatusRequest = z.object({}).strict();
 export const CredentialsStatusResponse = z
   .object({ available: z.boolean() })
   .strict();
-export type CredentialsStatusResponseT = z.infer<typeof CredentialsStatusResponse>;
+export type CredentialsStatusResponseT = z.infer<
+  typeof CredentialsStatusResponse
+>;
 
 export const CredentialsListRequest = z
   .object({ integration: z.string().min(1) })
@@ -2113,7 +2618,9 @@ export const CredentialsSetRequest = z
     value: z.string().min(1),
   })
   .strict();
-export const CredentialsSetResponse = z.object({ ok: z.literal(true) }).strict();
+export const CredentialsSetResponse = z
+  .object({ ok: z.literal(true) })
+  .strict();
 export type CredentialsSetResponseT = z.infer<typeof CredentialsSetResponse>;
 
 export const CredentialsDeleteRequest = z
@@ -2122,10 +2629,14 @@ export const CredentialsDeleteRequest = z
 export const CredentialsDeleteResponse = z
   .object({ removed: z.boolean() })
   .strict();
-export type CredentialsDeleteResponseT = z.infer<typeof CredentialsDeleteResponse>;
+export type CredentialsDeleteResponseT = z.infer<
+  typeof CredentialsDeleteResponse
+>;
 
 // v1.10.0 Phase 6 -- Nexus-Hub catalog sync + update detection.
-export const SkillsSyncRequest = z.object({ tag: z.string().optional() }).strict();
+export const SkillsSyncRequest = z
+  .object({ tag: z.string().optional() })
+  .strict();
 export const SkillsSyncResponse = z
   .object({
     tag: z.string(),
@@ -2152,7 +2663,9 @@ export const SkillsUpstreamLatestRequest = z.object({}).strict();
 export const SkillsUpstreamLatestResponse = z
   .object({ latestTag: z.string().nullable() })
   .strict();
-export type SkillsUpstreamLatestResponseT = z.infer<typeof SkillsUpstreamLatestResponse>;
+export type SkillsUpstreamLatestResponseT = z.infer<
+  typeof SkillsUpstreamLatestResponse
+>;
 
 // v1.12.0 Phase 2 (adoption-ecosystem-2026-07 EM.P2.A) -- the two-call skill
 // optimizer preview/apply flow. `preview` runs the optimizer with a capturing
@@ -2182,7 +2695,9 @@ export const SkillsOptimizePreviewResponse = z
     ),
   })
   .strict();
-export type SkillsOptimizePreviewResponseT = z.infer<typeof SkillsOptimizePreviewResponse>;
+export type SkillsOptimizePreviewResponseT = z.infer<
+  typeof SkillsOptimizePreviewResponse
+>;
 
 export const SkillsOptimizeApplyRequest = z
   .object({ token: z.string().min(1), proposalId: z.string().min(1) })
@@ -2190,7 +2705,9 @@ export const SkillsOptimizeApplyRequest = z
 export const SkillsOptimizeApplyResponse = z
   .object({ applied: z.boolean(), skillId: z.string(), skillPath: z.string() })
   .strict();
-export type SkillsOptimizeApplyResponseT = z.infer<typeof SkillsOptimizeApplyResponse>;
+export type SkillsOptimizeApplyResponseT = z.infer<
+  typeof SkillsOptimizeApplyResponse
+>;
 
 const NotImplementedAny = z.unknown();
 
@@ -2292,7 +2809,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: AudioSpeakResponse,
     implemented: true,
   },
-  "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "coding.startTask": {
+    request: NotImplementedAny,
+    response: NotImplementedAny,
+    implemented: false,
+  },
   "coding.session.start": {
     request: CodingSessionStartRequest,
     response: CodingSessionStartResponse,
@@ -2369,7 +2890,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: EpisodicMemorySearchResponse,
     implemented: true,
   },
-  "coding.chat.autocomplete": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "coding.chat.autocomplete": {
+    request: NotImplementedAny,
+    response: NotImplementedAny,
+    implemented: false,
+  },
   "mcp.list": {
     request: McpListRequest,
     response: McpListResponse,
@@ -2420,8 +2945,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: AskSchedulerSetEnabledResponse,
     implemented: true,
   },
-  "settings.get": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "settings.set": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "settings.get": {
+    request: NotImplementedAny,
+    response: NotImplementedAny,
+    implemented: false,
+  },
+  "settings.set": {
+    request: NotImplementedAny,
+    response: NotImplementedAny,
+    implemented: false,
+  },
   "credentials.status": {
     request: CredentialsStatusRequest,
     response: CredentialsStatusResponse,
@@ -2442,10 +2975,26 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: CredentialsDeleteResponse,
     implemented: true,
   },
-  "image.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "video.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "skills.sync": { request: SkillsSyncRequest, response: SkillsSyncResponse, implemented: true },
-  "skills.status": { request: SkillsStatusRequest, response: SkillsStatusResponse, implemented: true },
+  "image.generate": {
+    request: NotImplementedAny,
+    response: NotImplementedAny,
+    implemented: false,
+  },
+  "video.generate": {
+    request: NotImplementedAny,
+    response: NotImplementedAny,
+    implemented: false,
+  },
+  "skills.sync": {
+    request: SkillsSyncRequest,
+    response: SkillsSyncResponse,
+    implemented: true,
+  },
+  "skills.status": {
+    request: SkillsStatusRequest,
+    response: SkillsStatusResponse,
+    implemented: true,
+  },
   "skills.upstreamLatest": {
     request: SkillsUpstreamLatestRequest,
     response: SkillsUpstreamLatestResponse,
@@ -2461,40 +3010,176 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: SkillsOptimizeApplyResponse,
     implemented: true,
   },
-  "telemetry.subscribe": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "gpu.sample": { request: GpuSampleRequest, response: GpuSampleResponse, implemented: true },
-  "skills.list": { request: SkillsListRequest, response: SkillsListResponse, implemented: true },
-  "skills.autoSync.get": { request: SkillsAutoSyncGetRequest, response: SkillsAutoSyncGetResponse, implemented: true },
-  "skills.autoSync.set": { request: SkillsAutoSyncSetRequest, response: SkillsAutoSyncSetResponse, implemented: true },
-  "commands.list": { request: CommandsListRequest, response: CommandsListResponse, implemented: true },
-  "chat.explorer.tree": { request: ChatExplorerTreeRequest, response: ChatExplorerTreeResponse, implemented: true },
-  "chat.explorer.createFolder": { request: ChatExplorerCreateFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
-  "chat.explorer.renameFolder": { request: ChatExplorerRenameFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
-  "chat.explorer.moveFolder": { request: ChatExplorerMoveFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
-  "chat.explorer.deleteFolder": { request: ChatExplorerIdRequest, response: ChatExplorerOkResponse, implemented: true },
-  "chat.explorer.createChat": { request: ChatExplorerCreateChatRequest, response: ChatExplorerChatResponse, implemented: true },
-  "chat.explorer.renameChat": { request: ChatExplorerRenameChatRequest, response: ChatExplorerChatResponse, implemented: true },
-  "chat.explorer.moveChat": { request: ChatExplorerMoveChatRequest, response: ChatExplorerChatResponse, implemented: true },
-  "chat.explorer.deleteChat": { request: ChatExplorerIdRequest, response: ChatExplorerOkResponse, implemented: true },
-  "chat.explorer.setPersona": { request: ChatExplorerSetPersonaRequest, response: ChatExplorerOkResponse, implemented: true },
-  "chat.explorer.appendMessage": { request: ChatExplorerAppendMessageRequest, response: ChatMessageDto, implemented: true },
-  "chat.explorer.listMessages": { request: ChatExplorerListMessagesRequest, response: ChatExplorerListMessagesResponse, implemented: true },
-  "chat.explorer.search": { request: ChatExplorerSearchRequest, response: ChatExplorerSearchResponse, implemented: true },
-  "chat.generateTitle": { request: ChatGenerateTitleRequest, response: ChatGenerateTitleResponse, implemented: true },
-  "studio.session.tree": { request: StudioSessionTreeRequest, response: StudioSessionTreeResponse, implemented: true },
-  "studio.session.createFolder": { request: StudioSessionCreateFolderRequest, response: StudioSessionFolderResponse, implemented: true },
-  "studio.session.renameFolder": { request: StudioSessionRenameFolderRequest, response: StudioSessionFolderResponse, implemented: true },
-  "studio.session.moveFolder": { request: StudioSessionMoveFolderRequest, response: StudioSessionFolderResponse, implemented: true },
-  "studio.session.deleteFolder": { request: StudioSessionIdRequest, response: StudioSessionOkResponse, implemented: true },
-  "studio.session.createSession": { request: StudioSessionCreateSessionRequest, response: StudioSessionSessionResponse, implemented: true },
-  "studio.session.renameSession": { request: StudioSessionRenameSessionRequest, response: StudioSessionSessionResponse, implemented: true },
-  "studio.session.moveSession": { request: StudioSessionMoveSessionRequest, response: StudioSessionSessionResponse, implemented: true },
-  "studio.session.deleteSession": { request: StudioSessionIdRequest, response: StudioSessionOkResponse, implemented: true },
-  "studio.session.appendTurn": { request: StudioSessionAppendTurnRequest, response: StudioSessionTurnResponse, implemented: true },
-  "studio.session.listTurns": { request: StudioSessionListTurnsRequest, response: StudioSessionListTurnsResponse, implemented: true },
-  "data.categories": { request: DataCategoriesRequest, response: DataCategoriesResponse, implemented: true },
-  "data.export": { request: DataExportRequest, response: DataExportResponse, implemented: true },
-  "data.import": { request: DataImportRequest, response: DataImportResponse, implemented: true },
+  "telemetry.subscribe": {
+    request: NotImplementedAny,
+    response: NotImplementedAny,
+    implemented: false,
+  },
+  "gpu.sample": {
+    request: GpuSampleRequest,
+    response: GpuSampleResponse,
+    implemented: true,
+  },
+  "skills.list": {
+    request: SkillsListRequest,
+    response: SkillsListResponse,
+    implemented: true,
+  },
+  "skills.autoSync.get": {
+    request: SkillsAutoSyncGetRequest,
+    response: SkillsAutoSyncGetResponse,
+    implemented: true,
+  },
+  "skills.autoSync.set": {
+    request: SkillsAutoSyncSetRequest,
+    response: SkillsAutoSyncSetResponse,
+    implemented: true,
+  },
+  "commands.list": {
+    request: CommandsListRequest,
+    response: CommandsListResponse,
+    implemented: true,
+  },
+  "chat.explorer.tree": {
+    request: ChatExplorerTreeRequest,
+    response: ChatExplorerTreeResponse,
+    implemented: true,
+  },
+  "chat.explorer.createFolder": {
+    request: ChatExplorerCreateFolderRequest,
+    response: ChatExplorerFolderResponse,
+    implemented: true,
+  },
+  "chat.explorer.renameFolder": {
+    request: ChatExplorerRenameFolderRequest,
+    response: ChatExplorerFolderResponse,
+    implemented: true,
+  },
+  "chat.explorer.moveFolder": {
+    request: ChatExplorerMoveFolderRequest,
+    response: ChatExplorerFolderResponse,
+    implemented: true,
+  },
+  "chat.explorer.deleteFolder": {
+    request: ChatExplorerIdRequest,
+    response: ChatExplorerOkResponse,
+    implemented: true,
+  },
+  "chat.explorer.createChat": {
+    request: ChatExplorerCreateChatRequest,
+    response: ChatExplorerChatResponse,
+    implemented: true,
+  },
+  "chat.explorer.renameChat": {
+    request: ChatExplorerRenameChatRequest,
+    response: ChatExplorerChatResponse,
+    implemented: true,
+  },
+  "chat.explorer.moveChat": {
+    request: ChatExplorerMoveChatRequest,
+    response: ChatExplorerChatResponse,
+    implemented: true,
+  },
+  "chat.explorer.deleteChat": {
+    request: ChatExplorerIdRequest,
+    response: ChatExplorerOkResponse,
+    implemented: true,
+  },
+  "chat.explorer.setPersona": {
+    request: ChatExplorerSetPersonaRequest,
+    response: ChatExplorerOkResponse,
+    implemented: true,
+  },
+  "chat.explorer.appendMessage": {
+    request: ChatExplorerAppendMessageRequest,
+    response: ChatMessageDto,
+    implemented: true,
+  },
+  "chat.explorer.listMessages": {
+    request: ChatExplorerListMessagesRequest,
+    response: ChatExplorerListMessagesResponse,
+    implemented: true,
+  },
+  "chat.explorer.search": {
+    request: ChatExplorerSearchRequest,
+    response: ChatExplorerSearchResponse,
+    implemented: true,
+  },
+  "chat.generateTitle": {
+    request: ChatGenerateTitleRequest,
+    response: ChatGenerateTitleResponse,
+    implemented: true,
+  },
+  "studio.session.tree": {
+    request: StudioSessionTreeRequest,
+    response: StudioSessionTreeResponse,
+    implemented: true,
+  },
+  "studio.session.createFolder": {
+    request: StudioSessionCreateFolderRequest,
+    response: StudioSessionFolderResponse,
+    implemented: true,
+  },
+  "studio.session.renameFolder": {
+    request: StudioSessionRenameFolderRequest,
+    response: StudioSessionFolderResponse,
+    implemented: true,
+  },
+  "studio.session.moveFolder": {
+    request: StudioSessionMoveFolderRequest,
+    response: StudioSessionFolderResponse,
+    implemented: true,
+  },
+  "studio.session.deleteFolder": {
+    request: StudioSessionIdRequest,
+    response: StudioSessionOkResponse,
+    implemented: true,
+  },
+  "studio.session.createSession": {
+    request: StudioSessionCreateSessionRequest,
+    response: StudioSessionSessionResponse,
+    implemented: true,
+  },
+  "studio.session.renameSession": {
+    request: StudioSessionRenameSessionRequest,
+    response: StudioSessionSessionResponse,
+    implemented: true,
+  },
+  "studio.session.moveSession": {
+    request: StudioSessionMoveSessionRequest,
+    response: StudioSessionSessionResponse,
+    implemented: true,
+  },
+  "studio.session.deleteSession": {
+    request: StudioSessionIdRequest,
+    response: StudioSessionOkResponse,
+    implemented: true,
+  },
+  "studio.session.appendTurn": {
+    request: StudioSessionAppendTurnRequest,
+    response: StudioSessionTurnResponse,
+    implemented: true,
+  },
+  "studio.session.listTurns": {
+    request: StudioSessionListTurnsRequest,
+    response: StudioSessionListTurnsResponse,
+    implemented: true,
+  },
+  "data.categories": {
+    request: DataCategoriesRequest,
+    response: DataCategoriesResponse,
+    implemented: true,
+  },
+  "data.export": {
+    request: DataExportRequest,
+    response: DataExportResponse,
+    implemented: true,
+  },
+  "data.import": {
+    request: DataImportRequest,
+    response: DataImportResponse,
+    implemented: true,
+  },
   "diffusion.health": {
     request: DiffusionEmptyRequest,
     response: DiffusionHealthResponse,
@@ -2585,6 +3270,26 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: GenerationQueuePendingCountResponse,
     implemented: true,
   },
+  "video.enhancement.capability": {
+    request: VideoEnhancementCapabilityRequest,
+    response: VideoEnhancementCapabilityResponse,
+    implemented: true,
+  },
+  "video.enhancement.enqueue": {
+    request: VideoEnhancementEnqueueRequest,
+    response: VideoEnhancementEnqueueResponse,
+    implemented: true,
+  },
+  "video.enhancement.list": {
+    request: VideoEnhancementListRequest,
+    response: VideoEnhancementListResponse,
+    implemented: true,
+  },
+  "video.enhancement.cancel": {
+    request: VideoEnhancementCancelRequest,
+    response: VideoEnhancementCancelResponse,
+    implemented: true,
+  },
   "generation.scheduler.snapshot": {
     request: GenerationSchedulerSnapshotRequest,
     response: GenerationSchedulerSnapshotResponse,
@@ -2662,12 +3367,17 @@ export const NOT_IMPLEMENTED_CODE = -32601;
 export class NotImplementedError extends Error {
   readonly code = NOT_IMPLEMENTED_CODE;
   constructor(method: Method) {
-    super(`NotImplemented: ${method} is declared in the IPC contract but not yet wired.`);
+    super(
+      `NotImplemented: ${method} is declared in the IPC contract but not yet wired.`,
+    );
   }
 }
 
 export class IpcMethodError extends Error {
-  constructor(public readonly method: Method, message: string) {
+  constructor(
+    public readonly method: Method,
+    message: string,
+  ) {
     super(`${method}: ${message}`);
   }
 }

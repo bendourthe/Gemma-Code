@@ -57,3 +57,20 @@ export {
   type VideoEnhancementVulkanDevice,
   type VideoSourceIdentity,
 } from "./VideoEnhancement.js";
+
+export {
+  NEXUS_VIDEO_WORKFLOW_KEY,
+  createVideoEnhancementDurableProvenance,
+  createVideoEnhancementEmbeddedProvenance,
+  serializeVideoWorkflowMetadata,
+  type FfmpegContext,
+  type VideoEnhancementDurableProvenance,
+  type VideoEnhancementEmbeddedProvenance,
+  type VideoEnhancementOutputProvenance,
+  type VideoEnhancementPresetRouting,
+  type VideoEnhancementPreservationState,
+  type VideoEnhancementSourceProvenance,
+  type VideoEnhancementValidationProvenance,
+  type VideoMode,
+  type VideoWorkflowMetadata,
+} from "./WorkflowMetadata.js";
