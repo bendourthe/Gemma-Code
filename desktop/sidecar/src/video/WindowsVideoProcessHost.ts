@@ -788,7 +788,12 @@ async function validateControlDirectoryIdentity(
 
 async function cleanupHost(identity: ControlDirectoryIdentity): Promise<void> {
   await validateControlDirectoryIdentity(identity);
-  await rm(identity.directory, { recursive: true, force: true });
+  await rm(identity.directory, {
+    recursive: true,
+    force: true,
+    maxRetries: 20,
+    retryDelay: 100,
+  });
 }
 
 function emptyCancelledResult(stderr = ""): GuardedProcessResult {
