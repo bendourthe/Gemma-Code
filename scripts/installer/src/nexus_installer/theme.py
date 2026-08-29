@@ -322,6 +322,13 @@ QProgressBar::chunk {{
     );
     border-radius: 4px;
 }}
+QProgressBar#overallProgress {{
+    background-color: transparent;
+    min-height: 20px;
+    max-height: 20px;
+    border: none;
+    color: {TEXT_PRIMARY};
+}}
 
 /* -- Tabs (typed model catalog) ---------------------------------------- */
 QTabWidget::pane {{

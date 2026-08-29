@@ -38,9 +38,7 @@ STATUS_CANCELLED = "cancelled"
 STATUS_INTERRUPTED = "interrupted"
 
 #: Statuses where the engine reached an end state (no live work in flight).
-TERMINAL_STATUSES = frozenset(
-    {STATUS_COMPLETED, STATUS_FAILED, STATUS_CANCELLED}
-)
+TERMINAL_STATUSES = frozenset({STATUS_COMPLETED, STATUS_FAILED, STATUS_CANCELLED})
 
 # -- per-step status ---------------------------------------------------------
 STEP_PENDING = "pending"
@@ -100,7 +98,9 @@ class InstallState:
     models: dict[str, ModelState] = field(default_factory=dict)
     failed_steps: list[str] = field(default_factory=list)
     failed_models: list[str] = field(default_factory=list)
-    step_failures: list[dict[str, str]] = field(default_factory=list)
+    optional_failed_steps: list[str] = field(default_factory=list)
+    step_failures: list[dict[str, Any]] = field(default_factory=list)
+    step_results: list[dict[str, Any]] = field(default_factory=list)
     #: Snapshot of the InstallerState result flags the Complete page reads back
     #: when a background-completed install is reopened in a fresh process.
     results: dict[str, Any] = field(default_factory=dict)
@@ -117,9 +117,7 @@ class InstallState:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> InstallState:
         models_raw = data.get("models", {}) or {}
-        models = {
-            str(mid): ModelState.from_dict(ms) for mid, ms in models_raw.items()
-        }
+        models = {str(mid): ModelState.from_dict(ms) for mid, ms in models_raw.items()}
         return cls(
             schema=str(data.get("schema", SCHEMA)),
             status=str(data.get("status", STATUS_RUNNING)),
@@ -130,7 +128,9 @@ class InstallState:
             models=models,
             failed_steps=list(data.get("failed_steps", [])),
             failed_models=list(data.get("failed_models", [])),
+            optional_failed_steps=list(data.get("optional_failed_steps", [])),
             step_failures=list(data.get("step_failures", [])),
+            step_results=list(data.get("step_results", [])),
             results=dict(data.get("results", {})),
             log_path=str(data.get("log_path", "")),
             error_message=str(data.get("error_message", "")),
@@ -214,11 +214,11 @@ def _roll_if_needed(target: Path) -> None:
     try:
         if target.stat().st_size <= _MAX_LOG_BYTES:
             return
-        data = target.read_bytes()[-(_MAX_LOG_BYTES // 2):]
+        data = target.read_bytes()[-(_MAX_LOG_BYTES // 2) :]
         # Start at the first full line so we never keep a truncated head line.
         newline = data.find(b"\n")
         if newline != -1:
-            data = data[newline + 1:]
+            data = data[newline + 1 :]
         target.write_bytes(data)
     except OSError:
         pass

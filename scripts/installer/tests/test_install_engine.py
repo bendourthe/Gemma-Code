@@ -435,6 +435,40 @@ class TestInstallEngineUnsloth:
             assert MockUnsloth.call_args.kwargs.get("opt_in") is True
             MockUnsloth.return_value.install.assert_called_once()
 
+    def test_unsloth_exception_is_optional_warning(self) -> None:
+        state = InstallerState(
+            components_to_install=["extension"],
+            vscode_path="/usr/bin/code",
+            install_unsloth=True,
+            gpu_vendor="nvidia",
+            vram_mb=16384,
+        )
+        finished: list[tuple[bool, str]] = []
+        failed: list[str] = []
+        with (
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch(
+                "nexus_installer.engine.unsloth_venv_provisioner.UnslothVenvProvisioner"
+            ) as MockUnsloth,
+        ):
+            MockExt.return_value.install.return_value = True
+            MockUnsloth.return_value.install.side_effect = FileNotFoundError(
+                "core/tuning/unsloth-pins.json"
+            )
+            engine = InstallEngine()
+            engine.step_failed.connect(failed.append)
+            engine.install_finished.connect(lambda ok, msg: finished.append((ok, msg)))
+            engine.run(state)
+
+        assert finished and finished[0][0] is True
+        assert "optional components" in finished[0][1]
+        assert failed == ["unsloth"]
+        assert "unsloth" in state.optional_failed_steps
+        assert "unsloth" not in state.failed_steps
+        result = next(f for f in state.step_results if f["step"] == "unsloth")
+        assert result["required"] is False
+        assert result["retryable"] is True
+
 
 class TestRuntimeWiringStep:
     """v2.2.0 Phase 1 (1.3): the runtime step always runs and routes failure."""
@@ -480,12 +514,11 @@ class TestInstallThreadCrashContainment:
             time.sleep(0.01)
         qt_app.processEvents()
 
-    def test_thread_runtimeerror_emits_finished_without_sys_exit(
+    def test_required_step_runtimeerror_is_contained_without_sys_exit(
         self, qt_app: object, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         import sys
 
-        from nexus_installer.engine.crash import is_engine_exception
         from nexus_installer.engine.installer import _InstallThread
 
         exits: list[object] = []
@@ -512,11 +545,11 @@ class TestInstallThreadCrashContainment:
         assert finished, "install_finished must fire after a worker exception"
         ok, message = finished[0]
         assert ok is False
-        assert is_engine_exception(message)
-        assert "RuntimeError" in message
+        assert message == "Installation completed with failures: model"
         assert self._TOKEN not in message
-        assert "engine" in state.failed_steps
-        assert any("Engine exception" in line for line in state.install_log)
+        assert "model" in state.failed_steps
+        assert "engine" not in state.failed_steps
+        assert any("RuntimeError" in line for line in state.install_log)
 
     def test_keyboard_interrupt_is_reraised_after_signal(self, qt_app: object) -> None:
         from nexus_installer.engine.installer import _InstallThread

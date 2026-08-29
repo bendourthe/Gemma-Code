@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
+from typing import Any
 
 # v1.1.0 Phase 14.5 -- the 10 GB OS reserve floor used by the disk-aware
 # selection guard. Configurable via the `--disk-reserve-gb` CLI flag.
@@ -46,6 +47,7 @@ class InstallerState:
     enable_memory: bool = True
     install_log: list[str] = field(default_factory=list)
     failed_steps: list[str] = field(default_factory=list)
+    optional_failed_steps: list[str] = field(default_factory=list)
 
     # v1.11.0 Phase 3 (T303) -- structured, user-facing failure surfaces.
     # A skipped step is a clear outcome, not an error (e.g. the VS Code
@@ -54,7 +56,8 @@ class InstallerState:
     # (P5) renders these next to the View/Copy/Save log actions, and the
     # headless smoke result includes them verbatim.
     skipped_steps: list[str] = field(default_factory=list)
-    step_failures: list[dict[str, str]] = field(default_factory=list)
+    step_failures: list[dict[str, Any]] = field(default_factory=list)
+    step_results: list[dict[str, Any]] = field(default_factory=list)
 
     # v1.11.0 Phase 7 (T704) -- resume support. Steps a resumed run treats as
     # already satisfied: the engine marks them done up front and does not
@@ -112,14 +115,48 @@ class InstallerState:
     desktop_exe_path: str = ""
     launch_desktop_on_finish: bool = True
 
-    def record_step_failure(self, step: str, summary: str, suggestion: str) -> None:
+    def record_step_failure(
+        self,
+        step: str,
+        summary: str,
+        suggestion: str,
+        *,
+        required: bool = True,
+        error_code: str = "STEP_FAILED",
+        retryable: bool = False,
+    ) -> None:
         """Record a plain-language failure for `step` (T303).
 
         `summary` is one user-facing sentence stating what happened;
         `suggestion` is the next action a non-technical user can take.
         """
         self.step_failures.append(
-            {"step": step, "summary": summary, "suggestion": suggestion}
+            {
+                "step": step,
+                "summary": summary,
+                "suggestion": suggestion,
+            }
+        )
+
+    def record_step_result(
+        self,
+        step: str,
+        status: str,
+        *,
+        required: bool,
+        error_code: str = "",
+        retryable: bool = False,
+    ) -> None:
+        """Replace the terminal outcome for one step with typed metadata."""
+        self.step_results = [r for r in self.step_results if r.get("step") != step]
+        self.step_results.append(
+            {
+                "step": step,
+                "status": status,
+                "required": required,
+                "error_code": error_code,
+                "retryable": retryable,
+            }
         )
 
     def record_skipped_step(self, step: str) -> None:

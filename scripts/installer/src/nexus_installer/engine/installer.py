@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from PyQt5.QtCore import Q_ARG, QMetaObject, QObject, Qt, QThread, pyqtSignal, pyqtSlot
@@ -10,6 +11,10 @@ from nexus_installer.engine.crash import format_engine_exception
 from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
 from nexus_installer.engine.extension_installer import ExtensionInstaller
 from nexus_installer.engine.hub_catalog_provisioner import HubCatalogProvisioner
+from nexus_installer.engine.install_progress import (
+    WeightedInstallProgress,
+    planned_steps,
+)
 from nexus_installer.engine.model_router import ModelStepEvents, ModelStepRouter
 from nexus_installer.engine.ollama_installer import OllamaInstaller
 from nexus_installer.engine.runtime_provisioner import RuntimeProvisioner
@@ -134,9 +139,14 @@ class InstallEngine(QObject):
     def run(self, state: InstallerState) -> None:
         """Execute all installation steps in sequence. Call from a QThread."""
         self._active_state = state
-        steps_done = 0
         steps_failed: list[str] = []
-        total_steps = len(state.components_to_install)
+        optional_failed: list[str] = []
+        progress = WeightedInstallProgress(
+            planned_steps(
+                state.components_to_install,
+                include_unsloth=state.install_unsloth,
+            )
+        )
         # v1.11.0 Phase 7 (T704): a resumed run treats these steps as already
         # satisfied -- they are marked done up front and never re-executed.
         completed = set(state.completed_steps)
@@ -145,17 +155,105 @@ class InstallEngine(QObject):
             state.install_log.append(f"[{level.upper()}] {msg}")
             self.log_message.emit(msg, level)
 
-        def advance(step_name: str, success: bool) -> None:
-            nonlocal steps_done
-            steps_done += 1
+        def emit_progress(step_name: str, fraction: float) -> None:
+            self.progress_update.emit(progress.update(step_name, fraction))
+
+        def record_failure(
+            step_name: str,
+            *,
+            required: bool,
+            summary: str,
+            suggestion: str,
+            error_code: str,
+            retryable: bool,
+        ) -> None:
+            target = steps_failed if required else optional_failed
+            if step_name not in target:
+                target.append(step_name)
+            state_target = (
+                state.failed_steps if required else state.optional_failed_steps
+            )
+            if step_name not in state_target:
+                state_target.append(step_name)
+            if not any(f.get("step") == step_name for f in state.step_failures):
+                state.record_step_failure(
+                    step_name,
+                    summary,
+                    suggestion,
+                    required=required,
+                    error_code=error_code,
+                    retryable=retryable,
+                )
+            state.record_step_result(
+                step_name,
+                "failed",
+                required=required,
+                error_code=error_code,
+                retryable=retryable,
+            )
+            self.step_failed.emit(step_name)
+            emit_progress(step_name, 1.0)
+
+        def finish_step(
+            step_name: str,
+            success: bool,
+            *,
+            required: bool,
+            summary: str,
+            suggestion: str,
+            error_code: str = "STEP_FAILED",
+            retryable: bool = False,
+        ) -> None:
             if success:
+                state.record_step_result(step_name, "completed", required=required)
                 self.step_completed.emit(step_name)
             else:
-                steps_failed.append(step_name)
-                state.failed_steps.append(step_name)
-                self.step_failed.emit(step_name)
-            base = steps_done / max(total_steps, 1)
-            self.progress_update.emit(min(base, 1.0))
+                record_failure(
+                    step_name,
+                    required=required,
+                    summary=summary,
+                    suggestion=suggestion,
+                    error_code=error_code,
+                    retryable=retryable,
+                )
+                return
+            emit_progress(step_name, 1.0)
+
+        def execute_step(
+            step_name: str,
+            action: Callable[[], bool],
+            *,
+            required: bool,
+            summary: str,
+            suggestion: str,
+            retryable: bool = False,
+        ) -> bool:
+            try:
+                success = bool(action())
+            except Exception as exc:  # noqa: BLE001 - step boundary containment
+                reason = format_engine_exception(exc, secret=state.hf_token or "")
+                log(f"{step_name} failed unexpectedly: {reason}", "error")
+                finish_step(
+                    step_name,
+                    False,
+                    required=required,
+                    summary=summary,
+                    suggestion=suggestion,
+                    error_code=(
+                        f"UNEXPECTED_{step_name.upper().replace('-', '_')}_ERROR"
+                    ),
+                    retryable=retryable,
+                )
+                return False
+            finish_step(
+                step_name,
+                success,
+                required=required,
+                summary=summary,
+                suggestion=suggestion,
+                retryable=retryable,
+            )
+            return success
 
         # Resume (T704): fold every already-satisfied step to "done" before the
         # real work, so the reopened Installing view shows them complete and the
@@ -164,7 +262,13 @@ class InstallEngine(QObject):
             if step in completed:
                 self.step_started.emit(step)
                 log(f"{step}: already installed; skipping (resume).", "info")
-                advance(step, True)
+                finish_step(
+                    step,
+                    True,
+                    required=True,
+                    summary="",
+                    suggestion="",
+                )
 
         def pending(step: str) -> bool:
             return step in state.components_to_install and step not in completed
@@ -173,22 +277,42 @@ class InstallEngine(QObject):
         if pending("ollama"):
             self.step_started.emit("ollama")
             log("--- Installing Ollama ---", "info")
-            ok = OllamaInstaller().install(state, log)
-            advance("ollama", ok)
+            execute_step(
+                "ollama",
+                lambda: OllamaInstaller().install(state, log),
+                required=True,
+                summary="Ollama did not install successfully.",
+                suggestion="Check the installation log, then retry the Ollama step.",
+                retryable=True,
+            )
 
         # 2. VS Code extension
         if pending("extension"):
             self.step_started.emit("extension")
             log("--- Installing VS Code Extension ---", "info")
-            ok = ExtensionInstaller().install(state, log)
-            advance("extension", ok)
+            execute_step(
+                "extension",
+                lambda: ExtensionInstaller().install(state, log),
+                required=True,
+                summary="The VS Code extension did not install successfully.",
+                suggestion=(
+                    "Verify VS Code is available, then retry the extension step."
+                ),
+                retryable=True,
+            )
 
         # 3. Python venv
         if pending("venv"):
             self.step_started.emit("venv")
             log("--- Creating Python Environment ---", "info")
-            ok = VenvInstaller().install(state, log)
-            advance("venv", ok)
+            execute_step(
+                "venv",
+                lambda: VenvInstaller().install(state, log),
+                required=True,
+                summary="The Python environment could not be created.",
+                suggestion="Check Python and disk access, then retry installation.",
+                retryable=True,
+            )
 
         # 4. Model downloads (longest step, has its own progress).
         # v1.8.0 Phase 3: routed by catalog protocol (ollama pull vs
@@ -197,12 +321,10 @@ class InstallEngine(QObject):
             self.step_started.emit("model")
             log("--- Downloading Models ---", "info")
             self._model_router = ModelStepRouter()
-            model_base = steps_done / max(total_steps, 1)
 
             def on_model_progress(pct: float) -> None:
-                # Scale this step's own progress into its band of the total.
                 self.step_progress.emit("model", pct)
-                self.progress_update.emit(model_base + pct / max(total_steps, 1))
+                emit_progress("model", pct)
 
             events = ModelStepEvents(
                 started=self.marshal_model_started,
@@ -210,22 +332,37 @@ class InstallEngine(QObject):
                 completed=self.marshal_model_completed,
                 failed=self.marshal_model_failed,
             )
-            ok = self._model_router.install(state, log, on_model_progress, events)
-            advance("model", ok)
+            execute_step(
+                "model",
+                lambda: self._model_router.install(
+                    state, log, on_model_progress, events
+                ),
+                required=True,
+                summary="One or more selected models did not install.",
+                suggestion="Review model details and retry the failed downloads.",
+                retryable=True,
+            )
 
         # 5. Nexus desktop app (v1.8.0 Phase 2; has its own download progress)
         if pending("desktop"):
             self.step_started.emit("desktop")
             log("--- Installing Nexus Desktop ---", "info")
             self._desktop_provisioner = DesktopProvisioner()
-            desktop_base = steps_done / max(total_steps, 1)
 
             def on_desktop_progress(pct: float) -> None:
                 self.step_progress.emit("desktop", pct)
-                self.progress_update.emit(desktop_base + pct / max(total_steps, 1))
+                emit_progress("desktop", pct)
 
-            ok = self._desktop_provisioner.install(state, log, on_desktop_progress)
-            advance("desktop", ok)
+            execute_step(
+                "desktop",
+                lambda: self._desktop_provisioner.install(
+                    state, log, on_desktop_progress
+                ),
+                required=True,
+                summary="Nexus Desktop did not install or pass its health check.",
+                suggestion="Review the desktop log and retry the desktop step.",
+                retryable=True,
+            )
 
         # 6. Runtime wiring (v2.2.0 Phase 1, 1.3) -- always runs after the
         # component steps: guarantees a per-user Node runtime (the shell never
@@ -242,15 +379,16 @@ class InstallEngine(QObject):
             if getattr(_sys, "frozen", False)
             else None
         )
-        runtime_ok = RuntimeProvisioner(
-            _payload_root if _payload_root and _payload_root.is_dir() else None
-        ).install(state, log)
-        if runtime_ok:
-            self.step_completed.emit("runtime")
-        else:
-            steps_failed.append("runtime")
-            state.failed_steps.append("runtime")
-            self.step_failed.emit("runtime")
+        execute_step(
+            "runtime",
+            lambda: RuntimeProvisioner(
+                _payload_root if _payload_root and _payload_root.is_dir() else None
+            ).install(state, log),
+            required=True,
+            summary="The desktop runtime could not be prepared.",
+            suggestion="Retry installation with network and disk access.",
+            retryable=True,
+        )
 
         # 7. Nexus-Hub harness (v2.2.0 Phase 3, 3.1) -- offline-first: extract
         # the bundled snapshot when the catalog is absent, then refresh from
@@ -260,16 +398,20 @@ class InstallEngine(QObject):
         # no harness until the user syncs.
         self.step_started.emit("hub-catalog")
         log("--- Installing the Nexus-Hub Harness ---", "info")
-        hub_ok = HubCatalogProvisioner().install(state, log)
-        if hub_ok:
-            self.step_completed.emit("hub-catalog")
-        else:
+        hub_ok = execute_step(
+            "hub-catalog",
+            lambda: HubCatalogProvisioner().install(state, log),
+            required=False,
+            summary="The optional Nexus-Hub catalog is not installed yet.",
+            suggestion="Open Settings > Skills later to retry the sync.",
+            retryable=True,
+        )
+        if not hub_ok:
             log(
                 "The Nexus-Hub harness is not installed yet; Settings > Skills "
                 "can sync it later.",
                 "warn",
             )
-            self.step_failed.emit("hub-catalog")
 
         # v2.1 DF-15 -- opt-in Unsloth Core. Off the default chain; checkbox
         # on Configuration sets state.install_unsloth. LGPL zoo is copied
@@ -301,13 +443,14 @@ class InstallEngine(QObject):
                 free_disk_gb=int(state.free_disk_gb or 0),
                 target_install_path=state.install_path,
             )
-            ok = UnslothVenvProvisioner(opt_in=True).install(profile, log)
-            if ok:
-                self.step_completed.emit("unsloth")
-            else:
-                steps_failed.append("unsloth")
-                state.failed_steps.append("unsloth")
-                self.step_failed.emit("unsloth")
+            execute_step(
+                "unsloth",
+                lambda: UnslothVenvProvisioner(opt_in=True).install(profile, log),
+                required=False,
+                summary="The optional Unsloth Core environment is not ready.",
+                suggestion="Retry Fine-tuning provisioning from Settings later.",
+                retryable=True,
+            )
 
         # Final report
         if steps_failed:
@@ -315,9 +458,17 @@ class InstallEngine(QObject):
             log(msg, "warn")
             self.install_finished.emit(False, msg)
         else:
-            log("All components installed successfully.", "success")
+            warning = ""
+            if optional_failed:
+                warning = (
+                    "Core installation completed; optional components need attention: "
+                    + ", ".join(optional_failed)
+                )
+                log(warning, "warn")
+            else:
+                log("All components installed successfully.", "success")
             self.progress_update.emit(1.0)
-            self.install_finished.emit(True, "")
+            self.install_finished.emit(True, warning)
 
     def cancel(self) -> None:
         """Request cancellation of the current operation."""

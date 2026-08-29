@@ -224,6 +224,11 @@ class CompletePage(QWidget):
         non_model_failures = [
             s for s in state.failed_steps if s not in ("model", "engine")
         ]
+        optional_failures = [
+            failure
+            for failure in state.step_failures
+            if failure.get("step") in state.optional_failed_steps
+        ]
 
         callout_lines = [
             f"\u2022 {outcome.display_name}: {outcome.reason}"
@@ -247,10 +252,15 @@ class CompletePage(QWidget):
         callout_lines += [
             f"\u2022 The {step} step did not complete." for step in non_model_failures
         ]
+        callout_lines += [
+            f"\u2022 {failure.get('summary', 'An optional component is not ready.')}"
+            for failure in optional_failures
+        ]
 
         has_failure = bool(
             summary.failed
             or non_model_failures
+            or optional_failures
             or engine_failure
             or "engine" in state.failed_steps
         )

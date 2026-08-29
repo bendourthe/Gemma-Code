@@ -18,7 +18,6 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QLabel,
     QMessageBox,
-    QProgressBar,
     QVBoxLayout,
     QWidget,
 )
@@ -37,6 +36,7 @@ from nexus_installer.engine.model_router import (
     resolve_selected_models,
 )
 from nexus_installer.widgets.gated_auth_dialog import run_gated_prompt
+from nexus_installer.widgets.overall_progress import OverallProgressBar
 from nexus_installer.widgets.phase_group import PhaseGroup
 
 if TYPE_CHECKING:
@@ -100,10 +100,7 @@ class InstallingPage(QWidget):
         )
         layout.addWidget(overall_label)
 
-        self._progress = QProgressBar()
-        self._progress.setMinimum(0)
-        self._progress.setMaximum(0)  # Indeterminate
-        self._progress.setTextVisible(False)
+        self._progress = OverallProgressBar()
         layout.addWidget(self._progress)
 
         # Per-phase groups
@@ -159,7 +156,7 @@ class InstallingPage(QWidget):
         self._has_started = True
         self._is_running = True
         self._title.setText("Installing...")
-        self._progress.setMaximum(0)  # Indeterminate
+        self._progress.reset_for_run()
         self._log_lines = []
         # v1.14.0 Phase 2: resolve auth for any gated model BEFORE the engine
         # reads the selection, so a declined one leaves the queue (never fails
@@ -316,16 +313,17 @@ class InstallingPage(QWidget):
             target.append_log(message, level)
 
     def _on_progress(self, value: float) -> None:
-        if self._progress.maximum() == 0:
-            self._progress.setMaximum(1000)
-        self._progress.setValue(int(value * 1000))
+        self._progress.set_fraction(value)
 
     def _on_finished(self, success: bool, error_message: str) -> None:
         self._is_running = False
-        self._progress.setMaximum(1000)
-        self._progress.setValue(1000)
+        self._progress.complete()
 
-        if success:
+        if success and error_message:
+            self._title.setText("Installation Complete with Warnings")
+            if error_message:
+                self._log_lines.append(error_message)
+        elif success:
             self._title.setText("Installation Complete")
         elif is_engine_exception(error_message):
             self._title.setText("Installation Stopped")
@@ -370,6 +368,7 @@ class InstallingPage(QWidget):
         if self._engine:
             self._engine.cancel()
         self._is_running = False
+        self._progress.cancel()
         self._title.setText("Installation Cancelled")
         # Release the shell lock so navigation is usable again (T602).
         self.finished.emit(False)

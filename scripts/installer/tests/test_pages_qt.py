@@ -451,6 +451,21 @@ class TestCompletePage:
         assert "unexpected error" in page._subtitle.text()
         assert not page._warning_callout.isHidden()
 
+    def test_optional_failure_is_warning_not_stopped(self, qt_app: object) -> None:
+        page = self._refreshed_page(
+            optional_failed_steps=["unsloth"],
+            step_failures=[
+                {
+                    "step": "unsloth",
+                    "summary": "The optional Unsloth environment is not ready.",
+                    "suggestion": "Retry from Settings.",
+                }
+            ],
+        )
+        assert page._title.text() == "Installation Completed with Warnings"
+        assert "unexpected error" not in page._subtitle.text()
+        assert not page._warning_callout.isHidden()
+
 
 class TestInstallingGatedAuthWiring:
     """v1.14.0 Phase 2 -- the installing page resolves gated auth before the

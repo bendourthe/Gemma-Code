@@ -25,6 +25,39 @@ def test_pins_match_core_json() -> None:
     assert argv_is_forbidden(["uv", "pip", "install", "unsloth[studio]"], pins)
 
 
+def test_frozen_pins_resolve_from_bundle(tmp_path: Path, monkeypatch: object) -> None:
+    import json
+    import sys
+
+    from nexus_installer.engine import unsloth_venv_provisioner as module
+
+    target = tmp_path / "core" / "tuning" / "unsloth-pins.json"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        json.dumps(
+            {
+                "provisioned": [
+                    {"name": "unsloth", "version": "1", "license": "Apache-2.0"}
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+    assert module.load_pins()["provisioned"][0]["name"] == "unsloth"
+
+
+def test_missing_pins_has_actionable_error(tmp_path: Path, monkeypatch: object) -> None:
+    import pytest
+
+    from nexus_installer.engine import unsloth_venv_provisioner as module
+
+    monkeypatch.setattr(module, "tuning_file", lambda _name: tmp_path / "missing")
+    with pytest.raises(ValueError, match="missing from the installer"):
+        module.load_pins()
+
+
 def test_hardware_gate() -> None:
     nvidia = HostProfile(os_family="windows", gpu_vendor="nvidia", total_vram_gb=16)
     assert training_supported(nvidia)[0] is True
@@ -37,7 +70,13 @@ def test_hardware_gate() -> None:
 def test_opt_in_off_is_success(tmp_path: Path) -> None:
     p = UnslothVenvProvisioner(root=tmp_path, opt_in=False)
     logs: list[str] = []
-    assert p.install(HostProfile(gpu_vendor="nvidia", total_vram_gb=24), lambda *_a: logs.append("x")) is True
+    assert (
+        p.install(
+            HostProfile(gpu_vendor="nvidia", total_vram_gb=24),
+            lambda *_a: logs.append("x"),
+        )
+        is True
+    )
     assert p.state()["status"] == "pending"
 
 
@@ -49,7 +88,10 @@ def test_install_records_pip_args_without_studio(tmp_path: Path) -> None:
         return SimpleNamespace(returncode=0, stdout="ok", stderr="")
 
     p = UnslothVenvProvisioner(root=tmp_path, opt_in=True, runner=runner)
-    ok = p.install(HostProfile(os_family="linux", gpu_vendor="nvidia", total_vram_gb=24), lambda *_a: None)
+    ok = p.install(
+        HostProfile(os_family="linux", gpu_vendor="nvidia", total_vram_gb=24),
+        lambda *_a: None,
+    )
     assert ok is True
     pip = next(a for a in seen if "unsloth==2026.8.18" in a)
     assert not argv_is_forbidden(pip)
@@ -61,7 +103,10 @@ def test_failed_install_is_resumable(tmp_path: Path) -> None:
         return SimpleNamespace(returncode=1, stdout="", stderr="network down")
 
     p = UnslothVenvProvisioner(root=tmp_path, opt_in=True, runner=runner)
-    ok = p.install(HostProfile(os_family="linux", gpu_vendor="nvidia", total_vram_gb=24), lambda *_a: None)
+    ok = p.install(
+        HostProfile(os_family="linux", gpu_vendor="nvidia", total_vram_gb=24),
+        lambda *_a: None,
+    )
     assert ok is False
     assert p.state()["status"] == "failed"
     assert "network" in p.state()["error"]
