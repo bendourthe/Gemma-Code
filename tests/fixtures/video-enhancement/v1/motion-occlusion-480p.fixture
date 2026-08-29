@@ -1,0 +1,13 @@
+NEXUS-VIDEO-ENHANCEMENT-FIXTURE-v1
+{
+  "id": "motion-occlusion-480p",
+  "contentClass": "motion-occlusion",
+  "width": 854,
+  "height": 480,
+  "frameRate": {
+    "numerator": 24,
+    "denominator": 1
+  },
+  "frameCount": 8,
+  "durationSeconds": 0.333333
+}

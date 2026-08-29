@@ -109,6 +109,13 @@ describe("sidecar handlers", () => {
           "generation.queue.reorder",
           "generation.queue.pendingCount",
           "generation.scheduler.snapshot",
+          // v2.3.0 Phases 3-5 wired optional video enhancement plus the Video2X path.
+          "video.enhancement.capability",
+          "video.enhancement.enqueue",
+          "video.enhancement.list",
+          "video.enhancement.cancel",
+          "video.video2xPath.get",
+          "video.video2xPath.set",
           // v2.1.0 Phase 5 wired the Unsloth Core fine-tuning pillar.
           "tuning.status",
           "tuning.provision",

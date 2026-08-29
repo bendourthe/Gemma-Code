@@ -4,6 +4,73 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-28] v2.3.0 Phase 6 - Architecture, known gaps, and last-phase local gate
+
+Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-6-architecture-gaps-ci.md), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/last-phase-evidence.md). Package remains **2.2.9**.
+
+### What Changed
+
+- Last-phase evidence quotes architecture, known-gaps, living docs, git-tree hygiene, CI comparison, Goal-vs-codebase review, human testing suggestions, and the full local suite.
+- The sidecar handler allowlist now treats `video.enhancement.*` and `video.video2xPath.*` as implemented so the aggregate desktop suite does not expect `NotImplementedError` from a live capability probe.
+- Known gaps gained DF-4 (missing `check_release_preconditions.py`), QG-1 (named CI profiles), and QG-2 (permissions, aggregate required check, develop pull_request trigger). No workflow file was changed.
+
+### Why It Changed
+
+Phase 6 of the v2.3.0 adoption plan. Phases 1-5 shipped the product path; the fail-closed last-phase gate still needed quoted evidence before any push.
+
+### Decisions Made
+
+- Human testing is suggestions plus DF-3, not an executed walkthrough.
+- Pipeline diffs were compared and not applied (silence is not approval).
+- Publication (T025) stays pending explicit approval. No Phase 6 work was pushed. `/update release` waits for a green merge into `develop`.
+
+---
+
+## [2026-08-28] v2.3.0 Phase 5 - Quality, performance, and packaging evidence
+
+Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-5-quality-performance-packaging.md), [gaps](v2/v2.3/known-gaps.md), [baseline](v2/v2.3/benchmarks/video-enhancement-baseline.md). Package remains **2.2.9**.
+
+### What Changed
+
+- Added `scripts/bench-video-enhancement.mjs` with versioned 480p/720p fixtures and a fake deterministic backend. Real-backend mode is explicit and records typed `missing_configuration` / `backend_unavailable` rather than fabricating zeros.
+- Shared setup, env, setting, and capability copy now live in `core/video/video-enhancement-support.json`. Settings > Video stores an absolute `video.video2xPath`. The installer notes the optional backend and never offers an install or download toggle.
+- Packaging tests prove installer, desktop, runtime, and docs agree, and that the tree contains no Video2X binary, AGPL source, automatic download URL, or Qwen3.8 catalog entry.
+
+### Why It Changed
+
+Phase 5 of the v2.3.0 adoption plan. Phase 4 shipped the Enhance UI; support claims and resource evidence were still unmeasured.
+
+### Decisions Made
+
+- Fake-backend geometry and source preservation are observed. Peak CPU/GPU/VRAM, real Video2X wall time, and packaged detection are DF-3 (not proven here).
+- Nexus-Hub security-audit remains DF-2. This phase did not edit the sibling repository.
+- Packaging tests live at `tests/unit/video/video-enhancement-packaging.test.ts` so root Vitest discovery includes them (plan path `tests/video-enhancement-packaging.test.ts` would not run).
+- No pipeline file changed. No Phase 5 work was pushed. Human testing remains reserved for Phase 6.
+
+---
+
+## [2026-08-28] v2.3.0 Phase 4 - Video Lab Enhance experience
+
+Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-4-video-lab-enhance-experience.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.2.9**.
+
+### What Changed
+
+- Video Lab now offers Enhance on completed identity-backed clips. The panel maps seven semantic selections to typed sidecar presets and never sends backend flags, processor names, or arbitrary fps/resolution fields.
+- Capability-backed disable copy, Recheck capability, page-level `video.enhancement.list` polling, distinct original/enhanced downloads, and GenerationQueueBar enhancement labels landed with focused desktop tests.
+- Copy states that enhancement synthesizes pixels and frames, can introduce artifacts, and never replaces the original. Enhanced outputs do not themselves offer Enhance.
+
+### Why It Changed
+
+Phase 4 of the v2.3.0 adoption plan. The queue and provenance path existed; the user-facing Enhance experience did not.
+
+### Decisions Made
+
+- Session hydrate still does not restore Enhance (DF-1): studio turns persist a media path, not output id and hash.
+- README product claims stay unchanged until Phase 5 packaging and hardware evidence exist.
+- No pipeline file changed. No Phase 4 work was pushed. Human testing remains reserved for Phase 6.
+
+---
+
 ## [2026-08-28] v2.2.9 - Field chrome, catalog identity, and honest generation (release preparation)
 
 Index: [plan](v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md), [history](v2/v2.2/development/history/), [gaps](v2/v2.2/known-gaps.md). Changelog is authoritative.

@@ -6,15 +6,19 @@
  * before insert. Unknown JSON fields are stored and returned as-is.
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-import BetterSqlite from "better-sqlite3";
 import type Database from "better-sqlite3";
 import { contentHash } from "./contentHash.js";
+import {
+  GenerationDatabase,
+  type CompletionOutboxRecord,
+  type EnhancementRunRecord,
+  type GenerationOutputRecord,
+  type GenerationPillar,
+  type PutGenerationOutputInput,
+} from "./GenerationDatabase.js";
 import { redactWorkflow } from "./redactWorkflow.js";
-import { resolveStudioDbPath } from "./paths.js";
 
-export type GenerationPillar = "image" | "video";
+export type { GenerationPillar } from "./GenerationDatabase.js";
 
 export interface IndexedGeneration {
   readonly contentHash: string;
@@ -25,45 +29,33 @@ export interface IndexedGeneration {
 
 export interface GenerationIndexOptions {
   readonly dbPath?: string;
+  readonly database?: GenerationDatabase;
+  readonly now?: () => Date;
 }
 
-const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS meta (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS generations (
-    content_hash TEXT PRIMARY KEY,
-    pillar TEXT NOT NULL,
-    workflow_json TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  )`,
-];
-
 export class GenerationIndex {
+  private readonly _database: GenerationDatabase;
   private readonly _db: Database.Database;
+  private readonly _ownsDatabase: boolean;
+  private readonly _now: () => Date;
   private _closed = false;
 
   constructor(opts: GenerationIndexOptions = {}) {
-    const dbPath = opts.dbPath ?? resolveStudioDbPath();
-    if (dbPath !== ":memory:") {
-      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    if (opts.database && opts.dbPath !== undefined) {
+      throw new Error("GenerationIndex accepts database or dbPath, not both");
     }
-    this._db = new BetterSqlite(dbPath);
-    this._db.pragma("journal_mode = WAL");
-    this._db.pragma("foreign_keys = ON");
-    for (const sql of SCHEMA) this._db.exec(sql);
-    this._db.prepare("INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', '1')").run();
+    this._now = opts.now ?? (() => new Date());
+    this._ownsDatabase = !opts.database;
+    this._database =
+      opts.database ??
+      new GenerationDatabase({ dbPath: opts.dbPath, now: this._now });
+    this._db = this._database.connection;
   }
 
   close(): void {
     if (this._closed) return;
     this._closed = true;
-    try {
-      this._db.close();
-    } catch {
-      /* best-effort */
-    }
+    if (this._ownsDatabase) this._database.close();
   }
 
   put(
@@ -73,7 +65,7 @@ export class GenerationIndex {
   ): IndexedGeneration {
     const hash = contentHash(bytes);
     const redacted = redactWorkflow(workflow);
-    const createdAt = new Date().toISOString();
+    const createdAt = this._now().toISOString();
     this._db
       .prepare(
         `INSERT INTO generations (content_hash, pillar, workflow_json, created_at)
@@ -92,7 +84,12 @@ export class GenerationIndex {
         "SELECT content_hash, pillar, workflow_json, created_at FROM generations WHERE content_hash = ?",
       )
       .get(hash) as
-      | { content_hash: string; pillar: GenerationPillar; workflow_json: string; created_at: string }
+      | {
+          content_hash: string;
+          pillar: GenerationPillar;
+          workflow_json: string;
+          created_at: string;
+        }
       | undefined;
     if (!row) return null;
     let workflow: Record<string, unknown> = {};
@@ -114,5 +111,37 @@ export class GenerationIndex {
 
   getByBytes(bytes: Buffer | Uint8Array | string): IndexedGeneration | null {
     return this.get(contentHash(bytes));
+  }
+
+  putOutput(input: PutGenerationOutputInput): GenerationOutputRecord {
+    return this._database.putGenerationOutput(input);
+  }
+
+  getOutput(id: string): GenerationOutputRecord | null {
+    return this._database.getGenerationOutput(id);
+  }
+
+  getOutputForJob(jobId: string): GenerationOutputRecord | null {
+    return this._database.getGenerationOutputForJob(jobId);
+  }
+
+  listOutputsByHash(hash: string): GenerationOutputRecord[] {
+    return this._database.listGenerationOutputsByHash(hash);
+  }
+
+  getEnhancementRun(childJobId: string): EnhancementRunRecord | null {
+    return this._database.getEnhancementRun(childJobId);
+  }
+
+  listEnhancementRunsForParent(parentJobId: string): EnhancementRunRecord[] {
+    return this._database.listEnhancementRunsForParent(parentJobId);
+  }
+
+  listPendingCompletions(limit?: number): CompletionOutboxRecord[] {
+    return this._database.listPendingCompletionOutbox(limit);
+  }
+
+  markCompletionDelivered(id: string, deliveredAt?: string): boolean {
+    return this._database.markCompletionOutboxDelivered(id, deliveredAt);
   }
 }

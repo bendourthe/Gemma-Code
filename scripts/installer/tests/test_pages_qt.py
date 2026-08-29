@@ -224,6 +224,15 @@ class TestConfigurationPage:
         page._desktop_toggle.setChecked(True)
         assert "desktop" in state.components_to_install
 
+    def test_video2x_note_is_not_an_install_toggle(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+        from nexus_installer.video_enhancement_support import INSTALLER_NOTE
+
+        page = ConfigurationPage(InstallerState())
+        assert page._video2x_note.text() == INSTALLER_NOTE
+        assert "never installed by this wizard" in page._video2x_note.text()
+
+
 
 class TestReviewPage:
     def test_creates_with_summary(self, qt_app: object) -> None:

@@ -61,10 +61,21 @@ describe("InMemoryVideoClient", () => {
     const client = new InMemoryVideoClient();
     client.scriptEvents("j1", [
       { kind: "progress", jobId: "j1", step: 1, totalSteps: 4 },
-      { kind: "complete", jobId: "j1", mp4Path: "/tmp/x.mp4" },
+      {
+        kind: "complete",
+        jobId: "j1",
+        outputPath: "/tmp/x.mp4",
+        outputId: "output-j1",
+        outputHash: "a".repeat(64),
+      },
     ]);
     const first = await client.drainEvents("j1");
     expect(first).toHaveLength(2);
+    expect(first[1]).toMatchObject({
+      outputPath: "/tmp/x.mp4",
+      outputId: "output-j1",
+      outputHash: "a".repeat(64),
+    });
     const second = await client.drainEvents("j1");
     expect(second).toHaveLength(0);
   });

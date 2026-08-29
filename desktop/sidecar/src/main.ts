@@ -18,7 +18,11 @@ import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
-import { createStudioRuntime } from "./generations/studioRuntime.js";
+import {
+  beginStudioRuntimeShutdown,
+  closeStudioRuntime,
+  createStudioRuntime,
+} from "./generations/studioRuntime.js";
 import { resolveStudioDbPath } from "../../../core/generations/paths.js";
 import { createServingRuntime } from "./serving/servingRuntime.js";
 import { createJsonCliRoute } from "./controlSurface/jsonCliRoutes.js";
@@ -31,7 +35,11 @@ import { applyRuntimeConfigEnv } from "./runtimeConfig.js";
 import { existsSync } from "node:fs";
 import { NexusHubSyncer } from "../../../core/skills/NexusHubSyncer.js";
 import { migrateLegacyCatalogCleanup } from "../../../core/skills/migrateLegacyCatalog.js";
-import { nexusHome, catalogRoot, hubLayoutDir } from "../../../core/storage/paths.js";
+import {
+  nexusHome,
+  catalogRoot,
+  hubLayoutDir,
+} from "../../../core/storage/paths.js";
 import { resolveHubLayout } from "../../../core/storage/hubVersionManifest.js";
 
 interface JsonRpcRequest {
@@ -95,10 +103,13 @@ const skillOptimizer = goldenTasksDir
       runner: createHeadlessOptimizePreviewRunner({
         llm: createHeadlessOllamaClient(),
         defaultModel: process.env.NEXUS_OPTIMIZER_MODEL ?? "gemma4:e4b",
-        snapshotRoot: process.env.NEXUS_GOLDEN_SNAPSHOT_DIR ?? join(goldenTasksDir, "..", "snapshots"),
+        snapshotRoot:
+          process.env.NEXUS_GOLDEN_SNAPSHOT_DIR ??
+          join(goldenTasksDir, "..", "snapshots"),
         tasksDir: goldenTasksDir,
         artifactsDir: join(nexusHome(), "skilloptimizer", "artifacts"),
-        resolveSkillPath: (id) => join(catalogRoot(), "skills", id.split("/").pop() ?? id, "SKILL.md"),
+        resolveSkillPath: (id) =>
+          join(catalogRoot(), "skills", id.split("/").pop() ?? id, "SKILL.md"),
       }),
     })
   : new SkillOptimizerManager();
@@ -106,7 +117,9 @@ const skillOptimizer = goldenTasksDir
 // eagerly so the same instance backs both the `serving.*` IPC and the startup
 // reconcile below. OpenAI `/v1` stays off until `nexus.serving.enabled` is
 // true; JSON CLI still binds the listener.
-const askInbox = new AskInbox({ filePath: join(nexusHome(), "ask-inbox.json") });
+const askInbox = new AskInbox({
+  filePath: join(nexusHome(), "ask-inbox.json"),
+});
 const serving = createServingRuntime({ askInbox });
 const scheduler = new AgentRunScheduler({
   inbox: askInbox,
@@ -128,13 +141,21 @@ const ctx = createHandlerContext(
 ctx.askInbox = askInbox;
 ctx.scheduler = scheduler;
 ctx.telemetry = telemetry;
-ctx.studio = createStudioRuntime({ dbPath: resolveStudioDbPath(), telemetry });
+const studio = createStudioRuntime({
+  dbPath: resolveStudioDbPath(),
+  telemetry,
+});
+ctx.studio = studio;
 ctx.audit = createAuditRuntime({ credentials: ctx.credentials, telemetry }).log;
+let rpcReader: ReturnType<typeof createInterface> | null = null;
+let acceptingRequests = true;
+let shutdownPromise: Promise<void> | null = null;
 serving.gateway.surface.mount(
   createJsonCliRoute({
     sessions,
-    studio: ctx.studio,
-    listModels: async () => SIDECAR_MODELS.map((m) => ({ id: m.id, displayName: m.displayName })),
+    studio,
+    listModels: async () =>
+      SIDECAR_MODELS.map((m) => ({ id: m.id, displayName: m.displayName })),
   }),
 );
 
@@ -147,13 +168,21 @@ async function handleLine(line: string): Promise<void> {
   try {
     req = JSON.parse(line) as JsonRpcRequest;
   } catch {
-    write({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "ParseError" } });
+    write({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700, message: "ParseError" },
+    });
     return;
   }
   const id = typeof req.id === "number" ? req.id : null;
   const method = req.method;
   if (typeof method !== "string") {
-    write({ jsonrpc: "2.0", id, error: { code: -32600, message: "InvalidRequest" } });
+    write({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32600, message: "InvalidRequest" },
+    });
     return;
   }
   try {
@@ -164,8 +193,10 @@ async function handleLine(line: string): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const code =
-      err instanceof Error && "code" in err && typeof (err as { code?: unknown }).code === "number"
-        ? ((err as { code: number }).code)
+      err instanceof Error &&
+      "code" in err &&
+      typeof (err as { code?: unknown }).code === "number"
+        ? (err as { code: number }).code
         : -32603;
     write({ jsonrpc: "2.0", id, error: { code, message } });
   }
@@ -192,7 +223,9 @@ async function firstLaunchCatalog(): Promise<void> {
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`[nexus-sidecar] Nexus-Hub catalog: not yet synced (${msg})\n`);
+    process.stderr.write(
+      `[nexus-sidecar] Nexus-Hub catalog: not yet synced (${msg})\n`,
+    );
   }
 }
 
@@ -201,17 +234,30 @@ async function firstLaunchCatalog(): Promise<void> {
  * a short timer because the Rust supervisor (`desktop/src-tauri/src/sidecar.rs`)
  * may hard-kill us anyway -- a hung close must never wedge shutdown.
  */
-async function shutdown(): Promise<void> {
-  scheduler.stop();
-  try {
-    await Promise.race([
-      serving.gateway.stop(),
-      new Promise<void>((resolve) => setTimeout(resolve, 2_000).unref()),
-    ]);
-  } catch {
-    // Best-effort: exit regardless.
-  }
-  process.exit(0);
+function shutdown(): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+  acceptingRequests = false;
+  const reader = rpcReader;
+  shutdownPromise = Promise.resolve().then(async () => {
+    reader?.removeAllListeners("line");
+    reader?.removeAllListeners("close");
+    reader?.close();
+    scheduler.stop();
+    beginStudioRuntimeShutdown(studio);
+    await ctx.videoEnhancement?.stopActive();
+    await ctx.videoEnhancement?.cleanupMedia();
+    await closeStudioRuntime(studio);
+    try {
+      await Promise.race([
+        serving.gateway.stop(),
+        new Promise<void>((resolve) => setTimeout(resolve, 2_000).unref()),
+      ]);
+    } catch {
+      // Best-effort: exit regardless.
+    }
+    process.exit(0);
+  });
+  return shutdownPromise;
 }
 
 function main(): void {
@@ -240,16 +286,18 @@ function main(): void {
     },
     (err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[nexus-sidecar] local serving gateway not started: ${msg}\n`);
+      process.stderr.write(
+        `[nexus-sidecar] local serving gateway not started: ${msg}\n`,
+      );
     },
   );
 
-  const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-  rl.on("line", (line) => {
-    if (!line.trim()) return;
+  rpcReader = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  rpcReader.on("line", (line) => {
+    if (!acceptingRequests || !line.trim()) return;
     void handleLine(line);
   });
-  rl.on("close", () => {
+  rpcReader.on("close", () => {
     void shutdown();
   });
   // v2.2.1: the shell waits for this line (or 500ms of liveness) before the

@@ -18,6 +18,7 @@ from nexus_installer.constants import (
     FS_CAPTION,
     TEXT_SECONDARY,
 )
+from nexus_installer.video_enhancement_support import INSTALLER_NOTE
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
@@ -122,6 +123,20 @@ class ConfigurationPage(QWidget):
             f"border-radius: 8px; padding: 12px;"
         )
         layout.addWidget(settings_preview)
+
+        video_label = QLabel("Optional video enhancement")
+        video_label.setObjectName("sectionHead")
+        layout.addWidget(video_label)
+
+        self._video2x_note = QLabel(INSTALLER_NOTE)
+        self._video2x_note.setWordWrap(True)
+        self._video2x_note.setObjectName("video2xOptionalNote")
+        self._video2x_note.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
+            f"border-radius: 8px; padding: 12px;"
+        )
+        layout.addWidget(self._video2x_note)
 
         layout.addStretch()
 

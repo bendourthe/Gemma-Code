@@ -1,13 +1,62 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { dispatch, createHandlerContext } from "../sidecar/src/handlers";
 import { CodingSessionManager } from "../sidecar/src/coding/sessionManager";
-import { createStudioRuntime } from "../sidecar/src/generations/studioRuntime";
+import {
+  closeStudioRuntime,
+  createStudioRuntime,
+} from "../sidecar/src/generations/studioRuntime";
 import {
   createMinimalPng,
+  createUsablePng,
   embedWorkflow,
 } from "../../core/image/WorkflowMetadata";
 import { IPC_METHODS, METHOD_SCHEMAS } from "../sidecar/src/protocol";
-import { InMemoryDiffusionRuntime } from "../sidecar/src/diffusion/runtimeClient";
+import {
+  InMemoryDiffusionRuntime,
+  type DiffusionEvent,
+  type DiffusionRuntimeClient,
+} from "../sidecar/src/diffusion/runtimeClient";
+import { contentHash } from "../../core/generations/contentHash";
+
+class DeferredDiffusionRuntime implements DiffusionRuntimeClient {
+  readonly calls: Array<{ method: string; params: Record<string, unknown> }> =
+    [];
+  readonly started: Promise<void>;
+  private start!: () => void;
+  private finish!: (value: unknown) => void;
+  private readonly response: Promise<unknown>;
+
+  constructor() {
+    this.started = new Promise<void>((resolve) => {
+      this.start = resolve;
+    });
+    this.response = new Promise<unknown>((resolve) => {
+      this.finish = resolve;
+    });
+  }
+
+  call<T = unknown>(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<T> {
+    this.calls.push({ method, params });
+    this.start();
+    return this.response as Promise<T>;
+  }
+
+  complete(value: unknown): void {
+    this.finish(value);
+  }
+
+  drainEvents(_jobId: string): readonly DiffusionEvent[] {
+    return [];
+  }
+
+  async shutdown(): Promise<void> {}
+}
 
 function makeCtx() {
   return createHandlerContext(
@@ -22,12 +71,26 @@ function makeCtx() {
   );
 }
 
-async function drainTerminalEvent(ctx: ReturnType<typeof makeCtx>, jobId: string) {
+async function drainTerminalEvent(
+  ctx: ReturnType<typeof makeCtx>,
+  jobId: string,
+) {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const reply = (await dispatch("diffusion.job.drainEvents", { jobId }, ctx)) as {
-      events: { kind: string; jobId: string; message?: string; outputPath?: string }[];
+    const reply = (await dispatch(
+      "diffusion.job.drainEvents",
+      { jobId },
+      ctx,
+    )) as {
+      events: {
+        kind: string;
+        jobId: string;
+        message?: string;
+        outputPath?: string;
+      }[];
     };
-    const terminal = reply.events.find((event) => event.kind === "complete" || event.kind === "error");
+    const terminal = reply.events.find(
+      (event) => event.kind === "complete" || event.kind === "error",
+    );
     if (terminal) return terminal;
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -35,6 +98,24 @@ async function drainTerminalEvent(ctx: ReturnType<typeof makeCtx>, jobId: string
 }
 
 describe("generation queue IPC", () => {
+  it("resolves ffmpeg paths when the handler context is constructed", () => {
+    const previousFfmpeg = process.env.NEXUS_FFMPEG_PATH;
+    const previousFfprobe = process.env.NEXUS_FFPROBE_PATH;
+    process.env.NEXUS_FFMPEG_PATH = "C:\\runtime\\ffmpeg.exe";
+    process.env.NEXUS_FFPROBE_PATH = "C:\\runtime\\ffprobe.exe";
+    try {
+      expect(makeCtx().ffmpeg).toEqual({
+        ffmpegPath: "C:\\runtime\\ffmpeg.exe",
+        ffprobePath: "C:\\runtime\\ffprobe.exe",
+      });
+    } finally {
+      if (previousFfmpeg === undefined) delete process.env.NEXUS_FFMPEG_PATH;
+      else process.env.NEXUS_FFMPEG_PATH = previousFfmpeg;
+      if (previousFfprobe === undefined) delete process.env.NEXUS_FFPROBE_PATH;
+      else process.env.NEXUS_FFPROBE_PATH = previousFfprobe;
+    }
+  });
+
   it("registers queue methods as implemented", () => {
     for (const method of [
       "generation.queue.list",
@@ -65,11 +146,24 @@ describe("generation queue IPC", () => {
       priority: "foreground",
       run: async () => blocked,
     });
-    for (let attempt = 0; attempt < 10 && ctx.studio.scheduler.snapshot().active === null; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 10 && ctx.studio.scheduler.snapshot().active === null;
+      attempt += 1
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    const snapshot = (await dispatch("generation.scheduler.snapshot", {}, ctx)) as {
-      active: { id: string; moduleId: string; modelId?: string; estimatedVramGB: number } | null;
+    const snapshot = (await dispatch(
+      "generation.scheduler.snapshot",
+      {},
+      ctx,
+    )) as {
+      active: {
+        id: string;
+        moduleId: string;
+        modelId?: string;
+        estimatedVramGB: number;
+      } | null;
     };
     expect(snapshot.active).toMatchObject({
       id: "active-image",
@@ -79,6 +173,33 @@ describe("generation queue IPC", () => {
     });
     release();
     await handle.completion;
+  });
+
+  it("shares one database owner between the queue and output index", async () => {
+    const studio = createStudioRuntime({ dbPath: ":memory:" });
+    try {
+      studio.queue.enqueue({
+        id: "video-parent",
+        pillar: "video",
+        jobType: "text2video",
+        parameters: { prompt: "source" },
+      });
+      studio.queue.markDone("video-parent");
+      const output = studio.index.putOutput({
+        id: "video-output",
+        jobId: "video-parent",
+        pillar: "video",
+        outputPath: join(tmpdir(), "nexus-generation-test", "source.mp4"),
+        contentHash: "a".repeat(64),
+        workflow: { mode: "text2video" },
+      });
+      expect(studio.index.getOutput(output.id)).toMatchObject({
+        jobId: "video-parent",
+        contentHash: "a".repeat(64),
+      });
+    } finally {
+      await closeStudioRuntime(studio, 0);
+    }
   });
 
   it("enqueues a seed range and reports pending count", async () => {
@@ -171,11 +292,22 @@ describe("generation queue IPC", () => {
     expect(reply.jobId.length).toBeGreaterThan(0);
     expect(reply.mode).toBe("txt2img");
     const listed = (await dispatch("generation.queue.list", {}, ctx)) as {
-      jobs: { id: string; priority: string }[];
+      jobs: {
+        id: string;
+        priority: string;
+        parentId: string | null;
+        enhancement: unknown | null;
+      }[];
     };
-    expect(listed.jobs.some((j) => j.id === reply.jobId && j.priority === "interactive")).toBe(
-      true,
-    );
+    expect(
+      listed.jobs.some(
+        (j) =>
+          j.id === reply.jobId &&
+          j.priority === "interactive" &&
+          j.parentId === null &&
+          j.enhancement === null,
+      ),
+    ).toBe(true);
   });
 
   it("emits an error event when txt2img completes without image bytes", async () => {
@@ -210,7 +342,9 @@ describe("generation queue IPC", () => {
 
   it("emits a playable video completion when workflow metadata is absent", async () => {
     const runtime = new InMemoryDiffusionRuntime();
-    runtime.setResponse("diffusion.video.text2video", { mp4Path: "C:\\nexus\\outputs\\clip.mp4" });
+    runtime.setResponse("diffusion.video.text2video", {
+      mp4Path: "C:\\nexus\\outputs\\clip.mp4",
+    });
     const ctx = createHandlerContext(
       { pid: 1, platform: process.platform },
       new CodingSessionManager(),
@@ -236,6 +370,186 @@ describe("generation queue IPC", () => {
       kind: "complete",
       jobId: reply.jobId,
       outputPath: "C:\\nexus\\outputs\\clip.mp4",
+    });
+  });
+
+  it("stream-hashes and registers a workflow-bearing video output before completion", async () => {
+    const root = mkdtempSync(join(tmpdir(), "nexus-video-source-"));
+    try {
+      const outputPath = join(root, "clip.mp4");
+      const bytes = Buffer.from("deterministic-video-source");
+      writeFileSync(outputPath, bytes);
+      const runtime = new InMemoryDiffusionRuntime();
+      runtime.setResponse("diffusion.video.text2video", {
+        mp4Path: outputPath,
+        workflow: { schemaVersion: 1, mode: "text2video" },
+      });
+      const ctx = createHandlerContext(
+        { pid: 1, platform: process.platform },
+        new CodingSessionManager(),
+        runtime,
+        {
+          ffmpegPath: join(root, "missing-ffmpeg"),
+          ffprobePath: join(root, "missing-ffprobe"),
+        },
+      );
+      ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
+      const reply = (await dispatch(
+        "diffusion.video.text2video",
+        {
+          modelId: "wan2.1-t2v-1.3b",
+          prompt: "fox",
+          width: 854,
+          height: 480,
+          durationSeconds: 4,
+          fps: 24,
+          steps: 30,
+          cfgScale: 3.5,
+          seed: 8,
+        },
+        ctx,
+      )) as { jobId: string };
+      const terminal = await drainTerminalEvent(ctx, reply.jobId);
+      expect(terminal, JSON.stringify(terminal)).toMatchObject({
+        kind: "complete",
+        jobId: reply.jobId,
+        outputPath,
+        outputId: reply.jobId,
+        outputHash: contentHash(bytes),
+      });
+      expect(ctx.studio.index.getOutput(reply.jobId)).toMatchObject({
+        jobId: reply.jobId,
+        outputPath,
+        contentHash: contentHash(bytes),
+      });
+      const extracted = (await dispatch(
+        "diffusion.video.workflow.extract",
+        { mp4Path: outputPath },
+        ctx,
+      )) as { workflow: { mode?: string } | null };
+      expect(extracted.workflow).toMatchObject({ mode: "text2video" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("isolates pump state between independent Studio runtimes", async () => {
+    const blockedRuntime = new DeferredDiffusionRuntime();
+    const blockedCtx = createHandlerContext(
+      { pid: 1, platform: process.platform },
+      new CodingSessionManager(),
+      blockedRuntime,
+    );
+    blockedCtx.studio = createStudioRuntime({ dbPath: ":memory:" });
+
+    const readyRuntime = new InMemoryDiffusionRuntime();
+    readyRuntime.setResponse("sana.txt2img", {
+      pngBase64: createUsablePng().toString("base64"),
+    });
+    const readyCtx = createHandlerContext(
+      { pid: 2, platform: process.platform },
+      new CodingSessionManager(),
+      readyRuntime,
+    );
+    readyCtx.studio = createStudioRuntime({ dbPath: ":memory:" });
+
+    const blocked = (await dispatch(
+      "diffusion.txt2img",
+      {
+        modelId: "sana-1.6b-1024",
+        prompt: "blocked",
+        width: 512,
+        height: 512,
+        steps: 4,
+        cfgScale: 1.5,
+        sampler: "euler_a",
+        seed: 10,
+      },
+      blockedCtx,
+    )) as { jobId: string };
+    await blockedRuntime.started;
+
+    const ready = (await dispatch(
+      "diffusion.txt2img",
+      {
+        modelId: "sana-1.6b-1024",
+        prompt: "ready",
+        width: 512,
+        height: 512,
+        steps: 4,
+        cfgScale: 1.5,
+        sampler: "euler_a",
+        seed: 11,
+      },
+      readyCtx,
+    )) as { jobId: string };
+    await expect(
+      drainTerminalEvent(readyCtx, ready.jobId),
+    ).resolves.toMatchObject({
+      kind: "complete",
+      jobId: ready.jobId,
+    });
+
+    blockedRuntime.complete({
+      pngBase64: createUsablePng().toString("base64"),
+    });
+    await expect(
+      drainTerminalEvent(blockedCtx, blocked.jobId),
+    ).resolves.toMatchObject({
+      kind: "complete",
+      jobId: blocked.jobId,
+    });
+  });
+
+  it("does not publish a late completion after queue cancellation", async () => {
+    const runtime = new DeferredDiffusionRuntime();
+    const ctx = createHandlerContext(
+      { pid: 1, platform: process.platform },
+      new CodingSessionManager(),
+      runtime,
+    );
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
+    const accepted = (await dispatch(
+      "diffusion.txt2img",
+      {
+        modelId: "sana-1.6b-1024",
+        prompt: "cancel me",
+        width: 512,
+        height: 512,
+        steps: 4,
+        cfgScale: 1.5,
+        sampler: "euler_a",
+        seed: 12,
+      },
+      ctx,
+    )) as { jobId: string };
+    await runtime.started;
+
+    await expect(
+      dispatch("generation.queue.cancel", { id: accepted.jobId }, ctx),
+    ).resolves.toMatchObject({
+      job: { id: accepted.jobId, state: "failed", error: "cancelled" },
+    });
+    runtime.complete({ pngBase64: createUsablePng().toString("base64") });
+    for (
+      let attempt = 0;
+      attempt < 20 && ctx.studio.activeHandles.has(accepted.jobId);
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    const drained = (await dispatch(
+      "diffusion.job.drainEvents",
+      { jobId: accepted.jobId },
+      ctx,
+    )) as { events: DiffusionEvent[] };
+    expect(drained.events.some((event) => event.kind === "complete")).toBe(
+      false,
+    );
+    expect(ctx.studio.queue.get(accepted.jobId)).toMatchObject({
+      state: "failed",
+      error: "cancelled",
     });
   });
 });

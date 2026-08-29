@@ -27,11 +27,24 @@ export function GenerationQueueBar({
         </p>
       ) : (
         <ol data-testid="generation-queue-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {pending.map((job, index) => (
-            <li key={job.id} data-testid={`generation-queue-item-${job.id}`}>
+          {pending.map((job, index) => {
+            const isEnhancement =
+              job.jobType === "video_enhancement" || job.enhancement != null;
+            return (
+            <li
+              key={job.id}
+              data-job-kind={isEnhancement ? "enhancement" : "generation"}
+              data-testid={`generation-queue-item-${job.id}`}
+            >
+              {isEnhancement ? "Enhance " : ""}
               {job.id} {job.state} {job.priority}
               <button
                 type="button"
+                aria-label={
+                  isEnhancement
+                    ? `Cancel enhancement ${job.id}`
+                    : `Cancel job ${job.id}`
+                }
                 data-testid={`generation-queue-cancel-${job.id}`}
                 onClick={() => onCancel(job.id)}
               >
@@ -53,7 +66,8 @@ export function GenerationQueueBar({
                 Up
               </button>
             </li>
-          ))}
+            );
+          })}
         </ol>
       )}
     </section>

@@ -43,7 +43,7 @@ Text-to-image, image-to-image, inpainting, and outpainting against local diffusi
 
 ### 4. Video Lab
 
-Short-form video synthesis via text prompts or static reference images, with a timeline previewer and granular generation controls. v1.1.0 Phase 13 adds SANA-Video 2B as the "Fast 720p" tier between LTX-Video and CogVideoX. Targets local video-synthesis architectures sized for a single consumer GPU.
+Short-form video synthesis via text prompts or static reference images, with a timeline previewer and granular generation controls. v1.1.0 Phase 13 adds SANA-Video 2B as the "Fast 720p" tier between LTX-Video and CogVideoX. Targets local video-synthesis architectures sized for a single consumer GPU. Optional local enhancement can upscale or interpolate a completed clip through a user-installed Video2X 6.4.0 executable (`NEXUS_VIDEO2X_PATH` or Settings > Video). Nexus does not download or bundle Video2X. Real GPU and packaged support remain candidate until measured; see [docs/v2/v2.3/benchmarks/video-enhancement-baseline.md](docs/v2/v2.3/benchmarks/video-enhancement-baseline.md).
 
 ### Document parsing (OCR)
 

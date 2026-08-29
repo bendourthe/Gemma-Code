@@ -23,6 +23,7 @@ import { createIpcServingClient } from "./pages/settings/ipcServingClient";
 import { createIpcFineTuningClient } from "./pages/settings/ipcFineTuningClient";
 import { createIpcAuditClient } from "./pages/settings/ipcAuditClient";
 import { createIpcMcpRegistryClient } from "./pages/settings/ipcMcpRegistryClient";
+import { createIpcVideoSettingsClient } from "./pages/settings/ipcVideoSettingsClient";
 import { createIpcAskInboxClient } from "./pages/inbox/ipcAskInboxClient";
 import { AskInboxPanel } from "./pages/inbox/AskInboxPanel";
 import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
@@ -61,6 +62,7 @@ const servingClient = createIpcServingClient();
 const fineTuningClient = createIpcFineTuningClient();
 const auditClient = createIpcAuditClient();
 const mcpClient = createIpcMcpRegistryClient();
+const videoSettingsClient = createIpcVideoSettingsClient();
 const askInboxClient = createIpcAskInboxClient();
 const chatMemoryHub = createIpcChatMemoryHub();
 
@@ -279,6 +281,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   fineTuningClient={fineTuningClient}
                   auditClient={auditClient}
                   mcpClient={mcpClient}
+                  videoClient={videoSettingsClient}
                   hostVramGB={hostVramGB}
                 />
               }
