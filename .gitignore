@@ -46,6 +46,7 @@ temp/
 tmp/
 *.tmp
 *.temp
+.tmp-model-map-*.json
 
 # ==============================================================================
 # Secrets and Environment

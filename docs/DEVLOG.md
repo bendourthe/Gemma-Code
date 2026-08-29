@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-28] v2.3.0 Phase 4 - Video Lab Enhance experience
+
+Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-4-video-lab-enhance-experience.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.2.9**.
+
+### What Changed
+
+- Video Lab now offers Enhance on completed identity-backed clips. The panel maps seven semantic selections to typed sidecar presets and never sends backend flags, processor names, or arbitrary fps/resolution fields.
+- Capability-backed disable copy, Recheck capability, page-level `video.enhancement.list` polling, distinct original/enhanced downloads, and GenerationQueueBar enhancement labels landed with focused desktop tests.
+- Copy states that enhancement synthesizes pixels and frames, can introduce artifacts, and never replaces the original. Enhanced outputs do not themselves offer Enhance.
+
+### Why It Changed
+
+Phase 4 of the v2.3.0 adoption plan. The queue and provenance path existed; the user-facing Enhance experience did not.
+
+### Decisions Made
+
+- Session hydrate still does not restore Enhance (DF-1): studio turns persist a media path, not output id and hash.
+- README product claims stay unchanged until Phase 5 packaging and hardware evidence exist.
+- No pipeline file changed. No Phase 4 work was pushed. Human testing remains reserved for Phase 6.
+
+---
+
 ## [2026-08-28] v2.2.9 - Field chrome, catalog identity, and honest generation (release preparation)
 
 Index: [plan](v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md), [history](v2/v2.2/development/history/), [gaps](v2/v2.2/known-gaps.md). Changelog is authoritative.

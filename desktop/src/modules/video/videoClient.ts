@@ -72,6 +72,11 @@ export interface VideoProgressEvent {
   readonly preview?: string;
   /** Which "second bucket" this preview belongs to (0-indexed). */
   readonly secondIndex?: number;
+  /** Canonical durable completion fields emitted by the sidecar. */
+  readonly outputPath?: string;
+  readonly outputId?: string;
+  readonly outputHash?: string;
+  /** Legacy in-memory fixture alias. New tests should use `outputPath`. */
   readonly mp4Path?: string;
   readonly message?: string;
 }
