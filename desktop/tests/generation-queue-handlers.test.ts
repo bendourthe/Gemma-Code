@@ -189,7 +189,7 @@ describe("generation queue IPC", () => {
         id: "video-output",
         jobId: "video-parent",
         pillar: "video",
-        outputPath: "C:\\nexus\\outputs\\source.mp4",
+        outputPath: join(tmpdir(), "nexus-generation-test", "source.mp4"),
         contentHash: "a".repeat(64),
         workflow: { mode: "text2video" },
       });

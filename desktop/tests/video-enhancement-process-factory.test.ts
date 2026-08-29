@@ -1,3 +1,7 @@
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import pathPosix from "node:path/posix";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -8,6 +12,11 @@ import {
   createGuardedVideoProcessForPlatform,
   createVideoEnhancementProcessDependencies,
 } from "../sidecar/src/video/VideoEnhancementProcessFactory";
+
+const toolsRoot = join(tmpdir(), "nexus-video-tools");
+const workspaceRoot = join(tmpdir(), "nexus-video-workspace");
+const ffmpegPath = join(toolsRoot, "ffmpeg.exe");
+const ffprobePath = join(toolsRoot, "ffprobe.exe");
 
 describe("video enhancement process dependencies", () => {
   it("uses one guarded runner for direct ffprobe and ffmpeg argv", async () => {
@@ -29,11 +38,11 @@ describe("video enhancement process dependencies", () => {
     const dependencies = createVideoEnhancementProcessDependencies({
       platform: "win32",
       ffmpeg: {
-        ffmpegPath: "C:\\tools\\ffmpeg.exe",
-        ffprobePath: "C:\\tools\\ffprobe.exe",
+        ffmpegPath,
+        ffprobePath,
       },
-      workspaceRoot: "C:\\workspace",
-      env: { PATH: "C:\\tools" },
+      workspaceRoot,
+      env: { PATH: toolsRoot },
       processRunner: runner,
       ffprobeTimeoutMs: 1_000,
       ffmpegTimeoutMs: 2_000,
@@ -51,22 +60,22 @@ describe("video enhancement process dependencies", () => {
 
     expect(calls).toHaveLength(2);
     expect(calls[0]).toMatchObject({
-      executable: "C:\\tools\\ffprobe.exe",
+      executable: ffprobePath,
       args: ["-v", "error", "source.mp4"],
-      cwd: "C:\\workspace",
-      env: { PATH: "C:\\tools" },
+      cwd: resolve(workspaceRoot),
+      env: { PATH: toolsRoot },
       timeoutMs: 1_000,
       signal: controller.signal,
     });
     expect(calls[1]).toMatchObject({
-      executable: "C:\\tools\\ffmpeg.exe",
+      executable: ffmpegPath,
       args: ["-i", "source.mp4", "output.mp4"],
       timeoutMs: 2_000,
     });
     await expect(dependencies.probeMediaTools()).resolves.toEqual({ ok: true });
     expect(calls.slice(2).map((call) => [call.executable, call.args])).toEqual([
-      ["C:\\tools\\ffprobe.exe", ["-version"]],
-      ["C:\\tools\\ffmpeg.exe", ["-version"]],
+      [ffprobePath, ["-version"]],
+      [ffmpegPath, ["-version"]],
     ]);
   });
 
@@ -83,8 +92,8 @@ describe("video enhancement process dependencies", () => {
     };
     const dependencies = createVideoEnhancementProcessDependencies({
       ffmpeg: {
-        ffmpegPath: "C:\\tools\\ffmpeg.exe",
-        ffprobePath: "C:\\tools\\ffprobe.exe",
+        ffmpegPath,
+        ffprobePath,
       },
       processRunner: runner,
     });
@@ -122,6 +131,11 @@ describe("video enhancement process dependencies", () => {
         "Video enhancement requires absolute configured ffmpeg and ffprobe paths.",
     });
     expect(runner.run).not.toHaveBeenCalled();
+  });
+
+  it("posix path rules reject win32 drive-letter fixtures", () => {
+    expect(pathPosix.isAbsolute("C:\\tools\\ffmpeg.exe")).toBe(false);
+    expect(pathPosix.isAbsolute("/tmp/nexus-video-tools/ffmpeg")).toBe(true);
   });
 
   it("fails closed when no guarded platform host exists", async () => {
