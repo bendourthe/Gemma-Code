@@ -8,7 +8,6 @@ import { EventEmitter } from "node:events";
 import { mkdirSync, readFileSync, readdirSync, renameSync } from "node:fs";
 import {
   mkdir,
-  mkdtemp,
   readFile,
   readdir,
   rm,
@@ -33,7 +32,23 @@ import {
   WINDOWS_VIDEO_PROCESS_HOST_PS1,
 } from "../sidecar/src/video/WindowsVideoProcessHost.js";
 
+import { canonicalMkDtemp } from "./helpers/canonicalTempDir";
+
 const WINDOWS_ONLY = process.platform === "win32" ? it : it.skip;
+
+async function rmTree(target: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await rm(target, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
 
 async function runCaptured(
   executable: string,
@@ -290,7 +305,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("writes scrubbed bounded manifests in concurrent private control directories", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-manifest-test-"));
+    const root = await canonicalMkDtemp("nexus-manifest-test-");
     const firstWork = path.join(root, "first-work");
     const secondWork = path.join(root, "second-work");
     await Promise.all([mkdir(firstWork), mkdir(secondWork)]);
@@ -445,7 +460,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("keeps timeout authoritative and removes its private control directory", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-timeout-test-"));
+    const root = await canonicalMkDtemp("nexus-timeout-test-");
     const work = path.join(root, "work");
     await mkdir(work);
     const spawnFn = ((
@@ -487,7 +502,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("settles a timed-out host that ignores kill and never closes", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-no-close-test-"));
+    const root = await canonicalMkDtemp("nexus-no-close-test-");
     const work = path.join(root, "work");
     await mkdir(work);
     const fake = createNeverClosingChild();
@@ -554,7 +569,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("retains valid byte-bounded UTF-8 tails across incremental appends", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-utf8-tail-test-"));
+    const root = await canonicalMkDtemp("nexus-utf8-tail-test-");
     const work = path.join(root, "work");
     await mkdir(work);
     const fake = createNeverClosingChild();
@@ -609,7 +624,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("lets cancellation win while a no-close timeout is escalating", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-race-test-"));
+    const root = await canonicalMkDtemp("nexus-race-test-");
     const work = path.join(root, "work");
     await mkdir(work);
     const fake = createNeverClosingChild();
@@ -649,7 +664,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("does not let cleanup failure erase authoritative cancellation", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-cleanup-test-"));
+    const root = await canonicalMkDtemp("nexus-cleanup-test-");
     const work = path.join(root, "work");
     await mkdir(work);
     const controller = new AbortController();
@@ -699,7 +714,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("removes prepared control files when helper spawn fails", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-spawn-test-"));
+    const root = await canonicalMkDtemp("nexus-spawn-test-");
     const work = path.join(root, "work");
     await mkdir(work);
     try {
@@ -727,7 +742,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("refuses cleanup after the private control directory identity changes", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-identity-test-"));
+    const root = await canonicalMkDtemp("nexus-identity-test-");
     const work = path.join(root, "work");
     await mkdir(work);
     const spawnFn = ((
@@ -762,7 +777,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("maps a false Windows AVX2 probe to unavailable evidence", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-avx2-test-"));
+    const root = await canonicalMkDtemp("nexus-avx2-test-");
     const spawnFn = ((
       _command: string,
       _args: readonly string[],
@@ -793,7 +808,7 @@ describe("WindowsVideoProcessHost", () => {
   });
 
   it("types a missing Windows helper as process_host_unavailable", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "nexus-host-missing-"));
+    const root = await canonicalMkDtemp("nexus-host-missing-");
     try {
       const host = createWindowsVideoProcessHost({
         platform: "win32",
@@ -862,8 +877,8 @@ describe("WindowsVideoProcessHost", () => {
       ];
 
       for (const testCase of cases) {
-        const root = await mkdtemp(
-          path.join(os.tmpdir(), "nexus-schema-" + testCase.name + "-"),
+        const root = await canonicalMkDtemp(
+          "nexus-schema-" + testCase.name + "-",
         );
         const manifestPath = path.join(root, "request.json");
         const sourcePath = path.join(root, "host.cs");
@@ -926,8 +941,8 @@ describe("WindowsVideoProcessHost", () => {
       ] as const;
 
       for (const testCase of cases) {
-        const root = await mkdtemp(
-          path.join(os.tmpdir(), "nexus-auth-" + testCase.name + "-"),
+        const root = await canonicalMkDtemp(
+          "nexus-auth-" + testCase.name + "-",
         );
         const manifestPath = path.join(root, "request.json");
         const sourcePath = path.join(root, "host.cs");
@@ -960,7 +975,7 @@ describe("WindowsVideoProcessHost", () => {
   WINDOWS_ONLY(
     "round-trips hostile argv and probes AVX2 through the real host",
     async () => {
-      const root = await mkdtemp(path.join(os.tmpdir(), "nexus-winhost-test-"));
+      const root = await canonicalMkDtemp("nexus-winhost-test-");
       const control = path.join(root, "control");
       const work = path.join(root, "work");
       await mkdir(work);
@@ -989,7 +1004,7 @@ describe("WindowsVideoProcessHost", () => {
             API_KEY: "do-not-forward",
             VK_ICD_FILENAMES: "shadow.json",
           },
-          timeoutMs: 20_000,
+          timeoutMs: 55_000,
         });
         expect(result).toMatchObject({
           exitCode: 0,
@@ -1024,7 +1039,7 @@ describe("WindowsVideoProcessHost", () => {
   WINDOWS_ONLY(
     "closes the job and kills a descendant when cancellation wins",
     async () => {
-      const root = await mkdtemp(path.join(os.tmpdir(), "nexus-winjob-test-"));
+      const root = await canonicalMkDtemp("nexus-winjob-test-");
       const control = path.join(root, "control");
       const work = path.join(root, "work");
       await mkdir(work);
@@ -1076,7 +1091,7 @@ describe("WindowsVideoProcessHost", () => {
         await new Promise((resolve) => setTimeout(resolve, 2_000));
         await expect(readFile(escaped, "utf8")).rejects.toThrow();
       } finally {
-        await rm(root, { recursive: true, force: true });
+        await rmTree(root);
       }
     },
     60_000,

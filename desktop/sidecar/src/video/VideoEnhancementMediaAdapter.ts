@@ -811,9 +811,13 @@ async function canonicalExistingFile(candidate: string): Promise<string> {
   }
   try {
     const requested = path.resolve(candidate);
+    const linkStat = await fs.lstat(requested);
+    if (linkStat.isSymbolicLink() || !linkStat.isFile()) {
+      throw new Error("not canonical");
+    }
     const canonical = await fs.realpath(requested);
     const stat = await fs.stat(canonical);
-    if (!pathsEqual(requested, canonical) || !stat.isFile()) {
+    if (!stat.isFile()) {
       throw new Error("not canonical");
     }
     return canonical;

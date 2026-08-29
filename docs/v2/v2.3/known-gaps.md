@@ -10,7 +10,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 
 ## v2.3.1
 
-**Last updated**: 2026-08-29 (finalized at the 2.3.1 bump)
+**Last updated**: 2026-08-29 (post-tag Shell Build path patch)
 
 ### Summary
 
@@ -18,14 +18,14 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 0 | 0 |
-| Bugs / regressions (BG) | 0 | 0 |
+| Bugs / regressions (BG) | 0 | 1 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-6 repaired the Windows wizard. PR 53 merged to `develop` at `838268f`. Pipeline topology diffs stay on v2.3.0 QG-1/QG-2. MT-1 is unchanged.
+Phases 1-6 repaired the Windows wizard. PR 53 merged to `develop` at `838268f`. Tag `v2.3.1` was not rewritten. Pipeline topology diffs stay on v2.3.0 QG-1/QG-2. MT-1 is unchanged.
 
-> Finalized on 2026-08-29 at the 2.3.1 bump. Open items will be ingested by /plan when the next version's plan is created.
+> Open items will be ingested by /plan when the next version's plan is created.
 
 ### Open Items
 
@@ -38,11 +38,19 @@ Phases 1-6 repaired the Windows wizard. PR 53 merged to `develop` at `838268f`. 
 - **Reason**: Full installer pytest measures `host_detect.py` at 40% lines. New Windows RAM routing, PowerShell fallback, and a live GlobalMemoryStatusEx success path on this Windows host are covered. Remaining misses are pre-existing OS-specific GPU/OS probes plus ctypes ImportError / missing-kernel32 / failed-API branches that this machine does not exercise.
 - **Suggested next step**: Leave OS-specific GPU probes unless a later phase touches them. Add a mocked kernel32 failure test only if a frozen windowed build reports RAM-not-detected on a machine that has RAM.
 
-## v2.3.0
+### Resolved
+
+##### BG-1 (resolved) - Windows and macOS Shell Build desktop vitest failed after the v2.3.1 tag
+
+- **Source phase**: `/update release` (post-tag `main` Shell Build)
+- **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (Phase 2-3 adapter/lifecycle); run [33264834351](https://github.com/bendourthe/Nexus-AI/actions/runs/33264834351)
+- **What happened**: Same class as v2.3.0 BG-1. Ubuntu Shell Build succeeded. Windows and macOS failed 75 desktop tests because `os.tmpdir()` on those hosts is an OS path alias of `realpath` (GitHub Windows `RUNNER~1` 8.3 names, macOS `/var` to `/private/var`). Intake compared the requested string to `realpath` and rejected regular files as `source_invalid` / untrusted staging.
+- **Fix**: Intake keeps rejecting leaf symlinks, then uses `realpath` as identity instead of requiring the caller's string to already equal it. Tests create temp roots through `canonicalMkDtemp`. Do not retag `v2.3.1`.
+- **Evidence**: Local desktop vitest on this Windows host: 1821 passed / 1 skipped across 199 files, including the six previously red files. This host's `os.tmpdir()` already equals `realpath`, so the 8.3 / `/var` alias is not proven here. Remote Windows/macOS Shell Build remains not proven here until the develop PR is green on those jobs (or a `main` matrix run).
 
 ## v2.3.0
 
-**Last updated**: 2026-08-29 (post-tag Shell Build finding)
+**Last updated**: 2026-08-29 (BG-1 path-alias patch)
 
 ### Summary
 
@@ -50,12 +58,12 @@ Phases 1-6 repaired the Windows wizard. PR 53 merged to `develop` at `838268f`. 
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 4 | 0 |
-| Bugs / regressions (BG) | 1 | 0 |
+| Bugs / regressions (BG) | 0 | 1 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 2 | 0 |
 
-Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhance UI, fake-backend packaging evidence, and last-phase reconciliation. Real Video2X, GPU, packaged field detection, and perceptual review remain candidate (DF-3). The Nexus-Hub security-audit workflow is still an unreleased upstream item (DF-2). Pipeline topology differences were compared and not applied without approval (QG-1, QG-2). After tag `v2.3.0` landed, the first full-matrix Shell Build on `main` failed Windows and macOS desktop vitest (BG-1). Ubuntu on that run succeeded. The tag was not rewritten.
+Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhance UI, fake-backend packaging evidence, and last-phase reconciliation. Real Video2X, GPU, packaged field detection, and perceptual review remain candidate (DF-3). The Nexus-Hub security-audit workflow is still an unreleased upstream item (DF-2). Pipeline topology differences were compared and not applied without approval (QG-1, QG-2). After tag `v2.3.0` landed, the first full-matrix Shell Build on `main` failed Windows and macOS desktop vitest (BG-1). Ubuntu on that run succeeded. The tags were not rewritten. The path-alias intake patch closed BG-1.
 
 > Finalized on 2026-08-29 at the 2.3.0 bump. Open items will be ingested by /plan when the next version's plan is created.
 
@@ -110,12 +118,12 @@ Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhanc
 - **Reason**: `.github/workflows/ci.yml` SHA-pins actions, uses npm/pip cache, concurrency cancellation, and 7-day artifacts, but has no workflow-level `permissions` block and no always-resolving aggregate required job. `pull_request.branches` is `main` only; develop integration relies on the `push` trigger. After PR 52 merged, the develop push reran the complete CI suite (observed finding against event separation). Differences were proposed and not applied.
 - **Suggested next step**: Approve a least-privilege permissions block and an aggregate required job in a CI-owned phase, then add `develop` to pull_request branches if branch protection should see merge-result checks. Consider running Windows/macOS desktop vitest before a tag, because `shell-build.yml` keeps that matrix on `main` only.
 
-##### BG-1 - Windows and macOS Shell Build desktop vitest failed after the v2.3.0 tag
+##### BG-1 (resolved) - Windows and macOS Shell Build desktop vitest failed after the v2.3.0 tag
 
 - **Source phase**: `/update release` (post-tag `main` Shell Build)
 - **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (Phase 2-3 adapter/lifecycle); run [33235387928](https://github.com/bendourthe/Nexus-AI/actions/runs/33235387928)
-- **Reason**: `shell-build.yml` on `main` runs Windows/macOS/Ubuntu. Ubuntu succeeded. Windows reported 75 failed tests, concentrated in `video2x-adapter.test.ts` (47), `video-enhancement-media-lifecycle.test.ts` (15), `video-enhancement-media-adapter.test.ts` (5), `video-enhancement-integration.test.ts` (4), and `windows-video-process-host.test.ts` (3). Observed mismatches include `cpu_probe_failed` vs `probe_failed`, expected `process_failed` / `provenance_failed` / `quarantined` codes vs actual messages such as "Staging root is not a canonical private...", and related lifecycle identity checks. macOS failed the same suite class. Develop Shell Build is Ubuntu-only, so this was not observed before the tag. not_observed != absent for a packaged Windows field run.
-- **Suggested next step**: Reproduce `npm run test:coverage` in `desktop/` on Windows, classify test-host path assumptions vs real fail-closed Windows behavior, and land a patch (do not retag `v2.3.0`).
+- **Reason**: `shell-build.yml` on `main` runs Windows/macOS/Ubuntu. Ubuntu succeeded. Windows reported 75 failed tests, concentrated in `video2x-adapter.test.ts` (47), `video-enhancement-media-lifecycle.test.ts` (15), `video-enhancement-media-adapter.test.ts` (5), `video-enhancement-integration.test.ts` (4), and `windows-video-process-host.test.ts` (3). Observed mismatches include `cpu_probe_failed` vs `probe_failed`, expected `process_failed` / `provenance_failed` / `quarantined` codes vs actual messages such as "Staging root is not a canonical private...", and related lifecycle identity checks. macOS failed the same suite class. Develop Shell Build is Ubuntu-only, so this was not observed before the tag. Recurred on `v2.3.1` at [33264834351](https://github.com/bendourthe/Nexus-AI/actions/runs/33264834351).
+- **Resolved**: Intake now treats OS path aliases as the same identity as `realpath` when the leaf is a regular file. Do not retag `v2.3.0` or `v2.3.1`.
 
 ##### MT-1 - VideoLabPage function coverage is below 80% on the focused run
 

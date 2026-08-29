@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
-import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { canonicalMkDtemp } from "./helpers/canonicalTempDir";
 
 import { InMemorySettingsStore } from "../../core/storage/SettingsStore";
 import type {
@@ -99,8 +100,8 @@ function processDependencies(
 
 describe("video enhancement runtime factory", () => {
   it("reconciles the durable interrupted root without touching a terminal child root", async () => {
-    const directory = await fs.mkdtemp(
-      path.join(tmpdir(), "nexus-enhancement-factory-recovery-"),
+    const directory = await canonicalMkDtemp(
+      "nexus-enhancement-factory-recovery-",
     );
     temporaryDirectories.push(directory);
     const stagingRoot = path.join(directory, "staging");
