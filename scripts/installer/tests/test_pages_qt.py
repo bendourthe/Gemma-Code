@@ -161,6 +161,24 @@ class TestGpuDetectionPage:
             page = GpuDetectionPage(state)
             assert page is not None
 
+    def test_detection_copies_host_ram_not_disk(self, qt_app: object) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            state = InstallerState()
+            state.free_disk_gb = 0
+            page = GpuDetectionPage(state)
+            page._on_detection_complete("RTX 4080", "nvidia", 16384)
+            assert state.total_ram_gb == 32
+            assert state.vram_mb == 16384
+            assert state.free_disk_gb == 0
+
 
 class TestInstallPathPage:
     def test_creates_with_default_path(self, qt_app: object) -> None:
@@ -198,6 +216,35 @@ class TestInstallPathPage:
         ok, _ = page.validate()
         assert ok is False
 
+    def test_writes_free_disk_gb_from_path_probe(self, qt_app: object) -> None:
+        from unittest.mock import MagicMock
+
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        usage = MagicMock()
+        usage.free = 200 * 1024**3
+        with patch(
+            "nexus_installer.pages.install_path.shutil.disk_usage", return_value=usage
+        ):
+            state = InstallerState(install_path=r"C:\NexusAI")
+            page = InstallPathPage(state)
+            assert page is not None
+            assert state.free_disk_gb == 200
+            assert state.disk_space_gb == 200.0
+
+    def test_disk_probe_error_keeps_free_disk_at_zero(self, qt_app: object) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        with patch(
+            "nexus_installer.pages.install_path.shutil.disk_usage",
+            side_effect=OSError("no disk"),
+        ):
+            state = InstallerState(install_path=r"C:\NexusAI")
+            page = InstallPathPage(state)
+            assert page is not None
+            assert state.free_disk_gb == 0
+            assert state.disk_space_gb == 0.0
+
 
 class TestConfigurationPage:
     def test_creates_with_toggles(self, qt_app: object) -> None:
@@ -231,7 +278,6 @@ class TestConfigurationPage:
         page = ConfigurationPage(InstallerState())
         assert page._video2x_note.text() == INSTALLER_NOTE
         assert "never installed by this wizard" in page._video2x_note.text()
-
 
 
 class TestReviewPage:

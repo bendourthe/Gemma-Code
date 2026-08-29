@@ -182,6 +182,7 @@ class TestDetectHostIntegration:
         assert profile.gpu_vendor == "nvidia"
         assert profile.cuda_compatible is True
         assert profile.free_disk_gb == 250
+        assert profile.total_ram_gb == 32
 
     def test_macos_m2(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _stub_os(monkeypatch, "macos")
@@ -219,3 +220,88 @@ class TestDetectHostIntegration:
         assert profile.rocm_compatible is True
         assert profile.cuda_compatible is False
         assert profile.gpu_vendor == "amd"
+
+
+class TestWindowsRamFallback:
+    def test_ctypes_probe_wins_over_powershell(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            host_detect, "_windows_ram_via_global_memory_status", lambda: 32
+        )
+
+        def fail_if_powershell(cmd, timeout=host_detect.DETECTION_TIMEOUT_S):
+            raise AssertionError(f"PowerShell must not run when ctypes works: {cmd}")
+
+        monkeypatch.setattr(host_detect, "_run", fail_if_powershell)
+        assert host_detect._detect_windows_total_ram_gb() == 32
+
+    def test_powershell_used_when_ctypes_returns_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            host_detect, "_windows_ram_via_global_memory_status", lambda: 0
+        )
+        monkeypatch.setattr(host_detect, "_run", lambda cmd, timeout=6: "16")
+        assert host_detect._detect_windows_total_ram_gb() == 16
+
+    def test_malformed_cim_stays_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            host_detect, "_windows_ram_via_global_memory_status", lambda: 0
+        )
+        monkeypatch.setattr(host_detect, "_run", lambda cmd, timeout=6: "not-a-number")
+        assert host_detect._detect_windows_total_ram_gb() == 0
+
+    def test_powershell_zero_is_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            host_detect, "_windows_ram_via_global_memory_status", lambda: 0
+        )
+        monkeypatch.setattr(host_detect, "_run", lambda cmd, timeout=6: "0")
+        assert host_detect._detect_windows_total_ram_gb() == 0
+
+    def test_global_memory_status_ex_returns_non_negative(self) -> None:
+        gb = host_detect._windows_ram_via_global_memory_status()
+        assert gb >= 0
+
+    def test_detect_total_ram_gb_routes_macos(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _stub_os(monkeypatch, "macos")
+        monkeypatch.setattr(host_detect, "_detect_macos_total_ram_gb", lambda: 16)
+        assert host_detect.detect_total_ram_gb() == 16
+
+    def test_detect_total_ram_gb_routes_linux(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _stub_os(monkeypatch, "linux")
+        monkeypatch.setattr(host_detect, "_detect_linux_total_ram_gb", lambda: 64)
+        assert host_detect.detect_total_ram_gb() == 64
+
+    def test_detect_total_ram_gb_routes_windows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _stub_os(monkeypatch, "windows")
+        monkeypatch.setattr(host_detect, "_detect_windows_total_ram_gb", lambda: 32)
+        assert host_detect.detect_total_ram_gb() == 32
+
+    def test_disk_and_ram_probes_are_independent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _stub_os(monkeypatch, "windows")
+        monkeypatch.setattr(
+            host_detect, "_detect_windows_os_version", lambda: "Windows 11"
+        )
+        monkeypatch.setattr(
+            host_detect, "_detect_windows_cpu_model", lambda: "Intel i9"
+        )
+        monkeypatch.setattr(host_detect, "_detect_windows_total_ram_gb", lambda: 0)
+        monkeypatch.setattr(
+            host_detect, "detect_gpu", lambda: ("nvidia", "RTX", 16, "535")
+        )
+        monkeypatch.setattr(host_detect.platform, "machine", lambda: "AMD64")
+        profile = host_detect.detect_host(
+            install_path_override=r"C:\Nexus",
+            free_disk_probe=lambda _p: 250,
+        )
+        assert profile.total_ram_gb == 0
+        assert profile.free_disk_gb == 250

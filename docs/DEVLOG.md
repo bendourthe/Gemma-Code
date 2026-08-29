@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 1 - Honest host RAM and disk fields
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-1-honest-host-ram.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.
+
+### What Changed
+
+- `InstallerState` now carries `total_ram_gb`. The GPU page and Review install guard copy `HostProfile` RAM onto that field. Catalog badges read RAM, not free disk.
+- Install Path writes `free_disk_gb` and `disk_space_gb` from one probe. Welcome and Prerequisites keep the two fields in lockstep.
+- Windows RAM detection prefers ctypes `GlobalMemoryStatusEx` so a windowed frozen wizard does not depend only on PowerShell CIM. Failed RAM probes show "RAM not detected" rather than "you have 0".
+
+### Why It Changed
+
+Phase 1 of the v2.3.1 installer field-repair plan. The 2026-08-28 field review showed Inkling-Small as 0 GB RAM next to a card that correctly reported 16 GB VRAM.
+
+### Decisions Made
+
+- Disk remaining stays a separate integer-GB field. RAM 0 means unknown, never a proven 0 GB machine.
+- Review `detect_host()` must not overwrite a successful path-local disk probe with 0.
+- Human screenshot checks wait for Phase 6.
+
+---
+
 ## [2026-08-29] v2.3.0 - Optional local video enhancement (release preparation)
 
 Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/last-phase-evidence.md). Changelog is authoritative. Package **2.3.0**.

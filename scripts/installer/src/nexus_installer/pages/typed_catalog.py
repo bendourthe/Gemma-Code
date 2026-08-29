@@ -580,6 +580,11 @@ def compatibility_badge(
             WARNING,
         )
     if model.required_ram_gb > 0 and total_ram_gb < model.required_ram_gb:
+        if total_ram_gb <= 0:
+            return (
+                f"Requires {model.required_ram_gb} GB RAM (RAM not detected)",
+                WARNING,
+            )
         return (
             f"Requires {model.required_ram_gb} GB RAM (you have {total_ram_gb})",
             WARNING,
@@ -1208,7 +1213,7 @@ class TypedCatalogPage(QWidget):
             )
             layout.addWidget(empty)
         else:
-            host_ram_gb = state.free_disk_gb  # placeholder until HostProfile threaded
+            host_ram_gb = state.total_ram_gb
             # v1.14.0 Phase 3: a labeled divider separates the compatible best-
             # of-family picks from the grayed, over-budget tiers below.
             divider_added = False
