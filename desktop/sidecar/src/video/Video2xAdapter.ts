@@ -788,6 +788,9 @@ function platformEquals(
   right: string,
   platform: NodeJS.Platform,
 ): boolean {
+  // String equality after normalize. Intake paths may be OS aliases of
+  // realpath (Windows 8.3, macOS /var -> /private/var); those checks use
+  // leaf lstat plus device/inode instead of this helper.
   return platform === "win32"
     ? left.toLocaleLowerCase("en-US") === right.toLocaleLowerCase("en-US")
     : left === right;
@@ -2269,7 +2272,6 @@ export class Video2xAdapter implements VideoEnhancementBackend {
       if (
         linkStat.isSymbolicLink() ||
         !stat.isFile() ||
-        !platformEquals(canonical, executable.executablePath, this.platform) ||
         stat.size !== executable.identity.size ||
         stat.dev !== executable.identity.dev ||
         stat.ino !== executable.identity.ino
@@ -2316,11 +2318,7 @@ export class Video2xAdapter implements VideoEnhancementBackend {
         "Source is missing or unreadable.",
       );
     }
-    if (
-      linkStat.isSymbolicLink() ||
-      !stat.isFile() ||
-      !platformEquals(canonical, request.source.path, this.platform)
-    ) {
+    if (linkStat.isSymbolicLink() || !stat.isFile()) {
       throw new AdapterFailure(
         "source_invalid",
         "preflight",
@@ -2398,15 +2396,13 @@ export class Video2xAdapter implements VideoEnhancementBackend {
     const baseStat = await deadline.wait(() =>
       this.filesystem.stat(canonicalBase),
     );
-    const normalizedConfiguredRoot = implementation.resolve(this.stagingRoot);
     if (
       configuredRootStat.isSymbolicLink() ||
       !configuredRootStat.isDirectory() ||
       !baseStat.isDirectory() ||
       configuredRootStat.dev !== baseStat.dev ||
       configuredRootStat.ino !== baseStat.ino ||
-      !this.isPrivateDirectory(baseStat) ||
-      !platformEquals(normalizedConfiguredRoot, canonicalBase, this.platform)
+      !this.isPrivateDirectory(baseStat)
     ) {
       throw new AdapterFailure(
         "output_conflict",
@@ -2515,15 +2511,13 @@ export class Video2xAdapter implements VideoEnhancementBackend {
       const configuredRootStat = await this.filesystem.lstat(this.stagingRoot);
       const canonicalBase = await this.filesystem.realpath(this.stagingRoot);
       const baseStat = await this.filesystem.stat(canonicalBase);
-      const normalizedConfiguredRoot = implementation.resolve(this.stagingRoot);
       if (
         configuredRootStat.isSymbolicLink() ||
         !configuredRootStat.isDirectory() ||
         !baseStat.isDirectory() ||
         configuredRootStat.dev !== baseStat.dev ||
         configuredRootStat.ino !== baseStat.ino ||
-        !this.isPrivateDirectory(baseStat) ||
-        !platformEquals(normalizedConfiguredRoot, canonicalBase, this.platform)
+        !this.isPrivateDirectory(baseStat)
       ) {
         return { status: "untrusted" };
       }

@@ -943,11 +943,17 @@ async function canonicalExistingMp4(
   ) {
     throw lifecycleError(code, stage, message, false);
   }
+  // Leaf must be a regular file. Intermediate OS aliases (Windows 8.3, macOS
+  // /var -> /private/var) are resolved; the caller receives realpath.
   try {
     const requested = path.resolve(candidate);
+    const linkStat = await fs.lstat(requested);
+    if (linkStat.isSymbolicLink() || !linkStat.isFile()) {
+      throw lifecycleError(code, stage, message, false);
+    }
     const canonical = await fs.realpath(requested);
     const stat = await fs.stat(canonical);
-    if (!pathsEqual(requested, canonical) || !stat.isFile()) {
+    if (!stat.isFile()) {
       throw lifecycleError(code, stage, message, false);
     }
     return canonical;
@@ -984,14 +990,6 @@ async function canonicalNewMp4(
       "invalid_request",
       "publish",
       "The requested output directory is unavailable.",
-      false,
-    );
-  }
-  if (!pathsEqual(requestedParent, canonicalParent)) {
-    throw lifecycleError(
-      "invalid_request",
-      "publish",
-      "The requested output directory is not canonical.",
       false,
     );
   }

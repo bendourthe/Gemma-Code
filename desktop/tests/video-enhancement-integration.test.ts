@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { canonicalMkDtemp } from "./helpers/canonicalTempDir";
 
 import type {
   VideoEnhancementProgress,
@@ -149,8 +150,8 @@ class ManualClock implements VideoEnhancementRuntimeClock {
 }
 
 async function createHarness(label: string): Promise<IntegrationHarness> {
-  const directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), `nexus-video-enhancement-integration-${label}-`),
+  const directory = await canonicalMkDtemp(
+    `nexus-video-enhancement-integration-${label}-`,
   );
   const dbPath = path.join(directory, "studio.db");
   const sourcePath = path.join(directory, "source.mp4");

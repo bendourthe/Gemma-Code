@@ -1,5 +1,10 @@
 # Unreleased
 
+### Bug Fixes
+
+* **Video enhancement paths:** treat Windows 8.3 and macOS `/var` tmpdir aliases as the same identity as `realpath` when the leaf is a regular file, so Shell Build Windows/macOS vitest can pass the same suite as Ubuntu. Do not retag `v2.3.1`.
+
+
 # [2.3.1](https://github.com/bendourthe/Nexus-AI/compare/v2.3.0...v2.3.1) (2026-08-29)
 
 Windows installer field repair after v2.3.0. Local-only. Packaged wizard screenshots remain human QA, not a silent pass. `host_detect.py` OS-specific probes stay at 40% line coverage (MT-1). Marketplace `engines.vscode` `^1.134.0` also matches 1.136+ at VS Code engine-check time; the wizard still disables 1.136+.

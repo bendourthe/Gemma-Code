@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { canonicalMkDtemp } from "./helpers/canonicalTempDir";
 
 import type { VideoEnhancementStagedSuccess } from "../../core/video/VideoEnhancement";
 import type { VideoWorkflowMetadata } from "../../core/video/WorkflowMetadata";
@@ -56,9 +57,7 @@ interface Fixture {
 }
 
 async function fixture(name = "default"): Promise<Fixture> {
-  const directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), `nexus-media-lifecycle-${name}-`),
-  );
+  const directory = await canonicalMkDtemp(`nexus-media-lifecycle-${name}-`);
   temporaryDirectories.push(directory);
   const sourcePath = path.join(directory, "source.mp4");
   const stagedPath = path.join(directory, "enhanced.partial.mp4");

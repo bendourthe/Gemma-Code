@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+
+import { canonicalMkDtemp } from "./helpers/canonicalTempDir";
 
 import type { VideoEnhancementStagedSuccess } from "../../core/video/VideoEnhancement";
 import type { VideoWorkflowMetadata } from "../../core/video/WorkflowMetadata";
@@ -66,9 +67,7 @@ interface TestChild {
 async function createEnvironment(
   options: { ffmpegExitCode?: number } = {},
 ): Promise<TestEnvironment> {
-  const directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), "nexus-media-adapter-"),
-  );
+  const directory = await canonicalMkDtemp("nexus-media-adapter-");
   temporaryDirectories.push(directory);
   const sourcePath = path.join(directory, "source.mp4");
   const sourceBytes = Buffer.from("immutable-source-video-bytes");

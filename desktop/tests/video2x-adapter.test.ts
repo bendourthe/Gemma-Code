@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { canonicalMkDtemp } from "./helpers/canonicalTempDir";
 
 import type { SettingsStore } from "../../core/storage/SettingsStore";
 import type {
@@ -172,7 +173,7 @@ let sourcePath = "";
 let stagingRoot = "";
 
 beforeEach(async () => {
-  sandbox = await fs.mkdtemp(path.join(tmpdir(), "nexus-video2x-adapter-"));
+  sandbox = await canonicalMkDtemp("nexus-video2x-adapter-");
   executablePath = path.join(sandbox, "video2x local executable");
   sourcePath = path.join(
     sandbox,
