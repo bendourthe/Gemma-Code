@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.0 - Optional local video enhancement (release preparation)
+
+Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/last-phase-evidence.md). Changelog is authoritative. Package **2.3.0**.
+
+### What Changed
+
+- Product version **2.3.0** (root `package.json` and `tauri.conf.json` via `sync-tauri-version.mjs`). `desktop/package.json` stays 1.5.0. Installer `__version__` stays 1.1.0.
+- README What's New, CHANGELOG, known-gaps finalization, and last-phase publication evidence now describe the merged develop tree (PR 52, merge `52d72d1`).
+
+### Why It Changed
+
+`/update release` after a green merge of [PR 52](https://github.com/bendourthe/Nexus-AI/pull/52). Phases 1-6 already landed the feature; this step owns the version bump and release notes.
+
+### Decisions Made
+
+- Video enhancement is an opt-in user-installed backend. Release notes carry Activation, Validation, Rollback, Authority, and Docs.
+- `scripts/check_version_sync.py`, `scripts/generate_manifest.py`, `scripts/check_release_preconditions.py`, and `scripts/check_release_capability_docs.py` do not exist in this repository. Version sync is `package.json` plus `node scripts/sync-tauri-version.mjs --check`.
+- This repository's living docs tree stays `docs/v*/` (verified by `npm run check:docs-layout`). No `docs/releases/` or `docs/handbooks/` migration.
+- Tag, GitHub Release, `main` merge, and develop back-merge stay behind later confirmation.
+
+---
+
 ## [2026-08-28] v2.3.0 Phase 6 - Architecture, known gaps, and last-phase local gate
 
 Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-6-architecture-gaps-ci.md), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/last-phase-evidence.md). Package remains **2.2.9**.
@@ -22,7 +44,7 @@ Phase 6 of the v2.3.0 adoption plan. Phases 1-5 shipped the product path; the fa
 
 - Human testing is suggestions plus DF-3, not an executed walkthrough.
 - Pipeline diffs were compared and not applied (silence is not approval).
-- Publication (T025) stays pending explicit approval. No Phase 6 work was pushed. `/update release` waits for a green merge into `develop`.
+- Publication (T025) completed after this phase: PR 52 merged to `develop` at `52d72d1`. See the 2026-08-29 release-preparation entry.
 
 ---
 

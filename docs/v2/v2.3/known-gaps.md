@@ -1,8 +1,8 @@
 # Known Gaps - v2.3
 
 **Project**: Nexus AI Studio
-**Status**: in-progress
-**Last updated**: 2026-08-28 (Phase 6)
+**Status**: finalized
+**Last updated**: 2026-08-29 (v2.3.0 release preparation)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-q
 
 ## v2.3.0
 
-**Last updated**: 2026-08-28 (Phase 6)
+**Last updated**: 2026-08-29 (release preparation)
 
 ### Summary
 
@@ -24,6 +24,8 @@ Plan: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-q
 | Quality-gate gaps (QG) | 2 | 0 |
 
 Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhance UI, fake-backend packaging evidence, and last-phase reconciliation. Real Video2X, GPU, packaged field detection, and perceptual review remain candidate (DF-3). The Nexus-Hub security-audit workflow is still an unreleased upstream item (DF-2). Pipeline topology differences were compared and not applied without approval (QG-1, QG-2).
+
+> Finalized on 2026-08-29 at the 2.3.0 bump. Open items will be ingested by /plan when the next version's plan is created.
 
 ### Open this cycle
 
@@ -73,7 +75,7 @@ Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhanc
 
 - **Source phase**: Phase 6 - Architecture Refactor, Known-Gaps Reconciliation, and CI/CD
 - **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (T021)
-- **Reason**: `.github/workflows/ci.yml` SHA-pins actions, uses npm/pip cache, concurrency cancellation, and 7-day artifacts, but has no workflow-level `permissions` block and no always-resolving aggregate required job. `pull_request.branches` is `main` only; develop integration relies on the `push` trigger. Differences were proposed and not applied.
+- **Reason**: `.github/workflows/ci.yml` SHA-pins actions, uses npm/pip cache, concurrency cancellation, and 7-day artifacts, but has no workflow-level `permissions` block and no always-resolving aggregate required job. `pull_request.branches` is `main` only; develop integration relies on the `push` trigger. After PR 52 merged, the develop push reran the complete CI suite (observed finding against event separation). Differences were proposed and not applied.
 - **Suggested next step**: Approve a least-privilege permissions block and an aggregate required job in a CI-owned phase, then add `develop` to pull_request branches if branch protection should see merge-result checks.
 
 ##### MT-1 - VideoLabPage function coverage is below 80% on the focused run

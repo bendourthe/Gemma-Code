@@ -1,6 +1,40 @@
 # Unreleased
 
-Post-cut work on `develop` after tag `v2.2.9`. No version bump. No retag.
+# [2.3.0](https://github.com/bendourthe/Nexus-AI/compare/v2.2.9...v2.3.0) (2026-08-29)
+
+Optional local video enhancement after v2.2.9. Local-only. Real Video2X 6.4.0, GPU/VRAM, packaged detection, and perceptual review remain not proven here (DF-3). Hydrated Enhance remains unrestored (DF-1). The Nexus-Hub security-audit workflow is still unreleased (DF-2).
+
+Activation: Install Video2X 6.4.0 yourself, then set `NEXUS_VIDEO2X_PATH` or Settings > Video > Video2X executable to the absolute executable path.
+Validation: In Video Lab, Recheck capability; Enhance is enabled only when capability is ready. Contract check: `node scripts/bench-video-enhancement.mjs --backend fake`.
+Rollback: Clear Settings > Video > Video2X executable and unset `NEXUS_VIDEO2X_PATH`. That does not uninstall Video2X. Original clips remain.
+Authority: Configuring a path does not install or download Video2X, does not search PATH, does not replace originals, does not grant network or Hub writes, and does not add Qwen3.8.
+Docs: [docs/v2/v2.3/benchmarks/video-enhancement-baseline.md](docs/v2/v2.3/benchmarks/video-enhancement-baseline.md)
+
+The optional VS Code extension still requires VS Code 1.134.0 exactly. The packaged desktop application remains Windows-only; raw Tauri bundles stay withheld (DF-38).
+
+
+### Features
+
+* **Enhancement contract:** add a backend-neutral local enhancement contract, keep Qwen3.8 out of catalogs, and hand OpenWorker security refinements to Nexus-Hub without editing the sibling repository ([0e4b41b](https://github.com/bendourthe/Nexus-AI/commit/0e4b41b))
+* **Guarded core:** add a Video2X 6.4.0 adapter behind process isolation that never downloads or bundles the executable ([7d94f93](https://github.com/bendourthe/Nexus-AI/commit/7d94f93))
+* **Durable jobs:** persist `video_enhancement` child jobs with separate provenance and original-file preservation ([40174cd](https://github.com/bendourthe/Nexus-AI/commit/40174cd))
+* **Video Lab Enhance:** offer capability-backed presets, progress, cancellation, and distinct original versus enhanced downloads ([6989f16](https://github.com/bendourthe/Nexus-AI/commit/6989f16))
+* **Support copy:** share setup, env, setting, and capability strings from `core/video/video-enhancement-support.json` ([5f48246](https://github.com/bendourthe/Nexus-AI/commit/5f48246))
+* **Settings path:** store an absolute `video.video2xPath`, prefer `NEXUS_VIDEO2X_PATH`, and prove fake-backend fixture geometry without bundling Video2X ([5f48246](https://github.com/bendourthe/Nexus-AI/commit/5f48246))
+
+
+### Bug Fixes
+
+* **Linux CI:** use host-absolute tmpdir fixtures so POSIX `path.isAbsolute` does not reject Windows drive-letter test paths ([e7e4368](https://github.com/bendourthe/Nexus-AI/commit/e7e4368))
+* **Packaging:** withhold raw Tauri bundles that do not embed Node 22.11.0 (DF-38), keep the optional extension on exact VS Code 1.134.0, and exclude Video2X binaries, AGPL source, and automatic-download URLs from the tree
+
+
+### Documentation
+
+* **v2.3.0:** record last-phase evidence, known gaps, and the integration merge ([a0a0115](https://github.com/bendourthe/Nexus-AI/commit/a0a0115), [52d72d1](https://github.com/bendourthe/Nexus-AI/commit/52d72d1))
+* **Forward plans:** add the v2.3.1 installer field-repair plan and the v2.4.0 Unsloth Qwen / Gaussian Splatting comparison on `develop` ([39c5007](https://github.com/bendourthe/Nexus-AI/commit/39c5007), [3bea05e](https://github.com/bendourthe/Nexus-AI/commit/3bea05e))
+
+Plan: [v2.3.0](docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md). Gaps: [docs/v2/v2.3/known-gaps.md](docs/v2/v2.3/known-gaps.md).
 
 # [2.2.9](https://github.com/bendourthe/Nexus-AI/compare/v2.2.8...v2.2.9) (2026-08-28)
 

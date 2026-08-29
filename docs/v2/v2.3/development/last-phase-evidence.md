@@ -4,8 +4,8 @@
 **Plan**: [Local Video Enhancement and Security Audit Intake](../plans/v2.3.0-adoption-qwen-video2x-openworker.md)
 **Date**: 2026-08-28
 **Driver**: `/implement full` final phase (Phase 6 of 6)
-**Branch**: `feat/v2.3.0-qwen-video2x-openworker`
-**Package**: **2.2.9** (no version bump in this phase)
+**Branch**: `feat/v2.3.0-qwen-video2x-openworker` (merged via PR 52)
+**Package**: **2.2.9** during Phase 6; **2.3.0** at `/update release` on 2026-08-29
 
 Each section quotes the proving command or scan per the fail-closed last-phase gate.
 
@@ -52,7 +52,7 @@ Glob `docs/**/known-gaps.md` found 29 files (canonical `docs/v*/v*/` plus archiv
 
 | File | Status line | Disposition |
 | ---- | ----------- | ----------- |
-| `docs/v2/v2.3/known-gaps.md` | in-progress | Reconciled this phase. Open: DF-1, DF-2, DF-3, DF-4, WN-1, MT-1, QG-1, QG-2. |
+| `docs/v2/v2.3/known-gaps.md` | finalized (2026-08-29) | Reconciled in Phase 6; finalized at the 2.3.0 bump. Open: DF-1, DF-2, DF-3, DF-4, WN-1, MT-1, QG-1, QG-2. |
 | `docs/v2/v2.2/known-gaps.md` | finalized | Closed cycle. Open rows stay in that file for later `/plan` ingest. No v2.3.0 edit. |
 | `docs/v2/v2.1/known-gaps.md` | finalized | No v2.3.0 action. |
 | `docs/v2/v2.0/known-gaps.md` | in-progress | Hardware/audio/avatar DF rows remain that cycle's. Indexed, not closed here. |
@@ -103,7 +103,7 @@ Per-field comparison against cicd-architect (existing-pipeline mode). No workflo
 | ----- | ------------------- | ------ |
 | Provider | `.github/workflows/ci.yml` and siblings | PASS |
 | Profiles | `npm test`, `npm run test:shell`, `npm run lint`, `python -m pytest tests/python`, installer `uv run pytest` exist and are what CI invokes. Named `fast` / `full` / `platform` / `report` / `release` npm scripts are absent. | DIFF recorded as QG-1 |
-| Events | `ci.yml` `push` (all branches except dependabot) plus `pull_request` to `main`. Feature-branch PRs into `develop` rely on the push trigger, not a develop pull_request trigger. | DIFF recorded as QG-2 |
+| Events | `ci.yml` `push` (all branches except dependabot) plus `pull_request` to `main`. Feature-branch PRs into `develop` rely on the push trigger, not a develop pull_request trigger. After PR 52 merged, the develop push reran the complete CI suite (QG-2 finding). | DIFF recorded as QG-2 |
 | Runners | Hosted `ubuntu-latest`; Windows `init.ps1` on push only (`github.event_name != 'pull_request'`). No self-hosted untrusted runners. | PASS |
 | Aggregate required check | No always-resolving aggregate job in `ci.yml`. | DIFF recorded as QG-2 |
 | Permissions | `ci.yml` has no workflow-level `permissions`. Some sibling workflows set explicit permissions. | DIFF recorded as QG-2 |
@@ -172,8 +172,10 @@ Advisory model-prompting freshness: `scripts/check_model_prompting_freshness.py`
 
 ## Publication and integration
 
-Pending explicit approval. This section will quote the push, required checks, and merge SHA after 9F.
+Quoted after 9F. Branch `feat/v2.3.0-qwen-video2x-openworker` pushed to origin. Integration PR https://github.com/bendourthe/Nexus-AI/pull/52 against `develop` merged at `52d72d10e8afeba0231fb69043efbfea3b2176ce` on 2026-08-29.
 
-First publication: branch pushed to `origin/feat/v2.3.0-qwen-video2x-openworker`. Integration PR https://github.com/bendourthe/Nexus-AI/pull/52 against `develop`. First `Test TypeScript (Node 22.x)` desktop vitest failed 3 tests on Linux (Windows-path fixtures). Phase reopened. Stabilization uses host-absolute tmpdir fixtures. Other first-run jobs passed, including installer tests, lint, Node 24.x root tests, and init.ps1.
+First `Test TypeScript (Node 22.x)` failed 3 Linux desktop tests (Windows-path fixtures). Reopened, fixed with host-absolute tmpdir fixtures (`e7e4368`), second push green: all registered PR checks SUCCESS including Node 22.x tests and the 80% coverage gate. Installer tests passed on the first push. Post-merge develop push reran CI, Installer tests, and Shell Build; all succeeded (QG-2: duplicate full CI suite after feature-branch push).
 
-Resolved branching model: develop+main. Protected release branch is `main`. Integration target is `develop`. Remote is `origin` (`https://github.com/bendourthe/Nexus-AI.git`). Feature branch `feat/v2.3.0-qwen-video2x-openworker` is two local commits behind `develop` (`3bea05e` v2.4.0 comparison docs, `39c5007` v2.3.1 installer-field docs). Expected required checks after a develop-targeted PR still depend on push-triggered `ci.yml` plus path-filtered installer-tests (QG-2). `/update release` is blocked until this file is complete, Goal review has no unrecorded miss, and the integration result is green and merged.
+`/update release` proceeds from this green merge. Tag and GitHub Release remain confirmation-gated.
+
+Resolved branching model: develop+main. Protected release branch is `main`. Integration target is `develop`. Remote is `origin` (`https://github.com/bendourthe/Nexus-AI.git`).

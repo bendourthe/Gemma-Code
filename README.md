@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, and the current **v2.2.9** field-repair cycle lives under `docs/v2/v2.2/`. See [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, v2.2.9 lives under `docs/v2/v2.2/`, and the current **v2.3.0** cycle lives under `docs/v2/v2.3/`. See [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, and `docs/v2/v2.2/` for **v2.2.9**).
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, `docs/v2/v2.2/` for v2.2.9, and `docs/v2/v2.3/` for **v2.3.0**).
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: the old `v2.0.0` tag became `v1.6.0`, `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0`, `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. This **v2.0.0** cut is the reserved convergence release (v1.18 plan + v1.19.x subplans + this adoption plan).
 
@@ -113,8 +113,29 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v2.2.7 | Context meter and transcript chrome: catalog `<val>k` chips, composer Context pill plus picker, date/time/token bubbles | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
 | v2.2.8 | Working local studio: minutes-class chat/generate RPCs, shared FolderTree, installer Models sort, Hub latest with quarantine | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
 | v2.2.9 | Field chrome and catalog identity: finished Chatbot/studio chrome, typed diffusion readiness errors, installer/Settings model parity, truthful Hub sync | Landed at automated-test tier; packaged field QA remains DF-36 | [docs/v2/v2.2/](docs/v2/v2.2/) |
+| v2.3.0 | Optional local video enhancement, Qwen3.8 stays out, Hub security-audit handoff | Landed at automated/internal-compatible evidence; real Video2X/GPU/packaged measurement remains DF-3 | [docs/v2/v2.3/](docs/v2/v2.3/) |
 
-Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. Deferred work is in that version's `known-gaps.md`.
+Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. v2.3.0 lives under `docs/v2/v2.3/plans/`. Deferred work is in that version's `known-gaps.md`.
+
+### What's new in v2.3.0
+
+Video Lab can enhance a completed local clip without replacing the original. Qwen3.8-Flash-Next stays out of catalogs. OpenWorker is a Nexus-Hub handoff only. Automated and internal-compatible evidence is supported; real Video2X 6.4.0, GPU/VRAM, packaged detection, and perceptual review are not proven here (DF-3). Hydrated sessions do not restore Enhance (DF-1). Hub security-audit is still unreleased upstream (DF-2).
+
+- **Enhance** - A completed identity-backed clip can upscale, interpolate, or both as a cancellable `video_enhancement` child job. The original download stays; the enhanced file is separate and provenance-linked.
+- **Honest backend** - The first adapter may call a user-installed Video2X 6.4.0 executable. Nexus does not download, bundle, or search PATH for it. Missing configuration and unsupported hosts fail closed with shared copy.
+- **Settings and installer** - Settings > Video stores an absolute `video.video2xPath`. `NEXUS_VIDEO2X_PATH` wins over the setting. The installer shows a note, not an install toggle.
+- **Evidence** - Fake-backend fixtures prove geometry and source preservation. Peak CPU/GPU/VRAM and packaged field detection remain not proven here.
+- **Admission** - Qwen3.8 is absent from `core/registry/catalog.json`. OpenWorker is specified in the Hub handoff document; this release does not edit the sibling repository.
+
+Activation: Install Video2X 6.4.0 yourself, then set `NEXUS_VIDEO2X_PATH` or Settings > Video > Video2X executable to the absolute executable path.
+Validation: In Video Lab, Recheck capability; Enhance is enabled only when capability is ready. Contract check: `node scripts/bench-video-enhancement.mjs --backend fake`.
+Rollback: Clear Settings > Video > Video2X executable and unset `NEXUS_VIDEO2X_PATH`. That does not uninstall Video2X. Original clips remain.
+Authority: Configuring a path does not install or download Video2X, does not search PATH, does not replace originals, does not grant network or Hub writes, and does not add Qwen3.8.
+Docs: [video-enhancement-baseline.md](docs/v2/v2.3/benchmarks/video-enhancement-baseline.md).
+
+The optional VS Code extension still requires VS Code 1.134.0 exactly. The packaged desktop application remains Windows-only; raw Tauri bundles stay withheld (DF-38).
+
+Known gaps: [docs/v2/v2.3/known-gaps.md](docs/v2/v2.3/known-gaps.md). Plan: [docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md](docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md).
 
 ### What's new in v2.2.9
 
@@ -252,15 +273,15 @@ v1.19.0 already shipped LFM2.5-2.6B as the low-VRAM Agentic pick. Known gaps sta
 1. **Local-first.** Inference, embeddings, image and video synthesis, and memory storage all live on the host machine. No outbound calls without explicit user opt-in.
 2. **Originality over wrappers.** When an external service or heavy framework can be reverse-engineered into a lean local module, we do that. The codebase follows this rule explicitly (see [AGENTS.md](AGENTS.md) "MCP Registry Policy" and the comparison matrices at [docs/v1/v1.1/comparison-agentmemory.md](docs/v1/v1.1/comparison-agentmemory.md) and [docs/v1/v1.1/comparison-sana.md](docs/v1/v1.1/comparison-sana.md)). The only external project we deliberately link to is [bendourthe/Nexus-Hub](https://github.com/bendourthe/Nexus-Hub), the author's own skill / hook / command catalog and the upstream feed for Nexus's skill harness.
 3. **Single-GPU ceiling.** Every pillar must run on a laptop with a single consumer GPU (e.g. RTX 3070 - 4090 class). Hardware tiers are auto-detected at install and context budgets, batch sizes, and pipeline depths adapt accordingly.
-4. **Installer carries the burden where supported.** The Windows one-file installer provisions the runtime, models, optional exact-host VSIX, and desktop app. v2.2.9 withholds raw Tauri desktop bundles because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar; DF-1 tracks self-contained Node bundling. DF-24 separately tracks the missing Unix selected-model snapshot write.
+4. **Installer carries the burden where supported.** The Windows one-file installer provisions the runtime, models, optional exact-host VSIX, and desktop app. v2.3.0 withholds raw Tauri desktop bundles because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar; DF-1 tracks self-contained Node bundling. DF-24 separately tracks the missing Unix selected-model snapshot write. Video2X is not an installer payload.
 5. **Privacy by construction.** Memory writes pass through the [`redactSecrets`](core/observability/redactSecrets.ts) pre-index filter (AWS keys, classic + fine-grained GitHub PATs, Slack tokens, JWTs, PEM blocks, env-style assignments). Telemetry, traces, and logs are local-only by default and redact secret patterns before any opt-in export.
-6. **Qualified OS support (updated in v2.2.9).** The packaged desktop application target is Windows x64. The optional exact-host VSIX targets Windows x64, macOS Apple Silicon, and Linux x86_64; Intel macOS is not a v2.2.9 artifact target.
+6. **Qualified OS support (updated in v2.3.0).** The packaged desktop application target is Windows x64. The optional exact-host VSIX targets Windows x64, macOS Apple Silicon, and Linux x86_64; Intel macOS is not a v2.3.0 artifact target.
 
 ---
 
 ## Quick Start (developer workflow)
 
-End users: grab the Windows one-file installer from the [releases page](https://github.com/bendourthe/Nexus-AI/releases) and follow the [installation guide](docs/install.md) (including the unsigned-binary warning). macOS and Linux receive only the optional platform VSIX in v2.2.9. The extension requires Microsoft stable VS Code 1.134.0 exactly; the Windows desktop application is not subject to this VS Code pin. Developers work against the source tree:
+End users: grab the Windows one-file installer from the [releases page](https://github.com/bendourthe/Nexus-AI/releases) and follow the [installation guide](docs/install.md) (including the unsigned-binary warning). macOS and Linux receive only the optional platform VSIX in v2.3.0. The extension requires Microsoft stable VS Code 1.134.0 exactly; the Windows desktop application is not subject to this VS Code pin. Developers work against the source tree:
 
 ```bash
 # Prereqs: Node 20+, Rust + Cargo (for Tauri core), Ollama for inference.
@@ -356,7 +377,7 @@ assets/      Icons, images, fonts, banners
 bin/         CLI entry points (nexus, nexus-check, nexus-image, nexus-video)
 ```
 
-The provisioning-installer source tree lives at [scripts/installer/](scripts/installer/) and contains a PyQt-based branded wizard. For v2.2.9, the complete one-file installer is the only packaged desktop application target; raw Tauri bundles remain internal build outputs until they embed an exact runtime. The Windows one-shot path landed across the v1.8.0 -> v1.11.0 cycles: dependency provisioning, an embedded desktop bundle, per-VRAM model curation, a clean-machine test harness, and full background continuation.
+The provisioning-installer source tree lives at [scripts/installer/](scripts/installer/) and contains a PyQt-based branded wizard. For v2.3.0, the complete one-file installer is the only packaged desktop application target; raw Tauri bundles remain internal build outputs until they embed an exact runtime. Video2X is never bundled. The Windows one-shot path landed across the v1.8.0 -> v1.11.0 cycles: dependency provisioning, an embedded desktop bundle, per-VRAM model curation, a clean-machine test harness, and full background continuation.
 
 ---
 
