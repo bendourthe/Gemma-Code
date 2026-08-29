@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "envKey": "NEXUS_VIDEO2X_PATH",
+  "settingKey": "video.video2xPath",
+  "settingsTab": "video",
+  "settingsTabLabel": "Video",
+  "settingsFieldLabel": "Video2X executable",
+  "compatibilityId": "video2x-cli-6.4.0",
+  "pinnedVersion": "6.4.0",
+  "backendDisplayName": "Video2X",
+  "doesNotBundle": true,
+  "doesNotDownload": true,
+  "doesNotSearchPath": true,
+  "ffmpegRemainsMediaDependency": true,
+  "setupCopy": "Video enhancement is optional. Install Video2X 6.4.0 yourself, then set NEXUS_VIDEO2X_PATH or Settings > Video > Video2X executable to the absolute executable path. Nexus does not download, bundle, or search PATH for Video2X. FFmpeg remains the media probe and mux dependency.",
+  "installerNote": "Video2X is optional and never installed by this wizard. After setup, set NEXUS_VIDEO2X_PATH or Settings > Video > Video2X executable to an absolute Video2X 6.4.0 path.",
+  "envWinsCopy": "NEXUS_VIDEO2X_PATH currently overrides the saved setting.",
+  "capabilityCopy": {
+    "missing_configuration": "Configure a local Video2X executable in Settings.",
+    "invalid_path": "The configured Video2X executable path is invalid.",
+    "unsupported_platform": "Video enhancement is not supported on this operating system.",
+    "unsupported_architecture": "Video enhancement is not supported on this CPU architecture.",
+    "process_host_unavailable": "The local enhancement process host is unavailable.",
+    "cpu_probe_failed": "Nexus could not verify the CPU requirements.",
+    "missing_avx2": "This Video2X integration requires an AVX2-capable CPU.",
+    "incompatible_version": "Update the configured Video2X build to a compatible version.",
+    "incompatible_grammar": "The configured Video2X command format is incompatible.",
+    "probe_timeout": "The local Video2X capability check timed out.",
+    "probe_failed": "The local Video2X capability check failed.",
+    "no_vulkan_device": "No compatible local Vulkan GPU was found.",
+    "model_unavailable": "A required local enhancement model is unavailable.",
+    "internal_error": "The enhancement capability check failed safely."
+  },
+  "platforms": {
+    "win32-x64-vulkan": "candidate",
+    "linux-x64-vulkan": "candidate",
+    "darwin": "unsupported",
+    "arm64": "unsupported",
+    "cpu-only": "unsupported"
+  }
+}

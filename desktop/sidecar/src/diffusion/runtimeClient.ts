@@ -33,11 +33,21 @@ export interface DiffusionProgressEvent {
 
 export type DiffusionEvent =
   | ({ kind: "progress" } & DiffusionProgressEvent)
-  | { kind: "complete"; jobId: string; outputPath?: string; png?: string }
+  | {
+      kind: "complete";
+      jobId: string;
+      outputPath?: string;
+      outputId?: string;
+      outputHash?: string;
+      png?: string;
+    }
   | { kind: "error"; jobId: string; message: string };
 
 export interface DiffusionRuntimeClient {
-  call<T = unknown>(method: string, params: Record<string, unknown>): Promise<T>;
+  call<T = unknown>(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<T>;
   drainEvents(jobId: string): readonly DiffusionEvent[];
   shutdown(): Promise<void>;
   lastStderr?(): string;
@@ -60,7 +70,8 @@ export class InMemoryDiffusionRuntime implements DiffusionRuntimeClient {
   private readonly responses = new Map<string, unknown>();
   private readonly errors = new Map<string, string>();
   private readonly events = new Map<string, DiffusionEvent[]>();
-  readonly calls: Array<{ method: string; params: Record<string, unknown> }> = [];
+  readonly calls: Array<{ method: string; params: Record<string, unknown> }> =
+    [];
 
   setResponse(method: string, value: unknown): void {
     this.responses.set(method, value);
@@ -82,14 +93,19 @@ export class InMemoryDiffusionRuntime implements DiffusionRuntimeClient {
     return "";
   }
 
-  async call<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
+  async call<T = unknown>(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<T> {
     this.calls.push({ method, params });
     const err = this.errors.get(method);
     if (err) {
       throw new Error(err);
     }
     if (!this.responses.has(method)) {
-      throw new Error(`InMemoryDiffusionRuntime: no response stubbed for ${method}`);
+      throw new Error(
+        `InMemoryDiffusionRuntime: no response stubbed for ${method}`,
+      );
     }
     return this.responses.get(method) as T;
   }
@@ -147,7 +163,11 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
       env: this.options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],
     };
-    const child = spawnFn(command, args, spawnOpts) as ChildProcessWithoutNullStreams;
+    const child = spawnFn(
+      command,
+      args,
+      spawnOpts,
+    ) as ChildProcessWithoutNullStreams;
     this.child = child;
     this.stderrTail = "";
     if (child.stderr) {
@@ -207,14 +227,21 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
     }
   }
 
-  async call<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
+  async call<T = unknown>(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<T> {
     const child = this.ensureSpawned();
     const id = this.nextId++;
     const payload = JSON.stringify({ jsonrpc: "2.0", id, method, params });
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.pending.delete(id)) {
-          reject(new Error(`diffusion.${method}: timeout after ${this.requestTimeoutMs}ms`));
+          reject(
+            new Error(
+              `diffusion.${method}: timeout after ${this.requestTimeoutMs}ms`,
+            ),
+          );
         }
       }, this.requestTimeoutMs);
       this.pending.set(id, {

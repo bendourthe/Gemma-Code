@@ -7,7 +7,12 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { VideoLabPage } from "../src/modules/video/VideoLabPage";
 import { InMemoryVideoClient } from "../src/modules/video/videoClient";
+import {
+  InMemoryVideoEnhancementClient,
+  type VideoEnhancementJobDto,
+} from "../src/modules/video/videoEnhancementClient";
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
+import { InMemoryGenerationQueueClient } from "../src/shared/studio/generationQueueClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
@@ -100,7 +105,13 @@ describe("VideoLabPage (chat)", () => {
     );
     client.scriptEvents("mem-video-1", [
       { kind: "progress", jobId: "mem-video-1", step: 2, totalSteps: 4 },
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+      {
+        kind: "complete",
+        jobId: "mem-video-1",
+        outputPath: "/tmp/clip.mp4",
+        outputId: "mem-video-1",
+        outputHash: "a".repeat(64),
+      },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
     await act(async () => {
@@ -116,6 +127,7 @@ describe("VideoLabPage (chat)", () => {
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /enhance video/i })).toBeInTheDocument();
     expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
     // v2.2.9 Phase 1.3: these turns report no token usage, so the span is
     // omitted rather than rendered as an em dash.
@@ -156,7 +168,7 @@ describe("VideoLabPage (chat)", () => {
       <VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />,
     );
     client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/a.mp4" },
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/a.mp4" },
     ]);
     const file = new File(["x"], "cat.png", { type: "image/png" });
     await act(async () => {
@@ -209,7 +221,7 @@ describe("VideoLabPage (chat)", () => {
       />,
     );
     client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
     await act(async () => {
@@ -265,7 +277,7 @@ describe("VideoLabPage (chat)", () => {
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
   });
 
-  it("turns a complete event without an mp4 path into a written failure", async () => {
+  it("turns a complete event without an output path into a written failure", async () => {
     const client = new InMemoryVideoClient();
     render(<VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />);
     client.scriptEvents("mem-video-1", [{ kind: "complete", jobId: "mem-video-1" }]);
@@ -280,6 +292,32 @@ describe("VideoLabPage (chat)", () => {
     expect(screen.queryByTestId(/^message-media-/)).toBeNull();
   });
 
+  it("does not expose Enhance for a playable completion without durable output identity", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        resolveMp4Url={(path) => `mock://${path}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "fox" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /enhance video/i })).toBeNull();
+  });
+
   it("hides generated-video actions when the browser cannot decode the asset", async () => {
     const client = new InMemoryVideoClient();
     render(
@@ -291,7 +329,7 @@ describe("VideoLabPage (chat)", () => {
       />,
     );
     client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
     await act(async () => {
@@ -316,13 +354,13 @@ describe("VideoLabPage (chat)", () => {
       />,
     );
     client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/a.mp4" },
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/a.mp4" },
     ]);
     client.scriptEvents("mem-video-2", [
-      { kind: "complete", jobId: "mem-video-2", mp4Path: "/tmp/b.mp4" },
+      { kind: "complete", jobId: "mem-video-2", outputPath: "/tmp/b.mp4" },
     ]);
     client.scriptEvents("mem-video-3", [
-      { kind: "complete", jobId: "mem-video-3", mp4Path: "/tmp/c.mp4" },
+      { kind: "complete", jobId: "mem-video-3", outputPath: "/tmp/c.mp4" },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "long take" } });
     await act(async () => {
@@ -378,7 +416,7 @@ describe("VideoLabPage (chat)", () => {
     await waitFor(() => expect(screen.getByTestId("media-composer-thumb-1")).toBeInTheDocument());
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
     client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/avatar.mp4" },
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/avatar.mp4" },
     ]);
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
@@ -404,7 +442,7 @@ describe("VideoLabPage (chat)", () => {
       />,
     );
     client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
     await act(async () => {
@@ -419,7 +457,7 @@ describe("VideoLabPage (chat)", () => {
       fireEvent.click(add);
     });
     client.scriptEvents("mem-video-2", [
-      { kind: "complete", jobId: "mem-video-2", mp4Path: "/tmp/clip2.mp4" },
+      { kind: "complete", jobId: "mem-video-2", outputPath: "/tmp/clip2.mp4" },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "again" } });
     await act(async () => {
@@ -461,7 +499,7 @@ describe("VideoLabPage (chat)", () => {
       />,
     );
     client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
     await act(async () => {
@@ -479,7 +517,7 @@ describe("VideoLabPage (chat)", () => {
       expect(session!.lastOutputRef).toBe("/tmp/clip.mp4");
     });
     client.scriptEvents("mem-video-2", [
-      { kind: "complete", jobId: "mem-video-2", mp4Path: "/tmp/clip-snow.mp4" },
+      { kind: "complete", jobId: "mem-video-2", outputPath: "/tmp/clip-snow.mp4" },
     ]);
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "make it snow" } });
     await act(async () => {
@@ -537,6 +575,7 @@ describe("VideoLabPage (chat)", () => {
     );
     await waitFor(() => expect(screen.getByText("a fox")).toBeInTheDocument());
     expect(screen.getByTestId(/^message-media-/)).toHaveAttribute("src", "/tmp/clip.mp4");
+    expect(screen.queryByRole("button", { name: /enhance video/i })).toBeNull();
   });
 
   it("hydrate of a missing file is an error, not an empty complete", async () => {
@@ -565,4 +604,206 @@ describe("VideoLabPage (chat)", () => {
     await waitFor(() => expect(screen.getByText(/output missing on disk/i)).toBeInTheDocument());
     expect(screen.queryByTestId(/^message-media-/)).toBeNull();
   });
+
+  it("opens Enhance for an eligible clip and keeps original and enhanced downloads distinct", async () => {
+    const client = new InMemoryVideoClient();
+    const enhancement = new InMemoryVideoEnhancementClient();
+    render(
+      <VideoLabPage
+        client={client}
+        enhancementClient={enhancement}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        enhancementPollIntervalMs={20}
+        resolveMp4Url={(path) => `mock://${path}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      {
+        kind: "complete",
+        jobId: "mem-video-1",
+        outputPath: "/tmp/clip.mp4",
+        outputId: "mem-video-1",
+        outputHash: "a".repeat(64),
+      },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    const enhance = await screen.findByRole("button", { name: /enhance video/i });
+    expect(enhance).toHaveAccessibleName(/enhance video/i);
+    fireEvent.click(enhance);
+    await waitFor(() =>
+      expect(screen.getByTestId("video-enhancement-start")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("video-enhancement-start"));
+    await waitFor(() => expect(enhancement.enqueued).toHaveLength(1));
+    expect(enhancement.enqueued[0]).toMatchObject({
+      parentJobId: "mem-video-1",
+      sourceOutputId: "mem-video-1",
+      mode: "upscale",
+      upscalePreset: "animation-upscale-2x",
+    });
+    const queued = enhancement.jobs[0];
+    expect(queued).toBeTruthy();
+    enhancement.setJob(succeedEnhancement(queued!));
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Enhanced output \(1708 x 960/)).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /download original video/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /download enhanced video/i })).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`video-enhance-video-enhancement-${queued!.childJobId}`),
+    ).toBeNull();
+    const seen: string[] = [];
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function click() {
+      seen.push(this.download);
+    };
+    try {
+      fireEvent.click(screen.getByRole("button", { name: /download original video/i }));
+      fireEvent.click(screen.getByRole("button", { name: /download enhanced video/i }));
+    } finally {
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
+    expect(seen[0]).toMatch(/^nexus-video-original-/);
+    expect(seen[1]).toMatch(/^nexus-video-enhanced-/);
+    expect(screen.getAllByTestId(/^message-media-/)[0]).toHaveAttribute(
+      "src",
+      "mock:///tmp/clip.mp4",
+    );
+    expect(screen.getAllByTestId(/^message-media-/)[1]).toHaveAttribute(
+      "src",
+      "mock:///tmp/enhanced.mp4",
+    );
+    fireEvent.click(screen.getAllByTestId(/^message-media-/)[1]!);
+    await waitFor(() =>
+      expect(
+        screen.getByTestId(`video-copyworkflow-video-enhancement-${queued!.childJobId}`),
+      ).toHaveAccessibleName("Copy workflow and provenance"),
+    );
+  });
+
+  it("still publishes a successful enhancement after the panel is closed", async () => {
+    const client = new InMemoryVideoClient();
+    const enhancement = new InMemoryVideoEnhancementClient();
+    render(
+      <VideoLabPage
+        client={client}
+        enhancementClient={enhancement}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        enhancementPollIntervalMs={20}
+        resolveMp4Url={(path) => `mock://${path}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      {
+        kind: "complete",
+        jobId: "mem-video-1",
+        outputPath: "/tmp/clip.mp4",
+        outputId: "mem-video-1",
+        outputHash: "a".repeat(64),
+      },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enhance video/i }));
+    await waitFor(() =>
+      expect(screen.getByTestId("video-enhancement-start")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("video-enhancement-start"));
+    await waitFor(() => expect(enhancement.jobs).toHaveLength(1));
+    fireEvent.click(screen.getByTestId("video-enhancement-close"));
+    expect(screen.queryByTestId("video-enhancement-panel")).toBeNull();
+    enhancement.setJob(succeedEnhancement(enhancement.jobs[0]!));
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/separate synthesized file/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows enhancement children in the generation queue bar", async () => {
+    const queue = new InMemoryGenerationQueueClient();
+    queue.jobs = [
+      {
+        id: "enhance-child",
+        pillar: "video",
+        jobType: "video_enhancement",
+        parameters: {},
+        batchSpec: null,
+        parentId: "mem-video-1",
+        enhancement: null,
+        sortOrder: 0,
+        state: "running",
+        priority: "interactive",
+        threadId: null,
+        error: null,
+        createdAt: "2026-08-28T12:00:00.000Z",
+        updatedAt: "2026-08-28T12:00:00.000Z",
+      },
+    ];
+    render(
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={videoModels()}
+        queueClient={queue}
+        drainIntervalMs={20}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("video-advanced-settings"));
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    const item = await screen.findByTestId("generation-queue-item-enhance-child");
+    expect(item).toHaveAttribute("data-job-kind", "enhancement");
+    expect(item).toHaveTextContent("Enhance enhance-child");
+    expect(screen.getByRole("button", { name: "Cancel enhancement enhance-child" })).toBeInTheDocument();
+  });
 });
+
+function succeedEnhancement(job: VideoEnhancementJobDto): VideoEnhancementJobDto {
+  return {
+    ...job,
+    state: "succeeded",
+    finishedAt: "2026-08-28T12:00:04.000Z",
+    output: {
+      outputId: `${job.childJobId}:output`,
+      path: "/tmp/enhanced.mp4",
+      contentHash: "b".repeat(64),
+      sizeBytes: 2_048,
+      durationSeconds: 4,
+      width: 1_708,
+      height: 960,
+      frameRate: { numerator: 24, denominator: 1 },
+      provenanceRecordId: "prov-1",
+      preProvenanceContainerSha256: "b".repeat(64),
+      publishedContainerSha256: "b".repeat(64),
+      workflow: { enhancement: { backend: "video2x" } },
+      durableProvenance: { sourceJobId: job.parentJobId },
+    },
+  };
+}

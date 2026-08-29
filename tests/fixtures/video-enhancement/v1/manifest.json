@@ -1,0 +1,79 @@
+{
+  "version": "v1",
+  "kind": "nexus-video-enhancement-fixtures",
+  "notes": "Declared 480p and 720p scenes for deterministic fake-backend measurement. Real pixels are not required for the CI contract; live Video2X evidence remains not proven here until a real-backend run is recorded.",
+  "fixtures": [
+    {
+      "id": "photoreal-480p",
+      "contentClass": "photoreal",
+      "width": 854,
+      "height": 480,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    },
+    {
+      "id": "photoreal-720p",
+      "contentClass": "photoreal",
+      "width": 1280,
+      "height": 720,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    },
+    {
+      "id": "animation-480p",
+      "contentClass": "animation",
+      "width": 854,
+      "height": 480,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    },
+    {
+      "id": "animation-720p",
+      "contentClass": "animation",
+      "width": 1280,
+      "height": 720,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    },
+    {
+      "id": "text-edges-480p",
+      "contentClass": "text-edges",
+      "width": 854,
+      "height": 480,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    },
+    {
+      "id": "text-edges-720p",
+      "contentClass": "text-edges",
+      "width": 1280,
+      "height": 720,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    },
+    {
+      "id": "motion-occlusion-480p",
+      "contentClass": "motion-occlusion",
+      "width": 854,
+      "height": 480,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    },
+    {
+      "id": "motion-occlusion-720p",
+      "contentClass": "motion-occlusion",
+      "width": 1280,
+      "height": 720,
+      "frameRate": { "numerator": 24, "denominator": 1 },
+      "frameCount": 8,
+      "durationSeconds": 0.333333
+    }
+  ]
+}

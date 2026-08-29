@@ -1,0 +1,13 @@
+NEXUS-VIDEO-ENHANCEMENT-FIXTURE-v1
+{
+  "id": "text-edges-720p",
+  "contentClass": "text-edges",
+  "width": 1280,
+  "height": 720,
+  "frameRate": {
+    "numerator": 24,
+    "denominator": 1
+  },
+  "frameCount": 8,
+  "durationSeconds": 0.333333
+}

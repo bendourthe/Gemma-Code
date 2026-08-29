@@ -6,6 +6,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DataSettings } from "./DataSettings";
+import { VideoSettings } from "./VideoSettings";
+import type { VideoSettingsClient } from "./videoSettingsTypes";
+import { createMockVideoSettingsClient } from "./mockVideoSettingsClient";
 
 import { ModelsSettings, type ModelsClient } from "./ModelsSettings";
 import { SkillsSettings, type SkillsSettingsClient } from "./SkillsSettings";
@@ -38,7 +41,8 @@ type SettingsTab =
   | "tuning"
   | "mcp"
   | "security"
-  | "data";
+  | "data"
+  | "video";
 
 const SETTINGS_TABS: readonly SettingsTab[] = [
   "models",
@@ -50,6 +54,7 @@ const SETTINGS_TABS: readonly SettingsTab[] = [
   "mcp",
   "security",
   "data",
+  "video",
 ];
 
 function parseSettingsTab(raw: string | null): SettingsTab | null {
@@ -72,6 +77,7 @@ export interface SettingsPageProps {
   mcpClient?: McpRegistryClient;
   securityClient?: SecuritySettingsClient;
   auditClient?: AuditLogClient;
+  videoClient?: VideoSettingsClient;
   initialTab?: SettingsTab;
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
@@ -87,6 +93,7 @@ export function SettingsPage({
   mcpClient,
   securityClient,
   auditClient,
+  videoClient,
   initialTab = "models",
   hostVramGB = null,
 }: SettingsPageProps = {}): JSX.Element {
@@ -137,6 +144,10 @@ export function SettingsPage({
   const mcp = useMemo<McpRegistryClient>(
     () => mcpClient ?? createMockMcpRegistryClient(),
     [mcpClient],
+  );
+  const video = useMemo<VideoSettingsClient>(
+    () => videoClient ?? createMockVideoSettingsClient(),
+    [videoClient],
   );
 
   return (
@@ -192,6 +203,14 @@ export function SettingsPage({
         </button>
         <button
           type="button"
+          data-testid="settings-tab-video"
+          onClick={() => setTab("video")}
+          style={tabButtonStyle(tab === "video")}
+        >
+          Video
+        </button>
+        <button
+          type="button"
           data-testid="settings-tab-mcp"
           onClick={() => setTab("mcp")}
           style={tabButtonStyle(tab === "mcp")}
@@ -225,6 +244,8 @@ export function SettingsPage({
         <ServingSettings client={serving} />
       ) : tab === "tuning" ? (
         <FineTuningSettings client={fineTuning} />
+      ) : tab === "video" ? (
+        <VideoSettings client={video} />
       ) : tab === "mcp" ? (
         <McpRegistrySettings client={mcp} />
       ) : tab === "security" ? (

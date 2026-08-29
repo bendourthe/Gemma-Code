@@ -40,12 +40,19 @@ export function createIpcGenerationQueueClient(): GenerationQueueClient {
     },
     async cancel(id) {
       const value = unwrap(
-        await ipc.call<{ job: GenerationJob | null }>("generation.queue.cancel", { id }),
+        await ipc.call<{ job: GenerationJob | null }>(
+          "generation.queue.cancel",
+          { id },
+        ),
       );
       return value.job;
     },
     async reorder(ids) {
-      unwrap(await ipc.call<{ ok: true }>("generation.queue.reorder", { ids: [...ids] }));
+      unwrap(
+        await ipc.call<{ ok: true }>("generation.queue.reorder", {
+          ids: [...ids],
+        }),
+      );
     },
     async pendingCount() {
       const value = unwrap(
@@ -76,6 +83,7 @@ export class InMemoryGenerationQueueClient implements GenerationQueueClient {
       parameters: input.parameters,
       batchSpec: input.batchSpec ?? null,
       parentId: null,
+      enhancement: null,
       sortOrder: this.jobs.length,
       state: "queued",
       priority: input.priority ?? "batch",
@@ -103,6 +111,8 @@ export class InMemoryGenerationQueueClient implements GenerationQueueClient {
       .filter((j): j is GenerationJob => j !== null);
   }
   async pendingCount(): Promise<number> {
-    return this.jobs.filter((j) => j.state === "queued" || j.state === "running").length;
+    return this.jobs.filter(
+      (j) => j.state === "queued" || j.state === "running",
+    ).length;
   }
 }
