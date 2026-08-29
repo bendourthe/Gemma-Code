@@ -54,6 +54,7 @@ from PyQt5.QtWidgets import (
 )
 
 from nexus_installer import registry_paths
+from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
 from nexus_installer.catalog_tab_sort import (
     collapse_and_sort as shared_collapse_and_sort,
 )
@@ -240,7 +241,7 @@ class CatalogModel:
         same task but stay opt-in because swapping the default invalidates
         the on-disk memory index.
         """
-        return self.id == "nomic-embed-text"
+        return self.id == REQUIRED_EMBEDDER_ID
 
     @property
     def guardrails_label(self) -> str:
@@ -580,6 +581,11 @@ def compatibility_badge(
             WARNING,
         )
     if model.required_ram_gb > 0 and total_ram_gb < model.required_ram_gb:
+        if total_ram_gb <= 0:
+            return (
+                f"Requires {model.required_ram_gb} GB RAM (RAM not detected)",
+                WARNING,
+            )
         return (
             f"Requires {model.required_ram_gb} GB RAM (you have {total_ram_gb})",
             WARNING,
@@ -793,6 +799,9 @@ class _ModelCard(QWidget):
         # on this row, never under the description.
         header = QWidget()
         header.setObjectName("cardHeaderRow")
+        header.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        header.setAutoFillBackground(False)
+        header.setStyleSheet("background: transparent;")
         header_flow = _FlowLayout(header)
         title = QLabel(model.display_name)
         title.setStyleSheet(
@@ -1208,7 +1217,7 @@ class TypedCatalogPage(QWidget):
             )
             layout.addWidget(empty)
         else:
-            host_ram_gb = state.free_disk_gb  # placeholder until HostProfile threaded
+            host_ram_gb = state.total_ram_gb
             # v1.14.0 Phase 3: a labeled divider separates the compatible best-
             # of-family picks from the grayed, over-budget tiers below.
             divider_added = False

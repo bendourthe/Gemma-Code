@@ -333,7 +333,7 @@ class PrerequisitesPage(QWidget):
             self._ollama_row.set_warning("Will be installed automatically")
 
     def _on_disk(self, gb_free: float) -> None:
-        self._state.disk_space_gb = gb_free
+        self._state.apply_disk_free_gb(gb_free)
         if gb_free >= 10.0:
             self._disk_ok = True
             self._disk_row.set_found(f"{gb_free} GB available")

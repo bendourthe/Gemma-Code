@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
+from PyQt5.QtCore import Q_ARG, QMetaObject, QObject, Qt, QThread, pyqtSignal, pyqtSlot
 
+from nexus_installer.engine.crash import format_engine_exception
 from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
 from nexus_installer.engine.extension_installer import ExtensionInstaller
 from nexus_installer.engine.hub_catalog_provisioner import HubCatalogProvisioner
@@ -40,9 +41,99 @@ class InstallEngine(QObject):
         super().__init__()
         self._model_router: ModelStepRouter | None = None
         self._desktop_provisioner: DesktopProvisioner | None = None
+        self._active_state: InstallerState | None = None
+
+    def _invoke_slot(self, name: str, *qargs: object) -> bool:
+        try:
+            return bool(
+                QMetaObject.invokeMethod(self, name, Qt.QueuedConnection, *qargs)
+            )
+        except Exception:
+            return False
+
+    def _record_marshal_failure(self, model_id: str, reason: str) -> None:
+        state = self._active_state
+        if state is None:
+            return
+        state.model_failures[model_id] = reason
+        if model_id not in state.failed_models:
+            state.failed_models.append(model_id)
+
+    def marshal_model_started(self, model_id: str) -> None:
+        if self._invoke_slot("_slot_model_started", Q_ARG(str, model_id)):
+            return
+        if self._invoke_slot("_slot_model_started", Q_ARG(str, model_id)):
+            return
+        self._record_marshal_failure(model_id, "Could not update the installer window.")
+
+    def marshal_model_progress(self, sample: object) -> None:
+        if self._invoke_slot("_slot_model_progress", Q_ARG(object, sample)):
+            return
+        if self._invoke_slot("_slot_model_progress", Q_ARG(object, sample)):
+            return
+
+    def marshal_model_completed(self, model_id: str) -> None:
+        if self._invoke_slot("_slot_model_completed", Q_ARG(str, model_id)):
+            return
+        if self._invoke_slot("_slot_model_completed", Q_ARG(str, model_id)):
+            return
+        self._record_marshal_failure(model_id, "Could not update the installer window.")
+
+    def marshal_model_failed(self, model_id: str, reason: str) -> None:
+        if self._invoke_slot(
+            "_slot_model_failed", Q_ARG(str, model_id), Q_ARG(str, reason)
+        ):
+            return
+        if self._invoke_slot(
+            "_slot_model_failed", Q_ARG(str, model_id), Q_ARG(str, reason)
+        ):
+            return
+        self._record_marshal_failure(model_id, reason)
+
+    @pyqtSlot(str)
+    def _slot_model_started(self, model_id: str) -> None:
+        self.model_started.emit(model_id)
+
+    @pyqtSlot(object)
+    def _slot_model_progress(self, sample: object) -> None:
+        self.model_progress.emit(sample)
+
+    @pyqtSlot(str)
+    def _slot_model_completed(self, model_id: str) -> None:
+        self.model_completed.emit(model_id)
+
+    @pyqtSlot(str, str)
+    def _slot_model_failed(self, model_id: str, reason: str) -> None:
+        self.model_failed.emit(model_id, reason)
+
+    @pyqtSlot(bool, str)
+    def _slot_install_finished(self, success: bool, message: str) -> None:
+        self.install_finished.emit(success, message)
+
+    def report_crash(self, exc: BaseException, state: InstallerState) -> str:
+        reason = format_engine_exception(exc, secret=state.hf_token or "")
+        state.install_log.append(f"[ERROR] {reason}")
+        if "engine" not in state.failed_steps:
+            state.failed_steps.append("engine")
+        state.record_step_failure(
+            "engine",
+            "The installer hit an unexpected error and stopped.",
+            "Open the log on the Complete page, then retry the install.",
+        )
+        queued = self._invoke_slot(
+            "_slot_install_finished", Q_ARG(bool, False), Q_ARG(str, reason)
+        )
+        if not queued:
+            queued = self._invoke_slot(
+                "_slot_install_finished", Q_ARG(bool, False), Q_ARG(str, reason)
+            )
+        if not queued:
+            self.install_finished.emit(False, reason)
+        return reason
 
     def run(self, state: InstallerState) -> None:
         """Execute all installation steps in sequence. Call from a QThread."""
+        self._active_state = state
         steps_done = 0
         steps_failed: list[str] = []
         total_steps = len(state.components_to_install)
@@ -114,10 +205,10 @@ class InstallEngine(QObject):
                 self.progress_update.emit(model_base + pct / max(total_steps, 1))
 
             events = ModelStepEvents(
-                started=self.model_started.emit,
-                progress=self.model_progress.emit,
-                completed=self.model_completed.emit,
-                failed=self.model_failed.emit,
+                started=self.marshal_model_started,
+                progress=self.marshal_model_progress,
+                completed=self.marshal_model_completed,
+                failed=self.marshal_model_failed,
             )
             ok = self._model_router.install(state, log, on_model_progress, events)
             advance("model", ok)
@@ -181,7 +272,7 @@ class InstallEngine(QObject):
             self.step_failed.emit("hub-catalog")
 
         # v2.1 DF-15 -- opt-in Unsloth Core. Off the default chain; checkbox
-        # on the extras page sets state.install_unsloth. LGPL zoo is copied
+        # on Configuration sets state.install_unsloth. LGPL zoo is copied
         # next to that checkbox. Unsupported hosts record provision.json and
         # still count as success so the rest of the install is not rolled back.
         if state.install_unsloth:
@@ -245,7 +336,12 @@ class _InstallThread(QThread):
         self._state = state
 
     def run(self) -> None:
-        self._engine.run(self._state)
+        try:
+            self._engine.run(self._state)
+        except BaseException as exc:
+            self._engine.report_crash(exc, self._state)
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
 
 
 def start_install(engine: InstallEngine, state: InstallerState) -> _InstallThread:

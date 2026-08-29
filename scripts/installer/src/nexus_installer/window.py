@@ -535,6 +535,9 @@ class InstallerWindow(QMainWindow):
             )
             free_disk_gb = profile.free_disk_gb or free_disk_gb
             self._state.free_disk_gb = free_disk_gb
+            if profile.free_disk_gb > 0:
+                self._state.disk_space_gb = float(profile.free_disk_gb)
+            self._state.apply_total_ram_gb(profile.total_ram_gb)
         except Exception:  # noqa: BLE001 -- probe is best-effort
             pass
         result = evaluate_install_guard(

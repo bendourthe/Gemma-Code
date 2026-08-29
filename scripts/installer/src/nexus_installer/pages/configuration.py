@@ -96,6 +96,37 @@ class ConfigurationPage(QWidget):
         )
         layout.addWidget(self._memory_toggle)
 
+        self._unsloth = QCheckBox(
+            "Install Unsloth Core (optional local QLoRA fine-tuning runtime "
+            "for Nexus, not the VS Code extension)"
+        )
+        self._unsloth.setChecked(bool(state.install_unsloth))
+        self._unsloth.setStyleSheet("background: transparent;")
+        self._unsloth.stateChanged.connect(self._on_unsloth)
+        layout.addWidget(self._unsloth)
+
+        self._unsloth_help = QLabel(
+            "For NVIDIA GPUs with 16 GB or more VRAM. unsloth is Apache-2.0; "
+            "unsloth-zoo is LGPL-3.0-or-later and is dynamically linked. "
+            "Off by default."
+        )
+        self._unsloth_help.setWordWrap(True)
+        self._unsloth_help.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            "background: transparent;"
+        )
+        layout.addWidget(self._unsloth_help)
+
+        self._unsloth_warning = QLabel("")
+        self._unsloth_warning.setWordWrap(True)
+        self._unsloth_warning.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            "background: transparent;"
+        )
+        self._unsloth_warning.setVisible(False)
+        layout.addWidget(self._unsloth_warning)
+        self._refresh_unsloth_warning()
+
         # Ollama URL
         url_label = QLabel("Ollama URL")
         url_label.setObjectName("sectionHead")
@@ -139,6 +170,28 @@ class ConfigurationPage(QWidget):
         layout.addWidget(self._video2x_note)
 
         layout.addStretch()
+
+    def _on_unsloth(self, state_value: int) -> None:
+        self._state.install_unsloth = self._unsloth.isChecked()
+        self._refresh_unsloth_warning()
+
+    def _refresh_unsloth_warning(self) -> None:
+        if not self._unsloth.isChecked():
+            self._unsloth_warning.clear()
+            self._unsloth_warning.setVisible(False)
+            return
+        vendor = (self._state.gpu_vendor or "").lower()
+        vram_gb = max(0, int(self._state.vram_mb or 0) // 1024)
+        if vendor != "nvidia" or vram_gb < 16:
+            self._unsloth_warning.setText(
+                "This host does not look like NVIDIA with 16 GB or more VRAM. "
+                "You can still tick this; the provisioner will record a skip "
+                "instead of rolling back the rest of the install."
+            )
+            self._unsloth_warning.setVisible(True)
+            return
+        self._unsloth_warning.clear()
+        self._unsloth_warning.setVisible(False)
 
     def _toggle_component(self, component: str, state_value: int) -> None:
         if state_value:

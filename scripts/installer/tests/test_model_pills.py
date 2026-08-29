@@ -152,3 +152,38 @@ def test_card_renders_pills_on_the_name_row(qt_app, tmp_path: Path) -> None:
         "License: Gemma Terms of Use",
         "Released: May 2026",
     ]
+    assert header_widget.objectName() == "cardHeaderRow"
+    assert not header_widget.autoFillBackground()
+    assert "transparent" in header_widget.styleSheet()
+    assert "#0a0d14" not in header_widget.styleSheet()
+
+
+def test_card_header_row_is_not_window_fill(qt_app, tmp_path: Path) -> None:
+    """v2.3.1 Phase 3: name row sits on the card, not BG_WINDOW."""
+    from nexus_installer.constants import BG_CARD, BG_WINDOW
+    from nexus_installer.pages.typed_catalog import _ModelCard
+
+    entry = {
+        "id": "gemma-4-12b-it-gguf",
+        "displayName": "Gemma 4 12B",
+        "type": "llm",
+        "task": "chat",
+        "family": "gemma4",
+        "sizeGB": 8.1,
+        "requiredVramGB": 11,
+    }
+    path = tmp_path / "catalog.json"
+    path.write_text(json.dumps({"models": [entry]}), encoding="utf-8")
+    card = _ModelCard(
+        load_catalog_models(path)[0],
+        recommended=True,
+        checked=True,
+        host_vram_gb=16,
+        host_ram_gb=32,
+        gpu_vendor="nvidia",
+    )
+    assert BG_CARD in card.styleSheet()
+    header = card.findChild(QWidget, "cardHeaderRow")
+    assert header is not None
+    assert BG_WINDOW not in header.styleSheet()
+    assert BG_WINDOW not in card.styleSheet()

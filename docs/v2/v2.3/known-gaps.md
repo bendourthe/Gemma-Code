@@ -1,12 +1,42 @@
 # Known Gaps - v2.3
 
 **Project**: Nexus AI Studio
-**Status**: finalized
-**Last updated**: 2026-08-29 (v2.3.0 post-tag Shell Build finding)
+**Status**: in-progress
+**Last updated**: 2026-08-29
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-qwen-video2x-openworker.md)
+Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-qwen-video2x-openworker.md), [plans/v2.3.1-installer-field-repair.md](plans/v2.3.1-installer-field-repair.md)
+
+## v2.3.1
+
+**Last updated**: 2026-08-29 (Phase 6)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 0 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 1 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phase 6 writes last-phase evidence. Pipeline topology diffs stay on v2.3.0 QG-1/QG-2 (not duplicated here). Publication (T027) waits for explicit approval. MT-1 is unchanged.
+
+### Open Items
+
+#### Missing Tests / Coverage Gaps
+
+##### MT-1 - host_detect.py platform probes stay below 80% line coverage
+
+- **Source phase**: Phase 1 - Honest host RAM and disk fields
+- **Plan reference**: `docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md` (1.1, 1.4)
+- **Reason**: Full installer pytest measures `host_detect.py` at 40% lines. New Windows RAM routing, PowerShell fallback, and a live GlobalMemoryStatusEx success path on this Windows host are covered. Remaining misses are pre-existing OS-specific GPU/OS probes plus ctypes ImportError / missing-kernel32 / failed-API branches that this machine does not exercise.
+- **Suggested next step**: Leave OS-specific GPU probes unless a later phase touches them. Add a mocked kernel32 failure test only if a frozen windowed build reports RAM-not-detected on a machine that has RAM.
+
+## v2.3.0
 
 ## v2.3.0
 

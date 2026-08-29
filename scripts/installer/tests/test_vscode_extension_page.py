@@ -17,6 +17,14 @@ from nexus_installer.pages.vscode_extension import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_real_extension_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "nexus_installer.pages.vscode_extension.installed_nexus_extension_id",
+        lambda *_a, **_k: (None, ""),
+    )
+
+
 def _status(
     *,
     path: str | None = "/usr/bin/code",
@@ -45,7 +53,15 @@ class TestDetectVsCodeCli:
         assert result.path == "/usr/bin/code"
         assert result.version == SUPPORTED_VSCODE_VERSION
 
-    @pytest.mark.parametrize("version", ["1.133.9", "1.134.1"])
+    def test_accepts_1_135_same_electron_abi(self) -> None:
+        result = detect_vscode_cli(
+            which_fn=lambda name: "/usr/bin/code" if name == "code" else None,
+            run_fn=lambda cmd, timeout: (0, "1.135.0\ncommit\nx64\n", ""),
+        )
+        assert result.supported is True
+        assert result.version == "1.135.0"
+
+    @pytest.mark.parametrize("version", ["1.133.9", "1.136.0"])
     def test_rejects_earlier_and_later_stable_versions(self, version: str) -> None:
         result = detect_vscode_cli(
             which_fn=lambda name: "/usr/bin/code" if name == "code" else None,
@@ -87,6 +103,17 @@ class TestDetectVsCodeCli:
         assert result.supported is False
         assert result.reason == "not-found"
 
+    def test_code_without_run_fn_delegates_to_inspect(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "nexus_installer.pages.vscode_extension.inspect_vscode_cli",
+            lambda path, cli_name=None, run_fn=None: _status(path=path),
+        )
+        result = detect_vscode_cli(
+            which_fn=lambda name: "/usr/bin/code" if name == "code" else None
+        )
+        assert result.supported is True
+        assert result.path == "/usr/bin/code"
+
     def test_parser_ignores_non_version_lines(self) -> None:
         assert parse_vscode_version("warning\n1.134.0\ncommit\nx64\n") == "1.134.0"
 
@@ -119,6 +146,8 @@ class TestVsCodeExtensionPage:
         assert page._checkbox.isChecked() is False
         assert page._checkbox.isEnabled() is False
         assert "not found" in page._detection_label.text().lower()
+        assert page._checkbox.isHidden() is False
+        assert not hasattr(page, "_unsloth")
 
     def test_uses_supported_prerequisite_path_when_code_is_not_on_path(
         self, qt_app
@@ -172,12 +201,12 @@ class TestVsCodeExtensionPage:
         assert page._checkbox.isChecked() is True
         assert page._checkbox.isEnabled() is True
 
-    def test_mismatched_version_is_disabled_with_truthful_copy(self, qt_app) -> None:
+    def test_mismatched_version_is_disabled_but_visible(self, qt_app) -> None:
         state = InstallerState()
         page = VsCodeExtensionPage(
             state,
             detect_fn=lambda: _status(
-                version="1.135.0",
+                version="1.136.0",
                 supported=False,
                 reason="version-mismatch",
             ),
@@ -186,8 +215,56 @@ class TestVsCodeExtensionPage:
         assert "extension" not in state.components_to_install
         assert page._checkbox.isChecked() is False
         assert page._checkbox.isEnabled() is False
-        assert "1.135.0" in page._detection_label.text()
-        assert "1.134.0 exactly" in page._detection_label.text()
+        assert page._checkbox.isHidden() is False
+        assert "1.136.0" in page._detection_label.text()
+        assert "1.134 or 1.135" in page._detection_label.text()
+        assert "exactly" not in page._detection_label.text()
+
+    def test_1_135_host_is_enabled_and_ticked(self, qt_app) -> None:
+        state = InstallerState(components_to_install=["ollama"])
+        page = VsCodeExtensionPage(
+            state,
+            detect_fn=lambda: _status(version="1.135.0"),
+        )
+        assert page._checkbox.isEnabled() is True
+        assert page._checkbox.isChecked() is True
+        assert page._checkbox.isHidden() is False
+        assert "extension" in state.components_to_install
+
+    def test_replace_label_when_extension_already_installed(self, qt_app) -> None:
+        from nexus_installer.engine.extension_installer import EXTENSION_ID
+
+        state = InstallerState()
+        page = VsCodeExtensionPage(
+            state,
+            detect_fn=_status,
+            list_fn=lambda _path: (EXTENSION_ID, ""),
+        )
+        assert "Replace the installed Nexus VS Code extension" in page._checkbox.text()
+
+    def test_list_exception_keeps_install_label(self, qt_app) -> None:
+        def boom(_path: str) -> tuple[str | None, str]:
+            raise RuntimeError("list failed")
+
+        page = VsCodeExtensionPage(
+            InstallerState(),
+            detect_fn=_status,
+            list_fn=boom,
+        )
+        assert page._checkbox.text().startswith("Install the Nexus VS Code extension")
+
+    def test_version_unreadable_copy_stays_visible(self, qt_app) -> None:
+        page = VsCodeExtensionPage(
+            InstallerState(),
+            detect_fn=lambda: _status(
+                version=None,
+                supported=False,
+                reason="version-unreadable",
+            ),
+        )
+        assert page._checkbox.isHidden() is False
+        assert page._checkbox.isEnabled() is False
+        assert "could not be verified" in page._detection_label.text()
 
     def test_unsupported_editor_is_disabled_with_truthful_copy(self, qt_app) -> None:
         state = InstallerState()
@@ -233,7 +310,7 @@ class TestVsCodeExtensionPage:
         page = VsCodeExtensionPage(state, detect_fn=_status)
         page.set_interactive(False)
         page._detect_fn = lambda: _status(
-            version="1.135.0",
+            version="1.136.0",
             supported=False,
             reason="version-mismatch",
         )
@@ -244,23 +321,9 @@ class TestVsCodeExtensionPage:
         assert state.install_vscode_extension is True
         assert "extension" in state.components_to_install
 
-    def test_unsloth_checkbox_is_off_and_sets_state(self, qt_app) -> None:
-        state = InstallerState()
-        page = VsCodeExtensionPage(
-            state,
-            detect_fn=lambda: _status(
-                path=None,
-                cli_name=None,
-                version=None,
-                supported=False,
-                reason="not-found",
-            ),
-        )
-        assert page._unsloth.isChecked() is False
-        assert state.install_unsloth is False
-        page._unsloth.setChecked(True)
-        assert state.install_unsloth is True
-        assert "LGPL" in page._unsloth.text()
+    def test_vscode_page_has_no_unsloth_widget(self, qt_app) -> None:
+        page = VsCodeExtensionPage(InstallerState(), detect_fn=_status)
+        assert not hasattr(page, "_unsloth")
 
     def test_candidates_include_known_clis(self) -> None:
         assert "code" in VSCODE_CLI_CANDIDATES

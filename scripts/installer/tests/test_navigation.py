@@ -98,7 +98,7 @@ class TestPageSequence:
 
     @pytest.mark.parametrize(
         ("version", "supported"),
-        [("1.134.0", True), ("1.135.0", False)],
+        [("1.134.0", True), ("1.135.0", True)],
     )
     def test_vscode_route_refreshes_after_async_prerequisite_detection(
         self, qt_app, version: str, supported: bool

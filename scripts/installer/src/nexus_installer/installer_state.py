@@ -31,6 +31,9 @@ class InstallerState:
     gpu_vendor: str = ""  # "nvidia", "amd", "apple", "intel", "none"
     gpu_name: str = ""
     vram_mb: int = 0
+    # Whole-GB system RAM from HostProfile. 0 means the probe failed (unknown),
+    # not a proven 0 GB machine. Never reuse free_disk_gb as a stand-in.
+    total_ram_gb: int = 0
     recommended_model: str = ""
     selected_model: str = ""
     disk_space_gb: float = 0.0
@@ -123,6 +126,22 @@ class InstallerState:
         """Mark `step` as deliberately skipped (a clear outcome, not an error)."""
         if step not in self.skipped_steps:
             self.skipped_steps.append(step)
+
+    def apply_total_ram_gb(self, total_ram_gb: int) -> None:
+        """Copy a successful RAM probe. Never overwrite a known value with 0."""
+        if total_ram_gb > 0:
+            self.total_ram_gb = int(total_ram_gb)
+
+    def apply_disk_free_bytes(self, free_bytes: int) -> None:
+        """Write both disk fields from one byte count (host_detect GB floor)."""
+        gb = max(0, int(free_bytes // (1024**3)))
+        self.free_disk_gb = gb
+        self.disk_space_gb = float(gb)
+
+    def apply_disk_free_gb(self, gb_free: float) -> None:
+        """Write both disk fields from a GB reading (welcome/prerequisites)."""
+        self.disk_space_gb = float(gb_free)
+        self.free_disk_gb = max(0, int(gb_free))
 
     def can_select_model(self, model_gb: float) -> bool:
         """Return True when adding `model_gb` keeps the OS reserve intact."""

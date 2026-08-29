@@ -4,6 +4,160 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 6 reopen - vsce-legal engines.vscode
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-6-last-phase.md), [policy](v2/v2.3/development/vscode-host-policy.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Package remains **2.3.0**.
+
+### What Changed
+
+- `engines.vscode` is `^1.134.0` so `@vscode/vsce` 2.24.0 can package the VSIX.
+- The wizard still disables 1.136+ via `SUPPORTED_VSCODE_MINORS`.
+- Packaging tests lock the vsce engine regex so a compound range cannot return.
+
+### Why It Changed
+
+PR 53 Package VSIX (smoke) failed: `Invalid vscode engine compatibility version '>=1.134.0 <1.136.0'`. Local regex reproduction matched that annotation. No silent re-run.
+
+### Decisions Made
+
+- Keep decision A (1.134/1.135 checkbox). Encode the packable floor as a caret range. Do not claim vsce can store an exclusive 1.136 cap.
+
+---
+
+## [2026-08-29] v2.3.1 Phase 6 - Architecture refactor, known-gaps, and CI/CD
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-6-last-phase.md), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Package remains **2.3.0**.
+
+### What Changed
+
+- Last-phase evidence file quotes architecture scans, known-gaps glob, living docs, git hygiene, CI field comparison, Goal-vs-codebase review, human QA suggestions, and the local suite.
+- No pipeline file changed. CI diffs remain v2.3.0 QG-1/QG-2. No file moves.
+- Publication (push, PR, merge) waits for explicit approval.
+
+### Why It Changed
+
+Phase 6 of the v2.3.1 installer field-repair plan. Fail-closed last-phase duties must quote proving commands before `/update release`.
+
+### Decisions Made
+
+- Propose-then-apply: empty-dir hits are local caches and placeholders. No moves.
+- Do not invent `scripts/check_release_preconditions.py` (v2.3.0 DF-4). Quote git instead.
+- Do not duplicate v2.3.0 QG-1/QG-2 into v2.3.1.
+
+---
+
+
+## [2026-08-29] v2.3.1 Phase 5 - Required embedder policy
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-5-embedder-policy.md), [gaps](v2/v2.3/known-gaps.md), [policy](v2/v2.3/development/embedder-default-decision.md). Package remains **2.3.0**.
+
+### What Changed
+
+- T016 KEEP: `nomic-embed-text` stays the required memory embedder. No reindex migrator.
+- `CatalogModel.is_required` locks to `REQUIRED_EMBEDDER_ID`. Catalog copy for EmbeddingGemma is 300M / 300 million parameters and must not say 300B.
+- Invariants and tests pin recommended.json embed lists and `nexus.memory.embeddingModel` to Nomic.
+
+### Why It Changed
+
+Phase 5 of the v2.3.1 installer field-repair plan. The operator asked about "GemmaEmbedding 300B". The catalog model is EmbeddingGemma 300M. Switching the required embedder would mismatch existing Nomic-shaped memory indexes.
+
+### Decisions Made
+
+- KEEP, not SWITCH. SWITCH needs a named reindex tool, which this cycle does not ship.
+- No extra "Newer opt-in" status chip. The Required / hardware / Recommended / Compatible ladder is unchanged.
+
+---
+
+
+## [2026-08-29] v2.3.1 Phase 4 - VS Code step and Unsloth placement
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-4-vscode-unsloth.md), [gaps](v2/v2.3/known-gaps.md), [policy](v2/v2.3/development/vscode-host-policy.md). Package remains **2.3.0**.
+
+### What Changed
+
+- T012 chose ABI-matched Microsoft stable VS Code **1.134 or 1.135** (Electron 42.8.1). `engines.vscode` is `>=1.134.0 <1.136.0`. The `build-vsix.ps1` Electron pin is unchanged.
+- The VS Code page always shows the extension checkbox. It is enabled and default-checked on 1.134/1.135. Missing or mismatched hosts keep a visible disabled box (indicator fill `BG_INPUT`).
+- Already-installed `nexus-coding.nexus-coding` / `gemma-code.gemma-code` switches the label to replace and install uses `--force`. A failed `--list-extensions` fails open (no `--force`, warning).
+- Unsloth Core moved to Configuration under Features (NVIDIA 16 GB+ copy, Apache-2.0 / LGPL-3.0-or-later, off by default). It is not a VS Code option.
+
+### Why It Changed
+
+Phase 4 of the v2.3.1 installer field-repair plan. Operator host was VS Code 1.135.0; the exact 1.134.0 pin hid the checkbox. Unsloth was parked on that page.
+
+### Decisions Made
+
+- Decision A, not exact 1.134.0 and not a `^1.134.0` range (1.136+ is unproven).
+- Disabled checkbox indicators use `BG_INPUT` so they stay visible on `BG_CARD`.
+- Human screenshot checks wait for Phase 6.
+
+---
+
+
+## [2026-08-29] v2.3.1 Phase 3 - Catalog and progress chrome
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-3-catalog-progress-chrome.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.
+
+### What Changed
+
+- Global QSS paints `BG_WINDOW` on `QMainWindow` only. Bare `QWidget` is transparent so unnamed children inherit the parent card, not the window black.
+- `#cardHeaderRow`, `#phaseGroupDetails`, and `QWidget#modelCard QWidget` are transparent. Catalog headers and installing details set the same inline.
+- QTextEdit stays `BG_INPUT`. Disabled checkbox indicators keep a `BG_CARD` fill and visible border.
+
+### Why It Changed
+
+Phase 3 of the v2.3.1 installer field-repair plan. Field screenshots showed catalog name rows and installing model lists as `BG_WINDOW` bars on top of cards.
+
+### Decisions Made
+
+- Font and color stay on the global `QWidget` rule so labels do not lose the type scale. Only the fill moves off that selector.
+- Human screenshot checks wait for Phase 6.
+
+---
+
+## [2026-08-29] v2.3.1 Phase 2 - Install thread crash containment
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-2-install-thread-crash.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.
+
+### What Changed
+
+- `_InstallThread.run` catches `BaseException`, emits `install_finished(False, ...)` with a one-line `Engine exception:` reason, and does not call `sys.exit`. KeyboardInterrupt and SystemExit are re-raised after that signal.
+- Model telemetry from pool workers is queued onto the `InstallEngine` QObject thread via `QMetaObject.invokeMethod`. A failed marshal records the model in state instead of emitting from the worker.
+- The Installing page shows "Installation Stopped" plus a modal; Complete shows the same crash. The background recorder redacts `hf_token` from persisted JSON and the rolling log.
+
+### Why It Changed
+
+Phase 2 of the v2.3.1 installer field-repair plan. Windowed PyInstaller has no usable stderr; an uncaught QThread exception and Qt signals from `ThreadPoolExecutor` workers could close the wizard after Dependencies with no error surface.
+
+### Decisions Made
+
+- Share `call_step` with headless `run_step` rather than duplicating the try/except.
+- If `invokeMethod` fails twice, record the model failure in `InstallerState` and do not emit from the worker.
+- Human screenshot checks wait for Phase 6.
+
+---
+
+## [2026-08-29] v2.3.1 Phase 1 - Honest host RAM and disk fields
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-1-honest-host-ram.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.
+
+### What Changed
+
+- `InstallerState` now carries `total_ram_gb`. The GPU page and Review install guard copy `HostProfile` RAM onto that field. Catalog badges read RAM, not free disk.
+- Install Path writes `free_disk_gb` and `disk_space_gb` from one probe. Welcome and Prerequisites keep the two fields in lockstep.
+- Windows RAM detection prefers ctypes `GlobalMemoryStatusEx` so a windowed frozen wizard does not depend only on PowerShell CIM. Failed RAM probes show "RAM not detected" rather than "you have 0".
+
+### Why It Changed
+
+Phase 1 of the v2.3.1 installer field-repair plan. The 2026-08-28 field review showed Inkling-Small as 0 GB RAM next to a card that correctly reported 16 GB VRAM.
+
+### Decisions Made
+
+- Disk remaining stays a separate integer-GB field. RAM 0 means unknown, never a proven 0 GB machine.
+- Review `detect_host()` must not overwrite a successful path-local disk probe with 0.
+- Human screenshot checks wait for Phase 6.
+
+---
+
 ## [2026-08-29] v2.3.0 - Optional local video enhancement (release preparation)
 
 Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/last-phase-evidence.md). Changelog is authoritative. Package **2.3.0**.

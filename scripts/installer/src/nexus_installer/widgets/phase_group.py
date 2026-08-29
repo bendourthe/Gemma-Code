@@ -334,6 +334,9 @@ class PhaseGroup(QFrame):
 
         # -- Collapsible details ---------------------------------------------
         self._details = QWidget()
+        self._details.setObjectName("phaseGroupDetails")
+        self._details.setAutoFillBackground(False)
+        self._details.setStyleSheet("background: transparent;")
         self._details.setVisible(False)
         details_layout = QVBoxLayout(self._details)
         details_layout.setContentsMargins(0, 4, 0, 0)

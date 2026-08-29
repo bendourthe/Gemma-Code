@@ -14,6 +14,7 @@ a state file that is at most one throttle-window stale.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import time
 from typing import TYPE_CHECKING, Any
@@ -31,6 +32,7 @@ from nexus_installer.background.state_store import (
     InstallState,
     ModelState,
 )
+from nexus_installer.engine.crash import redact_crash_text
 
 if TYPE_CHECKING:
     from nexus_installer.background.resume import ResumePlan
@@ -73,9 +75,7 @@ def apply_state_to_installer_state(
     installer_state.failed_models = list(install_state.failed_models)
     installer_state.step_failures = list(install_state.step_failures)
     if install_state.log_path:
-        installer_state.install_log = state_store.read_log_lines(
-            install_state.log_path
-        )
+        installer_state.install_log = state_store.read_log_lines(install_state.log_path)
 
 
 def apply_resume_to_installer_state(
@@ -107,9 +107,7 @@ class StateRecorder:
 
     # -- lifecycle --------------------------------------------------------
 
-    def begin(
-        self, installer_state: InstallerState, model_ids: list[str]
-    ) -> None:
+    def begin(self, installer_state: InstallerState, model_ids: list[str]) -> None:
         """Initialize a fresh 'running' state from the wizard's choices."""
         self._installer_state = installer_state
         self.state = InstallState(
@@ -117,8 +115,7 @@ class StateRecorder:
             pid=os.getpid(),
             components=list(installer_state.components_to_install),
             steps={
-                step: STEP_PENDING
-                for step in installer_state.components_to_install
+                step: STEP_PENDING for step in installer_state.components_to_install
             },
             models={mid: ModelState(model_id=mid) for mid in model_ids},
             log_path=self._log_path,
@@ -165,9 +162,7 @@ class StateRecorder:
         self._write(force=True)
 
     def on_model_started(self, model_id: str) -> None:
-        model = self.state.models.setdefault(
-            model_id, ModelState(model_id=model_id)
-        )
+        model = self.state.models.setdefault(model_id, ModelState(model_id=model_id))
         model.status = STEP_RUNNING
         self._write(force=True)
 
@@ -182,17 +177,13 @@ class StateRecorder:
         self._write()
 
     def on_model_completed(self, model_id: str) -> None:
-        model = self.state.models.setdefault(
-            model_id, ModelState(model_id=model_id)
-        )
+        model = self.state.models.setdefault(model_id, ModelState(model_id=model_id))
         model.status = STEP_DONE
         model.fraction = 1.0
         self._write(force=True)
 
     def on_model_failed(self, model_id: str, reason: str) -> None:
-        model = self.state.models.setdefault(
-            model_id, ModelState(model_id=model_id)
-        )
+        model = self.state.models.setdefault(model_id, ModelState(model_id=model_id))
         model.status = STEP_FAILED
         model.reason = reason
         if model_id not in self.state.failed_models:
@@ -200,16 +191,23 @@ class StateRecorder:
         self._write(force=True)
 
     def on_finished(self, success: bool, error_message: str) -> None:
+        secret = ""
+        if self._installer_state is not None:
+            secret = self._installer_state.hf_token or ""
+        safe_error = redact_crash_text(error_message, secret)
         if self._cancel_requested:
             self.state.status = STATUS_CANCELLED
         else:
             self.state.status = STATUS_COMPLETED if success else STATUS_FAILED
         self.state.overall_progress = 1.0
-        self.state.error_message = error_message
+        self.state.error_message = safe_error
         self._sync_failures()
         if self._installer_state is not None:
             self.state.results = snapshot_results(self._installer_state)
         self._write(force=True)
+        if safe_error:
+            with contextlib.suppress(Exception):
+                state_store.append_log(self._log_path, f"[ERROR] {safe_error}")
 
     def mark_cancelled(self) -> None:
         """Record a user-initiated cancel (T702).
@@ -230,6 +228,9 @@ class StateRecorder:
             return
         self.state.failed_models = list(self._installer_state.failed_models)
         self.state.step_failures = list(self._installer_state.step_failures)
+        for step in self._installer_state.failed_steps:
+            if step not in self.state.failed_steps:
+                self.state.failed_steps.append(step)
 
     def _write(self, *, force: bool = False) -> None:
         now = time.monotonic()

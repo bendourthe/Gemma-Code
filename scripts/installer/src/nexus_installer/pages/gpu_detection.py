@@ -23,6 +23,7 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.engine.host_detect import detect_total_ram_gb
 from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.widgets.callout_box import CalloutBox
 
@@ -365,6 +366,7 @@ class GpuDetectionPage(QWidget):
         self._state.gpu_vendor = vendor
         self._state.gpu_name = name
         self._state.vram_mb = vram_mb
+        self._state.apply_total_ram_gb(detect_total_ram_gb())
 
         if name:
             self._status_label.setText("GPU detected successfully.")

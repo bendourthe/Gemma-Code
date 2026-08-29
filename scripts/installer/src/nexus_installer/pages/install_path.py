@@ -106,8 +106,9 @@ class InstallPathPage(QWidget):
             gb_free = round(usage.free / (1024**3), 1)
         except OSError:
             gb_free = 0.0
-
-        self._state.disk_space_gb = gb_free
+            self._state.apply_disk_free_bytes(0)
+        else:
+            self._state.apply_disk_free_bytes(int(usage.free))
 
         if gb_free >= 10.0:
             color = SUCCESS
