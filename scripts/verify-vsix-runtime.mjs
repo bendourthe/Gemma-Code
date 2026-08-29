@@ -251,9 +251,9 @@ async function main() {
       rootManifest.version,
     );
     await assertVsixInstallRegistry(extensionsDir, rootManifest.version);
-    if (installed.manifest.engines?.vscode !== VS_CODE_VERSION) {
+    if (installed.manifest.engines?.vscode !== rootManifest.engines.vscode) {
       fail(
-        `Installed manifest engines.vscode is ${installed.manifest.engines?.vscode}; expected ${VS_CODE_VERSION}.`,
+        `Installed manifest engines.vscode is ${installed.manifest.engines?.vscode}; expected ${rootManifest.engines.vscode}.`,
       );
     }
     const vscodeExecutablePath = await downloadAndUnzipVSCode({

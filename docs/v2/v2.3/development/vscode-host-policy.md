@@ -24,7 +24,7 @@ The plan said: recommend A if a rebuild is in-repo; otherwise C plus B copy. The
 ## Chosen policy
 
 1. **Supported hosts**: Microsoft stable `code` whose major.minor is **1.134 or 1.135**. Insiders, Cursor, and Windsurf stay unsupported.
-2. **`engines.vscode`**: `>=1.134.0 <1.136.0`. That range is the ABI window proven against Electron 42.8.1. It is not `^1.134.0` (that would claim 1.136+).
+2. **`engines.vscode`**: `^1.134.0`. `@vscode/vsce` 2.24.0 `validateEngineCompatibility` accepts only `*`, `^x.y.z`, or `>=x.y.z`. A compound range (`>=1.134.0 <1.136.0`) fails Package VSIX (smoke) with `Invalid vscode engine compatibility version`. The caret floor still matches 1.134 and 1.135. It also matches 1.136+ at marketplace/VS Code engine-check time; native ABI for 1.136+ remains unproven. The wizard still disables 1.136+ via `SUPPORTED_VSCODE_MINORS`.
 3. **Rebuild pin**: keep Electron **42.8.1** in `scripts/build-vsix.ps1`. Do not change the native rebuild in this phase.
 4. **Wizard**: the extension checkbox stays visible. It is enabled and default-checked when `code` is 1.134 or 1.135. It is visible but disabled when `code` is missing or outside that window (disabled indicator uses `BG_INPUT`, not `BG_CARD` on `BG_CARD`).
 5. **Replace**: if `--list-extensions` reports `nexus-coding.nexus-coding` or `gemma-code.gemma-code`, the control offers replace and install uses `--force`. A failed listing fails open (no `--force`, warning, not a false "already installed").

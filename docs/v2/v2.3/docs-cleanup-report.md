@@ -1,3 +1,20 @@
+# Docs Cleanup Audit - v2.3.1 (Phase 6 reopen)
+
+**Date**: 2026-08-29
+**Mode**: audit (no files moved)
+
+## Findings
+
+- Canonical plan remains `docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md`.
+- Living policy `docs/v2/v2.3/development/vscode-host-policy.md` records the vsce-legal `engines.vscode` encoding. Phase 4 history is not rewritten.
+- No `docs/handbooks/`, `docs/testing/`, or `docs/validation/` trees were invented.
+
+## Verdict
+
+Clean for the Phase 6 reopen. Policy and evidence updates are named plan artifacts. No action required.
+
+---
+
 # Docs Cleanup Audit - v2.3.1 (Phase 6)
 
 **Date**: 2026-08-29

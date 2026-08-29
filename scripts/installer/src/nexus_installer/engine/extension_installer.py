@@ -17,6 +17,8 @@ SUPPORTED_VSCODE_VERSION = "1.134.0"
 SUPPORTED_VSCODE_MAX_EXCLUSIVE = "1.136.0"
 SUPPORTED_VSCODE_MINORS = frozenset({(1, 134), (1, 135)})
 SUPPORTED_ELECTRON_VERSION = "42.8.1"
+# @vscode/vsce 2.24.0 validateEngineCompatibility accepts only *, ^x.y.z, or >=x.y.z.
+VSCE_ENGINES_VSCODE = f"^{SUPPORTED_VSCODE_VERSION}"
 
 _SEMVER_LINE = re.compile(
     r"^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$"
@@ -275,6 +277,7 @@ __all__ = [
     "SUPPORTED_ELECTRON_VERSION",
     "SUPPORTED_VSCODE_MAX_EXCLUSIVE",
     "SUPPORTED_VSCODE_VERSION",
+    "VSCE_ENGINES_VSCODE",
     "VsCodeCliStatus",
     "inspect_vscode_cli",
     "installed_nexus_extension_id",

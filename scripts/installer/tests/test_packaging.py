@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 INSTALLER_ROOT = Path(__file__).parent.parent
@@ -228,13 +229,20 @@ class TestWorkflows:
         from nexus_installer.engine.extension_installer import (
             SUPPORTED_VSCODE_MAX_EXCLUSIVE,
             SUPPORTED_VSCODE_VERSION,
+            VSCE_ENGINES_VSCODE,
         )
 
         content = (REPO_ROOT / "scripts" / "build-vsix.ps1").read_text()
         manifest = json.loads((REPO_ROOT / "package.json").read_text())
-        assert manifest["engines"]["vscode"] == (
-            f">={SUPPORTED_VSCODE_VERSION} <{SUPPORTED_VSCODE_MAX_EXCLUSIVE}"
+        # @vscode/vsce 2.24.0 src/validation.ts validateEngineCompatibility
+        vsce_engine = re.compile(
+            r"^\*$|^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$"
         )
+        compound = f">={SUPPORTED_VSCODE_VERSION} <{SUPPORTED_VSCODE_MAX_EXCLUSIVE}"
+        assert manifest["engines"]["vscode"] == VSCE_ENGINES_VSCODE
+        assert f"^{SUPPORTED_VSCODE_VERSION}" == VSCE_ENGINES_VSCODE
+        assert vsce_engine.match(manifest["engines"]["vscode"])
+        assert vsce_engine.match(compound) is None
         assert manifest["dependencies"]["better-sqlite3"] == "12.11.1"
         assert manifest["dependencies"]["typescript"] == "^5.4.0"
         assert "typescript" not in manifest["devDependencies"]

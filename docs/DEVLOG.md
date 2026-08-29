@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 6 reopen - vsce-legal engines.vscode
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-6-last-phase.md), [policy](v2/v2.3/development/vscode-host-policy.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Package remains **2.3.0**.
+
+### What Changed
+
+- `engines.vscode` is `^1.134.0` so `@vscode/vsce` 2.24.0 can package the VSIX.
+- The wizard still disables 1.136+ via `SUPPORTED_VSCODE_MINORS`.
+- Packaging tests lock the vsce engine regex so a compound range cannot return.
+
+### Why It Changed
+
+PR 53 Package VSIX (smoke) failed: `Invalid vscode engine compatibility version '>=1.134.0 <1.136.0'`. Local regex reproduction matched that annotation. No silent re-run.
+
+### Decisions Made
+
+- Keep decision A (1.134/1.135 checkbox). Encode the packable floor as a caret range. Do not claim vsce can store an exclusive 1.136 cap.
+
+---
+
 ## [2026-08-29] v2.3.1 Phase 6 - Architecture refactor, known-gaps, and CI/CD
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-6-last-phase.md), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Package remains **2.3.0**.
