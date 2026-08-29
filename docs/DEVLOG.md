@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-28] v2.3.0 Phase 6 - Architecture, known gaps, and last-phase local gate
+
+Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-6-architecture-gaps-ci.md), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/last-phase-evidence.md). Package remains **2.2.9**.
+
+### What Changed
+
+- Last-phase evidence quotes architecture, known-gaps, living docs, git-tree hygiene, CI comparison, Goal-vs-codebase review, human testing suggestions, and the full local suite.
+- The sidecar handler allowlist now treats `video.enhancement.*` and `video.video2xPath.*` as implemented so the aggregate desktop suite does not expect `NotImplementedError` from a live capability probe.
+- Known gaps gained DF-4 (missing `check_release_preconditions.py`), QG-1 (named CI profiles), and QG-2 (permissions, aggregate required check, develop pull_request trigger). No workflow file was changed.
+
+### Why It Changed
+
+Phase 6 of the v2.3.0 adoption plan. Phases 1-5 shipped the product path; the fail-closed last-phase gate still needed quoted evidence before any push.
+
+### Decisions Made
+
+- Human testing is suggestions plus DF-3, not an executed walkthrough.
+- Pipeline diffs were compared and not applied (silence is not approval).
+- Publication (T025) stays pending explicit approval. No Phase 6 work was pushed. `/update release` waits for a green merge into `develop`.
+
+---
+
 ## [2026-08-28] v2.3.0 Phase 5 - Quality, performance, and packaging evidence
 
 Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-5-quality-performance-packaging.md), [gaps](v2/v2.3/known-gaps.md), [baseline](v2/v2.3/benchmarks/video-enhancement-baseline.md). Package remains **2.2.9**.

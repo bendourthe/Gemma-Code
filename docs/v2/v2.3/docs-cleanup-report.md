@@ -1,3 +1,22 @@
+# Docs Cleanup Audit - v2.3.0 (Phase 6)
+
+**Date**: 2026-08-28
+**Mode**: audit (no files moved)
+
+## Findings
+
+- Canonical plan remains `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md`.
+- Phase 6 adds `docs/v2/v2.3/development/last-phase-evidence.md` and session history under `docs/v2/v2.3/development/history/`. Known gaps stay at `docs/v2/v2.3/known-gaps.md`.
+- No `docs/handbooks/`, `docs/testing/`, or `docs/validation/` trees were invented. Markdown remains the source of truth.
+- v2.3.1 installer-field docs are on local `develop`, not on this branch. They are not Phase 6 deliverables.
+- No files were moved.
+
+## Verdict
+
+Clean for Phase 6. No action required.
+
+---
+
 # Docs Cleanup Audit - v2.3.0 (Phase 5)
 
 **Date**: 2026-08-28
