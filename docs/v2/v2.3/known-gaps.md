@@ -10,7 +10,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 
 ## v2.3.1
 
-**Last updated**: 2026-08-29 (Phase 5)
+**Last updated**: 2026-08-29 (Phase 6)
 
 ### Summary
 
@@ -23,7 +23,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 5 keeps `nomic-embed-text` as the required embedder. EmbeddingGemma stays 300M opt-in. Remaining work is last-phase evidence (Phase 6), not a new gap. MT-1 is unchanged.
+Phase 6 writes last-phase evidence. Pipeline topology diffs stay on v2.3.0 QG-1/QG-2 (not duplicated here). Publication (T027) waits for explicit approval. MT-1 is unchanged.
 
 ### Open Items
 

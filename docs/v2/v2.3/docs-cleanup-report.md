@@ -1,3 +1,22 @@
+# Docs Cleanup Audit - v2.3.1 (Phase 6)
+
+**Date**: 2026-08-29
+**Mode**: audit (no files moved)
+
+## Findings
+
+- Canonical plan remains `docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md`.
+- Phase 6 adds `docs/v2/v2.3/development/v2.3.1-last-phase-evidence.md` (does not overwrite v2.3.0 `last-phase-evidence.md`) and session history under `docs/v2/v2.3/development/history/`.
+- Restored the Phase 4 heading in this report that the Phase 5 prepend had dropped.
+- No `docs/handbooks/`, `docs/testing/`, or `docs/validation/` trees were invented. Markdown remains the source of truth.
+- Living docs stay at `docs/v2/v2.3/` (legacy minor-grouped layout). No files were moved.
+
+## Verdict
+
+Clean for Phase 6. Evidence and decision files are named plan artifacts, not scratch. No action required.
+
+---
+
 # Docs Cleanup Audit - v2.3.1 (Phase 5)
 
 **Date**: 2026-08-29
@@ -16,7 +35,7 @@ Clean for Phase 5. The embedder decision file is a named plan artifact, not scra
 
 ---
 
-
+# Docs Cleanup Audit - v2.3.1 (Phase 4)
 
 **Date**: 2026-08-29
 **Mode**: audit (no files moved)

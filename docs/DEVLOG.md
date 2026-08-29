@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 6 - Architecture refactor, known-gaps, and CI/CD
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-6-last-phase.md), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Package remains **2.3.0**.
+
+### What Changed
+
+- Last-phase evidence file quotes architecture scans, known-gaps glob, living docs, git hygiene, CI field comparison, Goal-vs-codebase review, human QA suggestions, and the local suite.
+- No pipeline file changed. CI diffs remain v2.3.0 QG-1/QG-2. No file moves.
+- Publication (push, PR, merge) waits for explicit approval.
+
+### Why It Changed
+
+Phase 6 of the v2.3.1 installer field-repair plan. Fail-closed last-phase duties must quote proving commands before `/update release`.
+
+### Decisions Made
+
+- Propose-then-apply: empty-dir hits are local caches and placeholders. No moves.
+- Do not invent `scripts/check_release_preconditions.py` (v2.3.0 DF-4). Quote git instead.
+- Do not duplicate v2.3.0 QG-1/QG-2 into v2.3.1.
+
+---
+
+
 ## [2026-08-29] v2.3.1 Phase 5 - Required embedder policy
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-5-embedder-policy.md), [gaps](v2/v2.3/known-gaps.md), [policy](v2/v2.3/development/embedder-default-decision.md). Package remains **2.3.0**.
