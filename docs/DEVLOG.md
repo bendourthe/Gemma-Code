@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 2 - Install thread crash containment
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-2-install-thread-crash.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.
+
+### What Changed
+
+- `_InstallThread.run` catches `BaseException`, emits `install_finished(False, ...)` with a one-line `Engine exception:` reason, and does not call `sys.exit`. KeyboardInterrupt and SystemExit are re-raised after that signal.
+- Model telemetry from pool workers is queued onto the `InstallEngine` QObject thread via `QMetaObject.invokeMethod`. A failed marshal records the model in state instead of emitting from the worker.
+- The Installing page shows "Installation Stopped" plus a modal; Complete shows the same crash. The background recorder redacts `hf_token` from persisted JSON and the rolling log.
+
+### Why It Changed
+
+Phase 2 of the v2.3.1 installer field-repair plan. Windowed PyInstaller has no usable stderr; an uncaught QThread exception and Qt signals from `ThreadPoolExecutor` workers could close the wizard after Dependencies with no error surface.
+
+### Decisions Made
+
+- Share `call_step` with headless `run_step` rather than duplicating the try/except.
+- If `invokeMethod` fails twice, record the model failure in `InstallerState` and do not emit from the worker.
+- Human screenshot checks wait for Phase 6.
+
+---
+
 ## [2026-08-29] v2.3.1 Phase 1 - Honest host RAM and disk fields
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-1-honest-host-ram.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.

@@ -405,6 +405,22 @@ class TestCompletePage:
         page._retry_btn.click()
         assert fired == [True]
 
+    def test_engine_crash_title_and_callout(self, qt_app: object) -> None:
+        from nexus_installer.pages.complete import CompletePage
+
+        state = InstallerState()
+        state.failed_steps.append("engine")
+        state.record_step_failure(
+            "engine",
+            "The installer hit an unexpected error and stopped.",
+            "Open the log on the Complete page, then retry the install.",
+        )
+        page = CompletePage(state)
+        page._refresh()
+        assert page._title.text() == "Installation Stopped"
+        assert "unexpected error" in page._subtitle.text()
+        assert not page._warning_callout.isHidden()
+
 
 class TestInstallingGatedAuthWiring:
     """v1.14.0 Phase 2 -- the installing page resolves gated auth before the

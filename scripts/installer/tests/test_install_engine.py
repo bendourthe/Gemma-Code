@@ -439,9 +439,7 @@ class TestInstallEngineUnsloth:
 class TestRuntimeWiringStep:
     """v2.2.0 Phase 1 (1.3): the runtime step always runs and routes failure."""
 
-    def test_runtime_failure_emits_step_failed(
-        self, _stub_runtime_provisioner
-    ) -> None:
+    def test_runtime_failure_emits_step_failed(self, _stub_runtime_provisioner) -> None:
         _stub_runtime_provisioner.return_value.install.return_value = False
         state = InstallerState(
             components_to_install=["extension"], vscode_path="/usr/bin/code"
@@ -466,3 +464,119 @@ class TestRuntimeWiringStep:
         engine.install_finished.connect(lambda *a: None)
         engine.run(state)
         _stub_runtime_provisioner.return_value.install.assert_called_once()
+
+
+class TestInstallThreadCrashContainment:
+    """v2.3.1 Phase 2: a model-step exception must not kill a windowed wizard."""
+
+    _TOKEN = "hf_secret_token_xyz"
+
+    def _pump(self, qt_app: object, until: list, timeout_s: float = 3.0) -> None:
+        import time
+
+        deadline = time.time() + timeout_s
+        while not until and time.time() < deadline:
+            qt_app.processEvents()
+            time.sleep(0.01)
+        qt_app.processEvents()
+
+    def test_thread_runtimeerror_emits_finished_without_sys_exit(
+        self, qt_app: object, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import sys
+
+        from nexus_installer.engine.crash import is_engine_exception
+        from nexus_installer.engine.installer import _InstallThread
+
+        exits: list[object] = []
+        monkeypatch.setattr(sys, "exit", lambda *a, **k: exits.append(a))
+
+        state = InstallerState(
+            components_to_install=["model"],
+            hf_token=self._TOKEN,
+        )
+        finished: list[tuple[bool, str]] = []
+
+        with patch("nexus_installer.engine.installer.ModelStepRouter") as mock_router:
+            mock_router.return_value.install.side_effect = RuntimeError(
+                f"pull exploded {self._TOKEN}"
+            )
+            engine = InstallEngine()
+            engine.install_finished.connect(lambda ok, msg: finished.append((ok, msg)))
+            thread = _InstallThread(engine, state)
+            thread.start()
+            assert thread.wait(10_000)
+            self._pump(qt_app, finished)
+
+        assert exits == []
+        assert finished, "install_finished must fire after a worker exception"
+        ok, message = finished[0]
+        assert ok is False
+        assert is_engine_exception(message)
+        assert "RuntimeError" in message
+        assert self._TOKEN not in message
+        assert "engine" in state.failed_steps
+        assert any("Engine exception" in line for line in state.install_log)
+
+    def test_keyboard_interrupt_is_reraised_after_signal(self, qt_app: object) -> None:
+        from nexus_installer.engine.installer import _InstallThread
+
+        engine = InstallEngine()
+        finished: list[tuple[bool, str]] = []
+        engine.install_finished.connect(lambda ok, msg: finished.append((ok, msg)))
+
+        def boom(_state: InstallerState) -> None:
+            raise KeyboardInterrupt
+
+        engine.run = boom  # type: ignore[method-assign]
+        thread = _InstallThread(engine, InstallerState())
+        with pytest.raises(KeyboardInterrupt):
+            thread.run()
+        self._pump(qt_app, finished)
+        assert finished and finished[0][0] is False
+
+    def test_marshal_model_started_runs_on_gui_thread(self, qt_app: object) -> None:
+        import threading
+        import time
+
+        from PyQt5.QtCore import QThread
+        from PyQt5.QtWidgets import QApplication
+
+        from nexus_installer.engine.installer import InstallEngine
+
+        engine = InstallEngine()
+        seen: list[QThread] = []
+        engine.model_started.connect(lambda _mid: seen.append(QThread.currentThread()))
+        worker_ident: list[int] = []
+
+        def worker() -> None:
+            worker_ident.append(threading.get_ident())
+            engine.marshal_model_started("gemma4:e2b")
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join(5)
+        deadline = time.time() + 3
+        while not seen and time.time() < deadline:
+            qt_app.processEvents()
+            time.sleep(0.01)
+        qt_app.processEvents()
+
+        assert worker_ident, "dummy thread must have run"
+        assert seen, "queued model_started must reach the GUI after processEvents"
+        assert seen[0] is QApplication.instance().thread()
+        assert threading.get_ident() != worker_ident[0] or seen[0] is qt_app.thread()
+
+    def test_marshal_failure_records_state_without_worker_emit(
+        self, qt_app: object
+    ) -> None:
+        engine = InstallEngine()
+        state = InstallerState()
+        engine._active_state = state
+        engine._invoke_slot = lambda *_a, **_k: False  # type: ignore[method-assign]
+        seen: list[str] = []
+        engine.model_started.connect(seen.append)
+        engine.marshal_model_started("m1")
+        qt_app.processEvents()
+        assert seen == []
+        assert "m1" in state.model_failures

@@ -313,6 +313,42 @@ class TestInstallingPageModelEvents:
         assert group is not None
         assert "Failed" in group._model_rows["m2"].status.text()
 
+    def test_marshalled_started_updates_row_on_gui_thread(self, qt_app: object) -> None:
+        import threading
+        import time
+
+        from PyQt5.QtCore import QThread
+        from PyQt5.QtWidgets import QApplication
+
+        from nexus_installer.engine.installer import InstallEngine
+
+        page, _state = self._page(qt_app)
+        engine = InstallEngine()
+        seen: list[QThread] = []
+
+        def on_started(model_id: str) -> None:
+            seen.append(QThread.currentThread())
+            page._on_model_started(model_id)
+
+        engine.model_started.connect(on_started)
+
+        def worker() -> None:
+            engine.marshal_model_started("m1")
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join(5)
+        deadline = time.time() + 3
+        while not seen and time.time() < deadline:
+            qt_app.processEvents()
+            time.sleep(0.01)
+        qt_app.processEvents()
+        assert seen
+        assert seen[0] is QApplication.instance().thread()
+        group = page._models_group()
+        assert group is not None
+        assert "m1" in group._model_rows
+
     def test_step_failure_reason_surfaces_in_group(self, qt_app: object) -> None:
         page, state = self._page(qt_app)
         state.record_step_failure(

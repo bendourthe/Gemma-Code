@@ -1,4 +1,4 @@
-﻿"""Additional tests to push coverage above 80%."""
+"""Additional tests to push coverage above 80%."""
 
 from __future__ import annotations
 
@@ -194,6 +194,29 @@ class TestInstallingPageCallbacks:
         page._is_running = True
         page._on_finished(False, "some error")
         assert "Warnings" in page._title.text()
+
+    def test_on_finished_engine_exception_shows_stopped(
+        self, qt_app: object, monkeypatch: object
+    ) -> None:
+        from PyQt5.QtWidgets import QMessageBox
+
+        from nexus_installer.pages.installing import InstallingPage
+
+        boxes: list[str] = []
+
+        def fake_critical(_parent: object, title: str, text: str) -> int:
+            boxes.append(text)
+            return 0
+
+        monkeypatch.setattr(QMessageBox, "critical", fake_critical)
+        state = InstallerState()
+        page = InstallingPage(state)
+        page._is_running = True
+        page._on_finished(False, "Engine exception: RuntimeError: pull exploded")
+        assert page._title.text() == "Installation Stopped"
+        assert boxes
+        assert "Engine exception" in boxes[0]
+        assert "Engine exception" in page.get_log_text()
 
     def test_get_log_text(self, qt_app: object) -> None:
         from nexus_installer.pages.installing import InstallingPage

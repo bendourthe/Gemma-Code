@@ -198,6 +198,7 @@ def _run_headless(args: argparse.Namespace) -> int:
     """
     # Import inside the function so non-headless invocations never touch the
     # engine imports (useful for `--help`, `--version`).
+    from nexus_installer.engine.crash import call_step
     from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
     from nexus_installer.engine.extension_installer import ExtensionInstaller
     from nexus_installer.engine.model_router import ModelStepRouter
@@ -276,12 +277,12 @@ def _run_headless(args: argparse.Namespace) -> int:
 
     def run_step(name: str, fn: callable) -> bool:  # type: ignore[valid-type]
         log(f"--- {name} ---")
-        try:
-            ok = fn()
-        except Exception as exc:  # noqa: BLE001
-            log(f"{name} failed: {exc}", "error")
+        ok, reason = call_step(fn)
+        if not ok:
+            if reason:
+                log(reason, "error")
             return False
-        return bool(ok)
+        return True
 
     if "ollama" in state.components_to_install:
         ok = run_step(
