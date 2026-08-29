@@ -798,6 +798,9 @@ class _ModelCard(QWidget):
         # on this row, never under the description.
         header = QWidget()
         header.setObjectName("cardHeaderRow")
+        header.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        header.setAutoFillBackground(False)
+        header.setStyleSheet("background: transparent;")
         header_flow = _FlowLayout(header)
         title = QLabel(model.display_name)
         title.setStyleSheet(

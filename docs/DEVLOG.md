@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 3 - Catalog and progress chrome
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-3-catalog-progress-chrome.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.
+
+### What Changed
+
+- Global QSS paints `BG_WINDOW` on `QMainWindow` only. Bare `QWidget` is transparent so unnamed children inherit the parent card, not the window black.
+- `#cardHeaderRow`, `#phaseGroupDetails`, and `QWidget#modelCard QWidget` are transparent. Catalog headers and installing details set the same inline.
+- QTextEdit stays `BG_INPUT`. Disabled checkbox indicators keep a `BG_CARD` fill and visible border.
+
+### Why It Changed
+
+Phase 3 of the v2.3.1 installer field-repair plan. Field screenshots showed catalog name rows and installing model lists as `BG_WINDOW` bars on top of cards.
+
+### Decisions Made
+
+- Font and color stay on the global `QWidget` rule so labels do not lose the type scale. Only the fill moves off that selector.
+- Human screenshot checks wait for Phase 6.
+
+---
+
 ## [2026-08-29] v2.3.1 Phase 2 - Install thread crash containment
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-2-install-thread-crash.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.

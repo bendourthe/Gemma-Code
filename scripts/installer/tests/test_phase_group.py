@@ -171,6 +171,21 @@ class TestConditionalSubBars:
         assert group._step_rows == {}
 
 
+class TestPhaseGroupChrome:
+    """v2.3.1 Phase 3: details sit on the card, not BG_WINDOW."""
+
+    def test_details_are_transparent(self, qt_app: object) -> None:
+        from nexus_installer.constants import BG_WINDOW
+
+        group = PhaseGroup("Models", ["model"])
+        details = group._details
+        assert details.objectName() == "phaseGroupDetails"
+        assert not details.autoFillBackground()
+        assert "transparent" in details.styleSheet()
+        assert BG_WINDOW not in details.styleSheet()
+        assert "#0a0d14" not in details.styleSheet()
+
+
 class TestFormattingHelpers:
     def test_size_progress_with_totals(self) -> None:
         from nexus_installer.widgets.phase_group import format_size_progress

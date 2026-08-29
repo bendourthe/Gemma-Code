@@ -8,7 +8,7 @@ mounted at the top of :class:`~nexus_installer.widgets.sidebar.Sidebar`: a still
 
 The wordmark size is set through the widget stylesheet (QSS), NOT
 ``QFont.setPixelSize``. Root cause of the prior "renders tiny" bug: the global
-``QMainWindow, QWidget {{ font-size }}`` rule in ``theme.py`` applies to every
+``QWidget {{ font-size }}`` rule in ``theme.py`` applies to every
 ``QLabel`` and, per Qt's cascade, a stylesheet font-size overrides ``setFont``.
 The step counter always looked right because it set its size via an inline
 stylesheet; the wordmark used ``setFont`` and got overridden to the 16px body

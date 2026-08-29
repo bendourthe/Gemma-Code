@@ -50,6 +50,47 @@ class TestGenerateStylesheet:
         assert "{FS_" not in sheet
         assert "{FW_" not in sheet
 
+    def test_global_qwidget_does_not_paint_bg_window(self) -> None:
+        """v2.3.1 Phase 3: only the main window uses BG_WINDOW as a fill."""
+        sheet = generate_stylesheet()
+        assert "QMainWindow, QWidget" not in sheet
+        main_block = _qss_block(sheet, "QMainWindow")
+        assert f"background-color: {constants.BG_WINDOW}" in main_block
+        widget_block = _qss_block(sheet, "QWidget")
+        assert constants.BG_WINDOW not in widget_block
+        assert "background: transparent" in widget_block
+
+    def test_card_header_and_details_are_transparent(self) -> None:
+        sheet = generate_stylesheet()
+        header = _qss_block(sheet, "QWidget#cardHeaderRow")
+        assert "background: transparent" in header
+        assert constants.BG_WINDOW not in header
+        details = _qss_block(sheet, "QWidget#phaseGroupDetails")
+        assert "background: transparent" in details
+        assert constants.BG_WINDOW not in details
+        nested = _qss_block(sheet, "QWidget#modelCard QWidget")
+        assert "background: transparent" in nested
+        assert constants.BG_WINDOW not in nested
+
+    def test_log_and_disabled_controls_keep_tokens(self) -> None:
+        sheet = generate_stylesheet()
+        text_edit = _qss_block(sheet, "QTextEdit")
+        assert f"background-color: {constants.BG_INPUT}" in text_edit
+        disabled = _qss_block(sheet, "QCheckBox::indicator:disabled")
+        assert f"background-color: {constants.BG_CARD}" in disabled
+        assert "border-color:" in disabled
+
+
+def _qss_block(sheet: str, selector: str) -> str:
+    """Return the first `{...}` body whose rule starts with `selector`."""
+    needle = f"{selector} {{"
+    idx = sheet.find(needle)
+    if idx < 0:
+        raise AssertionError(f"Missing selector {selector!r}")
+    start = sheet.find("{", idx)
+    end = sheet.find("}", start)
+    return sheet[start : end + 1]
+
 
 class TestConstants:
     def test_required_colors_exist(self) -> None:

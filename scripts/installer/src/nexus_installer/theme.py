@@ -35,8 +35,14 @@ def generate_stylesheet() -> str:
     """Return the complete QSS stylesheet for the installer UI."""
     return f"""
 /* -- Global ---------------------------------------------------------- */
-QMainWindow, QWidget {{
+QMainWindow {{
     background-color: {BG_WINDOW};
+    color: {TEXT_PRIMARY};
+    font-family: "{FONT_PRIMARY}";
+    font-size: {FS_BODY}px;
+}}
+QWidget {{
+    background: transparent;
     color: {TEXT_PRIMARY};
     font-family: "{FONT_PRIMARY}";
     font-size: {FS_BODY}px;
@@ -386,6 +392,15 @@ QFrame#phaseGroup {{
     background-color: {BG_CARD};
     border: 1px solid {BORDER};
     border-radius: 8px;
+}}
+QWidget#cardHeaderRow {{
+    background: transparent;
+}}
+QWidget#phaseGroupDetails {{
+    background: transparent;
+}}
+QWidget#modelCard QWidget {{
+    background: transparent;
 }}
 
 /* -- Callout box --------------------------------------------------------- */

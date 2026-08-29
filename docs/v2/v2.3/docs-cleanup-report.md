@@ -1,3 +1,21 @@
+# Docs Cleanup Audit - v2.3.1 (Phase 3)
+
+**Date**: 2026-08-29
+**Mode**: audit (no files moved)
+
+## Findings
+
+- Canonical plan remains `docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md`.
+- Phase 3 adds session history under `docs/v2/v2.3/development/history/`. No scratch design docs were created.
+- No `docs/handbooks/`, `docs/testing/`, or `docs/validation/` trees were invented. Markdown remains the source of truth.
+- Living docs stay at `docs/v2/v2.3/` (legacy minor-grouped layout). No files were moved.
+
+## Verdict
+
+Clean for Phase 3. No action required.
+
+---
+
 # Docs Cleanup Audit - v2.3.1 (Phase 2)
 
 **Date**: 2026-08-29
