@@ -10,7 +10,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 
 ## v2.3.1
 
-**Last updated**: 2026-08-29 (post-tag Shell Build path patch)
+**Last updated**: 2026-08-29 (post-tag Shell Build Windows host compile)
 
 ### Summary
 
@@ -18,7 +18,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 0 | 0 |
-| Bugs / regressions (BG) | 0 | 1 |
+| Bugs / regressions (BG) | 0 | 2 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
@@ -46,7 +46,15 @@ Phases 1-6 repaired the Windows wizard. PR 53 merged to `develop` at `838268f`. 
 - **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (Phase 2-3 adapter/lifecycle); run [33264834351](https://github.com/bendourthe/Nexus-AI/actions/runs/33264834351)
 - **What happened**: Same class as v2.3.0 BG-1. Ubuntu Shell Build succeeded. Windows and macOS failed 75 desktop tests because `os.tmpdir()` on those hosts is an OS path alias of `realpath` (GitHub Windows `RUNNER~1` 8.3 names, macOS `/var` to `/private/var`). Intake compared the requested string to `realpath` and rejected regular files as `source_invalid` / untrusted staging.
 - **Fix**: Intake keeps rejecting leaf symlinks, then uses `realpath` as identity instead of requiring the caller's string to already equal it. Tests create temp roots through `canonicalMkDtemp`. Do not retag `v2.3.1`.
-- **Evidence**: Local desktop vitest on this Windows host: 1821 passed / 1 skipped across 199 files, including the six previously red files. This host's `os.tmpdir()` already equals `realpath`, so the 8.3 / `/var` alias is not proven here. Remote Windows/macOS Shell Build remains not proven here until the develop PR is green on those jobs (or a `main` matrix run).
+- **Evidence**: Local desktop vitest on this Windows host: 1821 passed / 1 skipped across 199 files, including the six previously red files. This host's `os.tmpdir()` already equals `realpath`, so the 8.3 / `/var` alias is not proven here. Remote macOS Shell Build is green on `main` after this patch. Remote Windows still failed later on two live process-host tests (BG-2).
+
+##### BG-2 (resolved) - Windows Shell Build live process-host tests timed out after the path-alias patch
+
+- **Source phase**: `/update release` (post-tag `main` Shell Build follow-up)
+- **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (Phase 2 argv-safe Windows host); run [33268774202](https://github.com/bendourthe/Nexus-AI/actions/runs/33268774202)
+- **What happened**: Ubuntu and macOS Shell Build succeeded. Windows vitest failed 2 tests in `windows-video-process-host.test.ts`: the live argv round-trip returned `{ exitCode: null, stdout: '', timedOut: true }`, and cancellation never saw `ready.txt`. Schema and tamper tests in the same file, which spawn PowerShell with the full process PATH, passed. The live host helper environment did not include PATH, and GitHub `windows-latest` runs ~200 coverage files in parallel, so `Add-Type` did not finish before the Node timeout. Develop Shell Build is Ubuntu-only, so the same SHA can be green on `develop` and red on `main`.
+- **Fix**: Pin helper PATH/PATHEXT to Windows system and .NET Framework roots (never copy process PATH). On Windows CI, desktop vitest uses one worker. Live host tests keep a longer wall-time budget. Do not retag `v2.3.1`.
+- **Evidence**: Local desktop vitest on this Windows host still proves the live host path. Remote Windows Shell Build remains not proven here until a `main` matrix run is green.
 
 ## v2.3.0
 

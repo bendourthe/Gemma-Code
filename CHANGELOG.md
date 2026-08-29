@@ -3,6 +3,7 @@
 ### Bug Fixes
 
 * **Video enhancement paths:** treat Windows 8.3 and macOS `/var` tmpdir aliases as the same identity as `realpath` when the leaf is a regular file, so Shell Build Windows/macOS vitest can pass the same suite as Ubuntu. Do not retag `v2.3.1`.
+* **Windows process host:** pin the PowerShell helper PATH to System32 and .NET Framework roots so in-memory `Add-Type` can find `csc.exe`, and run desktop vitest as a single worker on Windows CI so those compiles are not starved by parallel coverage. Do not retag `v2.3.1`.
 
 
 # [2.3.1](https://github.com/bendourthe/Nexus-AI/compare/v2.3.0...v2.3.1) (2026-08-29)
