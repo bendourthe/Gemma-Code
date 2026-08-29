@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 - Windows installer field repair (release preparation)
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Changelog is authoritative. Package **2.3.1**.
+
+### What Changed
+
+- Product version **2.3.1** (root `package.json` and `tauri.conf.json` via `sync-tauri-version.mjs`). `desktop/package.json` stays 1.5.0. Installer `__version__` stays 1.1.0.
+- README What's New, CHANGELOG, known-gaps finalization, and last-phase publication evidence now describe the merged develop tree (PR 53, merge `838268f`).
+
+### Why It Changed
+
+`/update release` after a green merge of [PR 53](https://github.com/bendourthe/Nexus-AI/pull/53). Phases 1-6 already landed the field repair; this step owns the version bump and release notes.
+
+### Decisions Made
+
+- VS Code 1.134/1.135, Unsloth Core, and EmbeddingGemma 300M are opt-in surfaces. Release notes carry Activation, Validation, Rollback, Authority, and Docs.
+- `scripts/check_version_sync.py`, `scripts/generate_manifest.py`, `scripts/check_release_preconditions.py`, and `scripts/check_release_capability_docs.py` do not exist in this repository. Version sync is `package.json` plus `node scripts/sync-tauri-version.mjs --check`.
+- This repository's living docs tree stays `docs/v*/` (verified by `npm run check:docs-layout`). No `docs/releases/` or `docs/handbooks/` migration.
+- Tag, GitHub Release, `main` merge, and develop back-merge stay behind later confirmation.
+
+---
+
 ## [2026-08-29] v2.3.1 Phase 6 reopen - vsce-legal engines.vscode
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-6-last-phase.md), [policy](v2/v2.3/development/vscode-host-policy.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Package remains **2.3.0**.

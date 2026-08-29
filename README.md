@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, v2.2.9 lives under `docs/v2/v2.2/`, and the current **v2.3.0** cycle lives under `docs/v2/v2.3/`. See [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, v2.2.9 lives under `docs/v2/v2.2/`, and the current **v2.3.1** cycle lives under `docs/v2/v2.3/`. See [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, `docs/v2/v2.2/` for v2.2.9, and `docs/v2/v2.3/` for **v2.3.0**).
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, `docs/v2/v2.2/` for v2.2.9, and `docs/v2/v2.3/` for **v2.3.1**).
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: the old `v2.0.0` tag became `v1.6.0`, `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0`, `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. This **v2.0.0** cut is the reserved convergence release (v1.18 plan + v1.19.x subplans + this adoption plan).
 
@@ -114,8 +114,29 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v2.2.8 | Working local studio: minutes-class chat/generate RPCs, shared FolderTree, installer Models sort, Hub latest with quarantine | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
 | v2.2.9 | Field chrome and catalog identity: finished Chatbot/studio chrome, typed diffusion readiness errors, installer/Settings model parity, truthful Hub sync | Landed at automated-test tier; packaged field QA remains DF-36 | [docs/v2/v2.2/](docs/v2/v2.2/) |
 | v2.3.0 | Optional local video enhancement, Qwen3.8 stays out, Hub security-audit handoff | Landed at automated/internal-compatible evidence; real Video2X/GPU/packaged measurement remains DF-3 | [docs/v2/v2.3/](docs/v2/v2.3/) |
+| v2.3.1 | Windows installer field repair: honest RAM, crash containment, card chrome, VS Code 1.135, Unsloth on Configuration | Landed at automated evidence; packaged wizard screenshots remain human QA; host_detect coverage remains MT-1 | [docs/v2/v2.3/](docs/v2/v2.3/) |
 
-Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. v2.3.0 lives under `docs/v2/v2.3/plans/`. Deferred work is in that version's `known-gaps.md`.
+Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. v2.3.0 and v2.3.1 live under `docs/v2/v2.3/plans/`. Deferred work is in that version's `known-gaps.md`.
+
+### What's new in v2.3.1
+
+The Windows wizard stays alive through model downloads, reports real system RAM, paints catalog and progress on card surfaces, and treats VS Code as an optional tickable extension install (replace if present) with Unsloth Core on Configuration. Nomic stays the required embedder. EmbeddingGemma 300M stays opt-in.
+
+- **Honest RAM** - Patient-tier cards read host RAM, not install-path free disk. Inkling-Small can be Compatible on a normal RAM host.
+- **Crash containment** - An install-thread exception fails in-window with a log path instead of closing the process.
+- **Card chrome** - Catalog headers and installing lists inherit card fill instead of black window-color bars.
+- **VS Code 1.134 or 1.135** - The checkbox is always visible. It is enabled on those minors (same Electron 42.8.1). 1.136+ stays visible and disabled. Replace uses `--force` only when the extension is already installed.
+- **Embedder** - Nomic remains required. EmbeddingGemma copy says 300M, not 300B.
+
+Activation: Optional VS Code extension: tick the wizard checkbox when Microsoft stable `code` 1.134 or 1.135 is on PATH. Unsloth Core: enable Configuration > Unsloth Core (off by default; NVIDIA 16 GB+ VRAM). EmbeddingGemma 300M: select it on Models; it is not required.
+Validation: VS Code: `code --version` is 1.134.x or 1.135.0 and the checkbox is enabled; after install, `code --list-extensions` includes `nexus-coding.nexus-coding`. Unsloth: the toggle is on Configuration, not the VS Code page. Embedder: Nomic stays Required; EmbeddingGemma copy says 300M.
+Rollback: Untick the VS Code checkbox or uninstall the extension. Turn Unsloth off on Configuration. Leave EmbeddingGemma unselected; Nomic remains the required embedder. None of these uninstall VS Code, CUDA, or existing models.
+Authority: The VS Code checkbox does not install VS Code, does not enable 1.136+, and does not change the desktop app. Unsloth does not grant network training or Hub writes. Selecting EmbeddingGemma does not reindex existing memory.
+Docs: [docs/install.md](docs/install.md), [vscode-host-policy.md](docs/v2/v2.3/development/vscode-host-policy.md), [embedder-default-decision.md](docs/v2/v2.3/development/embedder-default-decision.md).
+
+The packaged desktop application remains Windows-only; raw Tauri bundles stay withheld (DF-38).
+
+Known gaps: [docs/v2/v2.3/known-gaps.md](docs/v2/v2.3/known-gaps.md). Plan: [docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md](docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md).
 
 ### What's new in v2.3.0
 
@@ -273,15 +294,15 @@ v1.19.0 already shipped LFM2.5-2.6B as the low-VRAM Agentic pick. Known gaps sta
 1. **Local-first.** Inference, embeddings, image and video synthesis, and memory storage all live on the host machine. No outbound calls without explicit user opt-in.
 2. **Originality over wrappers.** When an external service or heavy framework can be reverse-engineered into a lean local module, we do that. The codebase follows this rule explicitly (see [AGENTS.md](AGENTS.md) "MCP Registry Policy" and the comparison matrices at [docs/v1/v1.1/comparison-agentmemory.md](docs/v1/v1.1/comparison-agentmemory.md) and [docs/v1/v1.1/comparison-sana.md](docs/v1/v1.1/comparison-sana.md)). The only external project we deliberately link to is [bendourthe/Nexus-Hub](https://github.com/bendourthe/Nexus-Hub), the author's own skill / hook / command catalog and the upstream feed for Nexus's skill harness.
 3. **Single-GPU ceiling.** Every pillar must run on a laptop with a single consumer GPU (e.g. RTX 3070 - 4090 class). Hardware tiers are auto-detected at install and context budgets, batch sizes, and pipeline depths adapt accordingly.
-4. **Installer carries the burden where supported.** The Windows one-file installer provisions the runtime, models, optional exact-host VSIX, and desktop app. v2.3.0 withholds raw Tauri desktop bundles because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar; DF-1 tracks self-contained Node bundling. DF-24 separately tracks the missing Unix selected-model snapshot write. Video2X is not an installer payload.
+4. **Installer carries the burden where supported.** The Windows one-file installer provisions the runtime, models, optional exact-host VSIX, and desktop app. v2.3.1 withholds raw Tauri desktop bundles because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar; DF-1 tracks self-contained Node bundling. DF-24 separately tracks the missing Unix selected-model snapshot write. Video2X is not an installer payload.
 5. **Privacy by construction.** Memory writes pass through the [`redactSecrets`](core/observability/redactSecrets.ts) pre-index filter (AWS keys, classic + fine-grained GitHub PATs, Slack tokens, JWTs, PEM blocks, env-style assignments). Telemetry, traces, and logs are local-only by default and redact secret patterns before any opt-in export.
-6. **Qualified OS support (updated in v2.3.0).** The packaged desktop application target is Windows x64. The optional exact-host VSIX targets Windows x64, macOS Apple Silicon, and Linux x86_64; Intel macOS is not a v2.3.0 artifact target.
+6. **Qualified OS support (updated in v2.3.1).** The packaged desktop application target is Windows x64. The optional exact-host VSIX targets Windows x64, macOS Apple Silicon, and Linux x86_64; Intel macOS is not a v2.3.1 artifact target.
 
 ---
 
 ## Quick Start (developer workflow)
 
-End users: grab the Windows one-file installer from the [releases page](https://github.com/bendourthe/Nexus-AI/releases) and follow the [installation guide](docs/install.md) (including the unsigned-binary warning). macOS and Linux receive only the optional platform VSIX in v2.3.0. The extension requires Microsoft stable VS Code 1.134 or 1.135 (Electron 42.8.1); the Windows desktop application is not subject to this VS Code pin. Developers work against the source tree:
+End users: grab the Windows one-file installer from the [releases page](https://github.com/bendourthe/Nexus-AI/releases) and follow the [installation guide](docs/install.md) (including the unsigned-binary warning). macOS and Linux receive only the optional platform VSIX in v2.3.1. The extension requires Microsoft stable VS Code 1.134 or 1.135 (Electron 42.8.1); the Windows desktop application is not subject to this VS Code pin. Developers work against the source tree:
 
 ```bash
 # Prereqs: Node 20+, Rust + Cargo (for Tauri core), Ollama for inference.
@@ -377,7 +398,7 @@ assets/      Icons, images, fonts, banners
 bin/         CLI entry points (nexus, nexus-check, nexus-image, nexus-video)
 ```
 
-The provisioning-installer source tree lives at [scripts/installer/](scripts/installer/) and contains a PyQt-based branded wizard. For v2.3.0, the complete one-file installer is the only packaged desktop application target; raw Tauri bundles remain internal build outputs until they embed an exact runtime. Video2X is never bundled. The Windows one-shot path landed across the v1.8.0 -> v1.11.0 cycles: dependency provisioning, an embedded desktop bundle, per-VRAM model curation, a clean-machine test harness, and full background continuation.
+The provisioning-installer source tree lives at [scripts/installer/](scripts/installer/) and contains a PyQt-based branded wizard. For v2.3.1, the complete one-file installer is the only packaged desktop application target; raw Tauri bundles remain internal build outputs until they embed an exact runtime. Video2X is never bundled. The Windows one-shot path landed across the v1.8.0 -> v1.11.0 cycles: dependency provisioning, an embedded desktop bundle, per-VRAM model curation, a clean-machine test harness, and full background continuation.
 
 ---
 

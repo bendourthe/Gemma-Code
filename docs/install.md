@@ -1,15 +1,15 @@
 # Installing Nexus
 
-v2.3.0 ships the full Nexus desktop application through a one-file provisioning installer on Windows. macOS and Linux receive only the optional platform-qualified VS Code extension in this release; standalone Tauri desktop bundles are withheld because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar. The existing DF-1 tracks self-contained Node bundling for raw desktop packages, while DF-24 separately tracks the missing Unix selected-model snapshot write. Optional Video Lab enhancement uses a Video2X 6.4.0 executable you install yourself; the installer never downloads or bundles it.
+v2.3.1 ships the full Nexus desktop application through a one-file provisioning installer on Windows. macOS and Linux receive only the optional platform-qualified VS Code extension in this release; standalone Tauri desktop bundles are withheld because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar. The existing DF-1 tracks self-contained Node bundling for raw desktop packages, while DF-24 separately tracks the missing Unix selected-model snapshot write. Optional Video Lab enhancement uses a Video2X 6.4.0 executable you install yourself; the installer never downloads or bundles it.
 
 The supported artifacts are attached to each [GitHub release](https://github.com/bendourthe/Nexus-AI/releases), alongside a `SHA256SUMS.txt` you can use to verify your download.
 
 | Platform | Download | Purpose |
 |---|---|---|
 | Windows 10/11 (x64) | `NexusSetup.exe` | Complete desktop application, runtimes, models, and optional VSIX |
-| Windows 10/11 (x64) | `nexus-coding-2.3.0-win32-x64.vsix` | Optional VS Code extension only |
-| macOS 15+ (Apple Silicon) | `nexus-coding-2.3.0-darwin-arm64.vsix` | Optional VS Code extension only |
-| Linux x86_64 (glibc 2.35+) | `nexus-coding-2.3.0-linux-x64.vsix` | Optional VS Code extension only |
+| Windows 10/11 (x64) | `nexus-coding-2.3.1-win32-x64.vsix` | Optional VS Code extension only |
+| macOS 15+ (Apple Silicon) | `nexus-coding-2.3.1-darwin-arm64.vsix` | Optional VS Code extension only |
+| Linux x86_64 (glibc 2.35+) | `nexus-coding-2.3.1-linux-x64.vsix` | Optional VS Code extension only |
 
 The optional VS Code extension supports Microsoft stable VS Code 1.134 or 1.135 (same Electron 42.8.1 ABI as the bundled `better-sqlite3` 12.11.1 rebuild). Earlier, later, Insiders, Cursor, and Windsurf hosts are not supported by this artifact. The Windows wizard shows a visible extension checkbox, enables it for 1.134/1.135, and rechecks before installation. The Windows desktop application itself does not have this VS Code requirement.
 
@@ -33,15 +33,15 @@ NexusSetup.exe --headless --json-output
 
 ## macOS
 
-v2.3.0 does not publish a standalone macOS Nexus desktop package. The raw Tauri DMG was withheld because it does not contain the pinned Node runtime required by the sidecar, and the former universal name also overstated the single-architecture native module inside it.
+v2.3.1 does not publish a standalone macOS Nexus desktop package. The raw Tauri DMG was withheld because it does not contain the pinned Node runtime required by the sidecar, and the former universal name also overstated the single-architecture native module inside it.
 
-If you use macOS 15+ on Apple Silicon and Microsoft stable VS Code 1.134 or 1.135, download `nexus-coding-2.3.0-darwin-arm64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, an Intel host, an older macOS version, or another VS Code version.
+If you use macOS 15+ on Apple Silicon and Microsoft stable VS Code 1.134 or 1.135, download `nexus-coding-2.3.1-darwin-arm64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, an Intel host, an older macOS version, or another VS Code version.
 
 ## Linux
 
-v2.3.0 does not publish a standalone Linux Nexus desktop package. The raw Tauri AppImage and deb were withheld because they do not contain the pinned Node runtime and runtime manifest required by the sidecar.
+v2.3.1 does not publish a standalone Linux Nexus desktop package. The raw Tauri AppImage and deb were withheld because they do not contain the pinned Node runtime and runtime manifest required by the sidecar.
 
-If you run Microsoft stable VS Code 1.134 or 1.135 on x86_64 Linux, download `nexus-coding-2.3.0-linux-x64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, or another VS Code version. The native extension requires glibc 2.35+ (Ubuntu 22.04+, Debian 12+, or another distribution with an equivalent/newer glibc); its release builder is pinned to Ubuntu 22.04 to keep that floor stable.
+If you run Microsoft stable VS Code 1.134 or 1.135 on x86_64 Linux, download `nexus-coding-2.3.1-linux-x64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, or another VS Code version. The native extension requires glibc 2.35+ (Ubuntu 22.04+, Debian 12+, or another distribution with an equivalent/newer glibc); its release builder is pinned to Ubuntu 22.04 to keep that floor stable.
 
 ## Verifying your download
 
@@ -68,6 +68,12 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 Optional Unsloth Core (local QLoRA fine-tuning runtime) is offered on Configuration, off by default, for NVIDIA GPUs with 16 GB or more VRAM. It is not a VS Code option.
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
+
+## After you install (v2.3.1)
+
+- **VS Code extension**: optional. The wizard enables the checkbox for Microsoft stable 1.134 or 1.135. 1.136+, Insiders, Cursor, and Windsurf stay visible and disabled. Replace uses `--force` only when `nexus-coding.nexus-coding` or `gemma-code.gemma-code` is already listed.
+- **Unsloth Core**: Configuration Features, off by default, NVIDIA 16 GB+ VRAM. Not a VS Code option.
+- **Embedder**: Nomic is required. EmbeddingGemma 300M is opt-in and does not reindex existing memory.
 
 ## After you install (v2.3.0)
 

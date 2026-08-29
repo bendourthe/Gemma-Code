@@ -1,3 +1,20 @@
+# Docs Cleanup Audit - v2.3.1 (release preparation)
+
+**Date**: 2026-08-29
+**Mode**: audit (no files moved)
+
+## Findings
+
+- Living tree stays `docs/v2/v2.3/`. No `docs/releases/` or `docs/handbooks/` migration.
+- Release notes, README What's New, and `docs/install.md` artifact names now describe package 2.3.1.
+- Phase history files were not rewritten.
+
+## Verdict
+
+Clean for the 2.3.1 bump. No file moves.
+
+---
+
 # Docs Cleanup Audit - v2.3.1 (Phase 6 reopen)
 
 **Date**: 2026-08-29

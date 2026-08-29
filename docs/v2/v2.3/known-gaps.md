@@ -10,7 +10,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 
 ## v2.3.1
 
-**Last updated**: 2026-08-29 (Phase 6)
+**Last updated**: 2026-08-29 (finalized at the 2.3.1 bump)
 
 ### Summary
 
@@ -23,7 +23,9 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 6 writes last-phase evidence. Pipeline topology diffs stay on v2.3.0 QG-1/QG-2 (not duplicated here). Publication (T027) waits for explicit approval. MT-1 is unchanged.
+Phases 1-6 repaired the Windows wizard. PR 53 merged to `develop` at `838268f`. Pipeline topology diffs stay on v2.3.0 QG-1/QG-2. MT-1 is unchanged.
+
+> Finalized on 2026-08-29 at the 2.3.1 bump. Open items will be ingested by /plan when the next version's plan is created.
 
 ### Open Items
 
