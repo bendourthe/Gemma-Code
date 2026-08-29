@@ -37,17 +37,12 @@ import { canonicalMkDtemp } from "./helpers/canonicalTempDir";
 const WINDOWS_ONLY = process.platform === "win32" ? it : it.skip;
 
 async function rmTree(target: string): Promise<void> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    try {
-      await rm(target, { recursive: true, force: true });
-      return;
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
-    }
-  }
-  throw lastError;
+  await rm(target, {
+    recursive: true,
+    force: true,
+    maxRetries: 20,
+    retryDelay: 100,
+  });
 }
 
 async function runCaptured(
