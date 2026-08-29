@@ -10,8 +10,18 @@ from nexus_installer.engine.extension_installer import (
     EXTENSION_ID,
     SUPPORTED_VSCODE_VERSION,
     ExtensionInstaller,
+    vscode_version_is_supported,
 )
 from nexus_installer.installer_state import InstallerState
+
+
+def test_vscode_version_is_supported() -> None:
+    assert vscode_version_is_supported("1.134.0")
+    assert vscode_version_is_supported("1.134.1")
+    assert vscode_version_is_supported("1.135.0")
+    assert not vscode_version_is_supported("1.133.9")
+    assert not vscode_version_is_supported("1.136.0")
+    assert not vscode_version_is_supported("not-a-version")
 
 
 class TestExtensionInstaller:
@@ -53,6 +63,7 @@ class TestExtensionInstaller:
                         f"{SUPPORTED_VSCODE_VERSION}\ncommit\nx64\n",
                         "",
                     ),  # compatibility recheck
+                    (0, "other.ext\n", ""),  # list before install
                     (0, "Extension installed", ""),  # install
                     (0, f"some-ext\n{EXTENSION_ID}\n", ""),  # list
                 ],
@@ -64,7 +75,11 @@ class TestExtensionInstaller:
             "/usr/bin/code",
             "--version",
         ]
-        install_command = run_mock.call_args_list[1].args[0]
+        assert run_mock.call_args_list[1].args[0] == [
+            "/usr/bin/code",
+            "--list-extensions",
+        ]
+        install_command = run_mock.call_args_list[2].args[0]
         assert install_command == [
             "/usr/bin/code",
             "--install-extension",
@@ -85,6 +100,7 @@ class TestExtensionInstaller:
                 "nexus_installer.engine.extension_installer.run_command",
                 side_effect=[
                     (0, f"{SUPPORTED_VSCODE_VERSION}\ncommit\nx64\n", ""),
+                    (0, "", ""),
                     (1, "", "error"),
                 ],
             ),
@@ -93,7 +109,7 @@ class TestExtensionInstaller:
             assert result is False
         assert state.step_failures and state.step_failures[0]["step"] == "extension"
 
-    @pytest.mark.parametrize("version", ["1.133.9", "1.134.1"])
+    @pytest.mark.parametrize("version", ["1.133.9", "1.136.0"])
     def test_recheck_skips_when_stable_version_changed(self, version: str) -> None:
         state = InstallerState(vscode_path="/usr/bin/code")
         log = MagicMock()
@@ -168,3 +184,54 @@ class TestExtensionInstaller:
         assert state.step_failures == []
         run_mock.assert_called_once_with(["/usr/bin/code", "--version"], timeout=30)
         assert any(expected_log in call.args[0] for call in log.call_args_list)
+
+    def test_replace_uses_force_when_nexus_already_installed(self) -> None:
+        state = InstallerState(vscode_path="/usr/bin/code")
+        log = MagicMock()
+        with (
+            patch.object(
+                ExtensionInstaller,
+                "_find_vsix",
+                return_value="/path/to/nexus-coding-0.3.0.vsix",
+            ),
+            patch(
+                "nexus_installer.engine.extension_installer.run_command",
+                side_effect=[
+                    (0, "1.135.0\ncommit\nx64\n", ""),
+                    (0, f"{EXTENSION_ID}\n", ""),
+                    (0, "ok", ""),
+                    (0, f"{EXTENSION_ID}\n", ""),
+                ],
+            ) as run_mock,
+        ):
+            result = ExtensionInstaller().install(state, log)
+            assert result is True
+        install_command = run_mock.call_args_list[2].args[0]
+        assert install_command[-1] == "--force"
+        assert "--install-extension" in install_command
+
+    def test_list_failure_does_not_force_and_warns(self) -> None:
+        state = InstallerState(vscode_path="/usr/bin/code")
+        log = MagicMock()
+        with (
+            patch.object(
+                ExtensionInstaller,
+                "_find_vsix",
+                return_value="/path/to/nexus-coding-0.3.0.vsix",
+            ),
+            patch(
+                "nexus_installer.engine.extension_installer.run_command",
+                side_effect=[
+                    (0, f"{SUPPORTED_VSCODE_VERSION}\ncommit\nx64\n", ""),
+                    (1, "", "list failed"),
+                    (0, "ok", ""),
+                    (0, f"{EXTENSION_ID}\n", ""),
+                ],
+            ) as run_mock,
+        ):
+            result = ExtensionInstaller().install(state, log)
+            assert result is True
+        assert "--force" not in run_mock.call_args_list[2].args[0]
+        assert any(
+            "will not replace blindly" in call.args[0] for call in log.call_args_list
+        )

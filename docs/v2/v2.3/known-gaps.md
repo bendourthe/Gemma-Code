@@ -1,16 +1,48 @@
 # Known Gaps - v2.3
 
 **Project**: Nexus AI Studio
-**Status**: finalized
-**Last updated**: 2026-08-29 (v2.3.0 release preparation)
+**Status**: in-progress
+**Last updated**: 2026-08-29
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-qwen-video2x-openworker.md)
+Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-qwen-video2x-openworker.md), [plans/v2.3.1-installer-field-repair.md](plans/v2.3.1-installer-field-repair.md)
+
+## v2.3.1
+
+**Last updated**: 2026-08-29 (finalized at the 2.3.1 bump)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 0 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 1 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phases 1-6 repaired the Windows wizard. PR 53 merged to `develop` at `838268f`. Pipeline topology diffs stay on v2.3.0 QG-1/QG-2. MT-1 is unchanged.
+
+> Finalized on 2026-08-29 at the 2.3.1 bump. Open items will be ingested by /plan when the next version's plan is created.
+
+### Open Items
+
+#### Missing Tests / Coverage Gaps
+
+##### MT-1 - host_detect.py platform probes stay below 80% line coverage
+
+- **Source phase**: Phase 1 - Honest host RAM and disk fields
+- **Plan reference**: `docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md` (1.1, 1.4)
+- **Reason**: Full installer pytest measures `host_detect.py` at 40% lines. New Windows RAM routing, PowerShell fallback, and a live GlobalMemoryStatusEx success path on this Windows host are covered. Remaining misses are pre-existing OS-specific GPU/OS probes plus ctypes ImportError / missing-kernel32 / failed-API branches that this machine does not exercise.
+- **Suggested next step**: Leave OS-specific GPU probes unless a later phase touches them. Add a mocked kernel32 failure test only if a frozen windowed build reports RAM-not-detected on a machine that has RAM.
 
 ## v2.3.0
 
-**Last updated**: 2026-08-29 (release preparation)
+## v2.3.0
+
+**Last updated**: 2026-08-29 (post-tag Shell Build finding)
 
 ### Summary
 
@@ -18,12 +50,12 @@ Plan: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-q
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 4 | 0 |
-| Bugs / regressions (BG) | 0 | 0 |
+| Bugs / regressions (BG) | 1 | 0 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 2 | 0 |
 
-Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhance UI, fake-backend packaging evidence, and last-phase reconciliation. Real Video2X, GPU, packaged field detection, and perceptual review remain candidate (DF-3). The Nexus-Hub security-audit workflow is still an unreleased upstream item (DF-2). Pipeline topology differences were compared and not applied without approval (QG-1, QG-2).
+Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhance UI, fake-backend packaging evidence, and last-phase reconciliation. Real Video2X, GPU, packaged field detection, and perceptual review remain candidate (DF-3). The Nexus-Hub security-audit workflow is still an unreleased upstream item (DF-2). Pipeline topology differences were compared and not applied without approval (QG-1, QG-2). After tag `v2.3.0` landed, the first full-matrix Shell Build on `main` failed Windows and macOS desktop vitest (BG-1). Ubuntu on that run succeeded. The tag was not rewritten.
 
 > Finalized on 2026-08-29 at the 2.3.0 bump. Open items will be ingested by /plan when the next version's plan is created.
 
@@ -76,7 +108,14 @@ Phases 1-6 landed the enhancement contract, durable child jobs, Video Lab Enhanc
 - **Source phase**: Phase 6 - Architecture Refactor, Known-Gaps Reconciliation, and CI/CD
 - **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (T021)
 - **Reason**: `.github/workflows/ci.yml` SHA-pins actions, uses npm/pip cache, concurrency cancellation, and 7-day artifacts, but has no workflow-level `permissions` block and no always-resolving aggregate required job. `pull_request.branches` is `main` only; develop integration relies on the `push` trigger. After PR 52 merged, the develop push reran the complete CI suite (observed finding against event separation). Differences were proposed and not applied.
-- **Suggested next step**: Approve a least-privilege permissions block and an aggregate required job in a CI-owned phase, then add `develop` to pull_request branches if branch protection should see merge-result checks.
+- **Suggested next step**: Approve a least-privilege permissions block and an aggregate required job in a CI-owned phase, then add `develop` to pull_request branches if branch protection should see merge-result checks. Consider running Windows/macOS desktop vitest before a tag, because `shell-build.yml` keeps that matrix on `main` only.
+
+##### BG-1 - Windows and macOS Shell Build desktop vitest failed after the v2.3.0 tag
+
+- **Source phase**: `/update release` (post-tag `main` Shell Build)
+- **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (Phase 2-3 adapter/lifecycle); run [33235387928](https://github.com/bendourthe/Nexus-AI/actions/runs/33235387928)
+- **Reason**: `shell-build.yml` on `main` runs Windows/macOS/Ubuntu. Ubuntu succeeded. Windows reported 75 failed tests, concentrated in `video2x-adapter.test.ts` (47), `video-enhancement-media-lifecycle.test.ts` (15), `video-enhancement-media-adapter.test.ts` (5), `video-enhancement-integration.test.ts` (4), and `windows-video-process-host.test.ts` (3). Observed mismatches include `cpu_probe_failed` vs `probe_failed`, expected `process_failed` / `provenance_failed` / `quarantined` codes vs actual messages such as "Staging root is not a canonical private...", and related lifecycle identity checks. macOS failed the same suite class. Develop Shell Build is Ubuntu-only, so this was not observed before the tag. not_observed != absent for a packaged Windows field run.
+- **Suggested next step**: Reproduce `npm run test:coverage` in `desktop/` on Windows, classify test-host path assumptions vs real fail-closed Windows behavior, and land a patch (do not retag `v2.3.0`).
 
 ##### MT-1 - VideoLabPage function coverage is below 80% on the focused run
 

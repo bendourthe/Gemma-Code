@@ -1,5 +1,40 @@
 # Unreleased
 
+# [2.3.1](https://github.com/bendourthe/Nexus-AI/compare/v2.3.0...v2.3.1) (2026-08-29)
+
+Windows installer field repair after v2.3.0. Local-only. Packaged wizard screenshots remain human QA, not a silent pass. `host_detect.py` OS-specific probes stay at 40% line coverage (MT-1). Marketplace `engines.vscode` `^1.134.0` also matches 1.136+ at VS Code engine-check time; the wizard still disables 1.136+.
+
+Activation: Optional VS Code extension: tick the wizard checkbox when Microsoft stable `code` 1.134 or 1.135 is on PATH. Unsloth Core: enable Configuration > Unsloth Core (off by default; NVIDIA 16 GB+ VRAM). EmbeddingGemma 300M: select it on Models; it is not required.
+Validation: VS Code: `code --version` is 1.134.x or 1.135.0 and the checkbox is enabled; after install, `code --list-extensions` includes `nexus-coding.nexus-coding`. Unsloth: the toggle is on Configuration, not the VS Code page. Embedder: Nomic stays Required; EmbeddingGemma copy says 300M.
+Rollback: Untick the VS Code checkbox or uninstall the extension. Turn Unsloth off on Configuration. Leave EmbeddingGemma unselected; Nomic remains the required embedder. None of these uninstall VS Code, CUDA, or existing models.
+Authority: The VS Code checkbox does not install VS Code, does not enable 1.136+, and does not change the desktop app. Unsloth does not grant network training or Hub writes. Selecting EmbeddingGemma does not reindex existing memory.
+Docs: [docs/install.md](docs/install.md), [docs/v2/v2.3/development/vscode-host-policy.md](docs/v2/v2.3/development/vscode-host-policy.md), [docs/v2/v2.3/development/embedder-default-decision.md](docs/v2/v2.3/development/embedder-default-decision.md).
+
+The packaged desktop application remains Windows-only; raw Tauri bundles stay withheld (DF-38).
+
+
+### Features
+
+* **VS Code 1.135:** offer the optional extension on Microsoft stable 1.134 and 1.135 (same Electron 42.8.1 ABI), always show the checkbox, and replace with `--force` when Nexus or legacy Gemma Code is already installed ([3e59fa5](https://github.com/bendourthe/Nexus-AI/commit/3e59fa5))
+* **Unsloth placement:** explain Unsloth Core on Configuration Features, off by default, not on the VS Code page ([3e59fa5](https://github.com/bendourthe/Nexus-AI/commit/3e59fa5))
+* **Honest RAM:** catalog badges use host `total_ram_gb` instead of install-path free disk ([3d35228](https://github.com/bendourthe/Nexus-AI/commit/3d35228))
+
+
+### Bug Fixes
+
+* **Install thread:** keep the windowed wizard alive when the install QThread throws, marshal model telemetry onto the GUI thread, and fail in-window with a redacted log ([ce85fe3](https://github.com/bendourthe/Nexus-AI/commit/ce85fe3))
+* **Catalog chrome:** paint name rows and installing lists on card surfaces instead of window-color bars ([a0413bb](https://github.com/bendourthe/Nexus-AI/commit/a0413bb))
+* **Embedder copy:** keep `nomic-embed-text` required and lock EmbeddingGemma user-facing copy to 300M, not 300B ([7137827](https://github.com/bendourthe/Nexus-AI/commit/7137827))
+* **Packaging:** encode `engines.vscode` as `^1.134.0` so vsce 2.24.0 can package; the wizard still disables 1.136+ ([f53a5f7](https://github.com/bendourthe/Nexus-AI/commit/f53a5f7))
+
+
+### Documentation
+
+* **v2.3.1:** record last-phase evidence, VS Code host policy, embedder KEEP decision, and the integration merge ([9260c5d](https://github.com/bendourthe/Nexus-AI/commit/9260c5d), [838268f](https://github.com/bendourthe/Nexus-AI/commit/838268f))
+* **v2.3.0 follow-up:** record the first full-matrix Shell Build Windows/macOS desktop vitest miss after tag `v2.3.0` (BG-1) ([67f3640](https://github.com/bendourthe/Nexus-AI/commit/67f3640))
+
+Plan: [v2.3.1](docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md). Gaps: [docs/v2/v2.3/known-gaps.md](docs/v2/v2.3/known-gaps.md).
+
 # [2.3.0](https://github.com/bendourthe/Nexus-AI/compare/v2.2.9...v2.3.0) (2026-08-29)
 
 Optional local video enhancement after v2.2.9. Local-only. Real Video2X 6.4.0, GPU/VRAM, packaged detection, and perceptual review remain not proven here (DF-3). Hydrated Enhance remains unrestored (DF-1). The Nexus-Hub security-audit workflow is still unreleased (DF-2).

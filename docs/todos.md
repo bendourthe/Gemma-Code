@@ -1,8 +1,12 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `release/v2.3.0` (**v2.3.0** optional local video enhancement, Qwen admission gates, and Hub security-workflow handoff; package **2.3.0**, tag pending confirmation).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `release/v2.3.1` (**v2.3.1** Windows installer field repair; package **2.3.1**, tag pending confirmation).
 
-> **v2.3.0 RELEASE PREPARED (2026-08-29)** -- [local-video-enhancement adoption plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md) is integrated on `develop` via [PR 52](https://github.com/bendourthe/Nexus-AI/pull/52) (merge `52d72d1`). Product version is **2.3.0**. T017-T025 complete. Real Video2X/GPU/packaged measurement remains DF-3. Hub security-audit remains DF-2. Tag, GitHub Release, and `main` merge wait on confirmation.
+> **v2.3.1 RELEASE PREPARED (2026-08-29)** -- [installer field-repair plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md) is integrated on `develop` via [PR 53](https://github.com/bendourthe/Nexus-AI/pull/53) (merge `838268f`). Product version is **2.3.1**. T001-T027 complete. MT-1 (`host_detect.py` 40%) remains. Tag, GitHub Release, and `main` merge wait on confirmation.
+
+> **v2.3.0 RELEASED (2026-08-29)** -- [local-video-enhancement adoption plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md) is tagged `v2.3.0`. Product version **2.3.0**. Real Video2X/GPU/packaged measurement remains DF-3. Hub security-audit remains DF-2. First full-matrix Shell Build Windows/macOS desktop vitest miss is BG-1.
+
+> **v2.3.1 PHASE 6 COMPLETE (2026-08-29)** -- [installer field-repair](v2/v2.3/plans/v2.3.1-installer-field-repair.md) T019-T027: last-phase evidence, PR 53 green (after vsce engines fix), merged to `develop` at `838268f`. Post-merge CI, Installer tests, and Shell Build (ubuntu) succeeded.
 
 > **v2.3.0 PHASE 6 LOCAL GATE COMPLETE (2026-08-28)** -- [local-video-enhancement adoption plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md) T017-T024 quote last-phase evidence, reconcile known gaps, compare CI without changing workflow files, and prove the full local suite. Exact local gates: root 5693 passed / 12 skipped (87.66% lines), isolated desktop 1820 passed / 1 skipped (87.39% lines), installer 1162 passed / 3 skipped, python 261 passed, lint and `tsc -b` clean. Human testing remains suggestions (DF-3). T025 publication is pending explicit approval. No pipeline file changed, and no v2.3.0 phase has been pushed.
 >
@@ -531,7 +535,8 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v2.2.7 | Context meter and transcript chrome | **Released in v2.2.8 (2026-08-24)** -- Phases 1-5 landed; DF-28 through DF-31 packaged/live soak remain open | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
 | v2.2.8 | Working local studio: minutes-class RPCs, shared FolderTree, Models sort, Hub quarantine apply | **Released (2026-08-25)** -- package 2.2.8 tagged; packaged Hi observed; DF-33/34 and DF-4 remain; DF-32/35 closed in v2.2.9 Phase 7 | `v2/v2.2/plans/v2.2.8-working-local-studio.md` |
 | v2.2.9 | Field chrome, catalog identity, honest generate | **Released (2026-08-28)** -- package 2.2.9; legacy no-PR exception approved; optional extension pinned to VS Code 1.134.0; packaged field QA deferred to DF-36; live GPU stays DF-4 | `v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` |
-| v2.3.0 | Optional local video enhancement, Qwen admission gates, and Hub security-workflow handoff | **Release prepared (2026-08-29)** -- package 2.3.0; PR 52 merged; tag pending | `v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` |
+| v2.3.0 | Optional local video enhancement, Qwen admission gates, and Hub security-workflow handoff | **Released (2026-08-29)** -- package 2.3.0 tagged; DF-1..4, BG-1, WN-1, MT-1, QG-1/QG-2 remain | `v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` |
+| v2.3.1 | Windows installer field repair | **Release prepared (2026-08-29)** -- package 2.3.1; PR 53 merged; tag pending; MT-1 remains | `v2/v2.3/plans/v2.3.1-installer-field-repair.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 

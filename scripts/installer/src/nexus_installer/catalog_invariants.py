@@ -105,6 +105,10 @@ PRE_2025_KEEP_IDS: frozenset[str] = frozenset(
 )
 
 
+REQUIRED_EMBEDDER_ID = "nomic-embed-text"
+EMBEDDINGGEMMA_ID = "embeddinggemma"
+
+
 def validate_catalog(catalog: dict[str, Any]) -> list[str]:
     """Return a list of invariant violations in ``catalog`` (empty == valid)."""
     problems: list[str] = []
@@ -209,9 +213,7 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
         if not isinstance(gemma, dict):
             continue
         if gemma.get("minOllamaVersion") != GEMMA_MIN_OLLAMA:
-            problems.append(
-                f"{gemma_id}: minOllamaVersion must be {GEMMA_MIN_OLLAMA}"
-            )
+            problems.append(f"{gemma_id}: minOllamaVersion must be {GEMMA_MIN_OLLAMA}")
 
     for model_id, expected_url in POST_2025_OLLAMA_TARGETS.items():
         entry = by_id.get(model_id)
@@ -232,7 +234,41 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
         problems.append("qwen3.5: both 4b and 9b entries must ship together")
 
     problems.extend(_check_pre_2025_keep(by_id))
+    problems.extend(_check_required_embedder(by_id))
 
+    return problems
+
+
+def _check_required_embedder(by_id: dict[str, Any]) -> list[str]:
+    """KEEP Nomic as the memory default; EmbeddingGemma copy is 300M not 300B."""
+    problems: list[str] = []
+    nomic = by_id.get(REQUIRED_EMBEDDER_ID)
+    if (
+        isinstance(nomic, dict)
+        and "task" in nomic
+        and nomic.get("task") not in ("embed", "embeddings")
+    ):
+        problems.append(f"{REQUIRED_EMBEDDER_ID}: task must be embed")
+
+    gemma = by_id.get(EMBEDDINGGEMMA_ID)
+    if not isinstance(gemma, dict):
+        return problems
+
+    display = str(gemma.get("displayName") or "")
+    if "300M" not in display:
+        problems.append(f"{EMBEDDINGGEMMA_ID}: displayName must include 300M")
+    copy = " ".join(
+        [
+            display,
+            str(gemma.get("description") or ""),
+            str(gemma.get("whyRecommended") or ""),
+            str(gemma.get("differentiators") or ""),
+        ]
+    )
+    if "300b" in copy.lower():
+        problems.append(
+            f"{EMBEDDINGGEMMA_ID}: copy must not say 300B (the model is 300M)"
+        )
     return problems
 
 
@@ -271,11 +307,7 @@ def _check_lfm_entry(model: dict[str, Any]) -> list[str]:
     weights = model.get("weights")
     if isinstance(weights, dict) and isinstance(weights.get("files"), list):
         files = weights["files"]
-    pins = [
-        str(f.get("sha256") or "")
-        for f in files
-        if isinstance(f, dict)
-    ]
+    pins = [str(f.get("sha256") or "") for f in files if isinstance(f, dict)]
     if not pins:
         problems.append(f"{where}: weights.files must record the Q4_K_M SHA-256 pin")
     elif any(p == PLACEHOLDER_SHA256 or not p for p in pins):
@@ -444,5 +476,6 @@ __all__ = [
     "GEMMA_MIN_OLLAMA",
     "POST_2025_OLLAMA_TARGETS",
     "PRE_2025_KEEP_IDS",
+    "REQUIRED_EMBEDDER_ID",
     "validate_catalog",
 ]

@@ -29,9 +29,7 @@ from nexus_installer.installer_state import InstallerState
 
 
 def _recorder(tmp_path: Path) -> StateRecorder:
-    return StateRecorder(
-        str(tmp_path / "state.json"), str(tmp_path / "install.log")
-    )
+    return StateRecorder(str(tmp_path / "state.json"), str(tmp_path / "install.log"))
 
 
 def _load(tmp_path: Path) -> InstallState:
@@ -131,6 +129,36 @@ class TestFinishStatus:
         rec.on_finished(False, "cancelled mid-step")
         assert _load(tmp_path).status == STATUS_CANCELLED
 
+    def test_engine_exception_redacts_hf_token(self, tmp_path: Path) -> None:
+        token = "hf_secret_token_xyz"
+        rec = _recorder(tmp_path)
+        rec.begin(InstallerState(hf_token=token, components_to_install=["model"]), [])
+        rec.on_finished(False, f"Engine exception: RuntimeError: pull exploded {token}")
+        loaded = _load(tmp_path)
+        assert loaded.status == STATUS_FAILED
+        assert "Engine exception" in loaded.error_message
+        assert token not in loaded.error_message
+        raw = (tmp_path / "state.json").read_text(encoding="utf-8")
+        assert token not in raw
+        log = (tmp_path / "install.log").read_text(encoding="utf-8")
+        assert token not in log
+        assert "Engine exception" in log
+
+    def test_engine_crash_copies_failed_steps(self, tmp_path: Path) -> None:
+        rec = _recorder(tmp_path)
+        state = InstallerState(components_to_install=["model"])
+        state.failed_steps.append("engine")
+        state.record_step_failure(
+            "engine",
+            "The installer hit an unexpected error and stopped.",
+            "Open the log on the Complete page, then retry the install.",
+        )
+        rec.begin(state, [])
+        rec.on_finished(False, "Engine exception: RuntimeError: boom")
+        loaded = _load(tmp_path)
+        assert "engine" in loaded.failed_steps
+        assert any(f.get("step") == "engine" for f in loaded.step_failures)
+
 
 class TestAttachAndEmit:
     def test_engine_signals_reach_disk(self, tmp_path: Path) -> None:
@@ -145,9 +173,10 @@ class TestAttachAndEmit:
         engine.log_message.emit("hello", "info")
         loaded = _load(tmp_path)
         assert loaded.steps["ollama"] == STEP_DONE
-        assert any("hello" in line for line in state_store.read_log_lines(
-            tmp_path / "install.log"
-        ))
+        assert any(
+            "hello" in line
+            for line in state_store.read_log_lines(tmp_path / "install.log")
+        )
 
 
 class TestResultBridges:
@@ -174,6 +203,7 @@ class TestResultBridges:
         snap = snapshot_results(state)
         assert snap["desktop_exe_path"] == "/x/nexus"
         assert "install_path" not in snap
+        assert "hf_token" not in snap
 
     def test_apply_restores_failures_and_log(self, tmp_path: Path) -> None:
         log = tmp_path / "install.log"
@@ -195,9 +225,7 @@ class TestResultBridges:
             components=["ollama", "venv", "model"],
             models={"m1": state_store.ModelState(model_id="m1")},
         )
-        plan = ResumePlan(
-            completed_steps=["ollama", "venv"], remaining_steps=["model"]
-        )
+        plan = ResumePlan(completed_steps=["ollama", "venv"], remaining_steps=["model"])
         target = InstallerState()
         apply_resume_to_installer_state(install_state, plan, target)
         assert target.components_to_install == ["ollama", "venv", "model"]

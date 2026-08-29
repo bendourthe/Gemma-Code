@@ -36,7 +36,7 @@ Produces `dist/NexusSetup.exe` -- the Windows one-shot installer. Since v1.9.0 P
 +----------------------------------------------------------+
 ```
 
-`scripts/build-vsix.ps1` runs step 2 before the installer build. It infers the host OS and architecture, rebuilds the native module for VS Code 1.134.0's Electron 42.8.1 runtime, and emits an exact target-qualified filename. `scripts/installer/build/build-windows.ps1` then requires that one matching VSIX and runs the remaining build steps. The macOS (`build-macos.sh`) and Linux (`build-linux.sh`) scripts follow the same contract: one PyInstaller onefile, packaged into exactly one artifact at the repo-root `dist/` (`NexusSetup.dmg` / `NexusSetup-x86_64.AppImage`).
+`scripts/build-vsix.ps1` runs step 2 before the installer build. It infers the host OS and architecture, rebuilds the native module for Electron 42.8.1 (VS Code 1.134 and 1.135), and emits an exact target-qualified filename. `scripts/installer/build/build-windows.ps1` then requires that one matching VSIX and runs the remaining build steps. The macOS (`build-macos.sh`) and Linux (`build-linux.sh`) scripts follow the same contract: one PyInstaller onefile, packaged into exactly one artifact at the repo-root `dist/` (`NexusSetup.dmg` / `NexusSetup-x86_64.AppImage`).
 
 ## Output contract
 

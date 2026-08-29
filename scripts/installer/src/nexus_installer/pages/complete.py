@@ -217,7 +217,13 @@ class CompletePage(QWidget):
         # declines read as "skipped - needs token", distinct from a failure.
         catalog = load_catalog_index(default_catalog_path())
         summary = summarize_install(state, catalog)
-        non_model_failures = [s for s in state.failed_steps if s != "model"]
+        engine_failure = next(
+            (f for f in state.step_failures if f.get("step") == "engine"),
+            None,
+        )
+        non_model_failures = [
+            s for s in state.failed_steps if s not in ("model", "engine")
+        ]
 
         callout_lines = [
             f"\u2022 {outcome.display_name}: {outcome.reason}"
@@ -227,12 +233,36 @@ class CompletePage(QWidget):
             f"\u2022 {outcome.display_name}: {outcome.reason}"
             for outcome in summary.skipped
         ]
+        if engine_failure:
+            callout_lines.append(
+                f"\u2022 {engine_failure.get('summary', 'The installer stopped.')}"
+            )
+            suggestion = str(engine_failure.get("suggestion") or "")
+            if suggestion:
+                callout_lines.append(f"\u2022 {suggestion}")
+        elif "engine" in state.failed_steps:
+            callout_lines.append(
+                "\u2022 The installer hit an unexpected error and stopped."
+            )
         callout_lines += [
             f"\u2022 The {step} step did not complete." for step in non_model_failures
         ]
 
-        has_failure = bool(summary.failed or non_model_failures)
-        if has_failure:
+        has_failure = bool(
+            summary.failed
+            or non_model_failures
+            or engine_failure
+            or "engine" in state.failed_steps
+        )
+        if engine_failure or "engine" in state.failed_steps:
+            self._title.setText("Installation Stopped")
+            self._subtitle.setStyleSheet(
+                f"color: {WARNING}; font-size: {FS_BODY}px; background: transparent;"
+            )
+            self._subtitle.setText(
+                "The installer hit an unexpected error. See details below."
+            )
+        elif has_failure:
             self._title.setText("Installation Completed with Warnings")
             self._subtitle.setStyleSheet(
                 f"color: {WARNING}; font-size: {FS_BODY}px; background: transparent;"

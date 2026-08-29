@@ -156,7 +156,52 @@ def _detect_windows_cpu_model() -> str:
     return "unknown"
 
 
+def _windows_ram_via_global_memory_status() -> int:
+    """ctypes GlobalMemoryStatusEx. Works in a windowed frozen process.
+
+    Returns whole GB or 0 when the probe is unavailable. Does not log the
+    MEMORYSTATUSEX buffer (machine inventory beyond the integer GB).
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return 0
+
+    class MEMORYSTATUSEX(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", wintypes.DWORD),
+            ("dwMemoryLoad", wintypes.DWORD),
+            ("ullTotalPhys", ctypes.c_uint64),
+            ("ullAvailPhys", ctypes.c_uint64),
+            ("ullTotalPageFile", ctypes.c_uint64),
+            ("ullAvailPageFile", ctypes.c_uint64),
+            ("ullTotalVirtual", ctypes.c_uint64),
+            ("ullAvailVirtual", ctypes.c_uint64),
+            ("ullAvailExtendedVirtual", ctypes.c_uint64),
+        ]
+
+    try:
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    except AttributeError:
+        return 0
+    stat = MEMORYSTATUSEX()
+    stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+    fn = kernel32.GlobalMemoryStatusEx
+    fn.argtypes = [ctypes.POINTER(MEMORYSTATUSEX)]
+    fn.restype = wintypes.BOOL
+    try:
+        if not fn(ctypes.byref(stat)):
+            return 0
+        return int(stat.ullTotalPhys // (1024**3))
+    except (OSError, TypeError, ValueError, OverflowError):
+        return 0
+
+
 def _detect_windows_total_ram_gb() -> int:
+    ctypes_gb = _windows_ram_via_global_memory_status()
+    if ctypes_gb > 0:
+        return ctypes_gb
     ps_cmd = (
         "[math]::Round((Get-CimInstance Win32_ComputerSystem)"
         ".TotalPhysicalMemory / 1GB)"
@@ -164,9 +209,21 @@ def _detect_windows_total_ram_gb() -> int:
     output = _run(["powershell", "-NoProfile", "-Command", ps_cmd])
     if output:
         try:
-            return int(float(output.strip()))
+            parsed = int(float(output.strip()))
         except ValueError:
-            pass
+            return 0
+        return parsed if parsed > 0 else 0
+    return 0
+
+
+def detect_total_ram_gb() -> int:
+    """Best-effort system RAM in whole GB. 0 means unknown, not 0 GB RAM."""
+    if is_windows():
+        return _detect_windows_total_ram_gb()
+    if is_macos():
+        return _detect_macos_total_ram_gb()
+    if is_linux():
+        return _detect_linux_total_ram_gb()
     return 0
 
 
@@ -505,19 +562,16 @@ def detect_host(
     if os_family == "windows":
         os_version = _detect_windows_os_version()
         cpu_model = _detect_windows_cpu_model()
-        total_ram_gb = _detect_windows_total_ram_gb()
     elif os_family == "macos":
         os_version = _detect_macos_os_version()
         cpu_model = _detect_macos_cpu_model()
-        total_ram_gb = _detect_macos_total_ram_gb()
     elif os_family == "linux":
         os_version = _detect_linux_os_version()
         cpu_model = _detect_linux_cpu_model()
-        total_ram_gb = _detect_linux_total_ram_gb()
     else:
         os_version = platform.platform()
         cpu_model = platform.processor() or "unknown"
-        total_ram_gb = 0
+    total_ram_gb = detect_total_ram_gb()
 
     gpu_vendor, gpu_model, vram_gb, driver_version = detect_gpu()
 

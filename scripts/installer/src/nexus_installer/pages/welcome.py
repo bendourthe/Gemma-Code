@@ -235,4 +235,4 @@ class WelcomePage(QWidget):
 
     def _on_disk(self, sufficient: bool, gb_free: float) -> None:
         self._disk_dot.set_ok(sufficient)
-        self._state.disk_space_gb = gb_free
+        self._state.apply_disk_free_gb(gb_free)

@@ -1,4 +1,4 @@
-﻿"""Tests for InstallerState dataclass."""
+"""Tests for InstallerState dataclass."""
 
 from __future__ import annotations
 
@@ -66,6 +66,25 @@ class TestInstallerStateDefaults:
         state = InstallerState()
         assert state.gpu_vendor == ""
         assert state.vram_mb == 0
+        assert state.total_ram_gb == 0
+
+    def test_apply_total_ram_gb_ignores_zero(self) -> None:
+        state = InstallerState()
+        state.apply_total_ram_gb(32)
+        state.apply_total_ram_gb(0)
+        assert state.total_ram_gb == 32
+
+    def test_apply_disk_free_bytes_writes_both_fields(self) -> None:
+        state = InstallerState()
+        state.apply_disk_free_bytes(200 * 1024**3)
+        assert state.free_disk_gb == 200
+        assert state.disk_space_gb == 200.0
+
+    def test_apply_disk_free_gb_keeps_fields_in_lockstep(self) -> None:
+        state = InstallerState()
+        state.apply_disk_free_gb(47.8)
+        assert state.disk_space_gb == 47.8
+        assert state.free_disk_gb == 47
 
     def test_ollama_url_default(self) -> None:
         state = InstallerState()

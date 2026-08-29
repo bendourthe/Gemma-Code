@@ -255,7 +255,7 @@
         "Official Ollama library tag, listed in Ollama's own embed docs"
       ],
       "whyRecommended": "A 2025 Google embedder for hosts that want to opt in. Nomic Embed Text stays the required default so existing memory indexes keep working.",
-      "differentiators": "Not the memory-layer default. 2K context vs Nomic's 8K. Gemma Terms of Use.",
+      "differentiators": "300 million parameters. Not the memory-layer default. 2K context vs Nomic's 8K. Gemma Terms of Use.",
       "sizeGB": 0.62,
       "vramGB": 1,
       "requiredVramGB": 0,

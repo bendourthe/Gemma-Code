@@ -10,6 +10,7 @@ step is active.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,7 @@ from nexus_installer.constants import (
     FS_CAPTION,
     TEXT_SECONDARY,
 )
+from nexus_installer.engine.crash import is_engine_exception
 from nexus_installer.engine.gated_auth import ensure_gated_auth
 from nexus_installer.engine.install_summary import prepare_model_retry
 from nexus_installer.engine.installer import InstallEngine, start_install
@@ -325,6 +327,16 @@ class InstallingPage(QWidget):
 
         if success:
             self._title.setText("Installation Complete")
+        elif is_engine_exception(error_message):
+            self._title.setText("Installation Stopped")
+            if error_message:
+                self._log_lines.append(error_message)
+            with contextlib.suppress(Exception):
+                QMessageBox.critical(
+                    self,
+                    "Installer error",
+                    f"{error_message}\n\nThe log on the next page has the details.",
+                )
         else:
             self._title.setText("Installation Completed with Warnings")
 

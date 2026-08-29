@@ -413,6 +413,9 @@ describe("catalog", () => {
     );
     expect(byId.get("qwen3.5:9b")?.task).toBe("agentic");
     expect(byId.get("embeddinggemma")?.task).toBe("embed");
+    expect(byId.get("embeddinggemma")?.displayName).toBe("EmbeddingGemma 300M");
+    expect(byId.get("embeddinggemma")?.description).toMatch(/300M/);
+    expect(byId.get("embeddinggemma")?.description).not.toMatch(/300B/);
     expect(byId.has("qwen2.5-coder:7b")).toBe(false);
     expect(byId.has("qwen2.5-coder:14b")).toBe(false);
     expect(byId.has("deepseek-coder-v2:16b")).toBe(false);

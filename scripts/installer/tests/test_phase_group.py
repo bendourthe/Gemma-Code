@@ -171,6 +171,21 @@ class TestConditionalSubBars:
         assert group._step_rows == {}
 
 
+class TestPhaseGroupChrome:
+    """v2.3.1 Phase 3: details sit on the card, not BG_WINDOW."""
+
+    def test_details_are_transparent(self, qt_app: object) -> None:
+        from nexus_installer.constants import BG_WINDOW
+
+        group = PhaseGroup("Models", ["model"])
+        details = group._details
+        assert details.objectName() == "phaseGroupDetails"
+        assert not details.autoFillBackground()
+        assert "transparent" in details.styleSheet()
+        assert BG_WINDOW not in details.styleSheet()
+        assert "#0a0d14" not in details.styleSheet()
+
+
 class TestFormattingHelpers:
     def test_size_progress_with_totals(self) -> None:
         from nexus_installer.widgets.phase_group import format_size_progress
@@ -312,6 +327,42 @@ class TestInstallingPageModelEvents:
         group = page._models_group()
         assert group is not None
         assert "Failed" in group._model_rows["m2"].status.text()
+
+    def test_marshalled_started_updates_row_on_gui_thread(self, qt_app: object) -> None:
+        import threading
+        import time
+
+        from PyQt5.QtCore import QThread
+        from PyQt5.QtWidgets import QApplication
+
+        from nexus_installer.engine.installer import InstallEngine
+
+        page, _state = self._page(qt_app)
+        engine = InstallEngine()
+        seen: list[QThread] = []
+
+        def on_started(model_id: str) -> None:
+            seen.append(QThread.currentThread())
+            page._on_model_started(model_id)
+
+        engine.model_started.connect(on_started)
+
+        def worker() -> None:
+            engine.marshal_model_started("m1")
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join(5)
+        deadline = time.time() + 3
+        while not seen and time.time() < deadline:
+            qt_app.processEvents()
+            time.sleep(0.01)
+        qt_app.processEvents()
+        assert seen
+        assert seen[0] is QApplication.instance().thread()
+        group = page._models_group()
+        assert group is not None
+        assert "m1" in group._model_rows
 
     def test_step_failure_reason_surfaces_in_group(self, qt_app: object) -> None:
         page, state = self._page(qt_app)

@@ -1,4 +1,4 @@
-﻿"""Tests for the InstallerWindow."""
+"""Tests for the InstallerWindow."""
 
 from __future__ import annotations
 
@@ -171,3 +171,23 @@ class TestInstallerWindow:
         window.switch_page(1)
         window._go_next()  # "Finish"
         assert finished == [True]
+
+    def test_install_guard_copies_ram_and_keeps_path_disk(self, qt_app: object) -> None:
+        from unittest.mock import patch
+
+        from nexus_installer.engine.host_detect import HostProfile
+        from nexus_installer.installer_state import InstallerState
+        from nexus_installer.window import InstallerWindow
+
+        state = InstallerState()
+        state.free_disk_gb = 200
+        state.selected_models_gb = 10
+        window = InstallerWindow(state=state)
+        profile = HostProfile(total_ram_gb=32, free_disk_gb=0)
+        with patch(
+            "nexus_installer.engine.host_detect.detect_host", return_value=profile
+        ):
+            ok = window._run_install_guard()
+        assert ok is True
+        assert state.total_ram_gb == 32
+        assert state.free_disk_gb == 200

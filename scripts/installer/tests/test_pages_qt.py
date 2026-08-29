@@ -161,6 +161,24 @@ class TestGpuDetectionPage:
             page = GpuDetectionPage(state)
             assert page is not None
 
+    def test_detection_copies_host_ram_not_disk(self, qt_app: object) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            state = InstallerState()
+            state.free_disk_gb = 0
+            page = GpuDetectionPage(state)
+            page._on_detection_complete("RTX 4080", "nvidia", 16384)
+            assert state.total_ram_gb == 32
+            assert state.vram_mb == 16384
+            assert state.free_disk_gb == 0
+
 
 class TestInstallPathPage:
     def test_creates_with_default_path(self, qt_app: object) -> None:
@@ -198,6 +216,35 @@ class TestInstallPathPage:
         ok, _ = page.validate()
         assert ok is False
 
+    def test_writes_free_disk_gb_from_path_probe(self, qt_app: object) -> None:
+        from unittest.mock import MagicMock
+
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        usage = MagicMock()
+        usage.free = 200 * 1024**3
+        with patch(
+            "nexus_installer.pages.install_path.shutil.disk_usage", return_value=usage
+        ):
+            state = InstallerState(install_path=r"C:\NexusAI")
+            page = InstallPathPage(state)
+            assert page is not None
+            assert state.free_disk_gb == 200
+            assert state.disk_space_gb == 200.0
+
+    def test_disk_probe_error_keeps_free_disk_at_zero(self, qt_app: object) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        with patch(
+            "nexus_installer.pages.install_path.shutil.disk_usage",
+            side_effect=OSError("no disk"),
+        ):
+            state = InstallerState(install_path=r"C:\NexusAI")
+            page = InstallPathPage(state)
+            assert page is not None
+            assert state.free_disk_gb == 0
+            assert state.disk_space_gb == 0.0
+
 
 class TestConfigurationPage:
     def test_creates_with_toggles(self, qt_app: object) -> None:
@@ -232,6 +279,35 @@ class TestConfigurationPage:
         assert page._video2x_note.text() == INSTALLER_NOTE
         assert "never installed by this wizard" in page._video2x_note.text()
 
+    def test_unsloth_checkbox_is_off_and_sets_state(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        page = ConfigurationPage(state)
+        assert page._unsloth.isChecked() is False
+        assert state.install_unsloth is False
+        page._unsloth.setChecked(True)
+        assert state.install_unsloth is True
+        assert "QLoRA" in page._unsloth.text()
+        assert "LGPL" in page._unsloth_help.text()
+
+    def test_unsloth_warns_without_nvidia_16gb(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState(gpu_vendor="none", vram_mb=0)
+        page = ConfigurationPage(state)
+        page._unsloth.setChecked(True)
+        assert "NVIDIA" in page._unsloth_warning.text()
+        assert not page._unsloth_warning.isHidden()
+
+    def test_unsloth_hides_warning_on_nvidia_16gb(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState(gpu_vendor="nvidia", vram_mb=16384)
+        page = ConfigurationPage(state)
+        page._unsloth.setChecked(True)
+        assert page._unsloth_warning.isHidden()
+        assert page._unsloth_warning.text() == ""
 
 
 class TestReviewPage:
@@ -358,6 +434,22 @@ class TestCompletePage:
         page.retry_requested.connect(lambda: fired.append(True))
         page._retry_btn.click()
         assert fired == [True]
+
+    def test_engine_crash_title_and_callout(self, qt_app: object) -> None:
+        from nexus_installer.pages.complete import CompletePage
+
+        state = InstallerState()
+        state.failed_steps.append("engine")
+        state.record_step_failure(
+            "engine",
+            "The installer hit an unexpected error and stopped.",
+            "Open the log on the Complete page, then retry the install.",
+        )
+        page = CompletePage(state)
+        page._refresh()
+        assert page._title.text() == "Installation Stopped"
+        assert "unexpected error" in page._subtitle.text()
+        assert not page._warning_callout.isHidden()
 
 
 class TestInstallingGatedAuthWiring:

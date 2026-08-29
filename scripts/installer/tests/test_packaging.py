@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 INSTALLER_ROOT = Path(__file__).parent.parent
@@ -220,14 +221,28 @@ class TestWorkflows:
             assert "dispatch-only" in content
             assert "workflow_dispatch:" in content
             assert "push:" not in content
-            assert 'tags:' not in content
+            assert "tags:" not in content
             assert '"v*"' not in content
             assert f"name: {artifact_name}" in content
 
     def test_canonical_vsix_build_is_host_targeted_and_abi_pinned(self) -> None:
+        from nexus_installer.engine.extension_installer import (
+            SUPPORTED_VSCODE_MAX_EXCLUSIVE,
+            SUPPORTED_VSCODE_VERSION,
+            VSCE_ENGINES_VSCODE,
+        )
+
         content = (REPO_ROOT / "scripts" / "build-vsix.ps1").read_text()
         manifest = json.loads((REPO_ROOT / "package.json").read_text())
-        assert manifest["engines"]["vscode"] == "1.134.0"
+        # @vscode/vsce 2.24.0 src/validation.ts validateEngineCompatibility
+        vsce_engine = re.compile(
+            r"^\*$|^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$"
+        )
+        compound = f">={SUPPORTED_VSCODE_VERSION} <{SUPPORTED_VSCODE_MAX_EXCLUSIVE}"
+        assert manifest["engines"]["vscode"] == VSCE_ENGINES_VSCODE
+        assert f"^{SUPPORTED_VSCODE_VERSION}" == VSCE_ENGINES_VSCODE
+        assert vsce_engine.match(manifest["engines"]["vscode"])
+        assert vsce_engine.match(compound) is None
         assert manifest["dependencies"]["better-sqlite3"] == "12.11.1"
         assert manifest["dependencies"]["typescript"] == "^5.4.0"
         assert "typescript" not in manifest["devDependencies"]
@@ -242,9 +257,10 @@ class TestWorkflows:
         content = (BUILD_DIR / "build-windows.ps1").read_text()
         assert '"nexus-coding-$Version-win32-$VsixArch.vsix"' in content
         assert "$VsixCandidates.Count -ne 1" in content
-        assert "Select-Object -First 1" not in content.split(
-            "# v1.11.0 Phase 4", maxsplit=1
-        )[0]
+        assert (
+            "Select-Object -First 1"
+            not in content.split("# v1.11.0 Phase 4", maxsplit=1)[0]
+        )
 
     def test_release_workflow_builds_and_routes_three_native_vsixes(self) -> None:
         content = (WORKFLOWS / "release.yml").read_text()
@@ -268,8 +284,7 @@ class TestWorkflows:
             '${{ needs.release-metadata.outputs.version }}-win32-x64.vsix"'
         )
         installer_smoke = (
-            "pwsh -NonInteractive -File "
-            "scripts/installer/build/smoke-windows-exe.ps1"
+            "pwsh -NonInteractive -File scripts/installer/build/smoke-windows-exe.ps1"
         )
         assert vsix_smoke in content
         assert "if: matrix.platform == 'windows'" in content
@@ -307,8 +322,8 @@ class TestWorkflows:
         assert "flag && /^# / { exit }" in content
         assert "^#+ /{flag=0}" not in content
         changelog = (REPO_ROOT / "CHANGELOG.md").read_text()
-        release_block = changelog.split("# [2.3.0]", maxsplit=1)[1].split(
-            "# [2.2.9]", maxsplit=1
+        release_block = changelog.split("# [2.3.1]", maxsplit=1)[1].split(
+            "# [2.3.0]", maxsplit=1
         )[0]
         assert "### Features" in release_block
         assert "### Bug Fixes" in release_block
@@ -325,9 +340,9 @@ class TestWorkflows:
         assert '"Nexus AI Studio_${V}"*.dmg' not in content
         assert '"*${V}*.AppImage"' not in content
         assert '"*${V}*.deb"' not in content
-        assert 'bundle/nsis/*-setup.exe' not in content
-        assert 'bundle/dmg/*.dmg' not in content
-        assert 'pick=$(ls -t' not in content
+        assert "bundle/nsis/*-setup.exe" not in content
+        assert "bundle/dmg/*.dmg" not in content
+        assert "pick=$(ls -t" not in content
 
     def test_platform_vsix_builders_pin_the_documented_native_targets(self) -> None:
         release = (WORKFLOWS / "release.yml").read_text()
@@ -446,15 +461,15 @@ class TestSidecarPackagingContracts:
         assert resources.get("../sidecar/dist") == "sidecar/dist"
 
     def test_sidecar_esbuild_copies_catalog(self) -> None:
-        content = (
-            REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs"
-        ).read_text(encoding="utf-8")
+        content = (REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs").read_text(
+            encoding="utf-8"
+        )
         assert "catalog.json" in content
 
     def test_sidecar_esbuild_copies_unsloth_pins(self) -> None:
-        content = (
-            REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs"
-        ).read_text(encoding="utf-8")
+        content = (REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs").read_text(
+            encoding="utf-8"
+        )
         assert "unsloth-pins.json" in content
         assert "The bundled sidecar loads it at import time" in content
         assert "22.11.0" in content

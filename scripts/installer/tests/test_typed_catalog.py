@@ -205,12 +205,15 @@ def _write_recommended(tmp_path: Path) -> Path:
     return path
 
 
-def _gpu_state(vram_mb: int = 8192, free_disk_gb: int = 200) -> InstallerState:
+def _gpu_state(
+    vram_mb: int = 8192, free_disk_gb: int = 200, total_ram_gb: int = 32
+) -> InstallerState:
     state = InstallerState()
     state.gpu_vendor = "nvidia"
     state.gpu_name = "Test GPU"
     state.vram_mb = vram_mb
     state.free_disk_gb = free_disk_gb
+    state.total_ram_gb = total_ram_gb
     return state
 
 
@@ -368,6 +371,35 @@ class TestCompatibilityBadge:
             self._model(required_vram_gb=4),
             total_vram_gb=12,
             total_ram_gb=16,
+            gpu_vendor="nvidia",
+        )
+        assert text == "Compatible"
+
+    def test_ram_shortfall_shows_host_ram(self) -> None:
+        text, color = compatibility_badge(
+            self._model(required_ram_gb=8),
+            total_vram_gb=16,
+            total_ram_gb=4,
+            gpu_vendor="nvidia",
+        )
+        assert "Requires 8 GB RAM (you have 4)" in text
+        assert color == "#f59e0b"
+
+    def test_ram_probe_failed_is_not_you_have_zero(self) -> None:
+        text, _color = compatibility_badge(
+            self._model(required_ram_gb=8),
+            total_vram_gb=16,
+            total_ram_gb=0,
+            gpu_vendor="nvidia",
+        )
+        assert "RAM not detected" in text
+        assert "you have 0" not in text
+
+    def test_ram_gate_passes_when_host_has_enough(self) -> None:
+        text, _color = compatibility_badge(
+            self._model(required_ram_gb=8, required_vram_gb=0),
+            total_vram_gb=16,
+            total_ram_gb=32,
             gpu_vendor="nvidia",
         )
         assert text == "Compatible"
@@ -783,6 +815,11 @@ class TestRealCatalogPage:
         assert "deepseek-coder-v2:16b" not in ids
         assert page._catalog["nomic-embed-text"].is_required is True
         assert page._catalog["embeddinggemma"].is_required is False
+        gemma = page._catalog["embeddinggemma"]
+        assert "300M" in gemma.display_name
+        assert "300B" not in gemma.display_name
+        assert "300B" not in gemma.description
+        assert "opt-in" in gemma.description.lower()
 
     def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's
@@ -893,6 +930,7 @@ class TestPhase3Collapse:
         self, qt_app, tmp_path: Path
     ) -> None:
         from PyQt5.QtWidgets import QLabel
+
         from nexus_installer.pages.typed_catalog import _ModelCard
 
         entry = {
@@ -925,6 +963,7 @@ class TestPhase3Collapse:
         self, qt_app, tmp_path: Path
     ) -> None:
         from PyQt5.QtWidgets import QLabel
+
         from nexus_installer.pages.typed_catalog import _ModelCard
 
         entry = {
@@ -1054,3 +1093,24 @@ class TestV21CatalogVisibility:
             gpu_vendor="nvidia",
         )
         assert "0.32.9" in text
+
+    def test_inkling_uses_ram_not_disk_and_gemma_26b_stays_vram_gated(
+        self, qt_app
+    ) -> None:
+        """v2.3.1: RAM-gated Inkling is Compatible on 32 GB RAM even if disk
+        is still 0; Gemma 4 26B still reports the 18 vs 16 GB VRAM shortfall.
+        """
+        from PyQt5.QtWidgets import QLabel
+
+        state = _gpu_state(vram_mb=16384, free_disk_gb=0, total_ram_gb=32)
+        page = TypedCatalogPage(state)
+        inkling = page._find_card("inkling-small")
+        assert inkling is not None
+        assert inkling.over_budget is False
+        gemma = page._find_card("gemma4:26b")
+        assert gemma is not None
+        assert gemma.over_budget is True
+        texts = [lbl.text() for lbl in page.findChildren(QLabel)]
+        assert any("Requires 18 GB VRAM (you have 16)" in t for t in texts)
+        ram_labels = [t for t in texts if "RAM" in t]
+        assert not any("you have 0" in t for t in ram_labels)
