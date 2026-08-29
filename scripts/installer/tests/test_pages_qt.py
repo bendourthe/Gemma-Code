@@ -279,6 +279,36 @@ class TestConfigurationPage:
         assert page._video2x_note.text() == INSTALLER_NOTE
         assert "never installed by this wizard" in page._video2x_note.text()
 
+    def test_unsloth_checkbox_is_off_and_sets_state(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        page = ConfigurationPage(state)
+        assert page._unsloth.isChecked() is False
+        assert state.install_unsloth is False
+        page._unsloth.setChecked(True)
+        assert state.install_unsloth is True
+        assert "QLoRA" in page._unsloth.text()
+        assert "LGPL" in page._unsloth_help.text()
+
+    def test_unsloth_warns_without_nvidia_16gb(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState(gpu_vendor="none", vram_mb=0)
+        page = ConfigurationPage(state)
+        page._unsloth.setChecked(True)
+        assert "NVIDIA" in page._unsloth_warning.text()
+        assert not page._unsloth_warning.isHidden()
+
+    def test_unsloth_hides_warning_on_nvidia_16gb(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState(gpu_vendor="nvidia", vram_mb=16384)
+        page = ConfigurationPage(state)
+        page._unsloth.setChecked(True)
+        assert page._unsloth_warning.isHidden()
+        assert page._unsloth_warning.text() == ""
+
 
 class TestReviewPage:
     def test_creates_with_summary(self, qt_app: object) -> None:

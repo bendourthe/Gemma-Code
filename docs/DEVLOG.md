@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 4 - VS Code step and Unsloth placement
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-4-vscode-unsloth.md), [gaps](v2/v2.3/known-gaps.md), [policy](v2/v2.3/development/vscode-host-policy.md). Package remains **2.3.0**.
+
+### What Changed
+
+- T012 chose ABI-matched Microsoft stable VS Code **1.134 or 1.135** (Electron 42.8.1). `engines.vscode` is `>=1.134.0 <1.136.0`. The `build-vsix.ps1` Electron pin is unchanged.
+- The VS Code page always shows the extension checkbox. It is enabled and default-checked on 1.134/1.135. Missing or mismatched hosts keep a visible disabled box (indicator fill `BG_INPUT`).
+- Already-installed `nexus-coding.nexus-coding` / `gemma-code.gemma-code` switches the label to replace and install uses `--force`. A failed `--list-extensions` fails open (no `--force`, warning).
+- Unsloth Core moved to Configuration under Features (NVIDIA 16 GB+ copy, Apache-2.0 / LGPL-3.0-or-later, off by default). It is not a VS Code option.
+
+### Why It Changed
+
+Phase 4 of the v2.3.1 installer field-repair plan. Operator host was VS Code 1.135.0; the exact 1.134.0 pin hid the checkbox. Unsloth was parked on that page.
+
+### Decisions Made
+
+- Decision A, not exact 1.134.0 and not a `^1.134.0` range (1.136+ is unproven).
+- Disabled checkbox indicators use `BG_INPUT` so they stay visible on `BG_CARD`.
+- Human screenshot checks wait for Phase 6.
+
+---
+
+
 ## [2026-08-29] v2.3.1 Phase 3 - Catalog and progress chrome
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-3-catalog-progress-chrome.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.3.0**.

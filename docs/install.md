@@ -11,7 +11,7 @@ The supported artifacts are attached to each [GitHub release](https://github.com
 | macOS 15+ (Apple Silicon) | `nexus-coding-2.3.0-darwin-arm64.vsix` | Optional VS Code extension only |
 | Linux x86_64 (glibc 2.35+) | `nexus-coding-2.3.0-linux-x64.vsix` | Optional VS Code extension only |
 
-The optional VS Code extension published with v2.3.0 requires Microsoft stable VS Code 1.134.0 exactly. Its platform-qualified VSIX contains `better-sqlite3` 12.11.1 rebuilt for VS Code 1.134.0's Electron 42.8.1 runtime, so later, earlier, Insiders, Cursor, and Windsurf hosts are not supported by this release artifact. The Windows wizard offers the extension only when that exact host is detected and rechecks before installation. The Windows desktop application itself does not have this VS Code requirement.
+The optional VS Code extension supports Microsoft stable VS Code 1.134 or 1.135 (same Electron 42.8.1 ABI as the bundled `better-sqlite3` 12.11.1 rebuild). Earlier, later, Insiders, Cursor, and Windsurf hosts are not supported by this artifact. The Windows wizard shows a visible extension checkbox, enables it for 1.134/1.135, and rechecks before installation. The Windows desktop application itself does not have this VS Code requirement.
 
 The Windows installer embeds its target-qualified VSIX and matching desktop bundle. It downloads selected models and runtime components during installation, verifying downloaded payloads against pinned SHA-256 checksums. Expect 5-60 GB of downloads depending on the models you pick, so plan for disk space and a decent connection.
 
@@ -35,13 +35,13 @@ NexusSetup.exe --headless --json-output
 
 v2.3.0 does not publish a standalone macOS Nexus desktop package. The raw Tauri DMG was withheld because it does not contain the pinned Node runtime required by the sidecar, and the former universal name also overstated the single-architecture native module inside it.
 
-If you use macOS 15+ on Apple Silicon and exact Microsoft stable VS Code 1.134.0, download `nexus-coding-2.3.0-darwin-arm64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, an Intel host, an older macOS version, or another VS Code version.
+If you use macOS 15+ on Apple Silicon and Microsoft stable VS Code 1.134 or 1.135, download `nexus-coding-2.3.0-darwin-arm64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, an Intel host, an older macOS version, or another VS Code version.
 
 ## Linux
 
 v2.3.0 does not publish a standalone Linux Nexus desktop package. The raw Tauri AppImage and deb were withheld because they do not contain the pinned Node runtime and runtime manifest required by the sidecar.
 
-If you run exact Microsoft stable VS Code 1.134.0 on x86_64 Linux, download `nexus-coding-2.3.0-linux-x64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, or another VS Code version. The native extension requires glibc 2.35+ (Ubuntu 22.04+, Debian 12+, or another distribution with an equivalent/newer glibc); its release builder is pinned to Ubuntu 22.04 to keep that floor stable.
+If you run Microsoft stable VS Code 1.134 or 1.135 on x86_64 Linux, download `nexus-coding-2.3.0-linux-x64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, or another VS Code version. The native extension requires glibc 2.35+ (Ubuntu 22.04+, Debian 12+, or another distribution with an equivalent/newer glibc); its release builder is pinned to Ubuntu 22.04 to keep that floor stable.
 
 ## Verifying your download
 
@@ -61,9 +61,11 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 ## What the Windows installer actually does
 
 1. **Dependencies**: GPU runtime for your hardware (CUDA / ROCm / Metal, or CPU-only), Node runtime, Ollama, ffmpeg, and the diffusion Python environment.
-2. **VS Code extension** (optional, offered only when Microsoft stable VS Code 1.134.0 is present and still matches immediately before installation).
+2. **VS Code extension** (optional, offered when Microsoft stable VS Code 1.134 or 1.135 is present and still matches immediately before installation; replace uses `--force`).
 3. **Models**: your selection from the typed catalog (Chat, Agentic Coding, Image, Video, Audio), downloaded with live progress; image/video weights come from Hugging Face, text models via Ollama.
 4. **Nexus desktop app**: embedded in `NexusSetup.exe`, manifest/hash-checked, installed and health-checked, then launched from the finish page.
+
+Optional Unsloth Core (local QLoRA fine-tuning runtime) is offered on Configuration, off by default, for NVIDIA GPUs with 16 GB or more VRAM. It is not a VS Code option.
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
 

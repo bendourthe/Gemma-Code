@@ -10,7 +10,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 
 ## v2.3.1
 
-**Last updated**: 2026-08-29 (Phase 3)
+**Last updated**: 2026-08-29 (Phase 4)
 
 ### Summary
 
@@ -23,7 +23,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 3 stops painting nested QWidget children with `BG_WINDOW`. Catalog name rows and installing details inherit the card fill. Remaining installer field bugs (VS Code checkbox, embedder policy) are later phases, not gaps.
+Phase 4 records ABI-matched VS Code 1.134/1.135, a visible extension checkbox with `--force` replace, and Unsloth on Configuration. Remaining installer field work is the embedder policy (Phase 5), not a new gap. MT-1 is unchanged.
 
 ### Open Items
 

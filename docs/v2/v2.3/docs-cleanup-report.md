@@ -1,3 +1,22 @@
+# Docs Cleanup Audit - v2.3.1 (Phase 4)
+
+**Date**: 2026-08-29
+**Mode**: audit (no files moved)
+
+## Findings
+
+- Canonical plan remains `docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md`.
+- Phase 4 adds `docs/v2/v2.3/development/vscode-host-policy.md` (T012 decision, planned deliverable) and session history under `docs/v2/v2.3/development/history/`.
+- Living installer docs updated: `docs/install.md`, README Quick Start, `scripts/installer/build/windows-pipeline.md`. Historical CHANGELOG 2.3.0 notes were left unchanged.
+- No `docs/handbooks/`, `docs/testing/`, or `docs/validation/` trees were invented. Markdown remains the source of truth.
+- Living docs stay at `docs/v2/v2.3/` (legacy minor-grouped layout). No files were moved.
+
+## Verdict
+
+Clean for Phase 4. The host-policy file is a named plan artifact, not scratch. No action required.
+
+---
+
 # Docs Cleanup Audit - v2.3.1 (Phase 3)
 
 **Date**: 2026-08-29

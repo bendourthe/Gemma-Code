@@ -77,7 +77,7 @@ class TestGenerateStylesheet:
         text_edit = _qss_block(sheet, "QTextEdit")
         assert f"background-color: {constants.BG_INPUT}" in text_edit
         disabled = _qss_block(sheet, "QCheckBox::indicator:disabled")
-        assert f"background-color: {constants.BG_CARD}" in disabled
+        assert f"background-color: {constants.BG_INPUT}" in disabled
         assert "border-color:" in disabled
 
 

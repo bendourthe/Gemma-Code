@@ -272,7 +272,7 @@ class InstallEngine(QObject):
             self.step_failed.emit("hub-catalog")
 
         # v2.1 DF-15 -- opt-in Unsloth Core. Off the default chain; checkbox
-        # on the extras page sets state.install_unsloth. LGPL zoo is copied
+        # on Configuration sets state.install_unsloth. LGPL zoo is copied
         # next to that checkbox. Unsupported hosts record provision.json and
         # still count as success so the rest of the install is not rolled back.
         if state.install_unsloth:

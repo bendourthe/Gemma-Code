@@ -1,9 +1,8 @@
 """v1.1.0 Phase 14.7 -- Nexus VS Code extension add-on page.
 
 After the model picker the wizard offers to install the Nexus Coding VS Code
-extension from the bundled VSIX. The checkbox is auto-ticked only when the
-Microsoft stable `code` CLI reports the one VS Code version whose Electron ABI
-matches the bundled native module.
+extension from the bundled VSIX. The checkbox stays visible. It is enabled
+when Microsoft stable `code` reports 1.134 or 1.135 (Electron 42.8.1).
 """
 
 from __future__ import annotations
@@ -21,9 +20,10 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
 )
 from nexus_installer.engine.extension_installer import (
-    SUPPORTED_VSCODE_VERSION,
+    SUPPORTED_ELECTRON_VERSION,
     VsCodeCliStatus,
     inspect_vscode_cli,
+    installed_nexus_extension_id,
 )
 
 if TYPE_CHECKING:
@@ -35,6 +35,15 @@ VSCODE_CLI_CANDIDATES: tuple[str, ...] = (
     "code-insiders",
     "cursor",
     "windsurf",
+)
+
+
+_INSTALL_LABEL = (
+    "Install the Nexus VS Code extension "
+    "(uses local models for agentic coding inside VS Code)"
+)
+_REPLACE_LABEL = (
+    "Replace the installed Nexus VS Code extension with this installer's copy"
 )
 
 
@@ -72,25 +81,25 @@ def _detection_text(status: VsCodeCliStatus) -> str:
         )
     if status.reason == "not-found":
         return (
-            "Microsoft stable VS Code CLI not found on PATH. Extension option "
-            "left unchecked and unavailable."
+            "Microsoft stable VS Code CLI not found on PATH. Install VS Code "
+            "to enable the extension option. The box stays visible and unchecked."
         )
     if status.reason == "unsupported-cli":
         return (
             f"Detected {status.cli_name} at {status.path}, but this release does "
-            f"not support that editor. Microsoft VS Code {SUPPORTED_VSCODE_VERSION} "
-            "is required."
+            "not support that editor. Microsoft VS Code 1.134 or 1.135 "
+            f"(Electron {SUPPORTED_ELECTRON_VERSION}) is required."
         )
     if status.reason == "version-mismatch":
         return (
             f"Detected Microsoft VS Code {status.version}, but this extension "
-            f"requires version {SUPPORTED_VSCODE_VERSION} exactly. Extension "
-            "option left unchecked and unavailable."
+            "supports version 1.134 or 1.135 "
+            f"(Electron {SUPPORTED_ELECTRON_VERSION}). The option stays visible "
+            "and unchecked."
         )
     return (
         "Microsoft stable VS Code was found, but its version could not be "
-        f"verified as {SUPPORTED_VSCODE_VERSION}. Extension option left "
-        "unchecked and unavailable."
+        "verified as 1.134 or 1.135. The option stays visible and unchecked."
     )
 
 
@@ -104,11 +113,13 @@ class VsCodeExtensionPage(QWidget):
         parent: QWidget | None = None,
         *,
         inspect_fn=None,
+        list_fn=None,
     ) -> None:
         super().__init__(parent)
         self._state = state
         self._detect_fn = detect_fn or detect_vscode_cli
         self._inspect_fn = inspect_fn or inspect_vscode_cli
+        self._list_fn = list_fn or installed_nexus_extension_id
         self._interactive = True
         self._user_selection: bool | None = None
         detected = self._detect_current_host()
@@ -127,9 +138,9 @@ class VsCodeExtensionPage(QWidget):
 
         intro = QLabel(
             "Install the Nexus VS Code extension to use your local models for "
-            "agentic coding inside Microsoft Visual Studio Code "
-            f"{SUPPORTED_VSCODE_VERSION}. This release does not support VS Code "
-            "Insiders, Cursor, Windsurf, or other VS Code versions."
+            "agentic coding inside Microsoft Visual Studio Code 1.134 or 1.135 "
+            f"(Electron {SUPPORTED_ELECTRON_VERSION}). This release does not "
+            "support VS Code Insiders, Cursor, Windsurf, or other VS Code versions."
         )
         intro.setStyleSheet(
             f"color: {TEXT_SECONDARY}; font-size: 15px; background: transparent;"
@@ -144,24 +155,14 @@ class VsCodeExtensionPage(QWidget):
         )
         card_layout = QVBoxLayout(card)
 
-        self._checkbox = QCheckBox(
-            "Install the Nexus VS Code extension "
-            "(uses local models for agentic coding inside VS Code)"
-        )
+        self._checkbox = QCheckBox(_INSTALL_LABEL)
         self._checkbox.setChecked(detected.supported)
         self._checkbox.setEnabled(detected.supported)
+        self._checkbox.setVisible(True)
         self._checkbox.setStyleSheet(f"color: {TEXT_PRIMARY}; background: transparent;")
         self._checkbox.stateChanged.connect(self._on_toggled)
         card_layout.addWidget(self._checkbox)
-
-        self._unsloth = QCheckBox(
-            "Install Fine-tuning (Unsloth Core). NVIDIA 16 GB+ only. "
-            "unsloth-zoo is LGPL-3.0-or-later, dynamically linked."
-        )
-        self._unsloth.setChecked(False)
-        self._unsloth.setStyleSheet(f"color: {TEXT_PRIMARY}; background: transparent;")
-        self._unsloth.stateChanged.connect(self._on_unsloth)
-        card_layout.addWidget(self._unsloth)
+        self._apply_replace_label(detected.path)
 
         self._detection_label = QLabel(_detection_text(detected))
         self._detection_label.setStyleSheet(
@@ -172,8 +173,9 @@ class VsCodeExtensionPage(QWidget):
         card_layout.addWidget(self._detection_label)
 
         note = QLabel(
-            "The option becomes available only when the Microsoft stable "
-            f"`code` CLI reports version {SUPPORTED_VSCODE_VERSION} exactly."
+            "The option is available when the Microsoft stable `code` CLI "
+            "reports version 1.134 or 1.135. If Nexus is already installed, "
+            "the control offers a replace with this installer's copy."
         )
         note.setStyleSheet(
             f"color: {TEXT_SECONDARY}; font-size: 14px; background: transparent;"
@@ -226,6 +228,17 @@ class VsCodeExtensionPage(QWidget):
             "font-size: 14px; background: transparent;"
         )
         self._sync_extension_selection(selected)
+        self._apply_replace_label(detected.path)
+
+    def _apply_replace_label(self, cli_path: str | None) -> None:
+        if not cli_path:
+            self._checkbox.setText(_INSTALL_LABEL)
+            return
+        try:
+            ext_id, _warning = self._list_fn(cli_path)
+        except Exception:
+            ext_id = None
+        self._checkbox.setText(_REPLACE_LABEL if ext_id else _INSTALL_LABEL)
 
     def _on_toggled(self, state_value: int) -> None:
         selected = (
@@ -252,10 +265,7 @@ class VsCodeExtensionPage(QWidget):
         """Lock both choices once installation has started."""
         self._interactive = enabled
         self._checkbox.setEnabled(enabled and self._compatible)
-        self._unsloth.setEnabled(enabled)
-
-    def _on_unsloth(self, state_value: int) -> None:
-        self._state.install_unsloth = self._unsloth.isChecked()
+        self._checkbox.setVisible(True)
 
 
 __all__ = [

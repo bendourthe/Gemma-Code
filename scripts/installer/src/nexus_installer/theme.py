@@ -379,8 +379,8 @@ QCheckBox::indicator:checked:hover {{
     border-color: {ACCENT_BRIGHT};
 }}
 QCheckBox::indicator:disabled {{
-    background-color: {BG_CARD};
-    border-color: {BORDER};
+    background-color: {BG_INPUT};
+    border-color: {BORDER_STRONG};
 }}
 QCheckBox::indicator:checked:disabled {{
     background-color: {ACCENT_DIM};
