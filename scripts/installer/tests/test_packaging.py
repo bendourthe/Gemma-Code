@@ -307,8 +307,8 @@ class TestWorkflows:
         assert "flag && /^# / { exit }" in content
         assert "^#+ /{flag=0}" not in content
         changelog = (REPO_ROOT / "CHANGELOG.md").read_text()
-        release_block = changelog.split("# [2.2.9]", maxsplit=1)[1].split(
-            "# [2.2.8]", maxsplit=1
+        release_block = changelog.split("# [2.3.0]", maxsplit=1)[1].split(
+            "# [2.2.9]", maxsplit=1
         )[0]
         assert "### Features" in release_block
         assert "### Bug Fixes" in release_block

@@ -1,17 +1,17 @@
 # Installing Nexus
 
-v2.2.9 ships the full Nexus desktop application through a one-file provisioning installer on Windows. macOS and Linux receive only the optional platform-qualified VS Code extension in this release; standalone Tauri desktop bundles are withheld because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar. The existing DF-1 tracks self-contained Node bundling for raw desktop packages, while DF-24 separately tracks the missing Unix selected-model snapshot write.
+v2.3.0 ships the full Nexus desktop application through a one-file provisioning installer on Windows. macOS and Linux receive only the optional platform-qualified VS Code extension in this release; standalone Tauri desktop bundles are withheld because they do not embed the pinned Node 22.11.0 runtime and runtime manifest required by the sidecar. The existing DF-1 tracks self-contained Node bundling for raw desktop packages, while DF-24 separately tracks the missing Unix selected-model snapshot write. Optional Video Lab enhancement uses a Video2X 6.4.0 executable you install yourself; the installer never downloads or bundles it.
 
 The supported artifacts are attached to each [GitHub release](https://github.com/bendourthe/Nexus-AI/releases), alongside a `SHA256SUMS.txt` you can use to verify your download.
 
 | Platform | Download | Purpose |
 |---|---|---|
 | Windows 10/11 (x64) | `NexusSetup.exe` | Complete desktop application, runtimes, models, and optional VSIX |
-| Windows 10/11 (x64) | `nexus-coding-2.2.9-win32-x64.vsix` | Optional VS Code extension only |
-| macOS 15+ (Apple Silicon) | `nexus-coding-2.2.9-darwin-arm64.vsix` | Optional VS Code extension only |
-| Linux x86_64 (glibc 2.35+) | `nexus-coding-2.2.9-linux-x64.vsix` | Optional VS Code extension only |
+| Windows 10/11 (x64) | `nexus-coding-2.3.0-win32-x64.vsix` | Optional VS Code extension only |
+| macOS 15+ (Apple Silicon) | `nexus-coding-2.3.0-darwin-arm64.vsix` | Optional VS Code extension only |
+| Linux x86_64 (glibc 2.35+) | `nexus-coding-2.3.0-linux-x64.vsix` | Optional VS Code extension only |
 
-The optional VS Code extension published with v2.2.9 requires Microsoft stable VS Code 1.134.0 exactly. Its platform-qualified VSIX contains `better-sqlite3` 12.11.1 rebuilt for VS Code 1.134.0's Electron 42.8.1 runtime, so later, earlier, Insiders, Cursor, and Windsurf hosts are not supported by this release artifact. The Windows wizard offers the extension only when that exact host is detected and rechecks before installation. The Windows desktop application itself does not have this VS Code requirement.
+The optional VS Code extension published with v2.3.0 requires Microsoft stable VS Code 1.134.0 exactly. Its platform-qualified VSIX contains `better-sqlite3` 12.11.1 rebuilt for VS Code 1.134.0's Electron 42.8.1 runtime, so later, earlier, Insiders, Cursor, and Windsurf hosts are not supported by this release artifact. The Windows wizard offers the extension only when that exact host is detected and rechecks before installation. The Windows desktop application itself does not have this VS Code requirement.
 
 The Windows installer embeds its target-qualified VSIX and matching desktop bundle. It downloads selected models and runtime components during installation, verifying downloaded payloads against pinned SHA-256 checksums. Expect 5-60 GB of downloads depending on the models you pick, so plan for disk space and a decent connection.
 
@@ -33,15 +33,15 @@ NexusSetup.exe --headless --json-output
 
 ## macOS
 
-v2.2.9 does not publish a standalone macOS Nexus desktop package. The raw Tauri DMG was withheld because it does not contain the pinned Node runtime required by the sidecar, and the former universal name also overstated the single-architecture native module inside it.
+v2.3.0 does not publish a standalone macOS Nexus desktop package. The raw Tauri DMG was withheld because it does not contain the pinned Node runtime required by the sidecar, and the former universal name also overstated the single-architecture native module inside it.
 
-If you use macOS 15+ on Apple Silicon and exact Microsoft stable VS Code 1.134.0, download `nexus-coding-2.2.9-darwin-arm64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, an Intel host, an older macOS version, or another VS Code version.
+If you use macOS 15+ on Apple Silicon and exact Microsoft stable VS Code 1.134.0, download `nexus-coding-2.3.0-darwin-arm64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, an Intel host, an older macOS version, or another VS Code version.
 
 ## Linux
 
-v2.2.9 does not publish a standalone Linux Nexus desktop package. The raw Tauri AppImage and deb were withheld because they do not contain the pinned Node runtime and runtime manifest required by the sidecar.
+v2.3.0 does not publish a standalone Linux Nexus desktop package. The raw Tauri AppImage and deb were withheld because they do not contain the pinned Node runtime and runtime manifest required by the sidecar.
 
-If you run exact Microsoft stable VS Code 1.134.0 on x86_64 Linux, download `nexus-coding-2.2.9-linux-x64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, or another VS Code version. The native extension requires glibc 2.35+ (Ubuntu 22.04+, Debian 12+, or another distribution with an equivalent/newer glibc); its release builder is pinned to Ubuntu 22.04 to keep that floor stable.
+If you run exact Microsoft stable VS Code 1.134.0 on x86_64 Linux, download `nexus-coding-2.3.0-linux-x64.vsix` and install it from VS Code's **Extensions: Install from VSIX...** command. Do not install it into Insiders, Cursor, Windsurf, or another VS Code version. The native extension requires glibc 2.35+ (Ubuntu 22.04+, Debian 12+, or another distribution with an equivalent/newer glibc); its release builder is pinned to Ubuntu 22.04 to keep that floor stable.
 
 ## Verifying your download
 
@@ -66,6 +66,10 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 4. **Nexus desktop app**: embedded in `NexusSetup.exe`, manifest/hash-checked, installed and health-checked, then launched from the finish page.
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
+
+## After you install (v2.3.0)
+
+- **Video Lab Enhance**: after a completed clip has a durable output id, Video Lab can offer Enhance. Install Video2X 6.4.0 yourself, then set `NEXUS_VIDEO2X_PATH` or Settings > Video > Video2X executable to the absolute executable path. Recheck capability; Enhance stays disabled until capability is ready. Clearing the setting and unsetting the env var turns the surface off. That does not uninstall Video2X and does not delete originals. Configuring a path does not install Video2X, search PATH, replace originals, grant network or Hub writes, or add Qwen3.8. Details: [video-enhancement-baseline.md](v2/v2.3/benchmarks/video-enhancement-baseline.md).
 
 ## After you install (v1.20.0)
 
