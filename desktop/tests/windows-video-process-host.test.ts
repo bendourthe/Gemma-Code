@@ -321,6 +321,8 @@ describe("WindowsVideoProcessHost", () => {
       priorLoaderEnvironment.set(name, process.env[name]);
       process.env[name] = value;
     }
+    const priorPath = process.env.PATH;
+    process.env.PATH = "C:\\attacker\\bin;" + (priorPath ?? "");
     const manifests: Array<Record<string, unknown>> = [];
     const controlDirectories: string[] = [];
     const controlFiles: string[][] = [];
@@ -343,6 +345,8 @@ describe("WindowsVideoProcessHost", () => {
         "WINDIR",
         "TEMP",
         "TMP",
+        "PATH",
+        "PATHEXT",
         "NEXUS_VIDEO_HOST_MANIFEST_PATH",
         "NEXUS_VIDEO_HOST_MANIFEST_SHA256",
         "NEXUS_VIDEO_HOST_SOURCE_PATH",
@@ -359,6 +363,15 @@ describe("WindowsVideoProcessHost", () => {
         );
       }
       expect(helperEnvironmentNames.has("NEXUS_VIDEO_TEST_VALUE")).toBe(false);
+      const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+      expect(String(helperEnv.PATH).toLowerCase()).toContain(
+        path.join(systemRoot, "System32").toLowerCase(),
+      );
+      expect(String(helperEnv.PATH).toLowerCase()).toContain(
+        path.join(systemRoot, "Microsoft.NET", "Framework64").toLowerCase(),
+      );
+      expect(String(helperEnv.PATH).toLowerCase()).not.toContain("attacker");
+      expect(helperEnv.PATHEXT).toBe(".COM;.EXE;.BAT;.CMD");
       expect(args).toEqual([
         "-NoLogo",
         "-NoProfile",
@@ -450,6 +463,8 @@ describe("WindowsVideoProcessHost", () => {
         if (value === undefined) delete process.env[name];
         else process.env[name] = value;
       }
+      if (priorPath === undefined) delete process.env.PATH;
+      else process.env.PATH = priorPath;
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -999,9 +1014,9 @@ describe("WindowsVideoProcessHost", () => {
             API_KEY: "do-not-forward",
             VK_ICD_FILENAMES: "shadow.json",
           },
-          timeoutMs: 55_000,
+          timeoutMs: 120_000,
         });
-        expect(result).toMatchObject({
+        expect(result, result.stderr || "empty stderr").toMatchObject({
           exitCode: 0,
           timedOut: false,
           cancelled: false,
@@ -1025,10 +1040,10 @@ describe("WindowsVideoProcessHost", () => {
         expect(["supported", "unavailable"]).toContain(avx2?.status);
         expect(await readdir(control)).toEqual([]);
       } finally {
-        await rm(root, { recursive: true, force: true });
+        await rmTree(root);
       }
     },
-    60_000,
+    180_000,
   );
 
   WINDOWS_ONLY(
@@ -1066,13 +1081,13 @@ describe("WindowsVideoProcessHost", () => {
           args: [parentScript],
           cwd: work,
           env: scrubVideoProcessEnv(process.env),
-          timeoutMs: 55_000,
+          timeoutMs: 120_000,
           signal: controller.signal,
           gracefulShutdownMs: 10,
           forceKillMs: 100,
         });
 
-        const deadline = Date.now() + 45_000;
+        const deadline = Date.now() + 90_000;
         let readyText = "";
         while (Date.now() < deadline) {
           try {
@@ -1096,6 +1111,6 @@ describe("WindowsVideoProcessHost", () => {
         await rmTree(root);
       }
     },
-    90_000,
+    180_000,
   );
 });

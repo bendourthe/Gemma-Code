@@ -39,6 +39,7 @@ const WINDOWS_LOADER_ENV_ALLOWLIST = [
   "TEMP",
   "TMP",
 ] as const;
+const WINDOWS_HELPER_PATHEXT = ".COM;.EXE;.BAT;.CMD";
 
 interface WindowsHostManifestBase {
   readonly schemaVersion: 1;
@@ -833,6 +834,15 @@ function toManifestEnvironment(
   );
 }
 
+function pinnedWindowsHelperPath(systemRoot: string): string {
+  return [
+    path.join(systemRoot, "System32"),
+    path.join(systemRoot, "System32", "Wbem"),
+    path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0"),
+    path.join(systemRoot, "Microsoft.NET", "Framework64", "v4.0.30319"),
+  ].join(";");
+}
+
 function buildWindowsLoaderEnvironment(): NodeJS.ProcessEnv {
   const scrubbedHostEnvironment = scrubVideoProcessEnv(process.env);
   const available = new Map(
@@ -846,6 +856,14 @@ function buildWindowsLoaderEnvironment(): NodeJS.ProcessEnv {
     const value = available.get(canonicalName.toUpperCase());
     if (value !== undefined) loaderEnvironment[canonicalName] = value;
   }
+  const systemRoot =
+    loaderEnvironment.SystemRoot ??
+    loaderEnvironment.WINDIR ??
+    "C:\\Windows";
+  // Pin PATH to Windows roots so Add-Type can find csc.exe. Never copy
+  // process PATH (it can include attacker directories).
+  loaderEnvironment.PATH = pinnedWindowsHelperPath(systemRoot);
+  loaderEnvironment.PATHEXT = WINDOWS_HELPER_PATHEXT;
   return loaderEnvironment;
 }
 

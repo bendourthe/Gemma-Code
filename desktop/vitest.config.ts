@@ -14,6 +14,13 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: [path.resolve(__dirname, "./tests/setup.ts")],
     include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}", "sidecar/src/**/*.test.ts"],
+    // GitHub windows-latest Shell Build runs this suite with coverage across
+    // ~200 files. Parallel workers starve PowerShell Add-Type in the live
+    // process-host tests (empty stdout, timedOut, no ready.txt). Local Windows
+    // keeps the default pool. This is runner config, not a workflow topology change.
+    ...(process.env.CI && process.platform === "win32"
+      ? { maxWorkers: 1, fileParallelism: false }
+      : {}),
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "lcov"],
