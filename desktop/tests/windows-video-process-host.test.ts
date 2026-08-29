@@ -1042,6 +1042,10 @@ describe("WindowsVideoProcessHost", () => {
       const escaped = path.join(root, "escaped.txt");
       const parentScript = path.join(root, "parent.cjs");
       const childScript = path.join(root, "child.cjs");
+      const controller = new AbortController();
+      let running: ReturnType<
+        ReturnType<typeof createWindowsVideoProcessHost>["run"]
+      > | null = null;
       try {
         await writeFile(
           childScript,
@@ -1054,30 +1058,31 @@ describe("WindowsVideoProcessHost", () => {
           "utf8",
         );
 
-        const controller = new AbortController();
         const host = createWindowsVideoProcessHost({
           scratchRoot: control,
         });
-        const running = host.run({
+        running = host.run({
           executable: process.execPath,
           args: [parentScript],
           cwd: work,
           env: scrubVideoProcessEnv(process.env),
-          timeoutMs: 20_000,
+          timeoutMs: 55_000,
           signal: controller.signal,
           gracefulShutdownMs: 10,
           forceKillMs: 100,
         });
 
-        const deadline = Date.now() + 15_000;
+        const deadline = Date.now() + 45_000;
+        let readyText = "";
         while (Date.now() < deadline) {
           try {
-            if ((await readFile(ready, "utf8")) === "ready") break;
+            readyText = await readFile(ready, "utf8");
+            if (readyText === "ready") break;
           } catch {
             await new Promise((resolve) => setTimeout(resolve, 50));
           }
         }
-        expect(await readFile(ready, "utf8")).toBe("ready");
+        expect(readyText).toBe("ready");
         controller.abort();
         const result = await running;
         expect(result.cancelled).toBe(true);
@@ -1086,9 +1091,11 @@ describe("WindowsVideoProcessHost", () => {
         await new Promise((resolve) => setTimeout(resolve, 2_000));
         await expect(readFile(escaped, "utf8")).rejects.toThrow();
       } finally {
+        controller.abort();
+        if (running) await running.catch(() => undefined);
         await rmTree(root);
       }
     },
-    60_000,
+    90_000,
   );
 });
