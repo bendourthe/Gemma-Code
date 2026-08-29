@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `release/v2.3.1` (**v2.3.1** Windows installer field repair; package **2.3.1**, tag pending confirmation).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.1** field reliability, chat archives, model library, and multi-root workspace implementation in progress; package remains **2.3.1**).
+
+> **v2.4.1 IMPLEMENTATION STARTED (2026-08-29)** -- The approved [field reliability, chat archives, model library, and multi-root workspaces plan](v2/v2.4/plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md) defines T001-T048 across eight phases. Field evidence is the user-supplied screenshots and `Downloads/nexus-install-nexus-desktop-log.txt`; Phase 1 is in progress.
 
 > **v2.3.1 RELEASE PREPARED (2026-08-29)** -- [installer field-repair plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md) is integrated on `develop` via [PR 53](https://github.com/bendourthe/Nexus-AI/pull/53) (merge `838268f`). Product version is **2.3.1**. T001-T027 complete. MT-1 (`host_detect.py` 40%) remains. Tag, GitHub Release, and `main` merge wait on confirmation.
 
@@ -537,6 +539,7 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v2.2.9 | Field chrome, catalog identity, honest generate | **Released (2026-08-28)** -- package 2.2.9; legacy no-PR exception approved; optional extension pinned to VS Code 1.134.0; packaged field QA deferred to DF-36; live GPU stays DF-4 | `v2/v2.2/plans/v2.2.9-field-chrome-catalog-and-generate.md` |
 | v2.3.0 | Optional local video enhancement, Qwen admission gates, and Hub security-workflow handoff | **Released (2026-08-29)** -- package 2.3.0 tagged; DF-1..4, BG-1, WN-1, MT-1, QG-1/QG-2 remain | `v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` |
 | v2.3.1 | Windows installer field repair | **Release prepared (2026-08-29)** -- package 2.3.1; PR 53 merged; tag pending; MT-1 remains | `v2/v2.3/plans/v2.3.1-installer-field-repair.md` |
+| v2.4.1 | Installer/runtime reliability, transcript reasoning UX, archives, model parity, and multi-root Agents workspaces | **In progress (2026-08-29)** -- approved; Phase 1 active; T001-T048 across eight phases | `v2/v2.4/plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 
