@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-29] v2.3.1 Phase 5 - Required embedder policy
+
+Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-5-embedder-policy.md), [gaps](v2/v2.3/known-gaps.md), [policy](v2/v2.3/development/embedder-default-decision.md). Package remains **2.3.0**.
+
+### What Changed
+
+- T016 KEEP: `nomic-embed-text` stays the required memory embedder. No reindex migrator.
+- `CatalogModel.is_required` locks to `REQUIRED_EMBEDDER_ID`. Catalog copy for EmbeddingGemma is 300M / 300 million parameters and must not say 300B.
+- Invariants and tests pin recommended.json embed lists and `nexus.memory.embeddingModel` to Nomic.
+
+### Why It Changed
+
+Phase 5 of the v2.3.1 installer field-repair plan. The operator asked about "GemmaEmbedding 300B". The catalog model is EmbeddingGemma 300M. Switching the required embedder would mismatch existing Nomic-shaped memory indexes.
+
+### Decisions Made
+
+- KEEP, not SWITCH. SWITCH needs a named reindex tool, which this cycle does not ship.
+- No extra "Newer opt-in" status chip. The Required / hardware / Recommended / Compatible ladder is unchanged.
+
+---
+
+
 ## [2026-08-29] v2.3.1 Phase 4 - VS Code step and Unsloth placement
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/2026-08-29_v2.3.1-phase-4-vscode-unsloth.md), [gaps](v2/v2.3/known-gaps.md), [policy](v2/v2.3/development/vscode-host-policy.md). Package remains **2.3.0**.

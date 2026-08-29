@@ -10,7 +10,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 
 ## v2.3.1
 
-**Last updated**: 2026-08-29 (Phase 4)
+**Last updated**: 2026-08-29 (Phase 5)
 
 ### Summary
 
@@ -23,7 +23,7 @@ Plans: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 4 records ABI-matched VS Code 1.134/1.135, a visible extension checkbox with `--force` replace, and Unsloth on Configuration. Remaining installer field work is the embedder policy (Phase 5), not a new gap. MT-1 is unchanged.
+Phase 5 keeps `nomic-embed-text` as the required embedder. EmbeddingGemma stays 300M opt-in. Remaining work is last-phase evidence (Phase 6), not a new gap. MT-1 is unchanged.
 
 ### Open Items
 

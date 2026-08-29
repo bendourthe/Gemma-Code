@@ -106,9 +106,7 @@ class TestLfmLowVramAgentic:
         assert any("gated" in p for p in problems)
 
     def test_placeholder_pin_is_flagged(self) -> None:
-        entry = _lfm_entry(
-            weights={"files": [{"path": "x.gguf", "sha256": "0" * 64}]}
-        )
+        entry = _lfm_entry(weights={"files": [{"path": "x.gguf", "sha256": "0" * 64}]})
         problems = validate_catalog({"models": [entry]})
         assert any("placeholder" in p or "SHA-256" in p for p in problems)
 
@@ -143,9 +141,7 @@ class TestMuseAndLightning:
         assert "nemotron-lightning:30b-a3b-offload" in ids
         assert "sam2:hiera-tiny" in ids
         lightning = next(
-            m
-            for m in catalog["models"]
-            if m.get("id") == "nemotron-lightning:30b-a3b"
+            m for m in catalog["models"] if m.get("id") == "nemotron-lightning:30b-a3b"
         )
         assert lightning["source"]["url"] == "ollama://nemotron-3.5-lightning:30b"
         assert validate_catalog(catalog) == []
@@ -322,3 +318,91 @@ class TestValidateCatalog:
             ]
         }
         assert any("qwen3.5" in p for p in validate_catalog(catalog))
+
+
+class TestRequiredEmbedderPolicy:
+    def test_decision_file_is_keep_nomic(self) -> None:
+        from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
+
+        repo = default_catalog_path().resolve().parents[2]
+        decision = (
+            repo
+            / "docs"
+            / "v2"
+            / "v2.3"
+            / "development"
+            / "embedder-default-decision.md"
+        )
+        text = decision.read_text(encoding="utf-8")
+        assert "**KEEP**" in text
+        assert REQUIRED_EMBEDDER_ID in text
+        assert "300M" in text
+        assert "reindex" in text.lower()
+
+    def test_repo_catalog_embeddinggemma_is_300m_not_300b(self) -> None:
+        catalog = _load_repo_catalog()
+        gemma = next(m for m in catalog["models"] if m.get("id") == "embeddinggemma")
+        assert gemma["displayName"] == "EmbeddingGemma 300M"
+        assert gemma["tag"] == "300m"
+        copy = " ".join(
+            [
+                gemma["displayName"],
+                gemma["description"],
+                gemma["whyRecommended"],
+                gemma["differentiators"],
+            ]
+        )
+        assert "300M" in copy or "300 million" in copy.lower()
+        assert "300b" not in copy.lower()
+        assert "opt-in" in gemma["description"].lower()
+
+    def test_recommended_embed_defaults_are_nomic_only(self) -> None:
+        from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
+        from nexus_installer.registry_paths import default_recommended_path
+
+        matrix = json.loads(default_recommended_path().read_text(encoding="utf-8"))
+        for tier, sections in matrix["tiers"].items():
+            assert sections["embed"] == [REQUIRED_EMBEDDER_ID], tier
+
+    def test_settings_default_embedding_model_is_nomic(self) -> None:
+        from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
+
+        repo = default_catalog_path().resolve().parents[2]
+        manifest = json.loads((repo / "package.json").read_text(encoding="utf-8"))
+        default = manifest["contributes"]["configuration"]["properties"][
+            "nexus.memory.embeddingModel"
+        ]["default"]
+        assert default == REQUIRED_EMBEDDER_ID
+
+    def test_embeddinggemma_300b_copy_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "embeddinggemma",
+                    "displayName": "EmbeddingGemma 300B",
+                    "description": "GemmaEmbedding 300B",
+                    "source": {
+                        "protocol": "ollama",
+                        "url": "ollama://embeddinggemma:300m",
+                    },
+                }
+            ]
+        }
+        problems = validate_catalog(catalog)
+        assert any("300B" in p for p in problems)
+
+    def test_nomic_wrong_task_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "nomic-embed-text",
+                    "task": "chat",
+                    "source": {
+                        "protocol": "ollama",
+                        "url": "ollama://nomic-embed-text",
+                    },
+                }
+            ]
+        }
+        problems = validate_catalog(catalog)
+        assert any("task must be embed" in p for p in problems)

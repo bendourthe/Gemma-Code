@@ -815,6 +815,11 @@ class TestRealCatalogPage:
         assert "deepseek-coder-v2:16b" not in ids
         assert page._catalog["nomic-embed-text"].is_required is True
         assert page._catalog["embeddinggemma"].is_required is False
+        gemma = page._catalog["embeddinggemma"]
+        assert "300M" in gemma.display_name
+        assert "300B" not in gemma.display_name
+        assert "300B" not in gemma.description
+        assert "opt-in" in gemma.description.lower()
 
     def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's

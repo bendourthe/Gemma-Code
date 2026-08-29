@@ -1,4 +1,22 @@
-# Docs Cleanup Audit - v2.3.1 (Phase 4)
+# Docs Cleanup Audit - v2.3.1 (Phase 5)
+
+**Date**: 2026-08-29
+**Mode**: audit (no files moved)
+
+## Findings
+
+- Canonical plan remains `docs/v2/v2.3/plans/v2.3.1-installer-field-repair.md`.
+- Phase 5 adds `docs/v2/v2.3/development/embedder-default-decision.md` (T016 decision, planned deliverable) and session history under `docs/v2/v2.3/development/history/`.
+- No `docs/handbooks/`, `docs/testing/`, or `docs/validation/` trees were invented. Markdown remains the source of truth.
+- Living docs stay at `docs/v2/v2.3/` (legacy minor-grouped layout). No files were moved.
+
+## Verdict
+
+Clean for Phase 5. The embedder decision file is a named plan artifact, not scratch. No action required.
+
+---
+
+
 
 **Date**: 2026-08-29
 **Mode**: audit (no files moved)

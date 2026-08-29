@@ -54,6 +54,7 @@ from PyQt5.QtWidgets import (
 )
 
 from nexus_installer import registry_paths
+from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
 from nexus_installer.catalog_tab_sort import (
     collapse_and_sort as shared_collapse_and_sort,
 )
@@ -240,7 +241,7 @@ class CatalogModel:
         same task but stay opt-in because swapping the default invalidates
         the on-disk memory index.
         """
-        return self.id == "nomic-embed-text"
+        return self.id == REQUIRED_EMBEDDER_ID
 
     @property
     def guardrails_label(self) -> str:
