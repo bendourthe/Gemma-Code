@@ -141,6 +141,8 @@ export const IPC_METHODS = [
   "video.enhancement.enqueue",
   "video.enhancement.list",
   "video.enhancement.cancel",
+  "video.video2xPath.get",
+  "video.video2xPath.set",
   // v2.2.3 Phase 5 -- read-only Studio GPU occupancy for submit-time gates.
   "generation.scheduler.snapshot",
   // v2.1.0 Phase 5 -- local Unsloth Core fine-tuning pillar.
@@ -1591,6 +1593,19 @@ export const VideoEnhancementCancelRequest = z
 export const VideoEnhancementCancelResponse = z
   .object({ job: VideoEnhancementJob.nullable() })
   .strict();
+
+export const VideoVideo2xPathGetRequest = z.object({}).strict();
+export const VideoVideo2xPathGetResponse = z
+  .object({
+    settingPath: z.string().nullable(),
+    envPath: z.string().nullable(),
+    configurationSource: z.enum(["environment", "setting"]).nullable(),
+  })
+  .strict();
+export const VideoVideo2xPathSetRequest = z
+  .object({ path: z.string().max(4096) })
+  .strict();
+export const VideoVideo2xPathSetResponse = VideoVideo2xPathGetResponse;
 
 export type VideoEnhancementJobT = z.infer<typeof VideoEnhancementJob>;
 export type VideoEnhancementCapabilityT = z.infer<
@@ -3288,6 +3303,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "video.enhancement.cancel": {
     request: VideoEnhancementCancelRequest,
     response: VideoEnhancementCancelResponse,
+    implemented: true,
+  },
+  "video.video2xPath.get": {
+    request: VideoVideo2xPathGetRequest,
+    response: VideoVideo2xPathGetResponse,
+    implemented: true,
+  },
+  "video.video2xPath.set": {
+    request: VideoVideo2xPathSetRequest,
+    response: VideoVideo2xPathSetResponse,
     implemented: true,
   },
   "generation.scheduler.snapshot": {

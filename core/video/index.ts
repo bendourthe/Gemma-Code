@@ -1,4 +1,13 @@
 export {
+  VIDEO2X_ENV_KEY,
+  VIDEO2X_SETTING_KEY,
+  VIDEO_ENHANCEMENT_SUPPORT,
+  expectedVideoEnhancementGeometry,
+  videoEnhancementCapabilityCopy,
+  type VideoEnhancementGeometry,
+  type VideoEnhancementGeometrySource,
+} from "./videoEnhancementSupport.js";
+export {
   DEFAULT_VIDEO_ENHANCEMENT_TIMEOUT_MS,
   MAX_VIDEO_ENHANCEMENT_JOB_ID_LENGTH,
   MAX_VIDEO_ENHANCEMENT_TIMEOUT_MS,

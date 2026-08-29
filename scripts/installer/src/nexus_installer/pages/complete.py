@@ -39,6 +39,7 @@ from nexus_installer.engine.model_router import (
     load_catalog_index,
 )
 from nexus_installer.engine.platform_utils import no_window_kwargs
+from nexus_installer.video_enhancement_support import INSTALLER_NOTE
 from nexus_installer.widgets.callout_box import CalloutBox
 from nexus_installer.widgets.primary_button import PrimaryButton
 from nexus_installer.widgets.secondary_button import SecondaryButton
@@ -118,6 +119,15 @@ class CompletePage(QWidget):
             f"color: {TEXT_BODY}; font-size: {FS_BODY}px; background: transparent;"
         )
         layout.addWidget(self._subtitle)
+
+        self._video2x_note = QLabel(INSTALLER_NOTE)
+        self._video2x_note.setWordWrap(True)
+        self._video2x_note.setObjectName("video2xOptionalNote")
+        self._video2x_note.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
+        )
+        layout.addWidget(self._video2x_note)
 
         # Failure warning (hidden by default)
         self._warning_callout = CalloutBox(title="Some steps encountered issues")

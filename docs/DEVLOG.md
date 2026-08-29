@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-28] v2.3.0 Phase 5 - Quality, performance, and packaging evidence
+
+Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-5-quality-performance-packaging.md), [gaps](v2/v2.3/known-gaps.md), [baseline](v2/v2.3/benchmarks/video-enhancement-baseline.md). Package remains **2.2.9**.
+
+### What Changed
+
+- Added `scripts/bench-video-enhancement.mjs` with versioned 480p/720p fixtures and a fake deterministic backend. Real-backend mode is explicit and records typed `missing_configuration` / `backend_unavailable` rather than fabricating zeros.
+- Shared setup, env, setting, and capability copy now live in `core/video/video-enhancement-support.json`. Settings > Video stores an absolute `video.video2xPath`. The installer notes the optional backend and never offers an install or download toggle.
+- Packaging tests prove installer, desktop, runtime, and docs agree, and that the tree contains no Video2X binary, AGPL source, automatic download URL, or Qwen3.8 catalog entry.
+
+### Why It Changed
+
+Phase 5 of the v2.3.0 adoption plan. Phase 4 shipped the Enhance UI; support claims and resource evidence were still unmeasured.
+
+### Decisions Made
+
+- Fake-backend geometry and source preservation are observed. Peak CPU/GPU/VRAM, real Video2X wall time, and packaged detection are DF-3 (not proven here).
+- Nexus-Hub security-audit remains DF-2. This phase did not edit the sibling repository.
+- Packaging tests live at `tests/unit/video/video-enhancement-packaging.test.ts` so root Vitest discovery includes them (plan path `tests/video-enhancement-packaging.test.ts` would not run).
+- No pipeline file changed. No Phase 5 work was pushed. Human testing remains reserved for Phase 6.
+
+---
+
 ## [2026-08-28] v2.3.0 Phase 4 - Video Lab Enhance experience
 
 Index: [plan](v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md), [history](v2/v2.3/development/history/2026-08-28_v2.3.0-phase-4-video-lab-enhance-experience.md), [gaps](v2/v2.3/known-gaps.md). Package remains **2.2.9**.

@@ -12,6 +12,8 @@ import {
 } from "../../../../core/observability/scrubEnv.js";
 import type { SettingsStore } from "../../../../core/storage/SettingsStore.js";
 import {
+  VIDEO2X_ENV_KEY,
+  VIDEO2X_SETTING_KEY,
   VIDEO_ENHANCEMENT_PRESETS,
   type VideoEnhancementArchitecture,
   type VideoEnhancementAvx2Status,
@@ -45,8 +47,6 @@ import type {
 const VIDEO2X_VERSION_OUTPUT = "Video2X version 6.4.0";
 const VIDEO2X_VERSION = "6.4.0";
 const VIDEO2X_COMPATIBILITY_ID = "video2x-cli-6.4.0";
-const VIDEO2X_SETTING_KEY = "video.video2xPath";
-const VIDEO2X_ENV_KEY = "NEXUS_VIDEO2X_PATH";
 const DEFAULT_PROBE_TIMEOUT_MS = 10_000;
 const DEFAULT_READINESS_TTL_MS = 5 * 60_000;
 const DEFAULT_DIAGNOSTIC_LIMIT = 8_192;

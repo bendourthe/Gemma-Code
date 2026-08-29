@@ -47,6 +47,8 @@ import {
   VideoEnhancementCancelRequest,
   VideoEnhancementEnqueueRequest,
   VideoEnhancementListRequest,
+  VideoVideo2xPathGetRequest,
+  VideoVideo2xPathSetRequest,
   TuningEmptyRequest,
   TuningDatasetBuildRequest,
   TuningJobStartRequest,
@@ -185,6 +187,10 @@ import {
   PARSE_DOCUMENT_SETTING_KEY,
   isParseDocumentEnabled,
 } from "../../../core/documents/parseDocumentEnabled.js";
+import {
+  VIDEO2X_ENV_KEY,
+  VIDEO2X_SETTING_KEY,
+} from "../../../core/video/videoEnhancementSupport.js";
 import {
   InMemorySettingsStore,
   JsonFileSettingsStore,
@@ -413,6 +419,41 @@ export function createHandlerContext(
     workspacePath,
     audio,
   };
+}
+
+function isAbsoluteConfiguredPath(
+  value: string,
+  platform: NodeJS.Platform,
+): boolean {
+  const implementation = platform === "win32" ? path.win32 : path.posix;
+  return (
+    !value.includes("\0") &&
+    !value.includes("\r") &&
+    !value.includes("\n") &&
+    implementation.isAbsolute(value)
+  );
+}
+
+function video2xPathSnapshot(
+  settingValue: string | undefined,
+  env: NodeJS.ProcessEnv,
+): {
+  settingPath: string | null;
+  envPath: string | null;
+  configurationSource: "environment" | "setting" | null;
+} {
+  const envPath = env[VIDEO2X_ENV_KEY]?.trim() || null;
+  const settingPath =
+    typeof settingValue === "string" && settingValue.trim().length > 0
+      ? settingValue.trim()
+      : null;
+  if (envPath) {
+    return { settingPath, envPath, configurationSource: "environment" };
+  }
+  if (settingPath) {
+    return { settingPath, envPath: null, configurationSource: "setting" };
+  }
+  return { settingPath: null, envPath: null, configurationSource: null };
 }
 
 function resolveStudio(ctx: HandlerContext): StudioRuntime {
@@ -1686,6 +1727,25 @@ export const handlers: Record<Method, HandlerFn> = {
     await bundle.runtime.cancel(req.childJobId);
     const job = await bundle.persistence.getEnhancement(req.childJobId);
     return { job: job ? enhancementJobDto(job) : null };
+  },
+  "video.video2xPath.get": async (_params, ctx) => {
+    VideoVideo2xPathGetRequest.parse(_params ?? {});
+    const stored = await resolveSettings(ctx).get<string>(VIDEO2X_SETTING_KEY);
+    return video2xPathSnapshot(stored, process.env);
+  },
+  "video.video2xPath.set": async (params, ctx) => {
+    const req = VideoVideo2xPathSetRequest.parse(params ?? {});
+    const trimmed = req.path.trim();
+    if (trimmed && !isAbsoluteConfiguredPath(trimmed, ctx.platform)) {
+      throw new Error(
+        "The Video2X path must be empty or an absolute local file path.",
+      );
+    }
+    const settings = resolveSettings(ctx);
+    if (trimmed) await settings.set(VIDEO2X_SETTING_KEY, trimmed);
+    else await settings.delete(VIDEO2X_SETTING_KEY);
+    const stored = await settings.get<string>(VIDEO2X_SETTING_KEY);
+    return video2xPathSnapshot(stored, process.env);
   },
   "generation.scheduler.snapshot": async (params, ctx) => {
     GenerationSchedulerSnapshotRequest.parse(params ?? {});

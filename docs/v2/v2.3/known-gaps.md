@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-28 (v2.3.0 Phase 4)
+**Last updated**: 2026-08-28 (Phase 5)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,20 @@ Plan: [plans/v2.3.0-adoption-qwen-video2x-openworker.md](plans/v2.3.0-adoption-q
 
 ## v2.3.0
 
-**Last updated**: 2026-08-28 (Phase 4)
+**Last updated**: 2026-08-28 (Phase 5)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 1 | 0 |
+| Deferred (DF) | 3 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-4 landed at automated/internal-compatible evidence. Real Video2X, GPU, packaging, and perceptual review remain Phase 5/6 work rather than Phase 4 slips.
+Phases 1-5 landed at automated/internal-compatible evidence. Real Video2X, GPU, packaged field detection, and perceptual review remain candidate until measured. The Nexus-Hub security-audit workflow is still an unreleased upstream item.
 
 ### Open this cycle
 
@@ -33,6 +33,20 @@ Phases 1-4 landed at automated/internal-compatible evidence. Real Video2X, GPU, 
 - **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (T011, T013)
 - **Reason**: Enhance requires a durable output id and SHA-256 from the generation completion event. Studio session turns persist a media path, not those identities, so remounting a saved clip shows the original video and download but not Enhance. not_observed != absent for a later persistence design.
 - **Suggested next step**: Persist source output id and hash on studio turns, or recover them from the generation index by path/hash during hydrate, then prove Enhance returns after remount.
+
+##### DF-2 - Nexus-Hub security-audit workflow is not released
+
+- **Source phase**: Phase 5 - Quality, Performance, and Packaging Evidence
+- **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (T015); `docs/v2/v2.3/development/nexus-hub-security-audit-handoff.md`
+- **Reason**: The useful OpenWorker delta is a Hub-owned security-audit workflow. Upstream status is v4.1.1 confirmed, implementation not started, not released. Nexus-AI must not consume a Hub version without that evidence and must not edit the sibling repository.
+- **Suggested next step**: When a Hub release publishes scanner-coverage and independent rescan receipts, record the version here and decide whether Nexus-AI should consume it.
+
+##### DF-3 - Real Video2X, GPU, and packaged detection remain unmeasured
+
+- **Source phase**: Phase 5 - Quality, Performance, and Packaging Evidence
+- **Plan reference**: `docs/v2/v2.3/plans/v2.3.0-adoption-qwen-video2x-openworker.md` (T014, T015)
+- **Reason**: The fake-backend harness proved fixture geometry, source preservation, and typed failures. Peak CPU/GPU/VRAM, real Video2X 6.4.0 wall time, and packaged-app executable detection are not observed. not_observed != absent.
+- **Suggested next step**: Run `node scripts/bench-video-enhancement.mjs --backend real` on supported Windows/Linux hardware and a packaged Windows install that points at a user-installed Video2X 6.4.0 path.
 
 ##### WN-1 - jsdom canvas and React act notices in Video Lab tests
 

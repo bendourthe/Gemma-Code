@@ -36,6 +36,8 @@ describe("video enhancement IPC protocol", () => {
       "video.enhancement.enqueue",
       "video.enhancement.list",
       "video.enhancement.cancel",
+      "video.video2xPath.get",
+      "video.video2xPath.set",
     ] as const) {
       expect(IPC_METHODS).toContain(method);
       expect(METHOD_SCHEMAS[method].implemented).toBe(true);

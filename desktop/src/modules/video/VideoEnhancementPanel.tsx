@@ -12,6 +12,10 @@ import type {
   VideoEnhancementInterpolationPresetId,
   VideoEnhancementUpscalePresetId,
 } from "../../../../core/video/VideoEnhancement";
+import {
+  expectedVideoEnhancementGeometry,
+  videoEnhancementCapabilityCopy,
+} from "../../../../core/video/videoEnhancementSupport";
 import { Button } from "../../components/ui";
 import { useReducedMotion } from "../../motion/useReducedMotion";
 import {
@@ -120,19 +124,22 @@ export function deriveVideoEnhancementTarget(
   );
   if (!selection)
     throw new Error(`Unknown video enhancement selection: ${selectionId}`);
-  const scale = selection.upscalePreset?.endsWith("4x")
-    ? 4
-    : selection.upscalePreset
-      ? 2
-      : 1;
-  const frameRateMultiplier = selection.interpolationPreset ? 2 : 1;
-  return {
-    width: source.width * scale,
-    height: source.height * scale,
-    frameRate: {
-      numerator: source.frameRate.numerator * frameRateMultiplier,
-      denominator: source.frameRate.denominator,
+  const geometry = expectedVideoEnhancementGeometry(
+    {
+      width: source.width,
+      height: source.height,
+      frameRate: source.frameRate,
+      durationSeconds: 1,
     },
+    {
+      upscalePreset: selection.upscalePreset,
+      interpolationPreset: selection.interpolationPreset,
+    },
+  );
+  return {
+    width: geometry.width,
+    height: geometry.height,
+    frameRate: geometry.frameRate,
   };
 }
 
@@ -185,28 +192,7 @@ const mutedStyle: CSSProperties = {
 };
 
 function capabilityReason(reason: string): string {
-  const reasons: Record<string, string> = {
-    missing_configuration: "Configure a local Video2X executable in Settings.",
-    invalid_path: "The configured Video2X executable path is invalid.",
-    unsupported_platform:
-      "Video enhancement is not supported on this operating system.",
-    unsupported_architecture:
-      "Video enhancement is not supported on this CPU architecture.",
-    process_host_unavailable:
-      "The local enhancement process host is unavailable.",
-    cpu_probe_failed: "Nexus could not verify the CPU requirements.",
-    missing_avx2: "This Video2X integration requires an AVX2-capable CPU.",
-    incompatible_version:
-      "Update the configured Video2X build to a compatible version.",
-    incompatible_grammar:
-      "The configured Video2X command format is incompatible.",
-    probe_timeout: "The local Video2X capability check timed out.",
-    probe_failed: "The local Video2X capability check failed.",
-    no_vulkan_device: "No compatible local Vulkan GPU was found.",
-    model_unavailable: "A required local enhancement model is unavailable.",
-    internal_error: "The enhancement capability check failed safely.",
-  };
-  return reasons[reason] ?? "Video enhancement is unavailable on this host.";
+  return videoEnhancementCapabilityCopy(reason);
 }
 
 function availabilityFor(
