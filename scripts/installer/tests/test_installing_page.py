@@ -51,6 +51,22 @@ def test_overall_animation_stops_when_hidden_or_complete(qt_app: object) -> None
     assert not bar.is_animation_running()
 
 
+def test_fixed_percentage_renders_a_moving_gradient(qt_app: object) -> None:
+    bar = OverallProgressBar(reduced_motion=False)
+    bar.resize(640, OVERALL_PROGRESS_HEIGHT)
+    bar.set_fraction(0.42)
+    bar.show()
+    qt_app.processEvents()
+    bar._timer.stop()
+    first = bar.grab().toImage()
+    value = bar.value()
+    for _ in range(8):
+        bar._advance_gradient()
+    second = bar.grab().toImage()
+    assert bar.value() == value
+    assert first != second
+
+
 def test_reduced_motion_never_starts_timer(qt_app: object) -> None:
     bar = OverallProgressBar(reduced_motion=True)
     bar.show()

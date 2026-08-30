@@ -65,3 +65,22 @@ class TestGatedAuthDialog:
         )
         tokens_btn = dlg.findChild(QPushButton, "openTokensButton")
         assert tokens_btn is not None and tokens_btn.isEnabled()
+
+    def test_browser_login_success_accepts_without_manual_token(
+        self, qt_app: object
+    ) -> None:
+        dlg = GatedAuthDialog(
+            dict(_ENTRY),
+            validate=lambda repo, tok: True,
+            browser_login=lambda repo: "oauth-token",
+        )
+        dlg._on_browser_login_finished("oauth-token", "")
+        assert dlg.token == "oauth-token"
+        assert dlg.result() == QDialog.Accepted
+
+    def test_browser_login_access_failure_stays_open(self, qt_app: object) -> None:
+        dlg = _dialog(qt_app, valid=True)
+        dlg._on_browser_login_finished("", "Accept the publisher terms.")
+        assert dlg.token == ""
+        assert "publisher" in dlg._status.text()
+        assert dlg.result() != QDialog.Accepted

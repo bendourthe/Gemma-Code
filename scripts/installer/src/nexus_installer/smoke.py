@@ -11,7 +11,7 @@ Profile schema (all fields optional except ``name``)::
     {
       "name": "sandbox-minimal",
       "components": ["ollama", "venv"],
-      "selected_model_ids": ["nomic-embed-text"],
+      "selected_model_ids": ["embeddinggemma"],
       "install_path": "C:\\\\NexusSmoke",
       "models_root": "C:\\\\NexusSmoke\\\\models",
       "ollama_url": "http://127.0.0.1:11434",

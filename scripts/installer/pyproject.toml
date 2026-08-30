@@ -17,6 +17,7 @@ dependencies = [
     "PyQt5-Qt5==5.15.2 ; sys_platform != 'darwin'",
     "PyQt5-Qt5>=5.15.11,<5.16 ; sys_platform == 'darwin'",
     "httpx>=0.27.0",
+    "huggingface-hub>=1.29,<2",
     # v1.11.0 Phase 3 (T302): the Linux Ollama step installs the pinned
     # release asset ollama-linux-amd64.tar.zst (deterministic + hash-verified,
     # replacing the undeterministic install.sh flow); zstandard decompresses it.

@@ -43,6 +43,14 @@ def row_hide_below(row: Mapping[str, Any]) -> float:
         return 0.0
 
 
+def row_ram(row: Mapping[str, Any]) -> float:
+    raw = row.get("requiredRamGB", row.get("ramGB", row.get("ram_gb", 0))) or 0
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def is_over_budget(
     row: Mapping[str, Any],
     host_vram_gb: int | float | None,
@@ -56,6 +64,19 @@ def is_over_budget(
     if host_vram_gb is None:
         return False
     return float(host_vram_gb) < vram
+
+
+def is_incompatible(
+    row: Mapping[str, Any],
+    *,
+    host_vram_gb: int | float | None,
+    host_ram_gb: int | float | None,
+    gpu_vendor: str,
+) -> bool:
+    if is_over_budget(row, host_vram_gb, gpu_vendor):
+        return True
+    ram = row_ram(row)
+    return ram > 0 and host_ram_gb is not None and float(host_ram_gb) < ram
 
 
 def is_hidden_by_vram_floor(
@@ -72,9 +93,7 @@ def is_hidden_by_vram_floor(
 
 def is_required_row(row: Mapping[str, Any]) -> bool:
     tags = row.get("tags") or ()
-    if "required" in tags:
-        return True
-    return row.get("type") == "embed" or row.get("task") == "embed"
+    return "required" in tags
 
 
 def recommend_group(
@@ -140,7 +159,7 @@ def collapse_and_sort(
         else:
             disabled.append(min(rest, key=lambda m: (row_vram(m), display_name(m))))
 
-    def enabled_key(m: Mapping[str, Any]) -> tuple:
+    def enabled_key(m: Mapping[str, Any]) -> tuple[bool, int, int, int, float, str]:
         return (
             not is_required_row(m),
             recommend_group(m, default_ids, rec_rank),
@@ -192,16 +211,18 @@ def downloaded_first(
     return downloaded + [i for i in ordered if i not in downloaded_set]
 
 
-def canonical_display_order(rows: Sequence[Mapping[str, Any]]) -> list[str]:
+def canonical_display_order(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    host_vram_gb: int | float | None = None,
+    host_ram_gb: int | float | None = None,
+    gpu_vendor: str = "nvidia",
+) -> list[str]:
     """Return every selectable catalog id in the stable v2.4.1 display order."""
 
     def tier(row: Mapping[str, Any]) -> int:
         tags = row.get("tags") or ()
-        if (
-            "required" in tags
-            or row.get("task") == "embed"
-            or row.get("type") == "embed"
-        ):
+        if "required" in tags:
             return 0
         if "recommended" in tags:
             return 1
@@ -214,6 +235,12 @@ def canonical_display_order(rows: Sequence[Mapping[str, Any]]) -> list[str]:
     ]
     selectable.sort(
         key=lambda row: (
+            is_incompatible(
+                row,
+                host_vram_gb=host_vram_gb,
+                host_ram_gb=host_ram_gb,
+                gpu_vendor=gpu_vendor,
+            ),
             tier(row),
             -release_ordinal(str(row.get("releaseDate") or "")),
             display_name(row).casefold(),

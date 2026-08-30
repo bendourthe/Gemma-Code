@@ -15,8 +15,9 @@ The dialog holds no business logic beyond validate/accept/reject so it is thin;
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import QObject, QThread, QUrl, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QDialog,
@@ -39,13 +40,42 @@ from nexus_installer.constants import (
     TEXT_PRIMARY,
     TEXT_SECONDARY,
 )
-from nexus_installer.engine.hf_auth import validate_token_for_repo
+from nexus_installer.engine.hf_auth import (
+    browser_login_for_repo,
+    validate_token_for_repo,
+)
 
 # validate(repo, token) -> True when the token can reach the repo.
 ValidateFn = Callable[[str, str], bool]
+BrowserLoginFn = Callable[[str], str | None]
 
 #: Where a user creates a free Hugging Face read token (v1.15.0 Phase 3).
 HF_TOKENS_URL = "https://huggingface.co/settings/tokens"
+
+
+class _BrowserLoginWorker(QObject):
+    finished = pyqtSignal(str, str)
+
+    def __init__(self, repo: str, login: BrowserLoginFn) -> None:
+        super().__init__()
+        self._repo = repo
+        self._login = login
+
+    @pyqtSlot()
+    def run(self) -> None:
+        try:
+            token = self._login(self._repo)
+        except Exception as exc:  # noqa: BLE001 - UI boundary reports safely
+            self.finished.emit("", str(exc))
+            return
+        if token:
+            self.finished.emit(token, "")
+        else:
+            self.finished.emit(
+                "",
+                "Sign-in succeeded, but this account cannot access the model yet. "
+                "Accept the publisher's access terms, then try again.",
+            )
 
 
 class GatedAuthDialog(QDialog):
@@ -53,16 +83,20 @@ class GatedAuthDialog(QDialog):
 
     def __init__(
         self,
-        entry: dict,
+        entry: dict[str, Any],
         parent: QWidget | None = None,
         validate: ValidateFn | None = None,
+        browser_login: BrowserLoginFn | None = None,
     ) -> None:
         super().__init__(parent)
         self._entry = entry or {}
         self._repo = str((self._entry.get("source") or {}).get("repo") or "")
         self._license_url = str(self._entry.get("licenseUrl") or "")
         self._validate = validate or validate_token_for_repo
+        self._browser_login = browser_login or browser_login_for_repo
         self._token = ""
+        self._login_thread: QThread | None = None
+        self._login_worker: _BrowserLoginWorker | None = None
 
         name = str(self._entry.get("displayName") or self._entry.get("id") or "model")
         self.setWindowTitle(f"Unlock {name}")
@@ -83,13 +117,11 @@ class GatedAuthDialog(QDialog):
         body = QLabel(
             'A few high-end models are "gated": they are free and open-weight, '
             "but the publisher asks you to accept their license on Hugging Face "
-            "first, so the download needs a free account and a personal access "
-            "token. The installer cannot accept the license for you.\n\n"
+            "first. The installer cannot accept the license for you.\n\n"
             "One-time steps (about a minute):\n"
             "  1. Open the license page and click 'Agree and access repository'.\n"
-            "  2. Open your Hugging Face token settings and create a free 'read' "
-            "token.\n"
-            "  3. Paste the token below and click Unlock.\n\n"
+            "  2. Click 'Sign in with Hugging Face' and approve the browser login.\n"
+            "  3. Nexus validates access and continues automatically.\n\n"
             "Prefer to skip? Click 'Skip this model' - the rest of the install "
             "continues normally and only this one model is left out. You can add "
             "it later from the app's Models settings."
@@ -104,7 +136,20 @@ class GatedAuthDialog(QDialog):
         open_btn.setEnabled(bool(self._license_url))
         layout.addWidget(open_btn)
 
-        tokens_btn = QPushButton("Open Hugging Face token settings")
+        self._sign_in_btn = QPushButton("Sign in with Hugging Face")
+        self._sign_in_btn.setObjectName("browserSignInButton")
+        self._sign_in_btn.setStyleSheet(
+            f"background: {ACCENT}; color: #0a0e17; font-weight: 600; "
+            "border-radius: 6px; padding: 8px 16px;"
+        )
+        self._sign_in_btn.clicked.connect(self._start_browser_login)
+        layout.addWidget(self._sign_in_btn)
+
+        fallback = QLabel("Or paste an existing read token manually:")
+        fallback.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px;")
+        layout.addWidget(fallback)
+
+        tokens_btn = QPushButton("Create a token manually")
         tokens_btn.setObjectName("openTokensButton")
         tokens_btn.clicked.connect(self._open_tokens)
         layout.addWidget(tokens_btn)
@@ -126,18 +171,18 @@ class GatedAuthDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        skip_btn = QPushButton("Skip this model")
-        skip_btn.setObjectName("skipButton")
-        skip_btn.clicked.connect(self.reject)
-        buttons.addWidget(skip_btn)
-        unlock_btn = QPushButton("Unlock")
-        unlock_btn.setObjectName("unlockButton")
-        unlock_btn.setStyleSheet(
+        self._skip_btn = QPushButton("Skip this model")
+        self._skip_btn.setObjectName("skipButton")
+        self._skip_btn.clicked.connect(self.reject)
+        buttons.addWidget(self._skip_btn)
+        self._unlock_btn = QPushButton("Use token")
+        self._unlock_btn.setObjectName("unlockButton")
+        self._unlock_btn.setStyleSheet(
             f"background: {ACCENT}; color: #0a0e17; font-weight: 600; "
             "border-radius: 6px; padding: 8px 16px;"
         )
-        unlock_btn.clicked.connect(self._on_unlock)
-        buttons.addWidget(unlock_btn)
+        self._unlock_btn.clicked.connect(self._on_unlock)
+        buttons.addWidget(self._unlock_btn)
         layout.addLayout(buttons)
 
     @property
@@ -153,8 +198,56 @@ class GatedAuthDialog(QDialog):
         QDesktopServices.openUrl(QUrl(HF_TOKENS_URL))
 
     def _show_error(self, message: str) -> None:
+        self._status.setStyleSheet(f"color: {ERROR}; font-size: {FS_CAPTION}px;")
         self._status.setText(message)
         self._status.setVisible(True)
+
+    def _start_browser_login(self) -> None:
+        if self._login_thread is not None and self._login_thread.isRunning():
+            return
+        self._status.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px;"
+        )
+        self._status.setText("Finish signing in through the browser window...")
+        self._status.setVisible(True)
+        self._sign_in_btn.setEnabled(False)
+        self._unlock_btn.setEnabled(False)
+        self._skip_btn.setEnabled(False)
+
+        thread = QThread(self)
+        worker = _BrowserLoginWorker(self._repo, self._browser_login)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_browser_login_finished)
+        worker.finished.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._clear_login_thread)
+        self._login_thread = thread
+        self._login_worker = worker
+        thread.start()
+
+    @pyqtSlot(str, str)
+    def _on_browser_login_finished(self, token: str, error: str) -> None:
+        self._sign_in_btn.setEnabled(True)
+        self._unlock_btn.setEnabled(True)
+        self._skip_btn.setEnabled(True)
+        if error or not token:
+            self._show_error(error or "Hugging Face sign-in did not return a token.")
+            return
+        self._token = token
+        self.accept()
+
+    @pyqtSlot()
+    def _clear_login_thread(self) -> None:
+        self._login_thread = None
+        self._login_worker = None
+
+    def reject(self) -> None:
+        if self._login_thread is not None and self._login_thread.isRunning():
+            self._show_error("Finish or cancel the browser authorization first.")
+            return
+        super().reject()
 
     def _on_unlock(self) -> None:
         token = self._token_input.text().strip()
@@ -172,7 +265,9 @@ class GatedAuthDialog(QDialog):
         self.accept()
 
 
-def run_gated_prompt(entry: dict, parent: QWidget | None = None) -> str | None:
+def run_gated_prompt(
+    entry: dict[str, Any], parent: QWidget | None = None
+) -> str | None:
     """Show the guided dialog for one gated model; return the token or None.
 
     This is the concrete ``prompt`` for ``engine.gated_auth.ensure_gated_auth``.

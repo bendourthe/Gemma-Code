@@ -4,6 +4,8 @@
 **Plan**: [v2.3.1-installer-field-repair.md](../plans/v2.3.1-installer-field-repair.md) T016
 **Decision**: **KEEP** `nomic-embed-text` as the required memory embedder
 
+**Status**: Superseded on 2026-08-29 by the v2.4.1 field-reliability correction. The current policy is **SWITCH**: `embeddinggemma` (EmbeddingGemma 300M) is the sole required/default app-wide embedder, while Nomic remains an opt-in legacy alternative. Existing indexes created with another embedder require reindexing before their vectors are compared in the new embedding space.
+
 ## Options
 
 | Id | Policy |

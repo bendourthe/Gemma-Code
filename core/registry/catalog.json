@@ -248,14 +248,14 @@
       "releaseDate": "2025-09-04",
       "origin": "USA",
       "agentic": false,
-      "description": "Google's EmbeddingGemma is a 300M on-device embedding model from the USA, built from Gemma 3. It is an opt-in alternative to Nomic Embed Text; switching embedders requires a memory reindex.",
+      "description": "Google's EmbeddingGemma is a 300M on-device embedding model from the USA, built from Gemma 3. It is the required default for semantic memory, search, recall, and retrieval across Nexus.",
       "strengths": [
         "622 MB download, 100+ languages",
         "Matryoshka dimensions (768 down to 128)",
         "Official Ollama library tag, listed in Ollama's own embed docs"
       ],
-      "whyRecommended": "A 2025 Google embedder for hosts that want to opt in. Nomic Embed Text stays the required default so existing memory indexes keep working.",
-      "differentiators": "300 million parameters. Not the memory-layer default. 2K context vs Nomic's 8K. Gemma Terms of Use.",
+      "whyRecommended": "The current app-wide memory default: compact, multilingual, CPU-capable, and available from the official Ollama library.",
+      "differentiators": "300 million parameters, 100+ languages, and Matryoshka output dimensions. Existing indexes created with another embedder should be reindexed before comparing vectors.",
       "sizeGB": 0.62,
       "vramGB": 1,
       "requiredVramGB": 0,
@@ -268,6 +268,10 @@
       },
       "modalities": [
         "text"
+      ],
+      "tags": [
+        "required",
+        "recommended"
       ]
     },
     {
@@ -281,13 +285,13 @@
       "releaseDate": "2025-06-05",
       "origin": "China",
       "agentic": false,
-      "description": "Alibaba's Qwen3 Embedding 0.6B is a 2025 multilingual embedding model from China with a 32K window. Opt-in for code and long-document retrieval; Nomic Embed Text stays the required default.",
+      "description": "Alibaba's Qwen3 Embedding 0.6B is a 2025 multilingual embedding model from China with a 32K window. It is an opt-in alternative for code and long-document retrieval; EmbeddingGemma 300M is the required app-wide default.",
       "strengths": [
         "32K context per passage",
         "Instruction-aware embeddings for retrieval and clustering",
         "639 MB official Ollama library tag"
       ],
-      "whyRecommended": "The long-context embed opt-in. Do not make it the default: swapping embedders invalidates the on-disk memory index.",
+      "whyRecommended": "The long-context embed opt-in. Switching from EmbeddingGemma requires rebuilding the on-disk memory index.",
       "differentiators": "Official Ollama library tag qwen3-embedding:0.6b. MTEB figures are vendor-reported and not reproduced here.",
       "sizeGB": 0.64,
       "vramGB": 1,
@@ -856,14 +860,14 @@
       "displayName": "Nomic Embed Text",
       "releaseDate": "2024-02-14",
       "origin": "USA",
-      "description": "Nomic AI's Nomic Embed Text is a small embedding model from the USA, not a chat model. It powers the semantic memory layer: search, recall, and retrieval across your conversations and files. It remains the required default even after newer embedders landed.",
+      "description": "Nomic AI's Nomic Embed Text is a compact 2024 embedding model from the USA. It remains available as an opt-in legacy alternative for long-context retrieval and existing Nomic-based memory indexes.",
       "strengths": [
         "Semantic search over conversations and documents",
         "Long-context retrieval (8K tokens per passage)",
         "Tiny footprint: 0.27 GB, runs on any hardware"
       ],
-      "whyRecommended": "Required by the semantic memory layer; tiny and runs anywhere, so it ships in every default selection.",
-      "differentiators": "The required memory-layer embedder. EmbeddingGemma and Qwen3-Embedding 0.6B are opt-in 2025 alternatives; switching embedders needs a reindex.",
+      "whyRecommended": "Choose it to preserve an existing Nomic-based memory index or when its longer 8K passage window matters more than the newer default.",
+      "differentiators": "A 0.27 GB legacy option with an 8K passage window. EmbeddingGemma 300M is the current required default; switching embedders needs a reindex.",
       "sizeGB": 0.27,
       "vramGB": 1,
       "license": "Apache-2.0",
@@ -871,9 +875,6 @@
         "protocol": "ollama",
         "url": "ollama://nomic-embed-text"
       },
-      "tags": [
-        "recommended"
-      ],
       "modalities": [
         "text"
       ]

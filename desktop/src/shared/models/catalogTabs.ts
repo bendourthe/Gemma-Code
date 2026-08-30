@@ -90,7 +90,7 @@ export function recommendationKind(
   model: Pick<ListedModelDto, "tags" | "type" | "task">,
 ): RecommendationKind {
   const tags = model.tags ?? [];
-  if (tags.includes("required") || model.task === "embed" || model.type === "embed") {
+  if (tags.includes("required")) {
     return "required";
   }
   if (tags.includes("recommended")) return "recommended";
@@ -312,6 +312,5 @@ export function visibleModelsOnTab(
   tab: CatalogTab,
   options: CatalogSortOptions = {},
 ): ListedModelDto[] {
-  void options;
-  return canonicalModelDisplayOrder(modelsOnTab(models, tab));
+  return canonicalModelDisplayOrder(modelsOnTab(models, tab), options);
 }

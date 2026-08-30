@@ -232,12 +232,11 @@ class CatalogModel:
 
     @property
     def is_required(self) -> bool:
-        """Nomic Embed Text is required by the semantic memory layer.
+        """EmbeddingGemma 300M is required by the semantic memory layer.
 
-        v1.9.0 Phase 4 (T403): its card gets a Required badge and a locked-on
-        checkbox. Later embedders (EmbeddingGemma, Qwen3-Embedding) are the
-        same task but stay opt-in because swapping the default invalidates
-        the on-disk memory index.
+        v2.4.1 field correction: its card gets a Required badge and a locked-on
+        checkbox. Nomic and Qwen3-Embedding stay opt-in because swapping the
+        default invalidates the on-disk memory index.
         """
         return self.id == REQUIRED_EMBEDDER_ID
 
@@ -540,6 +539,7 @@ def _catalog_model_sort_row(model: CatalogModel) -> dict[str, object]:
         "displayName": model.display_name,
         "family": model.family or model.id,
         "vramGB": model.required_vram_gb,
+        "requiredRamGB": model.required_ram_gb,
         "hideBelowVramGB": model.hide_below_vram_gb,
         "releaseDate": model.release_date,
         "tags": tags,
@@ -784,7 +784,7 @@ class _ModelCard(QWidget):
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
         # v1.9.0 Phase 5 (T021) -- the custom-painted ModelCheckBox. `accent` is
-        # the per-provider color; the required (embed) model is locked on by the
+        # the per-provider color; the required embedder is locked on by the
         # page in `_update_selection_state`, never silently forced here.
         self.checkbox = ModelCheckBox(accent=accent)
         self.checkbox.setChecked(checked)
@@ -1161,9 +1161,15 @@ class TypedCatalogPage(QWidget):
         """
         section = list(self._models_for_section(section_key))
         by_id = {m.id: m for m in section}
-        del host_vram_gb, gpu_vendor, defaults, recommend_order
+        del defaults, recommend_order
         ordered = canonical_display_order(
-            [_catalog_model_sort_row(model) | {"task": model.task} for model in section]
+            [
+                _catalog_model_sort_row(model) | {"task": model.task}
+                for model in section
+            ],
+            host_vram_gb=host_vram_gb,
+            host_ram_gb=self._state.total_ram_gb,
+            gpu_vendor=gpu_vendor,
         )
         return [by_id[i] for i in ordered if i in by_id]
 

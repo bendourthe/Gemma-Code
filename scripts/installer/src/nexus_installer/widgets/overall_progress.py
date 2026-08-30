@@ -18,7 +18,7 @@ from nexus_installer.constants import (
 )
 from nexus_installer.widgets.background import resolve_reduced_motion
 
-OVERALL_PROGRESS_HEIGHT = 20
+OVERALL_PROGRESS_HEIGHT = 30
 FRAME_INTERVAL_MS = 40
 
 
@@ -103,7 +103,7 @@ class OverallProgressBar(QProgressBar):
             self._timer.stop()
 
     def _advance_gradient(self) -> None:
-        self._phase = (self._phase + 0.018) % 1.0
+        self._phase = (self._phase + 0.035) % 1.0
         self.update()
 
     def showEvent(self, event: object) -> None:  # noqa: N802
@@ -142,25 +142,46 @@ class OverallProgressBar(QProgressBar):
             painter.setClipPath(track_path)
             fill_rect = rect.adjusted(left, 0.0, 0.0, 0.0)
             fill_rect.setWidth(max(1.0, fill_width))
-            width = max(1.0, float(rect.width()))
-            offset = (self._phase * width) if not self._reduced_motion else 0.0
-            gradient = QLinearGradient(offset - width, 0.0, offset + width, 0.0)
+            band = max(56.0, min(150.0, fill_width * 0.8))
+            offset = (self._phase * band) if not self._reduced_motion else 0.0
+            gradient = QLinearGradient(
+                offset - band,
+                rect.top(),
+                offset,
+                rect.bottom(),
+            )
             gradient.setSpread(QGradient.Spread.RepeatSpread)
             gradient.setColorAt(0.0, QColor(ACCENT_DIM))
-            gradient.setColorAt(0.35, QColor(ACCENT))
-            gradient.setColorAt(0.7, QColor(ACCENT_BRIGHT))
+            gradient.setColorAt(0.28, QColor(ACCENT))
+            gradient.setColorAt(0.5, QColor(ACCENT_BRIGHT))
+            gradient.setColorAt(0.72, QColor(ACCENT))
             gradient.setColorAt(1.0, QColor(ACCENT_DIM))
             painter.fillRect(fill_rect, gradient)
             painter.restore()
 
         if self.maximum() != 0:
-            painter.setPen(QColor(TEXT_PRIMARY))
             font = painter.font()
             font.setBold(True)
-            font.setPixelSize(12)
+            font.setPixelSize(14)
             painter.setFont(font)
             percent = round(self._last_fraction * 100)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"{percent}%")
+            text = f"{percent}%"
+            metrics = painter.fontMetrics()
+            badge_width = metrics.horizontalAdvance(text) + 20
+            badge_height = min(24.0, rect.height() - 4.0)
+            badge = QRectF(
+                rect.center().x() - badge_width / 2.0,
+                rect.center().y() - badge_height / 2.0,
+                badge_width,
+                badge_height,
+            )
+            badge_color = QColor(BG_CARD)
+            badge_color.setAlpha(230)
+            painter.setPen(QPen(QColor(BORDER), 1.0))
+            painter.setBrush(badge_color)
+            painter.drawRoundedRect(badge, badge_height / 2.0, badge_height / 2.0)
+            painter.setPen(QColor(TEXT_PRIMARY))
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, text)
 
 
 __all__ = ["FRAME_INTERVAL_MS", "OVERALL_PROGRESS_HEIGHT", "OverallProgressBar"]

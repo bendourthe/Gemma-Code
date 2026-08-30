@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from nexus_installer.engine.hf_auth import (
+    browser_login_for_repo,
     discover_hf_token,
     hf_cache_token_path,
     hf_token_from_cache,
@@ -17,6 +18,30 @@ from nexus_installer.engine.hf_auth import (
     validate_token_for_repo,
 )
 from nexus_installer.installer_state import InstallerState
+
+
+def test_browser_login_returns_repo_valid_cached_token() -> None:
+    calls: list[bool] = []
+    token = browser_login_for_repo(
+        "org/repo",
+        login=lambda **kw: calls.append(kw["skip_if_logged_in"]),
+        get_token=lambda: "oauth-token",
+        validate=lambda repo, value: repo == "org/repo" and value == "oauth-token",
+    )
+    assert token == "oauth-token"
+    assert calls == [False]
+
+
+def test_browser_login_rejects_token_without_repo_access() -> None:
+    assert (
+        browser_login_for_repo(
+            "org/repo",
+            login=lambda **kw: None,
+            get_token=lambda: "oauth-token",
+            validate=lambda repo, value: False,
+        )
+        is None
+    )
 
 
 @pytest.fixture(autouse=True)

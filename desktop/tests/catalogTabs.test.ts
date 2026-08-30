@@ -82,9 +82,9 @@ describe("catalogTabs", () => {
     expect(modelsOnTab([mystery], "other").map((m) => m.id)).toEqual(["mystery"]);
   });
 
-  it("derives Required / Recommended / Compatible from tags and embed type", () => {
+  it("derives Required / Recommended / Compatible from explicit tags", () => {
     expect(recommendationKind({ tags: ["required"] })).toBe("required");
-    expect(recommendationKind({ type: "embed" })).toBe("required");
+    expect(recommendationKind({ type: "embed" })).toBe("compatible");
     expect(recommendationKind({ tags: ["recommended"] })).toBe("recommended");
     expect(recommendationKind({})).toBe("compatible");
   });

@@ -28,6 +28,7 @@ from nexus_installer.constants import (
 )
 from nexus_installer.engine.crash import is_engine_exception
 from nexus_installer.engine.gated_auth import ensure_gated_auth
+from nexus_installer.engine.install_progress import planned_steps
 from nexus_installer.engine.install_summary import prepare_model_retry
 from nexus_installer.engine.installer import InstallEngine, start_install
 from nexus_installer.engine.model_router import (
@@ -47,10 +48,10 @@ if TYPE_CHECKING:
 # Phase title -> (engine step names it covers, in engine order; section icon
 # glyph for the mockup's iconed header tile). v1.13.0 Phase 5 adds the icon.
 PHASE_GROUPS: tuple[tuple[str, tuple[str, ...], str], ...] = (
-    ("Dependencies", ("ollama", "venv"), "⚙"),  # gear
+    ("Dependencies", ("ollama", "venv", "unsloth"), "⚙"),  # gear
     ("VS Code Extension", ("extension",), "</>"),  # code brackets
     ("Models", ("model",), "◆"),  # diamond
-    ("Nexus Desktop", ("desktop",), "▭"),  # screen / monitor
+    ("Nexus Desktop", ("desktop", "runtime", "hub-catalog"), "▭"),
 )
 
 
@@ -131,7 +132,12 @@ class InstallingPage(QWidget):
         self._groups = []
         self._active_group = None
 
-        components = self._state.components_to_install
+        components = set(
+            planned_steps(
+                self._state.components_to_install,
+                include_unsloth=self._state.install_unsloth,
+            )
+        )
         for title, steps, icon in PHASE_GROUPS:
             covered = [s for s in steps if s in components]
             if not covered:

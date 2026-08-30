@@ -2,13 +2,13 @@
   "_meta": {
     "version": 2,
     "phase": "v1.9.0 Phase 4",
-    "comment": "Per-VRAM-tier default model selections for the installer's typed catalog UI. `tiers` maps a hardware tier (cpu, or the GPU VRAM budget in GB) to per-section default entry ids from catalog.json. The wizard resolves the tier from the detected GPU (nexus_installer/tier_defaults.py), fit-gates every id against detected VRAM and free disk, and pre-ticks the result; everything else in the catalog appears un-ticked for opt-in. v1.9.0 Phase 4: the agentic default is a Gemma 4 variant (Gemma 4 is agentic-coding-capable), so the agentic list is [<best-fitting Gemma 4 variant>, <coder fallback>] -- the Gemma is preferred and, because it is usually the same id as the chat pick, one model covers both chat and agentic; the coding specialist is the in-list fallback taken only when no Gemma 4 variant fits. v1.19.0 Phase 1: cpu agentic prefers LFM2.5-2.6B ahead of Gemma / the small coder; the 8 GB list inserts LFM between Gemma and the 9B Qwen 3.5 so sub-6 GB cards that cannot hold gemma4:e4b still get a dedicated agentic default; 12 uses Qwen 3.5 9B, 16 uses gpt-oss 20B, 24 uses Qwen3-Coder 30B. chat/agentic are single-pick sections; embed/image/audio/video take every fitting id. image/video defaults are the uncensored entries (the v1.8.0 product decision) on tiers whose hardware fits them; the cpu tier gets no image/video (diffusion requires a GPU). Audio defaults are the permissive, CPU-capable speech models (faster-whisper STT + Kokoro TTS) on every tier. Extra 2025 embedders stay opt-in; nomic-embed-text remains the required memory default. v2.2.3 Phase 7: the document section defaults RapidOCR PP-OCRv4 (CPU-capable, portable) on the cpu and 8 tiers and Unlimited-OCR 3B (12 GB VRAM, NVIDIA-only quality tier) on 12/16/24, so the Document tab is never empty."
+    "comment": "Per-VRAM-tier default model selections for the installer's typed catalog UI. `tiers` maps a hardware tier (cpu, or the GPU VRAM budget in GB) to per-section default entry ids from catalog.json. The wizard resolves the tier from the detected GPU (nexus_installer/tier_defaults.py), fit-gates every id against detected VRAM and free disk, and pre-ticks the result; everything else in the catalog appears un-ticked for opt-in. v1.9.0 Phase 4: the agentic default is a Gemma 4 variant (Gemma 4 is agentic-coding-capable), so the agentic list is [<best-fitting Gemma 4 variant>, <coder fallback>] -- the Gemma is preferred and, because it is usually the same id as the chat pick, one model covers both chat and agentic; the coding specialist is the in-list fallback taken only when no Gemma 4 variant fits. v1.19.0 Phase 1: cpu agentic prefers LFM2.5-2.6B ahead of Gemma / the small coder; the 8 GB list inserts LFM between Gemma and the 9B Qwen 3.5 so sub-6 GB cards that cannot hold gemma4:e4b still get a dedicated agentic default; 12 uses Qwen 3.5 9B, 16 uses gpt-oss 20B, 24 uses Qwen3-Coder 30B. chat/agentic are single-pick sections; embed/image/audio/video take every fitting id. image/video defaults are the uncensored entries (the v1.8.0 product decision) on tiers whose hardware fits them; the cpu tier gets no image/video (diffusion requires a GPU). Audio defaults are the permissive, CPU-capable speech models (faster-whisper STT + Kokoro TTS) on every tier. v2.4.1 field correction: EmbeddingGemma 300M is the required app-wide memory default; Nomic Embed Text and Qwen3 Embedding remain opt-in alternatives. v2.2.3 Phase 7: the document section defaults RapidOCR PP-OCRv4 (CPU-capable, portable) on the cpu and 8 tiers and Unlimited-OCR 3B (12 GB VRAM, NVIDIA-only quality tier) on 12/16/24, so the Document tab is never empty."
   },
   "tiers": {
     "cpu": {
       "chat": ["gemma4:e2b"],
       "agentic": ["lfm2.5:2.6b", "gemma4:e2b", "qwen3.5:4b"],
-      "embed": ["nomic-embed-text"],
+      "embed": ["embeddinggemma"],
       "image": [],
       "video": [],
       "audio": ["faster-whisper-large-v3", "kokoro-82m"],
@@ -17,7 +17,7 @@
     "8": {
       "chat": ["gemma4:e4b"],
       "agentic": ["gemma4:e4b", "lfm2.5:2.6b", "qwen3.5:9b"],
-      "embed": ["nomic-embed-text"],
+      "embed": ["embeddinggemma"],
       "image": ["juggernaut-xl-v9"],
       "video": ["wan2.1-t2v-1.3b"],
       "audio": ["faster-whisper-large-v3", "kokoro-82m"],
@@ -26,7 +26,7 @@
     "12": {
       "chat": ["gemma-4-12b-it-gguf"],
       "agentic": ["gemma-4-12b-it-gguf", "qwen3.5:9b"],
-      "embed": ["nomic-embed-text"],
+      "embed": ["embeddinggemma"],
       "image": ["juggernaut-xl-v9"],
       "video": ["wan2.1-t2v-1.3b"],
       "audio": ["faster-whisper-large-v3", "kokoro-82m"],
@@ -35,7 +35,7 @@
     "16": {
       "chat": ["gemma-4-12b-it-gguf"],
       "agentic": ["gemma-4-12b-it-gguf", "gpt-oss:20b"],
-      "embed": ["nomic-embed-text"],
+      "embed": ["embeddinggemma"],
       "image": ["realvisxl-v5"],
       "video": ["wan2.1-t2v-1.3b"],
       "audio": ["faster-whisper-large-v3", "kokoro-82m"],
@@ -44,7 +44,7 @@
     "24": {
       "chat": ["gemma4:31b"],
       "agentic": ["gemma4:31b", "qwen3-coder:30b"],
-      "embed": ["nomic-embed-text"],
+      "embed": ["embeddinggemma"],
       "image": ["realvisxl-v5"],
       "video": ["wan2.2-ti2v-5b"],
       "audio": ["faster-whisper-large-v3", "kokoro-82m"],

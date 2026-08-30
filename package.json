@@ -357,8 +357,8 @@
         },
         "nexus.memory.embeddingModel": {
           "type": "string",
-          "default": "nomic-embed-text",
-          "description": "Ollama embedding model for semantic memory search (v1.0.0; legacy `gemma-code.embeddingModel`)."
+          "default": "embeddinggemma",
+          "description": "Ollama embedding model for semantic memory search. EmbeddingGemma 300M is the v2.4.1 default (legacy key: `gemma-code.embeddingModel`)."
         },
         "nexus.memory.bm25.k1": {
           "type": "number",
@@ -614,7 +614,7 @@
         },
         "gemma-code.embeddingModel": {
           "type": "string",
-          "default": "nomic-embed-text",
+          "default": "embeddinggemma",
           "description": "Ollama embedding model for semantic memory search. Set to empty string to disable semantic search.",
           "deprecationMessage": "Use `nexus.memory.embeddingModel` instead. Will be removed in v1.2.0."
         },
@@ -639,7 +639,7 @@
           "default": 0.85,
           "minimum": 0,
           "maximum": 1,
-          "description": "Minimum cosine similarity for tool-output rows whose embedding came from Ollama (high-quality nomic-embed-text vectors).",
+          "description": "Minimum cosine similarity for tool-output rows whose embedding came from the configured Ollama embedding model.",
           "deprecationMessage": "Use `nexus.memory.ollamaEmbeddingThreshold` instead. Will be removed in v1.2.0."
         },
         "gemma-code.heuristicEmbeddingThreshold": {

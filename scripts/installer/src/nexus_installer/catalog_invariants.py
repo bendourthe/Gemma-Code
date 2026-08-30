@@ -88,7 +88,7 @@ POST_2025_OLLAMA_TARGETS: dict[str, str] = {
     "qwen3-embedding:0.6b": "ollama://qwen3-embedding:0.6b",
 }
 
-#: Pre-2025 selectable models that stay because they are required (embed),
+#: Pre-2025 selectable models that stay as supported legacy alternatives,
 #: recommended.json image/audio defaults, RapidOCR (CPU document pillar), or
 #: SAM2 (Image Studio replace-the-X). 2024 coding specialists were replaced
 #: by Qwen 3.5 / gpt-oss / Qwen3-Coder. Everything else 2024-or-earlier is
@@ -105,8 +105,8 @@ PRE_2025_KEEP_IDS: frozenset[str] = frozenset(
 )
 
 
-REQUIRED_EMBEDDER_ID = "nomic-embed-text"
 EMBEDDINGGEMMA_ID = "embeddinggemma"
+REQUIRED_EMBEDDER_ID = EMBEDDINGGEMMA_ID
 
 
 def validate_catalog(catalog: dict[str, Any]) -> list[str]:
@@ -248,13 +248,13 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
 
 
 def _check_required_embedder(by_id: dict[str, Any]) -> list[str]:
-    """KEEP Nomic as the memory default; EmbeddingGemma copy is 300M not 300B."""
+    """Require EmbeddingGemma as the memory default and keep its 300M identity."""
     problems: list[str] = []
-    nomic = by_id.get(REQUIRED_EMBEDDER_ID)
+    required = by_id.get(REQUIRED_EMBEDDER_ID)
     if (
-        isinstance(nomic, dict)
-        and "task" in nomic
-        and nomic.get("task") not in ("embed", "embeddings")
+        isinstance(required, dict)
+        and "task" in required
+        and required.get("task") not in ("embed", "embeddings")
     ):
         problems.append(f"{REQUIRED_EMBEDDER_ID}: task must be embed")
 

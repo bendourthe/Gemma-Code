@@ -99,6 +99,31 @@ def test_v241_canonical_order_and_fingerprint() -> None:
     assert catalog_fingerprint(fixture["catalog"]) == fixture["expectedFingerprint"]
 
 
+def test_v241_incompatible_rows_sort_after_every_compatible_row() -> None:
+    rows = [
+        {
+            "id": "new-required-over-budget",
+            "displayName": "New Required",
+            "task": "agentic",
+            "tags": ["required"],
+            "vramGB": 24,
+            "releaseDate": "2026-08-01",
+        },
+        {
+            "id": "older-compatible",
+            "displayName": "Older Compatible",
+            "task": "agentic",
+            "tags": [],
+            "vramGB": 8,
+            "releaseDate": "2025-01-01",
+        },
+    ]
+    assert canonical_display_order(rows, host_vram_gb=16) == [
+        "older-compatible",
+        "new-required-over-budget",
+    ]
+
+
 def test_gpt_oss_moves_up_within_the_downloaded_partition_once_installed() -> None:
     """Contract: downloaded gpt-oss ranks above LFM (installer rank wins)."""
     data = json.loads(FIXTURE_V229.read_text(encoding="utf-8"))

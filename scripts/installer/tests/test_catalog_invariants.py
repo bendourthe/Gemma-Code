@@ -321,7 +321,7 @@ class TestValidateCatalog:
 
 
 class TestRequiredEmbedderPolicy:
-    def test_decision_file_is_keep_nomic(self) -> None:
+    def test_decision_file_records_embeddinggemma_supersession(self) -> None:
         from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
 
         repo = default_catalog_path().resolve().parents[2]
@@ -334,7 +334,8 @@ class TestRequiredEmbedderPolicy:
             / "embedder-default-decision.md"
         )
         text = decision.read_text(encoding="utf-8")
-        assert "**KEEP**" in text
+        assert "Superseded" in text
+        assert "**SWITCH**" in text
         assert REQUIRED_EMBEDDER_ID in text
         assert "300M" in text
         assert "reindex" in text.lower()
@@ -354,9 +355,9 @@ class TestRequiredEmbedderPolicy:
         )
         assert "300M" in copy or "300 million" in copy.lower()
         assert "300b" not in copy.lower()
-        assert "opt-in" in gemma["description"].lower()
+        assert "required default" in gemma["description"].lower()
 
-    def test_recommended_embed_defaults_are_nomic_only(self) -> None:
+    def test_recommended_embed_defaults_are_embeddinggemma_only(self) -> None:
         from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
         from nexus_installer.registry_paths import default_recommended_path
 
@@ -364,7 +365,7 @@ class TestRequiredEmbedderPolicy:
         for tier, sections in matrix["tiers"].items():
             assert sections["embed"] == [REQUIRED_EMBEDDER_ID], tier
 
-    def test_settings_default_embedding_model_is_nomic(self) -> None:
+    def test_settings_default_embedding_model_is_embeddinggemma(self) -> None:
         from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
 
         repo = default_catalog_path().resolve().parents[2]
@@ -391,15 +392,16 @@ class TestRequiredEmbedderPolicy:
         problems = validate_catalog(catalog)
         assert any("300B" in p for p in problems)
 
-    def test_nomic_wrong_task_is_flagged(self) -> None:
+    def test_required_embeddinggemma_wrong_task_is_flagged(self) -> None:
         catalog = {
             "models": [
                 {
-                    "id": "nomic-embed-text",
+                    "id": "embeddinggemma",
+                    "displayName": "EmbeddingGemma 300M",
                     "task": "chat",
                     "source": {
                         "protocol": "ollama",
-                        "url": "ollama://nomic-embed-text",
+                        "url": "ollama://embeddinggemma:300m",
                     },
                 }
             ]

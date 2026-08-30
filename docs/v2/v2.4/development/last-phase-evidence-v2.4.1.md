@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-29
 **Branch**: `feat/v2.4.1-field-reliability`
-**Status**: T047 green after inherited-gate remediation; 2.4.1 integration candidate awaiting the single Phase 8 commit, first push/PR, and packaged rebuild
+**Status**: T047 rerun after field-correction implementation; PR 58 is the integration vehicle and the replacement Windows installer is smoke-verified
 
 ## Architecture refactor
 
@@ -40,6 +40,12 @@
 >
 > No required inherited global gate remains failing. Rust and Ruff drift were remediated rather than waived. Historical `nexus-check` fixtures/examples are formally baselined with exact fingerprints and counts, and baseline behavior has focused tests for excess, stale, malformed, and JSON-report cases. QG-1 through QG-3 remain tooling-availability gaps with deterministic fallbacks, not product-gate failures. Packaged field observations remain deferred and constrain support claims, but they do not block the explicitly authorized integration-candidate push and installer rebuild.
 
+> Field-correction rerun on 2026-08-29: the full installer suite passed 1,265 tests with 3 skips (1,268 collected); Python runtime passed 261 tests; focused root/default-order tests passed; focused desktop model UI tests passed 36/36. The aggregate root run passed 5,729 tests with 12 skips and produced two unrelated 5-second integration timeouts under parallel load; both affected files passed 7/7 in an immediate isolated rerun. The aggregate desktop run passed 1,856 tests with 1 skip and produced one unrelated Windows cancellation confirmation race; the complete affected file passed 21/21 in isolation. Root lint/build/check/dependency gates, desktop lint/typecheck/sidecar/web builds, installer Ruff format/check, and Rust format/Clippy/19 tests pass. The exact repository baseline remains 53 warnings, 56 matches, 0 stale, while Dependency Cruiser remains 0 errors and 18 inherited warnings.
+
+## Post-integration field correction
+
+> User observation on the first packaged candidate found four concrete regressions: Nomic remained required, incompatible models were not bottom-partitioned, gated Hugging Face setup remained manual, and progress motion/contrast/step accounting did not match the intended liquid global bar. The correction makes EmbeddingGemma 300M the sole required/default embedder across registry, installer, extension settings, and coding configuration; shares compatibility-first ordering across installer and Settings; adds browser device authorization with repo validation and manual-token fallback; and makes all weighted finalization steps visible while painting a repeating moving gradient and high-contrast percentage capsule. The replacement unsigned `dist/NexusSetup.exe` is 239.2 MB, SHA-256 `8D36450A6F5A751360E02548C6CC36BC622F4947D88F8F539B126312648B6769`, and passes version, registry, single-artifact, and embedded-desktop-payload smoke probes. Visual, live-account, clean-install, and repair-install observation of this replacement remains pending.
+
 ## Publish and integrate
 
-> User authorized the 2.4.1 bump, one Phase 8 commit, the branch's first push/PR, remote integration CI, and a rebuilt Windows installer. At this evidence snapshot no push, pull request, tag, GitHub Release, or integration action has occurred because the commit must exist first. Tag, GitHub Release, merge, and main integration remain outside this authorization and require a later explicit release decision.
+> User authorized the 2.4.1 bump, one Phase 8 commit, the branch's first push/PR, remote integration CI, and rebuilt Windows test installers. The Phase 8 commit is `94a6d14`; PR 58 targets `develop`, and its initial CI passed before the field-correction follow-up. The same PR remains the authorized integration vehicle for this correction. Tag, GitHub Release, merge, and main integration remain outside this authorization and require a later explicit release decision.

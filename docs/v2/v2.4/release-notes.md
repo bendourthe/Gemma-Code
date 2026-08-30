@@ -9,6 +9,8 @@ v2.4.1 repairs the reported installer and image-runtime failures, refines transc
 ## Highlights
 
 - **Reliable installer progress and recovery**: the overall progress bar is larger than phase bars, reports a monotonic percentage, animates a gradient with reduced-motion support, and keeps optional provisioning failures inside the wizard. Frozen manifests include the pinned Unsloth and diffusion inputs they consume.
+- **Correct embedding default and compatibility order**: EmbeddingGemma 300M is the required app-wide embedder, Nomic remains an opt-in legacy alternative, and models that exceed the detected host budget sort below every compatible model in both installer and Settings.
+- **Browser-assisted gated downloads**: gated Hugging Face models retain the required publisher-consent page, then use browser device authorization and repository-access validation instead of requiring token copy/paste. Manual token entry and model skipping remain available fallbacks.
 - **Verified diffusion readiness**: image generation refuses to advertise ready until the selected runtime has its required weights and a CUDA-capable torch build. Repair staging is atomic and preserves the last known-good environment.
 - **Quieter transcript chrome**: composing motion sits directly on the transcript canvas. Completed responses alone use assistant bubbles. Time and total tokens are separated, detailed token counts are available on hover/focus, and provider reasoning is collapsed above the answer when available.
 - **Archives across all pillars**: delete and archive both confirm and reset an active view. Archives remain durable and restorable from Settings, grouped by Chatbot, Agents, Images, and Videos.

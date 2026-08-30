@@ -29,7 +29,7 @@ Phases 1-7 are code-complete at automated and internal-compatible evidence. Pack
 
 - **Source phase**: Phase 1 and Phase 8 human testing
 - **Plan reference**: Phase 8.7 operator items 1-3
-- **Reason**: Qt tests prove the larger animated overall progress bar, percentage, monotonic progress, reduced-motion behavior, optional Unsloth provisioning, repair-state compatibility, and exception containment. A frozen `NexusSetup.exe` clean install and repair install were not run in this session.
+- **Reason**: The prior packaged field run exposed imperceptible fixed-value motion, low percentage contrast, and hidden finalization work that left the bar at 73% while visible groups said Done. The replacement implements and tests a repeating liquid gradient, contrast capsule, and complete visible step mapping, and its frozen smoke passes. A clean/repair visual run of the replacement is not observed.
 - **Owner / next evidence**: Release operator. Run checklist items 1-3 on a clean Windows Sandbox and an existing Nexus install, then attach screenshots and `nexus-install-nexus-desktop-log.txt`.
 
 ##### DF-2 - Real NVIDIA CUDA diffusion generation is not observed
@@ -57,7 +57,7 @@ Phases 1-7 are code-complete at automated and internal-compatible evidence. Pack
 
 - **Source phase**: Phase 5 and Phase 8 human testing
 - **Plan reference**: Phase 8.7 operator item 8
-- **Reason**: Golden roster/order tests and disk arithmetic prove the shared policy. A packaged installer-to-Settings visual comparison and an observed free-space change after model install/remove were not recorded.
+- **Reason**: The prior packaged field run exposed Nomic as incorrectly required and incompatible rows above compatible rows. The replacement makes EmbeddingGemma 300M the required/default app-wide embedder and compatibility the first ordering partition in installer and Settings. Automated shared-policy tests pass; replacement visual parity and an observed free-space change after model install/remove are not recorded.
 - **Owner / next evidence**: Release operator. Capture the same model in both surfaces, then install/remove it and record the disk meter before and after.
 
 ##### DF-6 - Native folder pickers outside Windows are not observed

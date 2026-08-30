@@ -9,6 +9,7 @@ export interface ModelDisplayRow {
   readonly type?: string;
   readonly installed?: boolean;
   readonly releaseDate?: string;
+  readonly vramGB?: number;
 }
 
 export type ModelDisplayTier = "required" | "recommended" | "compatible";
@@ -19,7 +20,7 @@ export function isUserSelectableCatalogRow(row: ModelDisplayRow): boolean {
 
 export function modelDisplayTier(row: ModelDisplayRow): ModelDisplayTier {
   const tags = row.tags ?? [];
-  if (tags.includes("required") || row.task === "embed" || row.type === "embed") {
+  if (tags.includes("required")) {
     return "required";
   }
   return tags.includes("recommended") ? "recommended" : "compatible";
@@ -48,7 +49,24 @@ function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function compareModelDisplayRows(a: ModelDisplayRow, b: ModelDisplayRow): number {
+export interface ModelDisplayOptions {
+  readonly hostVramGB?: number | null;
+  readonly gpuVendor?: string;
+}
+
+function isIncompatible(row: ModelDisplayRow, options: ModelDisplayOptions): boolean {
+  if (typeof row.vramGB !== "number" || row.vramGB <= 0) return false;
+  if (options.gpuVendor === "none") return true;
+  return typeof options.hostVramGB === "number" && row.vramGB > options.hostVramGB;
+}
+
+export function compareModelDisplayRows(
+  a: ModelDisplayRow,
+  b: ModelDisplayRow,
+  options: ModelDisplayOptions = {},
+): number {
+  const compatibility = Number(isIncompatible(a, options)) - Number(isIncompatible(b, options));
+  if (compatibility !== 0) return compatibility;
   const tier = tierRank(a) - tierRank(b);
   if (tier !== 0) return tier;
   const release = releaseOrdinal(b.releaseDate) - releaseOrdinal(a.releaseDate);
@@ -58,8 +76,13 @@ export function compareModelDisplayRows(a: ModelDisplayRow, b: ModelDisplayRow):
   return compareText(folded(a.id), folded(b.id));
 }
 
-export function canonicalModelDisplayOrder<T extends ModelDisplayRow>(rows: readonly T[]): T[] {
-  return rows.filter(isUserSelectableCatalogRow).sort(compareModelDisplayRows);
+export function canonicalModelDisplayOrder<T extends ModelDisplayRow>(
+  rows: readonly T[],
+  options: ModelDisplayOptions = {},
+): T[] {
+  return rows
+    .filter(isUserSelectableCatalogRow)
+    .sort((a, b) => compareModelDisplayRows(a, b, options));
 }
 
 export function installedOutsideCatalog<T extends ModelDisplayRow>(rows: readonly T[]): T[] {

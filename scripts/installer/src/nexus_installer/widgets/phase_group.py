@@ -75,6 +75,9 @@ _STEP_LABELS: dict[str, str] = {
     "extension": "VS Code extension",
     "model": "AI models",
     "desktop": "Nexus Desktop app",
+    "runtime": "Local generation runtime",
+    "hub-catalog": "Skills and tools catalog",
+    "unsloth": "Fine-tuning runtime",
 }
 
 _ROW_STATUS: dict[str, tuple[str, str]] = {

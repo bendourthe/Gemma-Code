@@ -106,6 +106,17 @@ def _write_catalog(tmp_path: Path) -> Path:
                 "differentiators": "Coding specialist",
             },
             {
+                "id": "embeddinggemma",
+                "displayName": "EmbeddingGemma 300M",
+                "family": "embeddinggemma",
+                "type": "embed",
+                "task": "embed",
+                "sizeGB": 0.62,
+                "requiredVramGB": 0,
+                "releaseDate": "2025-09-04",
+                "description": "Current required embedding model",
+            },
+            {
                 "id": "nomic-embed-text",
                 "displayName": "Nomic Embed",
                 "type": "embed",
@@ -166,35 +177,35 @@ def _write_recommended(tmp_path: Path) -> Path:
             "cpu": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": [],
                 "video": [],
             },
             "8": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "12": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "16": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "24": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
@@ -225,6 +236,7 @@ class TestLoadCatalog:
         assert ids == {
             "gemma4:e4b",
             "qwen2.5-coder:7b",
+            "embeddinggemma",
             "nomic-embed-text",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
@@ -237,6 +249,8 @@ class TestLoadCatalog:
         # v2.2.9 Phase 5: embed renders on its own Embeddings tab, not Chat.
         assert models["nomic-embed-text"].type == "embeddings"
         assert models["nomic-embed-text"].task == "embed"
+        assert models["embeddinggemma"].type == "embeddings"
+        assert models["embeddinggemma"].task == "embed"
         assert models["juggernaut-xl-v9"].type == "image"
         assert models["wan2.1-t2v-1.3b"].type == "video"
 
@@ -440,9 +454,9 @@ class TestModelMetadata:
         img = self._model(task="image", type="image")
         assert img.guardrails_label == "Safety-tuned"
 
-    def test_is_required_is_nomic_embed_only(self) -> None:
-        assert self._model(id="nomic-embed-text", task="embed").is_required is True
-        assert self._model(id="embeddinggemma", task="embed").is_required is False
+    def test_is_required_is_embeddinggemma_only(self) -> None:
+        assert self._model(id="nomic-embed-text", task="embed").is_required is False
+        assert self._model(id="embeddinggemma", task="embed").is_required is True
         assert self._model(id="qwen3-embedding:0.6b", task="embed").is_required is False
         assert self._model(task="chat").is_required is False
         assert self._model(task="agentic", type="agentic").is_required is False
@@ -526,7 +540,7 @@ class TestTypedCatalogPage:
         # agentic section, so no coder is pre-selected (it stays opt-in).
         assert selected == {
             "gemma4:e4b",
-            "nomic-embed-text",
+            "embeddinggemma",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
         }
@@ -561,17 +575,17 @@ class TestTypedCatalogPage:
         # v1.9.0 Phase 4: Gemma covers chat + agentic, so no coder is added.
         assert set(state.selected_model_ids) == {
             "gemma4:e4b",
-            "nomic-embed-text",
+            "embeddinggemma",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
         }
         # Section-ordered: chat ids first, video last.
-        assert state.selected_model_ids[0] in ("gemma4:e4b", "nomic-embed-text")
+        assert state.selected_model_ids[0] in ("gemma4:e4b", "embeddinggemma")
         assert state.selected_model_ids[-1] == "wan2.1-t2v-1.3b"
         # The legacy single-model surface points at the chat pick.
         assert state.selected_model == "gemma4:e4b"
         # Totals feed the disk-aware footer / install guard.
-        assert state.selected_models_gb == pytest.approx(2.7 + 0.27 + 6.9 + 17.6)
+        assert state.selected_models_gb == pytest.approx(2.7 + 0.62 + 6.9 + 17.6)
 
     def test_seeded_selection_wins_over_defaults(self, qt_app, tmp_path: Path) -> None:
         state = _gpu_state(vram_mb=8192)
@@ -652,16 +666,16 @@ class TestTypedCatalogPage:
     ) -> None:
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)
         models = page._sorted_section_models(
-            "chat", 8, "nvidia", {"gemma4:e4b", "nomic-embed-text"}
+            "chat", 8, "nvidia", {"gemma4:e4b", "embeddinggemma"}
         )
         enabled = [m.id for m in models if m.required_vram_gb <= 8]
         # v2.2.9 Phase 5: embed rows live on the Embeddings tab, not Chat.
         assert "nomic-embed-text" not in enabled
         assert "gemma4:e4b" in enabled
         embed_models = page._sorted_section_models(
-            "embeddings", 8, "nvidia", {"nomic-embed-text"}
+            "embeddings", 8, "nvidia", {"embeddinggemma"}
         )
-        assert [m.id for m in embed_models] == ["nomic-embed-text"]
+        assert [m.id for m in embed_models] == ["embeddinggemma", "nomic-embed-text"]
 
     def test_try_advance_tab_walks_tabs_then_stops(
         self, qt_app, tmp_path: Path
@@ -676,9 +690,9 @@ class TestTypedCatalogPage:
         assert page._tabs.currentIndex() == len(TYPE_TABS) - 1
 
     def test_required_embed_checkbox_locked(self, qt_app, tmp_path: Path) -> None:
-        # v1.9.0 Phase 4 (T403): nomic-embed is Required -- checked + locked.
+        # v2.4.1 field correction: EmbeddingGemma is Required -- checked + locked.
         page = self._page(_gpu_state(), tmp_path)
-        card = page._find_card("nomic-embed-text")
+        card = page._find_card("embeddinggemma")
         assert card is not None
         assert card.model.is_required
         assert card.checkbox.isChecked() is True
@@ -802,13 +816,13 @@ class TestRealCatalogPage:
         assert "qwen2.5-coder:7b" not in ids
         assert "qwen2.5-coder:14b" not in ids
         assert "deepseek-coder-v2:16b" not in ids
-        assert page._catalog["nomic-embed-text"].is_required is True
-        assert page._catalog["embeddinggemma"].is_required is False
+        assert page._catalog["nomic-embed-text"].is_required is False
+        assert page._catalog["embeddinggemma"].is_required is True
         gemma = page._catalog["embeddinggemma"]
         assert "300M" in gemma.display_name
         assert "300B" not in gemma.display_name
         assert "300B" not in gemma.description
-        assert "opt-in" in gemma.description.lower()
+        assert "required default" in gemma.description.lower()
 
     def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's
