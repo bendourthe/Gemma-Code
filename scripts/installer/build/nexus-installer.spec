@@ -140,6 +140,14 @@ for _package in _unsloth_packages:
         )
 datas.append((str(unsloth_pins_path), "core/tuning"))
 
+versions_lock_path = INSTALLER_ROOT / "build" / "versions.lock.json"
+if not versions_lock_path.is_file():
+    raise SystemExit(f"versions.lock.json missing: expected {versions_lock_path}")
+_versions_lock = json.loads(versions_lock_path.read_text(encoding="utf-8"))
+if not isinstance(_versions_lock.get("diffusion", {}).get("targets"), dict):
+    raise SystemExit("versions.lock.json must contain diffusion.targets")
+datas.append((str(versions_lock_path), "installer-build"))
+
 # Backend requirements
 req_candidates = [
     REPO_ROOT / "scripts" / "installer" / "backend-requirements.txt",

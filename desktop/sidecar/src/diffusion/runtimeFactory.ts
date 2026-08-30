@@ -69,6 +69,30 @@ export function createDiffusionRuntime(
   if (env["NEXUS_DIFFUSION_INMEMORY"]) {
     return new InMemoryDiffusionRuntime();
   }
+  const notReady = env["NEXUS_DIFFUSION_NOT_READY"];
+  if (notReady) {
+    const reasons: Record<string, string> = {
+      NOT_REQUESTED: "no image or video model was selected during installation",
+      MANIFEST_INVALID: "the pinned runtime manifest is missing or invalid",
+      UNSUPPORTED_GPU: "the detected GPU does not have a supported diffusion backend",
+      CUDA_UNAVAILABLE: "the installed torch build cannot access CUDA",
+      MPS_UNAVAILABLE: "the installed torch build cannot access Apple Metal",
+      PYTHON_NOT_FOUND: "a supported local Python interpreter was not found",
+      PYTHON_ABI_UNAVAILABLE: "the selected Python interpreter could not be inspected",
+      PYTHON_ABI_UNSUPPORTED: "no verified PyTorch artifact matches the selected Python interpreter",
+      ARTIFACT_DOWNLOAD_FAILED: "a pinned runtime artifact could not be downloaded",
+      ARTIFACT_SIZE_MISMATCH: "a downloaded runtime artifact had an unexpected size",
+      ARTIFACT_CHECKSUM_MISMATCH: "a downloaded runtime artifact failed integrity verification",
+      DOWNLOAD_CANCELLED: "runtime setup was cancelled before it completed",
+      IMPORT_SMOKE_FAILED: "the installed diffusion packages failed their import smoke test",
+      SMOKE_TIMEOUT: "the diffusion readiness test timed out",
+      REPAIR_BUSY: "another installer process is repairing the diffusion runtime",
+    };
+    return new UnavailableDiffusionRuntime(
+      `${reasons[notReady] ?? `runtime readiness failed (${notReady})`}; ` +
+        "re-run the installer to repair image and video generation",
+    );
+  }
   const exists = options.existsFn ?? existsSync;
   const configuredPython = env["NEXUS_DIFFUSION_PYTHON"];
   // Guard only concrete paths (the runtime.json contract writes absolute

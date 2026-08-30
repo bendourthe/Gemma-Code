@@ -40,6 +40,12 @@ class TestSpecFile:
         assert 'datas.append((str(unsloth_pins_path), "core/tuning"))' in content
         assert "every Unsloth provisioned package needs" in content
 
+    def test_spec_bundles_validated_diffusion_manifest(self) -> None:
+        content = (BUILD_DIR / "nexus-installer.spec").read_text()
+        assert "versions.lock.json" in content
+        assert "diffusion.targets" in content
+        assert "installer-build" in content
+
     def test_spec_bundles_no_hub_catalog_payload(self) -> None:
         # v1.10.0 Phase 5: the Nexus-Hub catalog is fetched at runtime into
         # ~/.nexus-ai/catalog/, never bundled into the exe.

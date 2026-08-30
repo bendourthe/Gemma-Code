@@ -21,6 +21,21 @@ export interface RuntimeConfigFile {
   nodePath?: string | null;
   diffusionPython?: string | null;
   diffusionCwd?: string | null;
+  diffusion?: {
+    status?: string;
+    backend?: string;
+    failure_code?: string;
+    retryable?: boolean;
+    python_version?: string;
+    torch_version?: string;
+    cuda_version?: string;
+    cuda_available?: boolean;
+    mps_available?: boolean;
+    gpu_name?: string;
+    smoke_at?: string;
+    manifest_fingerprint?: string;
+    provisioner_version?: string;
+  } | null;
   modelsRoot?: string | null;
   ollama?: { url?: string | null } | null;
 }
@@ -56,9 +71,23 @@ export function applyRuntimeConfigEnv(
 ): string[] {
   if (!config) return [];
   const applied: string[] = [];
+  const installedContract = (config.schemaVersion ?? 0) >= 2;
+  const readiness = config.diffusion;
+  const ready =
+    readiness?.status === "ready" &&
+    (readiness.backend !== "cuda" || readiness.cuda_available === true) &&
+    (readiness.backend !== "mps" || readiness.mps_available === true) &&
+    typeof readiness.smoke_at === "string" &&
+    readiness.smoke_at.length > 0 &&
+    typeof readiness.manifest_fingerprint === "string" &&
+    readiness.manifest_fingerprint.length > 0;
+  if (installedContract && !ready && !env.NEXUS_DIFFUSION_PYTHON) {
+    env.NEXUS_DIFFUSION_NOT_READY = readiness?.failure_code || "RUNTIME_NOT_READY";
+    applied.push("NEXUS_DIFFUSION_NOT_READY");
+  }
   const mappings: Array<[key: string, value: string | null | undefined]> = [
-    ["NEXUS_DIFFUSION_PYTHON", config.diffusionPython],
-    ["NEXUS_DIFFUSION_CWD", config.diffusionCwd],
+    ["NEXUS_DIFFUSION_PYTHON", !installedContract || ready ? config.diffusionPython : null],
+    ["NEXUS_DIFFUSION_CWD", !installedContract || ready ? config.diffusionCwd : null],
     ["NEXUS_MODELS_ROOT", config.modelsRoot],
   ];
   for (const [key, value] of mappings) {

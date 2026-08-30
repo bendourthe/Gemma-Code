@@ -112,6 +112,16 @@ class TestProvisionRuntimesSources:
 
 
 class TestRuntimeProvisionerStep:
+    def test_frozen_installer_is_not_used_as_python(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        installer = tmp_path / "NexusSetup.exe"
+        installer.write_bytes(b"stub")
+        monkeypatch.setattr(rp.sys, "frozen", True, raising=False)
+        monkeypatch.setattr(rp.sys, "executable", str(installer))
+        monkeypatch.setattr(rp.shutil, "which", lambda _command: None)
+        assert rp.RuntimeProvisioner._source_python(InstallerState()) is None
+
     def test_fails_only_when_node_unavailable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock
     ) -> None:
@@ -132,6 +142,88 @@ class TestRuntimeProvisionerStep:
         data = json.loads(
             (tmp_path / ".nexus" / "runtime.json").read_text(encoding="utf-8")
         )
+        assert data["nodePath"] == str(node)
+
+    def test_selected_media_provisions_and_persists_ready_smoke(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock
+    ) -> None:
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+        node = tmp_path / "node.exe"
+        node.write_bytes(b"stub")
+        final = tmp_path / "diffusion-venv"
+        python = final / "Scripts" / "python.exe"
+        python.parent.mkdir(parents=True)
+        python.write_bytes(b"stub")
+        monkeypatch.setattr(rp, "venv_dir", lambda: final)
+        monkeypatch.setattr(rp, "provision_node", lambda payload, log: node)
+        monkeypatch.setattr(rp, "provision_runtimes_sources", lambda log: tmp_path)
+        monkeypatch.setattr(
+            rp.RuntimeProvisioner,
+            "_selection_requires_diffusion",
+            staticmethod(lambda _state: True),
+        )
+
+        class FakeProvisioner:
+            def __init__(self, *_args, **_kwargs) -> None:
+                pass
+
+            def provision_verified(self, *_args, **_kwargs):
+                return rp.DiffusionProvisionResult(
+                    status="ready",
+                    backend="cuda",
+                    python_version="3.11.9",
+                    torch_version="2.3.0+cu121",
+                    cuda_version="12.1",
+                    cuda_available=True,
+                    gpu_name="Test GPU",
+                    smoke_at="2026-08-29T00:00:00Z",
+                    manifest_fingerprint="abc123",
+                )
+
+        monkeypatch.setattr(rp, "DiffusionVenvProvisioner", FakeProvisioner)
+        state = InstallerState(gpu_vendor="nvidia", selected_model_ids=["image"])
+        assert rp.RuntimeProvisioner().install(state, log) is True
+        data = json.loads(
+            (tmp_path / ".nexus" / "runtime.json").read_text(encoding="utf-8")
+        )
+        assert data["schemaVersion"] == 2
+        assert data["diffusion"]["status"] == "ready"
+        assert data["diffusion"]["cuda_available"] is True
+        assert data["diffusionPython"] == str(python)
+
+    def test_failed_media_repair_keeps_core_runtime_success(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock
+    ) -> None:
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+        node = tmp_path / "node.exe"
+        node.write_bytes(b"stub")
+        monkeypatch.setattr(rp, "provision_node", lambda payload, log: node)
+        monkeypatch.setattr(rp, "provision_runtimes_sources", lambda log: tmp_path)
+        monkeypatch.setattr(
+            rp.RuntimeProvisioner,
+            "_selection_requires_diffusion",
+            staticmethod(lambda _state: True),
+        )
+
+        class FakeProvisioner:
+            def __init__(self, *_args, **_kwargs) -> None:
+                pass
+
+            def provision_verified(self, *_args, **_kwargs):
+                return rp.DiffusionProvisionResult(
+                    status="failed",
+                    backend="cuda",
+                    failure_code="CUDA_UNAVAILABLE",
+                )
+
+        monkeypatch.setattr(rp, "DiffusionVenvProvisioner", FakeProvisioner)
+        state = InstallerState(gpu_vendor="nvidia", selected_model_ids=["image"])
+        assert rp.RuntimeProvisioner().install(state, log) is True
+        data = json.loads(
+            (tmp_path / ".nexus" / "runtime.json").read_text(encoding="utf-8")
+        )
+        assert data["diffusion"]["failure_code"] == "CUDA_UNAVAILABLE"
+        assert data["diffusionPython"] is None
         assert data["nodePath"] == str(node)
 
 
@@ -224,9 +316,13 @@ class TestSelectionSnapshotWrite:
         # the list of ids the operator actually ticked, so Settings can show
         # Retry instead of a silent Download when Ollama never got the tag.
         monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-        monkeypatch.setattr(rp, "_recommended_by_task", lambda _ids: {"agentic": "qwen3.5:9b"})
+        monkeypatch.setattr(
+            rp, "_recommended_by_task", lambda _ids: {"agentic": "qwen3.5:9b"}
+        )
         state = InstallerState()
         state.selected_model_ids = ["qwen3.5:4b", "qwen3.5:9b"]
         assert rp.write_selection_snapshot(state, log) is True
-        data = json.loads((tmp_path / ".nexus" / "selected-models.json").read_text(encoding="utf-8"))
+        data = json.loads(
+            (tmp_path / ".nexus" / "selected-models.json").read_text(encoding="utf-8")
+        )
         assert data["orderedIds"] == ["qwen3.5:4b", "qwen3.5:9b"]

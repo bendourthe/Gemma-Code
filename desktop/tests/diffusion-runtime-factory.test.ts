@@ -87,4 +87,14 @@ describe("createDiffusionRuntime", () => {
     );
     expect(rt).toBeInstanceOf(ChildProcessDiffusionRuntime);
   });
+
+  it("returns an actionable unavailable runtime for failed CUDA readiness", async () => {
+    const rt = createDiffusionRuntime({
+      NEXUS_DIFFUSION_NOT_READY: "CUDA_UNAVAILABLE",
+    });
+    expect(rt).toBeInstanceOf(UnavailableDiffusionRuntime);
+    await expect(rt.call("health", {})).rejects.toThrow(
+      /cannot access CUDA.*re-run the installer/i,
+    );
+  });
 });

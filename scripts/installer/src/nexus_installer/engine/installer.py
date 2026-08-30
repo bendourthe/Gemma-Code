@@ -379,11 +379,16 @@ class InstallEngine(QObject):
             if getattr(_sys, "frozen", False)
             else None
         )
+
+        def on_runtime_progress(pct: float) -> None:
+            self.step_progress.emit("runtime", pct)
+            emit_progress("runtime", pct)
+
         execute_step(
             "runtime",
             lambda: RuntimeProvisioner(
                 _payload_root if _payload_root and _payload_root.is_dir() else None
-            ).install(state, log),
+            ).install(state, log, on_runtime_progress),
             required=True,
             summary="The desktop runtime could not be prepared.",
             suggestion="Retry installation with network and disk access.",

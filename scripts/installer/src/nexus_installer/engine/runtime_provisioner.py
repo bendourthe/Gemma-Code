@@ -37,7 +37,12 @@ from pathlib import Path
 
 import httpx
 
-from nexus_installer.engine.diffusion_venv_provisioner import venv_dir, venv_python
+from nexus_installer.engine.diffusion_venv_provisioner import (
+    DiffusionProvisionResult,
+    DiffusionVenvProvisioner,
+    venv_dir,
+    venv_python,
+)
 from nexus_installer.engine.node_provisioner import (
     NodeProvisioner,
     node_executable,
@@ -48,7 +53,7 @@ from nexus_installer.installer_state import InstallerState
 
 LogFn = Callable[[str, str], None]
 
-RUNTIME_CONFIG_SCHEMA_VERSION = 1
+RUNTIME_CONFIG_SCHEMA_VERSION = 2
 
 # Pinned Node runtime downloads (nodejs.org SHASUMS256.txt for v22.11.0),
 # matching the version pinned in build/versions.lock.json. Used only when
@@ -243,6 +248,7 @@ def write_runtime_config(
     *,
     node_path: Path | None,
     diffusion_cwd: Path | None,
+    diffusion: DiffusionProvisionResult | None = None,
     app_version: str | None = None,
 ) -> bool:
     """Atomically write ``~/.nexus/runtime.json`` recording what exists."""
@@ -250,13 +256,18 @@ def write_runtime_config(
     models_root = getattr(state, "models_root", None) or str(
         Path.home() / ".nexus" / "models"
     )
+    readiness = diffusion or DiffusionProvisionResult(
+        status="not_requested",
+        backend="none",
+        failure_code="NOT_REQUESTED",
+    )
+    diffusion_python_ready = diffusion_python.is_file() and readiness.status == "ready"
     config = {
         "schemaVersion": RUNTIME_CONFIG_SCHEMA_VERSION,
         "nodePath": str(node_path) if node_path else None,
-        "diffusionPython": str(diffusion_python)
-        if diffusion_python.is_file()
-        else None,
+        "diffusionPython": str(diffusion_python) if diffusion_python_ready else None,
         "diffusionCwd": str(diffusion_cwd) if diffusion_cwd else None,
+        "diffusion": readiness.to_dict(),
         "modelsRoot": str(models_root),
         "ollama": {"url": getattr(state, "ollama_url", None)},
         "writtenBy": f"nexus-installer {app_version or ''}".strip(),
@@ -362,14 +373,86 @@ class RuntimeProvisioner:
     def __init__(self, payload_dir: Path | None = None) -> None:
         self._payload_dir = payload_dir
 
-    def install(self, state: InstallerState, log: LogFn) -> bool:
+    @staticmethod
+    def _selection_requires_diffusion(state: InstallerState) -> bool:
+        selected = _ordered_selected_ids(state)
+        if not selected:
+            return False
+        try:
+            from nexus_installer.engine.model_router import (
+                default_catalog_path,
+                load_catalog_index,
+            )
+
+            catalog = load_catalog_index(default_catalog_path())
+        except (OSError, ImportError, TypeError, ValueError):
+            return False
+        for model_id in selected:
+            entry = catalog.get(model_id) if isinstance(catalog, dict) else None
+            if isinstance(entry, dict) and (
+                entry.get("task") in {"image", "video"}
+                or entry.get("type") in {"image", "video"}
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _source_python(state: InstallerState) -> str | None:
+        configured = str(getattr(state, "python_path", "") or "").strip()
+        if configured and Path(configured).is_file():
+            return configured
+        for command in ("python3", "python"):
+            resolved = shutil.which(command)
+            if resolved and Path(resolved).resolve() != Path(sys.executable).resolve():
+                return resolved
+        if not getattr(sys, "frozen", False) and Path(sys.executable).is_file():
+            return sys.executable
+        return None
+
+    def install(
+        self,
+        state: InstallerState,
+        log: LogFn,
+        progress: Callable[[float], None] | None = None,
+    ) -> bool:
         node = provision_node(self._payload_dir, log)
         diffusion_cwd = provision_runtimes_sources(log)
+        diffusion = DiffusionProvisionResult(
+            status="not_requested",
+            backend="none",
+            failure_code="NOT_REQUESTED",
+        )
+        if self._selection_requires_diffusion(state):
+            source_python = self._source_python(state)
+            if source_python is None:
+                diffusion = DiffusionProvisionResult(
+                    status="failed",
+                    backend="unknown",
+                    failure_code="PYTHON_NOT_FOUND",
+                )
+            else:
+                payload = self._payload_dir or Path()
+                diffusion = DiffusionVenvProvisioner(
+                    payload,
+                    python_executable=source_python,
+                ).provision_verified(
+                    log,
+                    gpu_vendor=getattr(state, "gpu_vendor", ""),
+                    progress=progress,
+                )
+            if diffusion.status != "ready":
+                log(
+                    "Image and video runtime is not ready "
+                    f"({diffusion.failure_code}); chat remains available. "
+                    "Re-run the installer to repair media generation.",
+                    "warn",
+                )
         wrote = write_runtime_config(
             state,
             log,
             node_path=node,
             diffusion_cwd=diffusion_cwd,
+            diffusion=diffusion,
             app_version=getattr(state, "app_version", None),
         )
         snapshot_ok = write_selection_snapshot(state, log)
