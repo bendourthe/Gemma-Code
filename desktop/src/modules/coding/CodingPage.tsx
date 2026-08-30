@@ -22,17 +22,13 @@ import {
   type MessageTokenUsageV1,
   type RequestTokenUsageV1,
 } from "../../../../core/chat/tokenUsage";
-import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
 import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
 import { ComposerContextRow, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
 import { FolderTree, type FolderTreeCopy, type SelectedNode } from "../chat/FolderTree";
 import type { Chat } from "../chat/types";
-import {
-  CollapsibleHistoryAside,
-  usePersistentCollapsed,
-} from "../../shared/explorer/CollapsibleHistoryAside";
+import { usePersistentCollapsed } from "../../shared/explorer/CollapsibleHistoryAside";
 import { CODING_HISTORY_COLLAPSE_KEY } from "../../shared/explorer/historyPaneLayout";
 import {
   createCodingSessionsAsChatExplorer,
@@ -44,6 +40,7 @@ import {
   ownedIdSet,
   readFavorite,
   resolveDefaultId,
+  writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -81,17 +78,8 @@ export function normalizeCodingTab(value: string | null | undefined): Tab {
   return "chat";
 }
 
-/** Not a picker feed. Placeholders until `models.list` + snapshot return. */
-const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
-  id: m.id,
-  displayName: m.displayName,
-  type: "llm" as const,
-  installed: false,
-  source: "registry" as const,
-}));
-
 const CODING_FOLDER_TREE_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions",
+  paneTitle: "Workspaces and sessions",
   newItem: "New session",
   emptyCta: "Start a new session",
   treeAria: "Agent sessions",
@@ -233,8 +221,9 @@ export function CodingPage({
   initialWorkspacePath,
 }: CodingPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<Tab>(() => normalizeCodingTab(initialTab));
-  const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
-  const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
+  const [modelId, setModelId] = useState<string>(initialModelId ?? "");
+  const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>([]);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const [documentClient] = useState<DocumentClient>(
     () => documentClientOverride ?? createIpcDocumentClient(),
@@ -275,6 +264,7 @@ export function CodingPage({
   });
   const modelIdRef = useRef(modelId);
   modelIdRef.current = modelId;
+  const userChangedModelRef = useRef(false);
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const explorer = useMemo(
@@ -317,34 +307,44 @@ export function CodingPage({
 
   useEffect(() => {
     let cancelled = false;
+    setModelsLoaded(false);
     const source = modelsClientOverride ?? createIpcModelsClient();
     void source.list().then(
       (all) => {
-        if (!cancelled && all.length > 0) {
-          const snap = source.lastSelection ?? null;
-          setListedModels(all);
-          setSelection(snap);
-          const ready = installedForTask(all, "agentic", snap);
-          const next = resolveDefaultId(ready, {
-            favorite: readFavorite("agentic"),
-            recommended: snap?.recommendedByTask.agentic ?? null,
-          });
-          if (next) {
-            setModelId((current) => (ready.some((m) => m.id === current) ? current : next));
-          }
-        }
+        if (cancelled) return;
+        const snap = source.lastSelection ?? null;
+        setListedModels(all);
+        setSelection(snap);
+        const ready = installedForTask(all, "agentic", snap);
+        const explicit = initialModelId && ready.some((candidate) => candidate.id === initialModelId)
+          ? initialModelId
+          : null;
+        const next = explicit ?? resolveDefaultId(ready, {
+          favorite: readFavorite("agentic"),
+          recommended: snap?.recommendedByTask.agentic ?? null,
+        });
+        if (!userChangedModelRef.current) setModelId(next);
+        setModelsLoaded(true);
       },
       () => {
-        // Keep the catalog fallback.
+        if (cancelled) return;
+        setListedModels([]);
+        setSelection(null);
+        if (!userChangedModelRef.current) setModelId("");
+        setModelsLoaded(true);
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [modelsClientOverride]);
+  }, [initialModelId, modelsClientOverride]);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
+    if (!modelId) {
+      setError(modelsLoaded ? "No installed agent model is ready. Install one in Settings > Models." : "Installed models are still loading. Try again in a moment.");
+      return null;
+    }
     const selectedWorkspace = workspace;
     if (!selectedWorkspace) {
       setError("The home workspace is still loading. Try again in a moment.");
@@ -363,7 +363,7 @@ export function CodingPage({
     setSessionId(reply.value.sessionId);
     setHistoryEpoch((n) => n + 1);
     return reply.value.sessionId;
-  }, [modelId, sessionId, workspace]);
+  }, [modelId, modelsLoaded, sessionId, workspace]);
 
   const handleParseDocument = useCallback(
     async (text: string, attachment: string): Promise<void> => {
@@ -770,62 +770,11 @@ export function CodingPage({
       style={{
         flex: 1,
         display: "flex",
-        flexDirection: "row",
+        flexDirection: "column",
         minHeight: 0,
         color: "var(--fg-0)",
       }}
     >
-      <CollapsibleHistoryAside
-        testId="coding-history-pane"
-        ariaLabel="Agent sessions"
-        collapsed={historyCollapsed}
-        onToggle={toggleHistory}
-        toggleTestId="coding-history-collapse-toggle"
-        expandLabel="Expand sessions"
-        collapseLabel="Collapse sessions"
-      >
-        {sidecar.isDown ? (
-          <p
-            data-testid="coding-history-empty"
-            style={{ margin: 0, padding: "var(--space-3)", color: "var(--fg-muted)" }}
-          >
-            {CODING_FOLDER_TREE_COPY.emptyHint}
-          </p>
-        ) : (
-          <FolderTree
-            client={explorer}
-            selected={historySelected}
-            onSelect={setHistorySelected}
-            onOpenChat={(chat: Chat) => void handleResume(chat.id)}
-            onChange={() => void reloadSessions()}
-            defaultModelId={modelId}
-            copy={CODING_FOLDER_TREE_COPY}
-            storageKey="nexus.coding.expanded"
-            refreshToken={historyEpoch}
-            collapsed={historyCollapsed}
-            readOnlyFolders={true}
-            expandTopLevelOnLoad={true}
-            retryLoadError={true}
-            getFolderTitle={(folder) => folder.icon?.trim() || folder.name}
-            onBeforeSessionDisposition={async (id) => {
-              if (sessionIdRef.current === id && busy) {
-                const reply = await ipc.call("coding.session.cancel", { sessionId: id });
-                if (!reply.ok) throw new Error(reply.message);
-              }
-            }}
-            onSessionDisposition={(id) => {
-              if (sessionIdRef.current !== id) return;
-              sessionIdRef.current = null;
-              setSessionId(null);
-              setTurns([]);
-              setHistorySelected(null);
-              setBusy(false);
-              setError(null);
-              pendingPromptRef.current = { text: "", attachments: [] };
-            }}
-          />
-        )}
-      </CollapsibleHistoryAside>
       <div
         style={{
           flex: 1,
@@ -837,32 +786,96 @@ export function CodingPage({
           gap: "var(--space-3)",
         }}
       >
-      <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <WorkspaceSelector
-          selection={workspace}
-          onReplacePrimary={handleReplacePrimary}
-          onAdd={handleAddRoots}
-          onRemove={handleRemoveRoot}
-          onError={(message) => setError(`Could not select workspace folder: ${message}`)}
-        />
+      <header
+        data-testid="coding-workspace-header"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-2)" }}
+      >
+        <div data-testid="coding-workspace-controls" style={{ flex: "1 1 28rem", minWidth: 0 }}>
+          <WorkspaceSelector
+            selection={workspace}
+            onReplacePrimary={handleReplacePrimary}
+            onAdd={handleAddRoots}
+            onRemove={handleRemoveRoot}
+            onError={(message) => setError(`Could not select workspace folder: ${message}`)}
+          />
+        </div>
+        <nav data-testid="coding-tabs" role="tablist" aria-label="Agent workspace views" style={{ display: "flex", gap: 0, marginLeft: "auto" }}>
+          {(["chat", "memory", "activity"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              data-testid={`coding-tab-${t}`}
+              aria-selected={tab === t}
+              title={t === "chat" ? "Conversation and agent output" : t === "memory" ? "Knowledge saved or indexed for these workspace folders" : "Tools, approvals, and runtime events for this workspace"}
+              onClick={() => setTab(t)}
+              style={tabButtonStyle(tab === t)}
+            >
+              {t[0]?.toUpperCase()}{t.slice(1)}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <nav role="tablist" style={{ display: "flex", gap: 0 }}>
-        {(["chat", "memory", "activity"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            data-testid={`coding-tab-${t}`}
-            aria-selected={tab === t}
-            title={t === "chat" ? "Conversation and agent output" : t === "memory" ? "Knowledge scoped to this workspace" : "Tools, approvals, and runtime events"}
-            onClick={() => setTab(t)}
-            style={tabButtonStyle(tab === t)}
-          >
-            {t[0]?.toUpperCase()}{t.slice(1)}
-          </button>
-        ))}
-      </nav>
+      <section
+        data-testid="coding-history-pane"
+        aria-label="Agent sessions"
+        style={{ flexShrink: 0, border: "1px solid var(--border-1)", borderRadius: "var(--radius-md)", background: "color-mix(in srgb, var(--bg-1) 72%, transparent)", overflow: "hidden" }}
+      >
+        <button
+          type="button"
+          data-testid="coding-history-collapse-toggle"
+          aria-expanded={!historyCollapsed}
+          aria-controls="coding-history-content"
+          onClick={toggleHistory}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-2) var(--space-3)", color: "var(--fg-muted)", background: "transparent", border: 0, cursor: "pointer", textAlign: "left" }}
+        >
+          <span>History</span>
+          <span aria-hidden="true">{historyCollapsed ? "▸" : "▾"}</span>
+        </button>
+        {!historyCollapsed && (
+          <div id="coding-history-content" data-testid="coding-history-content" style={{ maxHeight: "12rem", overflow: "auto", borderTop: "1px solid var(--border-1)" }}>
+            {sidecar.isDown ? (
+              <p data-testid="coding-history-empty" style={{ margin: 0, padding: "var(--space-3)", color: "var(--fg-muted)" }}>
+                {CODING_FOLDER_TREE_COPY.emptyHint}
+              </p>
+            ) : (
+              <FolderTree
+                client={explorer}
+                selected={historySelected}
+                onSelect={setHistorySelected}
+                onOpenChat={(chat: Chat) => void handleResume(chat.id)}
+                onChange={() => void reloadSessions()}
+                defaultModelId={modelId}
+                copy={CODING_FOLDER_TREE_COPY}
+                storageKey="nexus.coding.expanded"
+                refreshToken={historyEpoch}
+                collapsed={false}
+                readOnlyFolders={true}
+                expandTopLevelOnLoad={true}
+                retryLoadError={true}
+                getFolderTitle={(folder) => folder.icon?.trim() || folder.name}
+                onBeforeSessionDisposition={async (id) => {
+                  if (sessionIdRef.current === id && busy) {
+                    const reply = await ipc.call("coding.session.cancel", { sessionId: id });
+                    if (!reply.ok) throw new Error(reply.message);
+                  }
+                }}
+                onSessionDisposition={(id) => {
+                  if (sessionIdRef.current !== id) return;
+                  sessionIdRef.current = null;
+                  setSessionId(null);
+                  setTurns([]);
+                  setHistorySelected(null);
+                  setBusy(false);
+                  setError(null);
+                  pendingPromptRef.current = { text: "", attachments: [] };
+                }}
+              />
+            )}
+          </div>
+        )}
+      </section>
 
       {error && (
         <p data-testid="coding-error" role="alert" style={{ color: "var(--accent-danger, #f55)" }}>
@@ -911,13 +924,13 @@ export function CodingPage({
         )}
         {tab === "memory" && (
           <section data-testid="coding-memory" aria-label="Workspace memory">
-            <p style={{ color: "var(--fg-muted)", marginTop: 0 }}>Knowledge here is scoped to the selected workspace folders.</p>
+            <p style={{ color: "var(--fg-muted)", marginTop: 0 }}>Knowledge saved or indexed for these workspace folders.</p>
             <MemoryPanel snapshot={memorySnapshot} />
           </section>
         )}
         {tab === "activity" && (
           <section data-testid="coding-activity" aria-label="Agent activity">
-            <p style={{ color: "var(--fg-muted)", marginTop: 0 }}>Review tool calls, approvals, model metrics, and runtime events for this workspace.</p>
+            <p style={{ color: "var(--fg-muted)", marginTop: 0 }}>Tools, approvals, and runtime events for this workspace.</p>
             <TraceDashboardPanel
               events={traceEvents}
               sessions={sessions}
@@ -937,17 +950,25 @@ export function CodingPage({
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <CodingInput disabled={busy} streaming={busy} onSubmit={handleSubmit} />
           <ComposerContextRow usage={contextUsage} onStartNewSession={() => void handleNewSession()}>
+            {!modelsLoaded ? (
+              <span data-testid="coding-model-loading" style={{ color: "var(--fg-muted)" }}>Loading models...</span>
+            ) : (
               <QuickModelSwitcher
                 testId="coding-model-select"
                 models={listedModels}
                 taskType="llm"
                 catalogTab="agentic"
                 ownedIds={ownedIdSet(selection)}
-              value={modelId}
-              onChange={setModelId}
-              onGetMoreModels={onGetMoreModels}
-              disabled={Boolean(sessionId)}
-            />
+                value={modelId}
+                onChange={(nextModelId) => {
+                  userChangedModelRef.current = true;
+                  setModelId(nextModelId);
+                  writeFavorite("agentic", nextModelId);
+                }}
+                onGetMoreModels={onGetMoreModels}
+                disabled={Boolean(sessionId)}
+              />
+            )}
           </ComposerContextRow>
           {sessionId && (
             <div

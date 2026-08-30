@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CodingPage } from "../src/modules/coding/CodingPage";
 import {
@@ -189,9 +189,9 @@ describe("CodingPage", () => {
     window.localStorage.clear();
   });
 
-  it("renders the model selector and the chat empty state by default", () => {
+  it("renders the model selector and the chat empty state after live model hydration", async () => {
     render(<CodingPage />);
-    expect(screen.getByTestId("coding-model-select")).toBeInTheDocument();
+    expect(await screen.findByTestId("coding-model-select")).toBeInTheDocument();
     expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
     expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
@@ -454,10 +454,84 @@ describe("CodingPage", () => {
       expect([...select.options].map((o) => o.value)).toContain("qwen2.5-coder:7b");
     });
     const select = screen.getByTestId("coding-model-select") as HTMLSelectElement;
+    expect(select.value).toBe("qwen2.5-coder:7b");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
     expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
     await userEvent.selectOptions(select, "qwen2.5-coder:7b");
     expect(select.value).toBe("qwen2.5-coder:7b");
+  });
+
+  it("shows a loading placeholder until the installed model catalog resolves", async () => {
+    let resolveModels!: (models: readonly {
+      id: string;
+      displayName: string;
+      type: "llm";
+      installed: boolean;
+      source: "registry";
+      task: "chat";
+      agentic: boolean;
+    }[]) => void;
+    const modelsClient = {
+      lastSelection: null,
+      list: () => new Promise<readonly {
+        id: string;
+        displayName: string;
+        type: "llm";
+        installed: boolean;
+        source: "registry";
+        task: "chat";
+        agentic: boolean;
+      }[]>((resolve) => { resolveModels = resolve; }),
+    };
+    render(<CodingPage modelsClient={modelsClient} />);
+    expect(screen.getByTestId("coding-model-loading")).toHaveTextContent("Loading models");
+    expect(screen.queryByTestId("coding-model-select")).toBeNull();
+    await act(async () => {
+      resolveModels([{ id: "gemma4:e4b", displayName: "Gemma 4 E4B", type: "llm", installed: true, source: "registry", task: "chat", agentic: true }]);
+    });
+    expect(await screen.findByTestId("coding-model-select")).toHaveValue("gemma4:e4b");
+  });
+
+  it("falls back to the first ready installer-ranked model when the recommendation is unavailable", async () => {
+    const modelsClient = {
+      lastSelection: {
+        schemaVersion: 1 as const,
+        orderedIds: ["qwen2.5-coder:7b", "gemma4:e4b"],
+        recommendedByTask: { agentic: "missing:model" },
+        downloadedSinceInstall: [],
+      },
+      async list() {
+        return [
+          { id: "gemma4:e4b", displayName: "Gemma 4 E4B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+          { id: "qwen2.5-coder:7b", displayName: "Qwen 2.5 Coder 7B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+        ];
+      },
+    };
+    render(<CodingPage modelsClient={modelsClient} />);
+    expect(await screen.findByTestId("coding-model-select")).toHaveValue("qwen2.5-coder:7b");
+  });
+
+  it("prefers a ready favorite and protects a manual choice from a later catalog refresh", async () => {
+    window.localStorage.setItem("nexus.ui.favoriteModel.agentic", "gemma4:e4b");
+    const models = [
+      { id: "qwen2.5-coder:7b", displayName: "Qwen 2.5 Coder 7B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+      { id: "gemma4:e4b", displayName: "Gemma 4 E4B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+    ];
+    const selection = {
+      schemaVersion: 1 as const,
+      orderedIds: ["qwen2.5-coder:7b", "gemma4:e4b"],
+      recommendedByTask: { agentic: "qwen2.5-coder:7b" },
+      downloadedSinceInstall: [],
+    };
+    const firstClient = { lastSelection: selection, async list() { return models; } };
+    const { rerender } = render(<CodingPage modelsClient={firstClient} />);
+    const select = await screen.findByTestId("coding-model-select") as HTMLSelectElement;
+    expect(select).toHaveValue("gemma4:e4b");
+    await userEvent.selectOptions(select, "qwen2.5-coder:7b");
+    const refreshedClient = { lastSelection: { ...selection, recommendedByTask: { agentic: "gemma4:e4b" } }, async list() { return models; } };
+    rerender(<CodingPage modelsClient={refreshedClient} />);
+    expect(await screen.findByTestId("coding-model-select")).toHaveValue("qwen2.5-coder:7b");
+    expect(window.localStorage.getItem("nexus.ui.favoriteModel.agentic")).toBe("qwen2.5-coder:7b");
   });
 
   it("shows an error banner when the IPC layer is unavailable", async () => {
@@ -474,11 +548,26 @@ describe("CodingPage", () => {
     render(<CodingPage />);
     await userEvent.click(screen.getByTestId("coding-tab-memory"));
     await waitFor(() => expect(screen.getByTestId("memory-panel")).toBeInTheDocument());
+    expect(screen.getByTestId("coding-memory")).toHaveTextContent("Knowledge saved or indexed for these workspace folders.");
     await userEvent.click(screen.getByTestId("coding-tab-chat"));
     expect(screen.getByTestId("coding-chat")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("coding-tab-activity"));
-    expect(await screen.findByTestId("coding-activity")).toHaveTextContent(/tool calls/i);
+    expect(await screen.findByTestId("coding-activity")).toHaveTextContent("Tools, approvals, and runtime events for this workspace.");
     expect(screen.queryByTestId("coding-tab-sessions")).toBeNull();
+  });
+
+  it("keeps workspace controls and tabs on one header row with compact collapsible history below", async () => {
+    render(<CodingPage />);
+    const header = screen.getByTestId("coding-workspace-header");
+    expect(header).toContainElement(screen.getByTestId("coding-workspace-controls"));
+    expect(header).toContainElement(screen.getByTestId("coding-tabs"));
+    const history = screen.getByTestId("coding-history-pane");
+    expect(history.tagName).toBe("SECTION");
+    expect(history.parentElement).toBe(header.parentElement);
+    expect(await screen.findByTestId("coding-history-content")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("coding-history-collapse-toggle"));
+    expect(screen.queryByTestId("coding-history-content")).toBeNull();
+    expect(screen.getByTestId("coding-history-collapse-toggle")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("does not show a pink Agentic AI Coding heading or harness badges", async () => {
