@@ -36,7 +36,13 @@ const GROUPS: readonly { pillar: SessionPillarT; label: string }[] = [
   { pillar: "videos", label: "Videos" },
 ];
 
-export function ArchivedChatsSettings({ client = createIpcArchivedChatsClient() }: { client?: ArchivedChatsClient }): JSX.Element {
+export function ArchivedChatsSettings({
+  client = createIpcArchivedChatsClient(),
+  embedded = false,
+}: {
+  client?: ArchivedChatsClient;
+  embedded?: boolean;
+}): JSX.Element {
   const [sessions, setSessions] = useState<readonly ArchivedSessionDtoT[]>([]);
   const [errors, setErrors] = useState<readonly { pillar: SessionPillarT; message: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,8 +84,12 @@ export function ArchivedChatsSettings({ client = createIpcArchivedChatsClient() 
   }
 
   return (
-    <section data-testid="archived-chats-settings" aria-labelledby="archived-chats-title" style={{ padding: "var(--space-6)", overflow: "auto" }}>
-      <h1 id="archived-chats-title">Archived chats</h1>
+    <section
+      data-testid="archived-chats-settings"
+      aria-labelledby="archived-chats-title"
+      style={{ padding: embedded ? 0 : "var(--space-6)", overflow: embedded ? "visible" : "auto" }}
+    >
+      {embedded ? <h2 id="archived-chats-title">Archived chats</h2> : <h1 id="archived-chats-title">Archived chats</h1>}
       <p style={{ color: "var(--fg-muted)" }}>Restore archived chats to their original tab and location when it still exists.</p>
       {loading ? <p role="status">Loading archived chats...</p> : null}
       {fatalError ? <p role="alert">Could not load archived chats: {fatalError} <Button type="button" onClick={() => void refresh()}>Retry</Button></p> : null}

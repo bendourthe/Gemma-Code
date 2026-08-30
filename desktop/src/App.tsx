@@ -85,6 +85,7 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
 function AppLayout({ telemetryStream }: AppProps): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
   const [hostVramGB, setHostVramGB] = useState<number | null>(null);
+  const [hostGpuVendor, setHostGpuVendor] = useState<string | null>(null);
   const [hostVramFreeGB, setHostVramFreeGB] = useState<number | null>(null);
   const [activeSchedulerJob, setActiveSchedulerJob] = useState<SchedulerActiveJob | null>(null);
   const residencyMemory = useRef<ResidencySessionMemory>(new Set()).current;
@@ -116,6 +117,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
     if (!stream) return;
     return stream.subscribe((sample) => {
       if (typeof sample.vramTotalGB === "number") setHostVramGB(sample.vramTotalGB);
+      if (typeof sample.gpuVendor === "string") setHostGpuVendor(sample.gpuVendor);
       setHostVramFreeGB(
         typeof sample.vramFreeGB === "number" && Number.isFinite(sample.vramFreeGB)
           ? sample.vramFreeGB
@@ -283,6 +285,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   mcpClient={mcpClient}
                   videoClient={videoSettingsClient}
                   hostVramGB={hostVramGB}
+                  hostGpuVendor={hostGpuVendor}
                 />
               }
             />

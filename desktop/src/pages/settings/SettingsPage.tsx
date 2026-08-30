@@ -29,7 +29,7 @@ import { createMockCredentialsClient } from "./mockCredentialsClient";
 import { createMockServingClient } from "./mockServingClient";
 import { createMockFineTuningClient } from "./mockFineTuningClient";
 import { createMockMcpRegistryClient } from "./mockMcpRegistryClient";
-import { ArchivedChatsSettings, type ArchivedChatsClient } from "./ArchivedChatsSettings";
+import type { ArchivedChatsClient } from "./ArchivedChatsSettings";
 
 // v2.2.0 Phase 7: "data" hosts export/import; the retired User Profile page
 // redirects here rather than rendering a placeholder that read nothing.
@@ -43,8 +43,7 @@ type SettingsTab =
   | "mcp"
   | "security"
   | "data"
-  | "video"
-  | "archives";
+  | "video";
 
 const SETTINGS_TABS: readonly SettingsTab[] = [
   "models",
@@ -57,10 +56,10 @@ const SETTINGS_TABS: readonly SettingsTab[] = [
   "security",
   "data",
   "video",
-  "archives",
 ];
 
 function parseSettingsTab(raw: string | null): SettingsTab | null {
+  if (raw === "archives") return "data";
   if (raw && (SETTINGS_TABS as readonly string[]).includes(raw)) {
     return raw as SettingsTab;
   }
@@ -82,9 +81,10 @@ export interface SettingsPageProps {
   auditClient?: AuditLogClient;
   videoClient?: VideoSettingsClient;
   archivedChatsClient?: ArchivedChatsClient;
-  initialTab?: SettingsTab;
+  initialTab?: SettingsTab | "archives";
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
+  hostGpuVendor?: string | null;
 }
 
 export function SettingsPage({
@@ -101,10 +101,13 @@ export function SettingsPage({
   archivedChatsClient,
   initialTab = "models",
   hostVramGB = null,
+  hostGpuVendor = null,
 }: SettingsPageProps = {}): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = parseSettingsTab(searchParams.get("tab"));
-  const [tab, setTabState] = useState<SettingsTab>(tabFromUrl ?? initialTab);
+  const [tab, setTabState] = useState<SettingsTab>(
+    tabFromUrl ?? (initialTab === "archives" ? "data" : initialTab),
+  );
 
   useEffect(() => {
     const next = parseSettingsTab(searchParams.get("tab"));
@@ -160,14 +163,6 @@ export function SettingsPage({
       <nav data-testid="settings-tabs" style={tabsStyle}>
         <button
           type="button"
-          data-testid="settings-tab-archives"
-          onClick={() => setTab("archives")}
-          style={tabButtonStyle(tab === "archives")}
-        >
-          Archived chats
-        </button>
-        <button
-          type="button"
           data-testid="settings-tab-models"
           onClick={() => setTab("models")}
           style={tabButtonStyle(tab === "models")}
@@ -212,7 +207,7 @@ export function SettingsPage({
           onClick={() => setTab("tuning")}
           style={tabButtonStyle(tab === "tuning")}
         >
-          Fine-tuning
+          Training
         </button>
         <button
           type="button"
@@ -248,7 +243,7 @@ export function SettingsPage({
         </button>
       </nav>
       {tab === "models" ? (
-        <ModelsSettings client={models} hostVramGB={hostVramGB} />
+        <ModelsSettings client={models} hostVramGB={hostVramGB} gpuVendor={hostGpuVendor} />
       ) : tab === "skills" ? (
         <SkillsSettings client={skills} />
       ) : tab === "optimizer" ? (
@@ -256,7 +251,7 @@ export function SettingsPage({
       ) : tab === "serving" ? (
         <ServingSettings client={serving} />
       ) : tab === "tuning" ? (
-        <FineTuningSettings client={fineTuning} />
+        <FineTuningSettings client={fineTuning} hostVramGB={hostVramGB} gpuVendor={hostGpuVendor} />
       ) : tab === "video" ? (
         <VideoSettings client={video} />
       ) : tab === "mcp" ? (
@@ -264,9 +259,7 @@ export function SettingsPage({
       ) : tab === "security" ? (
         <SecuritySettings client={securityClient} auditClient={auditClient} />
       ) : tab === "data" ? (
-        <DataSettings />
-      ) : tab === "archives" ? (
-        <ArchivedChatsSettings client={archivedChatsClient} />
+        <DataSettings archivedChatsClient={archivedChatsClient} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

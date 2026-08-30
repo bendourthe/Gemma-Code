@@ -7,8 +7,8 @@
 
 import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
 import {
-  canonicalModelDisplayOrder,
   installedOutsideCatalog,
+  settingsModelDisplayOrder,
 } from "../../../../core/registry/modelDisplayPolicy";
 
 export type CatalogTab =
@@ -312,5 +312,5 @@ export function visibleModelsOnTab(
   tab: CatalogTab,
   options: CatalogSortOptions = {},
 ): ListedModelDto[] {
-  return canonicalModelDisplayOrder(modelsOnTab(models, tab), options);
+  return settingsModelDisplayOrder(modelsOnTab(models, tab), options);
 }

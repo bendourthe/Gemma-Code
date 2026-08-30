@@ -16,12 +16,19 @@ from nexus_installer.catalog_tab_sort import (
     catalog_fingerprint,
     collapse_and_sort,
     downloaded_first,
+    settings_display_order,
 )
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "fixtures"
 FIXTURE_V228 = _FIXTURES / "v2.2.8-catalog-tab-sort.json"
 FIXTURE_V229 = _FIXTURES / "v2.2.9-catalog-tab-sort.json"
 FIXTURE_V241 = _FIXTURES / "v2.4.1-model-display-order.json"
+DISPLAY_FIXTURE_V241 = (
+    Path(__file__).resolve().parents[3]
+    / "core"
+    / "registry"
+    / "model-display-order.fixture.json"
+)
 
 # v2.2.9 Phase 5 (T010): embed maps to the Embeddings tab, not Chat.
 TASK_TAB = {
@@ -143,3 +150,13 @@ def test_patient_tier_row_is_listed_on_both_orders() -> None:
     for key in ("expectedInstallerIds", "expectedSettingsIds"):
         assert "inkling-small" in data[key]["agentic"]
         assert "inkling-small" in data[key]["chat"]
+
+
+def test_v241_shared_recommendation_and_availability_contract() -> None:
+    data = json.loads(DISPLAY_FIXTURE_V241.read_text(encoding="utf-8"))
+    options = {
+        "host_vram_gb": data["hostVramGB"],
+        "gpu_vendor": data["gpuVendor"],
+    }
+    assert canonical_display_order(data["rows"], **options) == data["expectedInstaller"]
+    assert settings_display_order(data["rows"], **options) == data["expectedSettings"]

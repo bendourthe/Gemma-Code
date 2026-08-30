@@ -250,6 +250,40 @@ def canonical_display_order(
     return [str(row.get("id") or "") for row in selectable]
 
 
+def settings_display_order(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    host_vram_gb: int | float | None = None,
+    host_ram_gb: int | float | None = None,
+    gpu_vendor: str = "nvidia",
+) -> list[str]:
+    """Settings order: downloaded, compatible catalog, incompatible catalog."""
+    canonical_ids = canonical_display_order(
+        rows,
+        host_vram_gb=host_vram_gb,
+        host_ram_gb=host_ram_gb,
+        gpu_vendor=gpu_vendor,
+    )
+    by_id = {str(row.get("id") or ""): row for row in rows}
+
+    def availability(model_id: str) -> int:
+        row = by_id.get(model_id, {})
+        if is_downloaded_row(row):
+            return 0
+        return (
+            2
+            if is_incompatible(
+                row,
+                host_vram_gb=host_vram_gb,
+                host_ram_gb=host_ram_gb,
+                gpu_vendor=gpu_vendor,
+            )
+            else 1
+        )
+
+    return sorted(canonical_ids, key=availability)
+
+
 def catalog_fingerprint(catalog: Mapping[str, Any]) -> str:
     def normalize(value: Any) -> Any:
         if isinstance(value, float) and value.is_integer():

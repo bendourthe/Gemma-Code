@@ -52,6 +52,7 @@ import {
   VideoVideo2xPathGetRequest,
   VideoVideo2xPathSetRequest,
   TuningEmptyRequest,
+  TuningHardwareRequest,
   TuningDatasetBuildRequest,
   TuningJobStartRequest,
   TuningJobListRequest,
@@ -1853,12 +1854,12 @@ export const handlers: Record<Method, HandlerFn> = {
     return resolveStudio(ctx).scheduler.snapshot();
   },
   "tuning.status": async (params, ctx) => {
-    TuningEmptyRequest.parse(params ?? {});
-    return resolveTuning(ctx).status();
+    const req = TuningHardwareRequest.parse(params ?? {});
+    return resolveTuning(ctx).status(req);
   },
   "tuning.provision": async (params, ctx) => {
-    TuningEmptyRequest.parse(params ?? {});
-    return resolveTuning(ctx).provision();
+    const req = TuningHardwareRequest.parse(params ?? {});
+    return resolveTuning(ctx).provision(req);
   },
   "tuning.preflight": async (params, ctx) => {
     TuningEmptyRequest.parse(params ?? {});

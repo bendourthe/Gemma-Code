@@ -10,13 +10,13 @@ import type {
 
 export function createIpcFineTuningClient(): FineTuningClient {
   return {
-    async status() {
-      const reply = await ipcCall<TuningStatusDto>("tuning.status", {});
+    async status(hardware) {
+      const reply = await ipcCall<TuningStatusDto>("tuning.status", hardware ? { ...hardware } : {});
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;
     },
-    async provision() {
-      const reply = await ipcCall<TuningStatusDto & { ok: boolean }>("tuning.provision", {});
+    async provision(hardware) {
+      const reply = await ipcCall<TuningStatusDto & { ok: boolean }>("tuning.provision", hardware ? { ...hardware } : {});
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;
     },

@@ -36,7 +36,7 @@ export function hostFromEnv(
 }
 
 export interface TuningRuntime {
-  status(): Promise<{
+  status(hardware?: TuningHardwareOverride): Promise<{
     supported: boolean;
     reason: string;
     provisionStatus: ProvisionState["status"];
@@ -46,7 +46,7 @@ export interface TuningRuntime {
     osFamily: string;
     pins: { name: string; version?: string; license: string }[];
   }>;
-  provision(): Promise<{ ok: boolean } & Awaited<ReturnType<TuningRuntime["status"]>>>;
+  provision(hardware?: TuningHardwareOverride): Promise<{ ok: boolean } & Awaited<ReturnType<TuningRuntime["status"]>>>;
   preflight(): Promise<{ ok: boolean; message: string }>;
   buildDataset(params: { sources: readonly string[]; id?: string }): Promise<DatasetBuildResult>;
   listJobs(states?: readonly TuningJob["state"][]): readonly TuningJob[];
@@ -58,6 +58,11 @@ export interface TuningRuntime {
   }): Promise<TuningJob>;
   cancelJob(id: string): TuningJob | undefined;
   listBaseModels(hostVramGB?: number): Promise<TuningBaseModel[]>;
+}
+
+export interface TuningHardwareOverride {
+  readonly hostVramGB?: number;
+  readonly gpuVendor?: string;
 }
 
 export interface TuningRuntimeOptions {
@@ -92,7 +97,7 @@ function defaultEvalPort(): EvalPort {
 }
 
 export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRuntime {
-  const host = opts.host ?? hostFromEnv();
+  let host = opts.host ?? hostFromEnv();
   const homeDirFn = opts.homeDirFn;
   const root = path.join(nexusHome(homeDirFn), "tuning");
   const store =
@@ -102,7 +107,7 @@ export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRunt
       homeDirFn,
       now: opts.now,
     });
-  const provisioner =
+  const provisionerForHost = () =>
     opts.provisioner ??
     new TuningProvisioner({
       host,
@@ -125,9 +130,18 @@ export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRunt
         : createOllamaCreatePort();
   const aborts = new Map<string, AbortController>();
 
-  async function snapshot() {
+  function applyHardware(hardware?: TuningHardwareOverride): void {
+    if (!hardware) return;
+    const vramGB = hardware.hostVramGB;
+    const gpuVendor = hardware.gpuVendor?.trim().toLowerCase();
+    if (typeof vramGB !== "number" || !Number.isFinite(vramGB) || !gpuVendor) return;
+    host = { ...host, vramGB, gpuVendor };
+  }
+
+  async function snapshot(hardware?: TuningHardwareOverride) {
+    applyHardware(hardware);
     const gate = evaluateTrainingHardware(host);
-    const state = provisioner.state();
+    const state = provisionerForHost().state();
     return {
       supported: gate.supported,
       reason: gate.reason,
@@ -146,12 +160,13 @@ export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRunt
 
   return {
     status: snapshot,
-    async provision() {
-      const state = await provisioner.provision();
+    async provision(hardware) {
+      applyHardware(hardware);
+      const state = await provisionerForHost().provision();
       const next = await snapshot();
       return { ...next, ok: state.status === "ready" || state.status === "unsupported" };
     },
-    preflight: () => provisioner.preflight(),
+    preflight: () => provisionerForHost().preflight(),
     buildDataset(params) {
       return buildDataset({
         sources: params.sources,

@@ -1851,6 +1851,13 @@ export const TuningJobDto = z
 
 export const TuningEmptyRequest = z.object({}).strict();
 
+export const TuningHardwareRequest = z
+  .object({
+    hostVramGB: z.number().nonnegative().optional(),
+    gpuVendor: z.string().min(1).optional(),
+  })
+  .strict();
+
 export const TuningPinDto = z
   .object({
     name: z.string(),
@@ -3441,12 +3448,12 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     implemented: true,
   },
   "tuning.status": {
-    request: TuningEmptyRequest,
+    request: TuningHardwareRequest,
     response: TuningStatusResponse,
     implemented: true,
   },
   "tuning.provision": {
-    request: TuningEmptyRequest,
+    request: TuningHardwareRequest,
     response: TuningProvisionResponse,
     implemented: true,
   },

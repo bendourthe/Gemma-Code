@@ -1,0 +1,31 @@
+{
+  "hostVramGB": 16,
+  "gpuVendor": "nvidia",
+  "rows": [
+    { "id": "downloaded-plain", "displayName": "Downloaded Plain", "task": "chat", "type": "llm", "source": "registry", "installed": true, "releaseDate": "2025-01-01", "vramGB": 8 },
+    { "id": "downloaded-recommended", "displayName": "Downloaded Recommended", "task": "chat", "type": "llm", "source": "registry", "installed": true, "releaseDate": "2026-01-01", "vramGB": 8, "tags": ["recommended"] },
+    { "id": "required-available", "displayName": "Required Available", "task": "chat", "type": "llm", "source": "catalog-only", "installed": false, "releaseDate": "2024-01-01", "vramGB": 1, "tags": ["required"] },
+    { "id": "recommended-available", "displayName": "Recommended Available", "task": "chat", "type": "llm", "source": "catalog-only", "installed": false, "releaseDate": "2026-07-01", "vramGB": 12, "tags": ["recommended"] },
+    { "id": "compatible-new", "displayName": "Compatible New", "task": "chat", "type": "llm", "source": "catalog-only", "installed": false, "releaseDate": "2026-08-01", "vramGB": 4 },
+    { "id": "incompatible-recommended", "displayName": "Incompatible Recommended", "task": "chat", "type": "llm", "source": "catalog-only", "installed": false, "releaseDate": "2026-08-01", "vramGB": 24, "tags": ["recommended"] },
+    { "id": "incompatible-plain", "displayName": "Incompatible Plain", "task": "chat", "type": "llm", "source": "catalog-only", "installed": false, "releaseDate": "2026-09-01", "vramGB": 32 }
+  ],
+  "expectedInstaller": [
+    "required-available",
+    "recommended-available",
+    "downloaded-recommended",
+    "compatible-new",
+    "downloaded-plain",
+    "incompatible-recommended",
+    "incompatible-plain"
+  ],
+  "expectedSettings": [
+    "downloaded-recommended",
+    "downloaded-plain",
+    "required-available",
+    "recommended-available",
+    "compatible-new",
+    "incompatible-recommended",
+    "incompatible-plain"
+  ]
+}

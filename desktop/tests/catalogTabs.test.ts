@@ -14,6 +14,10 @@ import {
   sortModelsOnTab,
   visibleModelsOnTab,
 } from "../src/shared/models/catalogTabs";
+import {
+  canonicalModelDisplayOrder,
+  settingsModelDisplayOrder,
+} from "../../core/registry/modelDisplayPolicy";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
 function model(partial: Partial<ListedModelDto> & Pick<ListedModelDto, "id" | "displayName" | "installed" | "source">): ListedModelDto {
@@ -43,6 +47,21 @@ function fixture(name: string): SortFixture {
 
 const GOLDEN = fixture("v2.2.8-catalog-tab-sort.json");
 const GOLDEN_V229 = fixture("v2.2.9-catalog-tab-sort.json");
+
+interface V241DisplayFixture {
+  hostVramGB: number;
+  gpuVendor: string;
+  rows: ListedModelDto[];
+  expectedInstaller: string[];
+  expectedSettings: string[];
+}
+
+const DISPLAY_V241 = JSON.parse(
+  readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "../../core/registry/model-display-order.fixture.json"),
+    "utf8",
+  ),
+) as V241DisplayFixture;
 
 function sortOptions(data: SortFixture) {
   return {
@@ -175,25 +194,47 @@ describe("catalogTabs", () => {
     expect(CATALOG_TAB_DEFS[0]!.label).toBe("Embeddings");
   });
 
-  it("does not promote downloaded rows ahead of canonical catalog order", () => {
+  it("groups downloaded rows before compatible and incompatible rows", () => {
     const opts = sortOptions(GOLDEN_V229);
-    const baseline = visibleModelsOnTab(GOLDEN_V229.models, "agentic", opts).map((m) => m.id);
     const statusesFlipped = GOLDEN_V229.models.map((model) => ({
       ...model,
       installed: !model.installed,
       source: model.installed ? "catalog-only" as const : "registry" as const,
     }));
-    expect(visibleModelsOnTab(statusesFlipped, "agentic", opts).map((m) => m.id)).toEqual(baseline);
+    const ordered = visibleModelsOnTab(statusesFlipped, "agentic", opts);
+    const firstNotDownloaded = ordered.findIndex((model) => !model.installed);
+    expect(firstNotDownloaded).toBeGreaterThan(0);
+    expect(ordered.slice(0, firstNotDownloaded).every((model) => model.installed)).toBe(true);
   });
 
-  it("keeps canonical order when gpt-oss becomes installed", () => {
-    const before = visibleModelsOnTab(GOLDEN_V229.models, "agentic", sortOptions(GOLDEN_V229)).map((m) => m.id);
+  it("moves gpt-oss into the downloaded partition once installed", () => {
     const models = GOLDEN_V229.models.map((m) =>
       m.id === "gpt-oss:20b" ? { ...m, installed: true, source: "registry" as const } : m,
     );
     expect(
       visibleModelsOnTab(models, "agentic", sortOptions(GOLDEN_V229)).map((m) => m.id),
-    ).toEqual(before);
+    ).toEqual([
+      "lfm2.5:2.6b",
+      "gemma-4-12b-it-gguf",
+      "gpt-oss:20b",
+      "inkling-small",
+    ]);
+  });
+
+  it("shares the v2.4.1 recommendation and availability contract", () => {
+    const options = {
+      hostVramGB: DISPLAY_V241.hostVramGB,
+      gpuVendor: DISPLAY_V241.gpuVendor,
+    };
+    expect(canonicalModelDisplayOrder(DISPLAY_V241.rows, options).map((m) => m.id)).toEqual(
+      DISPLAY_V241.expectedInstaller,
+    );
+    expect(settingsModelDisplayOrder(DISPLAY_V241.rows, options).map((m) => m.id)).toEqual(
+      DISPLAY_V241.expectedSettings,
+    );
+    expect(visibleModelsOnTab(DISPLAY_V241.rows, "chat", options).map((m) => m.id)).toEqual(
+      DISPLAY_V241.expectedSettings,
+    );
   });
 
   it("lists the patient-tier Inkling-Small row on both surfaces (no env gate)", () => {

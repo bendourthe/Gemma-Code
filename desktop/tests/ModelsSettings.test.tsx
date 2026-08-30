@@ -179,6 +179,53 @@ describe("ModelsSettings", () => {
     expect(screen.queryByTestId("models-row-qwen2.5-coder:7b")).not.toBeInTheDocument();
   });
 
+  it("labels downloaded, available, and incompatible groups in display order", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      {
+        id: "downloaded",
+        displayName: "Downloaded",
+        type: "llm",
+        task: "chat",
+        installed: true,
+        source: "registry",
+        vramGB: 8,
+      },
+      {
+        id: "available",
+        displayName: "Available",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 8,
+      },
+      {
+        id: "incompatible",
+        displayName: "Incompatible",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 24,
+      },
+    ];
+    render(
+      <ModelsSettings client={ctx.client} hostVramGB={16} gpuVendor="nvidia" />,
+    );
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+
+    const list = screen.getByTestId("models-list");
+    expect(Array.from(list.children).map((child) => child.textContent)).toEqual([
+      "Downloaded",
+      expect.stringContaining("Downloaded"),
+      "Available to download",
+      expect.stringContaining("Available"),
+      "Incompatible",
+      expect.stringContaining("Incompatible"),
+    ]);
+  });
+
   it("refreshes disk usage on focus only while the page is visible", async () => {
     const ctx = client();
     const diskUsage = vi.spyOn(ctx.client, "diskUsage");

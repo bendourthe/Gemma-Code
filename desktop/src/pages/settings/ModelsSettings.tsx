@@ -10,8 +10,9 @@
  * iframed.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { modelAvailabilityBucket } from "../../../../core/registry/modelDisplayPolicy";
 import { Button, SearchInput } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
@@ -21,11 +22,12 @@ import {
   catalogTabsFor,
   catalogSortGpuVendor,
   installedOutsideCatalogModels,
+  isCatalogOverBudget,
   recommendationKind,
   visibleModelsOnTab,
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
-import { filterCatalog, modelFitsHost } from "../../shared/models/modelLibrary";
+import { filterCatalog } from "../../shared/models/modelLibrary";
 import { buildModelPills } from "../../shared/models/modelPills";
 import {
   FAVORITE_STORAGE_PREFIX,
@@ -63,6 +65,7 @@ export interface ModelsSettingsProps {
    * Omit or pass null when telemetry has not reported a total yet.
    */
   hostVramGB?: number | null;
+  gpuVendor?: string | null;
 }
 
 const TASK_TABS: readonly TaskKey[] = ["chat", "agentic", "image", "video", "audio", "document"];
@@ -71,7 +74,7 @@ function isTaskKey(tab: CatalogTab): tab is TaskKey {
   return (TASK_TABS as readonly string[]).includes(tab);
 }
 
-export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProps): JSX.Element {
+export function ModelsSettings({ client, hostVramGB = null, gpuVendor = null }: ModelsSettingsProps): JSX.Element {
   const [items, setItems] = useState<readonly ListedModelDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -165,8 +168,16 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
     ? external
     : visibleModelsOnTab(searched, tab, {
         hostVramGB,
-        gpuVendor: catalogSortGpuVendor(hostVramGB),
+        gpuVendor: gpuVendor ?? catalogSortGpuVendor(hostVramGB),
       });
+  const availabilityOptions = {
+    hostVramGB,
+    gpuVendor: gpuVendor ?? catalogSortGpuVendor(hostVramGB),
+  };
+  const availabilityBuckets = new Set(
+    visible.map((model) => modelAvailabilityBucket(model, availabilityOptions)),
+  );
+  const showAvailabilityHeadings = tab !== "other" && availabilityBuckets.size > 1;
 
   async function refresh(): Promise<void> {
     const list = await client.list();
@@ -304,25 +315,36 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
             <p style={{ color: "var(--fg-muted)" }}>No matching entries.</p>
           ) : (
             <ul data-testid="models-list" style={listStyle}>
-              {visible.map((m) => (
-                <ModelCard
-                  key={m.id}
-                  item={m}
-                  components={componentsFor(m, items)}
-                  hostVramGB={hostVramGB}
-                  progress={progress[m.id]}
-                  installing={Boolean(active[m.id])}
-                  favorite={favorites[tab] === m.id}
-                  rowError={rowErrors[m.id]}
-                  onFavorite={() => toggleFavorite(m.id)}
-                  onInstall={() => startInstall(m.id)}
-                  onCancel={() => cancelInstall(m.id)}
-                  onRemove={m.source === "registry" ? () => void handleRemove(m.id) : undefined}
-                  onReveal={
-                    m.absPath && client.reveal ? () => client.reveal?.(m.absPath as string) : undefined
-                  }
-                />
-              ))}
+              {visible.map((m, index) => {
+                const bucket = modelAvailabilityBucket(m, availabilityOptions);
+                const previous = index > 0 ? modelAvailabilityBucket(visible[index - 1]!, availabilityOptions) : null;
+                return (
+                  <Fragment key={m.id}>
+                    {showAvailabilityHeadings && bucket !== previous ? (
+                      <li data-testid={`models-group-${bucket}`} style={groupHeadingStyle}>
+                        {bucket === 0 ? "Downloaded" : bucket === 1 ? "Available to download" : "Incompatible"}
+                      </li>
+                    ) : null}
+                    <ModelCard
+                      item={m}
+                      components={componentsFor(m, items)}
+                      hostVramGB={hostVramGB}
+                      gpuVendor={gpuVendor}
+                      progress={progress[m.id]}
+                      installing={Boolean(active[m.id])}
+                      favorite={favorites[tab] === m.id}
+                      rowError={rowErrors[m.id]}
+                      onFavorite={() => toggleFavorite(m.id)}
+                      onInstall={() => startInstall(m.id)}
+                      onCancel={() => cancelInstall(m.id)}
+                      onRemove={m.source === "registry" ? () => void handleRemove(m.id) : undefined}
+                      onReveal={
+                        m.absPath && client.reveal ? () => client.reveal?.(m.absPath as string) : undefined
+                      }
+                    />
+                  </Fragment>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -335,6 +357,7 @@ interface ModelCardProps {
   item: ListedModelDto;
   components: readonly ListedModelDto[];
   hostVramGB?: number | null;
+  gpuVendor?: string | null;
   progress?: InstallProgressDto;
   installing?: boolean;
   favorite: boolean;
@@ -350,6 +373,7 @@ function ModelCard({
   item,
   components,
   hostVramGB,
+  gpuVendor,
   progress,
   installing,
   favorite,
@@ -362,7 +386,11 @@ function ModelCard({
 }: ModelCardProps): JSX.Element {
   const tier = recommendationKind(item);
   const kindLabel = tier === "compatible" ? "" : tier === "required" ? "Required" : "Recommended";
-  const overBudget = modelFitsHost(item, hostVramGB) === false;
+  const overBudget = isCatalogOverBudget(
+    item,
+    hostVramGB,
+    gpuVendor ?? catalogSortGpuVendor(hostVramGB),
+  );
   const downloaded = item.installed && item.source !== "catalog-only";
   const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
   // v2.2.9 Phase 5 (T010): the locked name-row pill set (shared card grammar).
@@ -816,6 +844,14 @@ const listStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
   overflowY: "auto",
+};
+
+const groupHeadingStyle: CSSProperties = {
+  margin: "var(--space-2, 8px) 0 0",
+  color: "var(--fg-muted)",
+  fontSize: "var(--text-xs, 12px)",
+  fontWeight: 600,
+  letterSpacing: "0.02em",
 };
 
 const cardStyle: CSSProperties = {

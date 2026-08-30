@@ -17,9 +17,15 @@ import type {
 
 export interface FineTuningSettingsProps {
   client: FineTuningClient;
+  hostVramGB?: number | null;
+  gpuVendor?: string | null;
 }
 
-export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Element {
+export function FineTuningSettings({
+  client,
+  hostVramGB,
+  gpuVendor,
+}: FineTuningSettingsProps): JSX.Element {
   const [status, setStatus] = useState<TuningStatusDto | null>(null);
   const [preflight, setPreflight] = useState<string | null>(null);
   const [dataset, setDataset] = useState<TuningDatasetDto | null>(null);
@@ -29,12 +35,20 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
   const [baseModelId, setBaseModelId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liveHardwareExpected = hostVramGB !== undefined || gpuVendor !== undefined;
+  const hardwareDetecting =
+    liveHardwareExpected && (hostVramGB === null || gpuVendor === null);
+  const hardware =
+    typeof hostVramGB === "number" && typeof gpuVendor === "string"
+      ? { hostVramGB, gpuVendor }
+      : undefined;
 
   useEffect(() => {
+    if (hardwareDetecting) return;
     let active = true;
     void (async () => {
       try {
-        const s = await client.status();
+        const s = await client.status(hardware);
         if (!active) return;
         setStatus(s);
         const [listed, bases] = await Promise.all([
@@ -52,7 +66,7 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
     return () => {
       active = false;
     };
-  }, [client]);
+  }, [client, gpuVendor, hardwareDetecting, hostVramGB]);
 
   const run = useCallback(
     async (fn: () => Promise<void>) => {
@@ -72,11 +86,11 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
   return (
     <section data-testid="fine-tuning-settings" style={sectionStyle}>
       <header>
-        <h2 style={{ margin: 0, fontSize: "var(--text-lg)" }}>Fine-tuning</h2>
+        <h2 style={{ margin: 0, fontSize: "var(--text-lg)" }}>Training</h2>
         <p style={mutedStyle}>
-          Local QLoRA on Unsloth Core (Apache library + LGPL zoo). Studio and the
-          Unsloth CLI are never installed. Datasets pass through secret redaction
-          and never leave this machine.
+          Train a small local adapter on your own examples so a compatible model
+          can learn a specialized style or task. Training uses local QLoRA through
+          Unsloth Core; datasets are secret-redacted and never leave this machine.
         </p>
       </header>
 
@@ -88,12 +102,12 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
 
       {status === null ? (
         <p data-testid="fine-tuning-loading" style={mutedStyle}>
-          Checking training hardware...
+          {hardwareDetecting ? "Detecting training hardware..." : "Checking training support..."}
         </p>
       ) : (
         <>
           <p data-testid="fine-tuning-hardware" style={mutedStyle}>
-            {status.supported ? status.reason : status.reason}
+            {status.reason} Detected {status.gpuVendor.toUpperCase()} GPU with {status.vramGB} GB VRAM.
           </p>
           <p data-testid="fine-tuning-pins" style={mutedStyle}>
             Pins: {status.pins.map((p) => `${p.name} ${p.version ?? ""} (${p.license})`).join("; ")}
@@ -101,8 +115,8 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
 
           {!status.supported ? (
             <p data-testid="fine-tuning-hidden" style={mutedStyle}>
-              Fine-tuning stays hidden on this host. NVIDIA (any OS) or AMD on
-              Linux with at least 16 GB VRAM is required.
+              Training is unavailable on this host. It requires an NVIDIA GPU on
+              Windows or Linux, or an AMD GPU on Linux, with at least 16 GB VRAM.
             </p>
           ) : (
             <>
@@ -117,11 +131,11 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
-                      setStatus(await client.provision());
+                      setStatus(await client.provision(hardware));
                     })
                   }
                 >
-                  Provision Unsloth Core
+                  Provision training runtime
                 </Button>
                 <Button
                   type="button"

@@ -60,6 +60,18 @@ function isIncompatible(row: ModelDisplayRow, options: ModelDisplayOptions): boo
   return typeof options.hostVramGB === "number" && row.vramGB > options.hostVramGB;
 }
 
+function isDownloaded(row: ModelDisplayRow): boolean {
+  return Boolean(row.installed && row.source && row.source !== "catalog-only");
+}
+
+export function modelAvailabilityBucket(
+  row: ModelDisplayRow,
+  options: ModelDisplayOptions = {},
+): 0 | 1 | 2 {
+  if (isDownloaded(row)) return 0;
+  return isIncompatible(row, options) ? 2 : 1;
+}
+
 export function compareModelDisplayRows(
   a: ModelDisplayRow,
   b: ModelDisplayRow,
@@ -83,6 +95,18 @@ export function canonicalModelDisplayOrder<T extends ModelDisplayRow>(
   return rows
     .filter(isUserSelectableCatalogRow)
     .sort((a, b) => compareModelDisplayRows(a, b, options));
+}
+
+export function settingsModelDisplayOrder<T extends ModelDisplayRow>(
+  rows: readonly T[],
+  options: ModelDisplayOptions = {},
+): T[] {
+  return rows
+    .filter(isUserSelectableCatalogRow)
+    .sort((a, b) => {
+      const availability = modelAvailabilityBucket(a, options) - modelAvailabilityBucket(b, options);
+      return availability || compareModelDisplayRows(a, b, options);
+    });
 }
 
 export function installedOutsideCatalog<T extends ModelDisplayRow>(rows: readonly T[]): T[] {
