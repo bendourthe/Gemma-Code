@@ -60,11 +60,21 @@ import {
   type SchedulerActiveJob,
 } from "../../shared/models/schedulerResidency";
 import {
-  readCodingWorkspacePath,
-  writeCodingWorkspacePath,
+  normalizeCodingWorkspaceSelection,
+  readCodingWorkspaceSelection,
+  writeCodingWorkspaceSelection,
+  type CodingWorkspaceSelection,
 } from "../../lib/persistence";
+import { getDefaultWorkspaceRoot } from "../../lib/workspacePicker";
+import { WorkspaceSelector } from "./WorkspaceSelector";
 
-type Tab = "chat" | "memory" | "trace" | "sessions";
+type Tab = "chat" | "memory" | "activity";
+
+export function normalizeCodingTab(value: string | null | undefined): Tab {
+  if (value === "memory") return "memory";
+  if (value === "activity" || value === "trace") return "activity";
+  return "chat";
+}
 
 /** Not a picker feed. Placeholders until `models.list` + snapshot return. */
 const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
@@ -176,7 +186,7 @@ function reasoningFromCodingEvents(events: readonly CodingSessionEventT[]): stri
 
 export interface CodingPageProps {
   initialModelId?: string;
-  initialTab?: Tab;
+  initialTab?: string;
   /** v1.16.0 Phase 5 (A4) -- installed-model feed; tests inject a fake. */
   modelsClient?: {
     list(): Promise<readonly ListedModelDto[]>;
@@ -211,7 +221,7 @@ export function CodingPage({
   residencyMemory,
   initialWorkspacePath,
 }: CodingPageProps = {}): JSX.Element {
-  const [tab, setTab] = useState<Tab>(initialTab ?? "chat");
+  const [tab, setTab] = useState<Tab>(() => normalizeCodingTab(initialTab));
   const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
   const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
@@ -219,11 +229,14 @@ export function CodingPage({
     () => documentClientOverride ?? createIpcDocumentClient(),
   );
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [workspacePath, setWorkspacePath] = useState(
-    () => initialWorkspacePath ?? readCodingWorkspacePath() ?? "",
+  const [workspace, setWorkspace] = useState<CodingWorkspaceSelection | null>(() =>
+    initialWorkspacePath
+      ? normalizeCodingWorkspaceSelection([initialWorkspacePath], initialWorkspacePath)
+      : readCodingWorkspaceSelection(),
   );
-  const workspacePathRef = useRef(workspacePath);
-  workspacePathRef.current = workspacePath;
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+  const workspaceHydrationRequest = useRef(0);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -260,7 +273,7 @@ export function CodingPage({
         backend: {
           ...ipcBackend,
         },
-        getWorkspacePath: () => workspacePathRef.current,
+        getWorkspaceSelection: () => workspaceRef.current,
         getModelId: () => modelIdRef.current,
         onSessionCreated: (session) => {
           setSessionId(session.sessionId);
@@ -272,6 +285,24 @@ export function CodingPage({
     },
     [],
   );
+
+  useEffect(() => {
+    if (workspace) return;
+    const requestId = ++workspaceHydrationRequest.current;
+    void getDefaultWorkspaceRoot().then(
+      (home) => {
+        if (requestId !== workspaceHydrationRequest.current) return;
+        const next = normalizeCodingWorkspaceSelection([home], home);
+        if (!next) return;
+        setWorkspace(next);
+        writeCodingWorkspaceSelection(next);
+      },
+      (reason) => {
+        if (requestId !== workspaceHydrationRequest.current) return;
+        setError(`Could not load the home workspace: ${reason instanceof Error ? reason.message : String(reason)}`);
+      },
+    );
+  }, [workspace]);
 
   useEffect(() => {
     let cancelled = false;
@@ -303,14 +334,16 @@ export function CodingPage({
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
-    const selectedWorkspace = workspacePath.trim();
+    const selectedWorkspace = workspace;
     if (!selectedWorkspace) {
-      setError("Choose a workspace folder before starting a coding session.");
+      setError("The home workspace is still loading. Try again in a moment.");
       return null;
     }
     const reply = await ipc.call<CodingSessionStartResponseT>("coding.session.start", {
       modelId: foldModelId(modelId),
-      workspacePath: selectedWorkspace,
+      workspacePath: selectedWorkspace.primaryRoot,
+      workspaceRoots: selectedWorkspace.roots,
+      primaryRoot: selectedWorkspace.primaryRoot,
     });
     if (!reply.ok) {
       setError(`Could not start session: ${reply.message}`);
@@ -319,7 +352,7 @@ export function CodingPage({
     setSessionId(reply.value.sessionId);
     setHistoryEpoch((n) => n + 1);
     return reply.value.sessionId;
-  }, [modelId, sessionId, workspacePath]);
+  }, [modelId, sessionId, workspace]);
 
   const handleParseDocument = useCallback(
     async (text: string, attachment: string): Promise<void> => {
@@ -499,6 +532,58 @@ export function CodingPage({
     setError(null);
   }, [sessionId]);
 
+  const prepareWorkspaceChange = useCallback(async (): Promise<boolean> => {
+    if (!sessionId) return true;
+    if (
+      busy &&
+      !window.confirm(
+        "This session is still running with its current folders. Stop it and switch to the new workspace?",
+      )
+    ) {
+      return false;
+    }
+    await handleNewSession();
+    setHistorySelected(null);
+    return true;
+  }, [busy, handleNewSession, sessionId]);
+
+  const persistWorkspace = useCallback((next: CodingWorkspaceSelection): void => {
+    workspaceHydrationRequest.current += 1;
+    workspaceRef.current = next;
+    setWorkspace(next);
+    writeCodingWorkspaceSelection(next);
+  }, []);
+
+  const handleReplacePrimary = useCallback(async (paths: readonly string[]): Promise<void> => {
+    if (!(await prepareWorkspaceChange())) return;
+    const current = workspaceRef.current;
+    const oldPrimary = current?.primaryRoot;
+    const tail = current?.roots.filter((root) => root !== oldPrimary) ?? [];
+    const next = normalizeCodingWorkspaceSelection([...paths, ...tail], paths[0]);
+    if (next) persistWorkspace(next);
+  }, [persistWorkspace, prepareWorkspaceChange]);
+
+  const handleAddRoots = useCallback(async (paths: readonly string[]): Promise<void> => {
+    if (!(await prepareWorkspaceChange())) return;
+    const current = workspaceRef.current;
+    const next = normalizeCodingWorkspaceSelection(
+      [...(current?.roots ?? []), ...paths],
+      current?.primaryRoot ?? paths[0],
+    );
+    if (next) persistWorkspace(next);
+  }, [persistWorkspace, prepareWorkspaceChange]);
+
+  const handleRemoveRoot = useCallback(async (path: string): Promise<void> => {
+    const current = workspaceRef.current;
+    if (!current || current.roots.length <= 1 || path === current.primaryRoot) return;
+    if (!(await prepareWorkspaceChange())) return;
+    const next = normalizeCodingWorkspaceSelection(
+      current.roots.filter((root) => root !== path),
+      current.primaryRoot,
+    );
+    if (next) persistWorkspace(next);
+  }, [persistWorkspace, prepareWorkspaceChange]);
+
   const reloadSessions = useCallback(async (): Promise<void> => {
     const reply = await ipc.call<CodingSessionListResponseT>("coding.sessions.list", {});
     if (reply.ok) setSessions(reply.value.sessions);
@@ -518,6 +603,11 @@ export function CodingPage({
     }
     setSessionId(id);
     if (reply.value.session.modelId) setModelId(reply.value.session.modelId);
+    const resumedWorkspace = normalizeCodingWorkspaceSelection(
+      reply.value.session.workspaceRoots ?? [],
+      reply.value.session.primaryRoot,
+    );
+    if (resumedWorkspace) persistWorkspace(resumedWorkspace);
     setHistorySelected({ kind: "chat", id });
     const restored = reply.value.turns ?? [];
     if (restored.length > 0) {
@@ -544,7 +634,7 @@ export function CodingPage({
       );
     }
     setTab("chat");
-  }, []);
+  }, [persistWorkspace]);
 
   useEffect(() => {
     if (tab !== "memory") return;
@@ -556,7 +646,7 @@ export function CodingPage({
   }, [tab]);
 
   useEffect(() => {
-    if (tab !== "trace") return;
+    if (tab !== "activity") return;
     void ipc
       .call<CodingTraceSubscribeResponseT>("coding.trace.subscribe", {})
       .then((r) => {
@@ -564,21 +654,12 @@ export function CodingPage({
       });
   }, [tab]);
 
-  useEffect(() => {
-    if (tab !== "sessions") return;
-    void ipc
-      .call<CodingSessionListResponseT>("coding.sessions.list", {})
-      .then((r) => {
-        if (r.ok) setSessions(r.value.sessions);
-      });
-  }, [tab]);
-
-  // v1.16.0 Phase 2.2 (adoption item A2) -- the Trace tab also loads per-model
+  // v1.16.0 Phase 2.2 (adoption item A2) -- the Activity tab also loads per-model
   // inference analytics (tokens/sec, TTFT, memory). Read on tab activation like
   // the other trace data; the registry is in-process in the sidecar, so this is
   // a cheap local read with no disk or network access.
   useEffect(() => {
-    if (tab !== "trace") return;
+    if (tab !== "activity") return;
     void ipc.call<MetricsInferenceResponseT>("metrics.inference", {}).then((r) => {
       if (r.ok) setModelMetrics(r.value.perModel);
     });
@@ -588,7 +669,7 @@ export function CodingPage({
   // user can pick a session to replay or compare. Reload it whenever the
   // Trace tab becomes active.
   useEffect(() => {
-    if (tab !== "trace") return;
+    if (tab !== "activity") return;
     void ipc
       .call<CodingSessionListResponseT>("coding.sessions.list", {})
       .then((r) => {
@@ -691,6 +772,10 @@ export function CodingPage({
             storageKey="nexus.coding.expanded"
             refreshToken={historyEpoch}
             collapsed={historyCollapsed}
+            readOnlyFolders={true}
+            expandTopLevelOnLoad={true}
+            retryLoadError={true}
+            getFolderTitle={(folder) => folder.icon?.trim() || folder.name}
             onBeforeSessionDisposition={async (id) => {
               if (sessionIdRef.current === id && busy) {
                 const reply = await ipc.call("coding.session.cancel", { sessionId: id });
@@ -722,50 +807,24 @@ export function CodingPage({
         }}
       >
       <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <label
-          htmlFor="coding-workspace-path"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "auto minmax(0, 1fr)",
-            alignItems: "center",
-            gap: "var(--space-2)",
-            color: "var(--fg-muted)",
-            fontSize: "var(--text-xs)",
-          }}
-        >
-          Workspace
-          <input
-            id="coding-workspace-path"
-            data-testid="coding-workspace-path"
-            type="text"
-            value={workspacePath}
-            disabled={Boolean(sessionId)}
-            placeholder="C:\\path\\to\\project"
-            onChange={(event) => {
-              const next = event.currentTarget.value;
-              setWorkspacePath(next);
-              writeCodingWorkspacePath(next);
-            }}
-            style={{
-              minWidth: 0,
-              padding: "var(--space-1) var(--space-2)",
-              color: "var(--fg-0)",
-              background: "color-mix(in srgb, var(--bg-1) 72%, transparent)",
-              border: "1px solid var(--border-1)",
-              borderRadius: "var(--radius-md)",
-            }}
-          />
-        </label>
+        <WorkspaceSelector
+          selection={workspace}
+          onReplacePrimary={handleReplacePrimary}
+          onAdd={handleAddRoots}
+          onRemove={handleRemoveRoot}
+          onError={(message) => setError(`Could not select workspace folder: ${message}`)}
+        />
       </header>
 
       <nav role="tablist" style={{ display: "flex", gap: 0 }}>
-        {(["chat", "memory", "trace", "sessions"] as const).map((t) => (
+        {(["chat", "memory", "activity"] as const).map((t) => (
           <button
             key={t}
             type="button"
             role="tab"
             data-testid={`coding-tab-${t}`}
             aria-selected={tab === t}
+            title={t === "chat" ? "Conversation and agent output" : t === "memory" ? "Knowledge scoped to this workspace" : "Tools, approvals, and runtime events"}
             onClick={() => setTab(t)}
             style={tabButtonStyle(tab === t)}
           >
@@ -819,25 +878,26 @@ export function CodingPage({
             />
           </div>
         )}
-        {tab === "memory" && <MemoryPanel snapshot={memorySnapshot} />}
-        {tab === "trace" && (
-          <TraceDashboardPanel
-            events={traceEvents}
-            sessions={sessions}
-            modelMetrics={modelMetrics}
-            activeSessionId={replaySessionId}
-            onSelectSession={(id) => void handleReplaySelect(id)}
-            compareSession={compareSummary}
-            compareEvents={compareEvents}
-            onPickCompareSession={(id) => void handleCompareSelect(id)}
-            onCloseCompare={handleCloseCompare}
-          />
+        {tab === "memory" && (
+          <section data-testid="coding-memory" aria-label="Workspace memory">
+            <p style={{ color: "var(--fg-muted)", marginTop: 0 }}>Knowledge here is scoped to the selected workspace folders.</p>
+            <MemoryPanel snapshot={memorySnapshot} />
+          </section>
         )}
-        {tab === "sessions" && (
-          <section data-testid="sessions-panel" aria-label="Sessions panel">
-            <p style={{ color: "var(--fg-muted)", margin: 0 }}>
-              Sessions are listed on the left. Rename, delete, and folders live there.
-            </p>
+        {tab === "activity" && (
+          <section data-testid="coding-activity" aria-label="Agent activity">
+            <p style={{ color: "var(--fg-muted)", marginTop: 0 }}>Review tool calls, approvals, model metrics, and runtime events for this workspace.</p>
+            <TraceDashboardPanel
+              events={traceEvents}
+              sessions={sessions}
+              modelMetrics={modelMetrics}
+              activeSessionId={replaySessionId}
+              onSelectSession={(id) => void handleReplaySelect(id)}
+              compareSession={compareSummary}
+              compareEvents={compareEvents}
+              onPickCompareSession={(id) => void handleCompareSelect(id)}
+              onCloseCompare={handleCloseCompare}
+            />
           </section>
         )}
       </div>

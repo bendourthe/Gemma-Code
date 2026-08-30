@@ -34,6 +34,9 @@ function makeBackend(rows: CodingSessionSummaryT[]): CodingExplorerBackend & {
         sessionId: `new-${rows.length + 1}`,
         title: input.title,
         modelId: input.modelId,
+        workspaceId: "ws-0123456789abcdef01234567",
+        workspaceRoots: [...input.workspaceRoots],
+        primaryRoot: input.primaryRoot,
       });
       rows.push(created);
       return created;
@@ -53,25 +56,50 @@ function makeBackend(rows: CodingSessionSummaryT[]): CodingExplorerBackend & {
 }
 
 describe("createCodingSessionsAsChatExplorer", () => {
-  it("lists sidecar sessions as a flat FolderTree with no fake rows", async () => {
-    const backend = makeBackend([session({ sessionId: "prev-1", title: "Prior session" })]);
+  it("groups sidecar sessions under their durable workspace identity", async () => {
+    const backend = makeBackend([session({
+      sessionId: "prev-1",
+      title: "Prior session",
+      workspaceId: "ws-0123456789abcdef01234567",
+      workspaceRoots: ["C:\\work\\project", "D:\\shared"],
+      primaryRoot: "C:\\work\\project",
+    })]);
     const client = createCodingSessionsAsChatExplorer({
       backend,
-      getWorkspacePath: () => "C:\\work\\project",
+      getWorkspaceSelection: () => ({ roots: ["C:\\work\\project"], primaryRoot: "C:\\work\\project" }),
       getModelId: () => "gemma4:e4b",
       persistOverlay: false,
     });
     const tree = await client.listTree();
-    expect(tree.children).toEqual([]);
-    expect(tree.chats.map((chat) => chat.id)).toEqual(["prev-1"]);
-    expect(tree.chats[0]?.title).toBe("Prior session");
+    expect(tree.children).toHaveLength(1);
+    expect(tree.children[0]?.folder?.name).toBe("project +1");
+    expect(tree.children[0]?.folder?.icon).toContain("D:\\shared");
+    expect(tree.children[0]?.chats.map((chat) => chat.id)).toEqual(["prev-1"]);
+  });
+
+  it("deduplicates concurrent list results by stable session id", async () => {
+    const duplicate = session({
+      sessionId: "prev-1",
+      title: "Prior session",
+      workspaceId: "ws-0123456789abcdef01234567",
+      workspaceRoots: ["C:\\work\\project"],
+      primaryRoot: "C:\\work\\project",
+    });
+    const client = createCodingSessionsAsChatExplorer({
+      backend: makeBackend([duplicate, { ...duplicate }]),
+      getWorkspaceSelection: () => ({ roots: ["C:\\work\\project"], primaryRoot: "C:\\work\\project" }),
+      getModelId: () => "gemma4:e4b",
+      persistOverlay: false,
+    });
+    const tree = await client.listTree();
+    expect(tree.children[0]?.chats.map((chat) => chat.id)).toEqual(["prev-1"]);
   });
 
   it("renames and deletes through coding.session IPC", async () => {
     const backend = makeBackend([session({ sessionId: "prev-1", title: "Prior session" })]);
     const client = createCodingSessionsAsChatExplorer({
       backend,
-      getWorkspacePath: () => "C:\\work\\project",
+      getWorkspaceSelection: () => ({ roots: ["C:\\work\\project"], primaryRoot: "C:\\work\\project" }),
       getModelId: () => "gemma4:e4b",
       persistOverlay: false,
     });
@@ -83,30 +111,33 @@ describe("createCodingSessionsAsChatExplorer", () => {
     expect(tree.chats).toHaveLength(0);
   });
 
-  it("keeps overlay folders local and reparents sessions when a folder is deleted", async () => {
+  it("migrates local overlay folders beneath Legacy workspace without losing sessions", async () => {
     const backend = makeBackend([session({ sessionId: "prev-1", title: "Prior session" })]);
     const client = createCodingSessionsAsChatExplorer({
       backend,
-      getWorkspacePath: () => "C:\\work\\project",
+      getWorkspaceSelection: () => ({ roots: ["C:\\work\\project"], primaryRoot: "C:\\work\\project" }),
       getModelId: () => "gemma4:e4b",
       persistOverlay: false,
     });
     const folder = await client.createFolder({ parentId: null, name: "Work" });
     await client.moveChat("prev-1", folder.id);
     let tree = await client.listTree();
-    expect(tree.children[0]?.chats.map((chat) => chat.id)).toEqual(["prev-1"]);
+    const legacy = tree.children.find((node) => node.folder?.name === "Legacy workspace");
+    const unsorted = legacy?.children.find((node) => node.folder?.name === "Unsorted");
+    expect(unsorted?.children[0]?.chats.map((chat) => chat.id)).toEqual(["prev-1"]);
     await client.deleteFolder(folder.id);
     expect(backend.rows).toHaveLength(1);
     tree = await client.listTree();
-    expect(tree.children).toHaveLength(0);
-    expect(tree.chats.map((chat) => chat.id)).toEqual(["prev-1"]);
+    const nextLegacy = tree.children.find((node) => node.folder?.name === "Legacy workspace");
+    const nextUnsorted = nextLegacy?.children.find((node) => node.folder?.name === "Unsorted");
+    expect(nextUnsorted?.chats.map((chat) => chat.id)).toEqual(["prev-1"]);
   });
 
   it("refuses createChat without a workspace", async () => {
     const backend = makeBackend([]);
     const client = createCodingSessionsAsChatExplorer({
       backend,
-      getWorkspacePath: () => "  ",
+      getWorkspaceSelection: () => null,
       getModelId: () => "gemma4:e4b",
       persistOverlay: false,
     });

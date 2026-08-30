@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ipcCall } from "../../lib/ipc";
 import type { ArchivedSessionDtoT, SessionPillarT } from "../../../sidecar/src/protocol";
+import { Button } from "../../components/ui";
 
 export interface ArchivedChatsClient {
   list(): Promise<{
@@ -81,7 +82,7 @@ export function ArchivedChatsSettings({ client = createIpcArchivedChatsClient() 
       <h1 id="archived-chats-title">Archived chats</h1>
       <p style={{ color: "var(--fg-muted)" }}>Restore archived chats to their original tab and location when it still exists.</p>
       {loading ? <p role="status">Loading archived chats...</p> : null}
-      {fatalError ? <p role="alert">Could not load archived chats: {fatalError} <button type="button" onClick={() => void refresh()}>Retry</button></p> : null}
+      {fatalError ? <p role="alert">Could not load archived chats: {fatalError} <Button type="button" onClick={() => void refresh()}>Retry</Button></p> : null}
       {errors.map((error) => <p key={error.pillar} role="status">{error.pillar}: {error.message}</p>)}
       {!loading && !fatalError && sessions.length === 0 ? <p data-testid="archived-chats-empty">No archived chats.</p> : null}
       {GROUPS.map((group) => {
@@ -94,7 +95,7 @@ export function ArchivedChatsSettings({ client = createIpcArchivedChatsClient() 
               {rows.map((session) => (
                 <li key={session.id} style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", padding: "var(--space-3)", borderBottom: "1px solid var(--border-1)" }}>
                   <span><strong>{session.title}</strong><br /><small>{new Date(session.archivedAt).toLocaleString()} · {session.originalParent ?? "Root"}</small></span>
-                  <button type="button" disabled={pendingId !== null} onClick={() => void restore(session)}>{pendingId === session.id ? "Restoring..." : "Restore"}</button>
+                  <Button type="button" disabled={pendingId !== null} onClick={() => void restore(session)}>{pendingId === session.id ? "Restoring..." : "Restore"}</Button>
                 </li>
               ))}
             </ul>

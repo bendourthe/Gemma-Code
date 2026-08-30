@@ -93,6 +93,14 @@ export interface FolderTreeProps {
   onSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
   /** May cancel active work; rejection prevents the storage mutation. */
   onBeforeSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
+  /** Workspace-backed trees use folders as immutable scope containers. */
+  readOnlyFolders?: boolean;
+  /** Optional richer hover text for synthetic folders. */
+  getFolderTitle?: (folder: Folder) => string;
+  /** Reveal sessions immediately while keeping nested user folders collapsible. */
+  expandTopLevelOnLoad?: boolean;
+  /** Offer an explicit reload action when an asynchronous tree read fails. */
+  retryLoadError?: boolean;
 }
 
 export interface FolderTreeCopy {
@@ -232,6 +240,10 @@ export function FolderTree({
   collapsed = false,
   onSessionDisposition,
   onBeforeSessionDisposition,
+  readOnlyFolders = false,
+  getFolderTitle,
+  expandTopLevelOnLoad = false,
+  retryLoadError = false,
 }: FolderTreeProps): JSX.Element {
   const storage = storageAdapter ?? makeDefaultStorage(storageKey);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(storage.read()));
@@ -276,6 +288,15 @@ export function FolderTree({
       (next) => {
         if (cancelled) return;
         setTree(next);
+        if (expandTopLevelOnLoad) {
+          setExpanded((current) => {
+            const expandedNext = new Set(current);
+            for (const child of next.children) {
+              if (child.folder) expandedNext.add(child.folder.id);
+            }
+            return expandedNext;
+          });
+        }
         setLoadError(null);
       },
       (err) => {
@@ -287,7 +308,7 @@ export function FolderTree({
     return () => {
       cancelled = true;
     };
-  }, [client, revision, refreshToken]);
+  }, [client, expandTopLevelOnLoad, revision, refreshToken]);
 
   const flat = useMemo(() => {
     const full = flattenTree(tree, expanded);
@@ -346,9 +367,10 @@ export function FolderTree({
 
   const handleDoubleClick = useCallback(
     (node: FlatNode) => {
+      if (readOnlyFolders && node.kind === "folder") return;
       startRename(node);
     },
-    [startRename],
+    [readOnlyFolders, startRename],
   );
 
   const commitRename = useCallback(
@@ -409,10 +431,12 @@ export function FolderTree({
         handleClick(node);
       } else if (e.key === "F2") {
         e.preventDefault();
+        if (readOnlyFolders && node.kind === "folder") return;
         handleDoubleClick(node);
       } else if (e.key === "Delete" || e.key === "Del") {
         e.preventDefault();
         if (node.kind === "folder" && node.id !== null) {
+          if (readOnlyFolders) return;
           setConfirmDelete({
             target: { kind: "folder", id: node.id },
             label: node.label,
@@ -425,7 +449,7 @@ export function FolderTree({
         }
       }
     },
-    [flat, handleClick, handleDoubleClick, renamingId],
+    [flat, handleClick, handleDoubleClick, readOnlyFolders, renamingId],
   );
 
   const focusNode = useCallback((node: FlatNode) => {
@@ -437,6 +461,7 @@ export function FolderTree({
   const handleContextMenu = useCallback(
     (e: MouseEvent<HTMLLIElement>, node: FlatNode) => {
       e.preventDefault();
+      if (readOnlyFolders && node.kind === "folder") return;
       const target: SelectedNode =
         node.kind === "folder"
           ? { kind: "folder", id: node.id }
@@ -444,10 +469,14 @@ export function FolderTree({
       setContextMenu({ anchorX: e.clientX, anchorY: e.clientY, target });
       selectNode(target);
     },
-    [selectNode],
+    [readOnlyFolders, selectNode],
   );
 
   const handleDragStart = useCallback((e: DragEvent<HTMLLIElement>, node: FlatNode) => {
+    if (readOnlyFolders) {
+      e.preventDefault();
+      return;
+    }
     const target: SelectedNode =
       node.kind === "folder"
         ? { kind: "folder", id: node.id }
@@ -455,17 +484,19 @@ export function FolderTree({
     dragSourceRef.current = target;
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("application/x-nexus-node", nodeKey(target));
-  }, []);
+  }, [readOnlyFolders]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLLIElement>, node: FlatNode) => {
+    if (readOnlyFolders) return;
     if (node.kind !== "folder") return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-  }, []);
+  }, [readOnlyFolders]);
 
   const handleDrop = useCallback(
     (e: DragEvent<HTMLLIElement>, node: FlatNode) => {
       e.preventDefault();
+      if (readOnlyFolders) return;
       const source = dragSourceRef.current;
       dragSourceRef.current = null;
       if (!source) return;
@@ -486,7 +517,7 @@ export function FolderTree({
         () => refresh(),
       );
     },
-    [client, refresh],
+    [client, readOnlyFolders, refresh],
   );
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
@@ -613,19 +644,21 @@ export function FolderTree({
         alignItems: "center",
       }}
     >
-      <button
-        type="button"
-        data-testid="folder-tree-new-folder"
-        aria-label="New folder"
-        title="New folder"
-        onClick={(e) => {
-          e.stopPropagation();
-          onCreateFolder(null);
-        }}
-        style={iconButtonStyle}
-      >
-        <FolderPlus size={14} aria-hidden />
-      </button>
+      {!readOnlyFolders ? (
+        <button
+          type="button"
+          data-testid="folder-tree-new-folder"
+          aria-label="New folder"
+          title="New folder"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCreateFolder(null);
+          }}
+          style={iconButtonStyle}
+        >
+          <FolderPlus size={14} aria-hidden />
+        </button>
+      ) : null}
       <button
         type="button"
         data-testid="folder-tree-new-chat"
@@ -657,13 +690,25 @@ export function FolderTree({
       >
         {toolbar}
         {loadError !== null ? (
-          <p
-            data-testid="folder-tree-error"
-            role="status"
-            style={{ margin: 0, color: "var(--status-err, #d33)", fontSize: "var(--text-sm)" }}
-          >
-            {copy.loadError}: {loadError}
-          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <p
+              data-testid="folder-tree-error"
+              role="status"
+              style={{ margin: 0, color: "var(--status-err, #d33)", fontSize: "var(--text-sm)" }}
+            >
+              {copy.loadError}: {loadError}
+            </p>
+            {retryLoadError ? (
+              <button
+                type="button"
+                data-testid="folder-tree-retry"
+                onClick={() => refresh()}
+                style={{ ...iconButtonStyle, alignSelf: "flex-start" }}
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {collapsed ? null : (
           <>
@@ -754,9 +799,9 @@ export function FolderTree({
                 role="treeitem"
                 aria-selected={isSelected}
                 aria-label={node.label}
-                title={node.label}
+                title={node.kind === "folder" && node.folder && getFolderTitle ? getFolderTitle(node.folder) : node.label}
                 tabIndex={isSelected ? 0 : -1}
-                draggable={!isRenaming}
+                draggable={!isRenaming && !readOnlyFolders}
                 onDragStart={(e) => handleDragStart(e, node)}
                 onDragOver={(e) => handleDragOver(e, node)}
                 onDrop={(e) => handleDrop(e, node)}

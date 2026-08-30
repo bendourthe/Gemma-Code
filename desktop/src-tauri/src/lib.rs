@@ -134,6 +134,18 @@ fn canonicalize_workspace_roots(paths: Vec<String>) -> Result<Vec<String>, Strin
     Ok(canonical)
 }
 
+#[tauri::command]
+fn default_workspace_root() -> Result<String, String> {
+    let raw = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+        .ok_or_else(|| "the operating-system home directory is unavailable".to_string())?;
+    let resolved = std::fs::canonicalize(std::path::PathBuf::from(raw))
+        .map_err(|error| format!("the operating-system home directory is unavailable: {error}"))?;
+    if !resolved.is_dir() {
+        return Err("the operating-system home path is not a directory".to_string());
+    }
+    Ok(native_display_path(&resolved))
+}
+
 fn native_display_path(path: &std::path::Path) -> String {
     let value = path.to_string_lossy().to_string();
     #[cfg(windows)]
@@ -146,6 +158,19 @@ fn native_display_path(path: &std::path::Path) -> String {
         }
     }
     value
+}
+
+#[cfg(test)]
+mod workspace_tests {
+    use super::default_workspace_root;
+
+    #[test]
+    fn default_workspace_root_is_an_existing_absolute_directory() {
+        let root = default_workspace_root().expect("home directory should resolve");
+        let path = std::path::PathBuf::from(root);
+        assert!(path.is_absolute());
+        assert!(path.is_dir());
+    }
 }
 
 /// The restart body, factored out so the single-flight flag reset in
@@ -360,7 +385,8 @@ pub fn run() {
             ipc_call,
             sidecar_status,
             sidecar_restart,
-            canonicalize_workspace_roots
+            canonicalize_workspace_roots,
+            default_workspace_root
         ])
         .setup(|app| {
             // Window icon (title bar + taskbar): the transparent no-background

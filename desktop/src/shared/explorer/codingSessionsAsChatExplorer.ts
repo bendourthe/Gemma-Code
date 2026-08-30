@@ -22,6 +22,7 @@ import type {
   CodingSessionStartResponseT,
   CodingSessionSummaryT,
 } from "../../../sidecar/src/protocol";
+import type { CodingWorkspaceSelection } from "../../lib/persistence";
 
 export const CODING_FOLDER_OVERLAY_KEY = "nexus.coding.explorerFolders";
 
@@ -30,7 +31,9 @@ export interface CodingExplorerBackend {
   startSession(input: {
     title: string;
     modelId: string;
-    workspacePath?: string;
+    workspacePath: string;
+    workspaceRoots: readonly string[];
+    primaryRoot: string;
   }): Promise<CodingSessionSummaryT>;
   renameSession(sessionId: string, title: string): Promise<CodingSessionSummaryT>;
   deleteSession(sessionId: string): Promise<void>;
@@ -69,6 +72,9 @@ function asSummary(
       title: session.title ?? "Untitled session",
       createdAt: session.createdAt,
       messageCount: session.messageCount ?? 0,
+      workspaceId: session.workspaceId,
+      workspaceRoots: session.workspaceRoots,
+      primaryRoot: session.primaryRoot,
     };
   }
   return session as CodingSessionSummaryT;
@@ -87,7 +93,9 @@ export function createIpcCodingExplorerBackend(): CodingExplorerBackend {
         await ipcCall<CodingSessionStartResponseT>("coding.session.start", {
           modelId: input.modelId,
           title: input.title,
-          ...(input.workspacePath ? { workspacePath: input.workspacePath } : {}),
+          workspacePath: input.workspacePath,
+          workspaceRoots: input.workspaceRoots,
+          primaryRoot: input.primaryRoot,
         }),
       );
       return asSummary({
@@ -159,6 +167,75 @@ function sessionToChat(session: CodingSessionSummaryT, folderId: string | null):
   };
 }
 
+const LEGACY_WORKSPACE_ID = "workspace:legacy";
+const LEGACY_UNSORTED_ID = "workspace:legacy:unsorted";
+
+function workspaceFolderId(workspaceId: string): string {
+  return `workspace:${workspaceId}`;
+}
+
+function folderLabel(path: string, rootCount: number): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const base = trimmed.split(/[\\/]/).pop() || path;
+  return rootCount > 1 ? `${base} +${rootCount - 1}` : base;
+}
+
+function workspaceTreeState(
+  sessions: readonly CodingSessionSummaryT[],
+  overlay: FolderOverlay,
+): { folders: Folder[]; chats: Chat[] } {
+  const uniqueSessions = [...new Map(sessions.map((session) => [session.sessionId, session])).values()];
+  const now = Date.now();
+  const folders: Folder[] = [];
+  const workspaceIds = new Set<string>();
+  let needsLegacy = overlay.folders.length > 0;
+
+  for (const session of uniqueSessions) {
+    if (!session.workspaceId || !session.workspaceRoots?.length || !session.primaryRoot) {
+      needsLegacy = true;
+      continue;
+    }
+    const id = workspaceFolderId(session.workspaceId);
+    if (workspaceIds.has(id)) continue;
+    workspaceIds.add(id);
+    folders.push({
+      id,
+      parentId: null,
+      name: folderLabel(session.primaryRoot, session.workspaceRoots.length),
+      color: null,
+      icon: session.workspaceRoots.join("\n"),
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (needsLegacy) {
+    folders.push(
+      { id: LEGACY_WORKSPACE_ID, parentId: null, name: "Legacy workspace", color: null, icon: "Sessions created before workspace tracking", createdAt: now, updatedAt: now },
+      { id: LEGACY_UNSORTED_ID, parentId: LEGACY_WORKSPACE_ID, name: "Unsorted", color: null, icon: "Migrated local folders and unscoped sessions", createdAt: now, updatedAt: now },
+    );
+    folders.push(
+      ...overlay.folders.map((folder) => ({
+        ...folder,
+        parentId: folder.parentId ?? LEGACY_UNSORTED_ID,
+      })),
+    );
+  }
+
+  const overlayIds = new Set(overlay.folders.map((folder) => folder.id));
+  const chats = uniqueSessions.map((session) => {
+    const durableFolder = session.workspaceId ? workspaceFolderId(session.workspaceId) : null;
+    const legacyFolder = overlay.sessionFolders[session.sessionId];
+    const folderId = durableFolder && workspaceIds.has(durableFolder)
+      ? durableFolder
+      : legacyFolder && overlayIds.has(legacyFolder)
+        ? legacyFolder
+        : LEGACY_UNSORTED_ID;
+    return sessionToChat(session, folderId);
+  });
+  return { folders, chats };
+}
+
 function buildTree(folders: readonly Folder[], chats: readonly Chat[]): FolderTreeNode {
   const byParent = new Map<string | null, Folder[]>();
   for (const folder of folders) {
@@ -200,7 +277,7 @@ function isAncestor(folders: readonly Folder[], ancestorId: string, nodeId: stri
 
 export interface CodingSessionsAsChatExplorerOpts {
   backend: CodingExplorerBackend;
-  getWorkspacePath: () => string;
+  getWorkspaceSelection: () => CodingWorkspaceSelection | null;
   getModelId: () => string;
   overlayKey?: string;
   persistOverlay?: boolean;
@@ -226,13 +303,9 @@ export function createCodingSessionsAsChatExplorer(
     if (persist) writeOverlay(overlayKey, overlay);
   };
 
-  const folderMap = (): Map<string, Folder> => new Map(overlay.folders.map((f) => [f.id, f]));
-
-  const chatsFromSessions = async (): Promise<Chat[]> => {
+  const readTreeState = async (): Promise<{ folders: Folder[]; chats: Chat[] }> => {
     const sessions = await opts.backend.listSessions();
-    return sessions.map((session) =>
-      sessionToChat(session, overlay.sessionFolders[session.sessionId] ?? null),
-    );
+    return workspaceTreeState(sessions, overlay);
   };
 
   const requireFolder = (id: string): Folder => {
@@ -243,8 +316,8 @@ export function createCodingSessionsAsChatExplorer(
 
   return {
     async listTree() {
-      const chats = await chatsFromSessions();
-      return buildTree(overlay.folders, chats);
+      const state = await readTreeState();
+      return buildTree(state.folders, state.chats);
     },
     async createFolder(input) {
       const name = input.name.trim();
@@ -307,32 +380,32 @@ export function createCodingSessionsAsChatExplorer(
       save();
     },
     async createChat(input) {
-      const workspacePath = opts.getWorkspacePath().trim();
-      if (!workspacePath) {
+      const workspace = opts.getWorkspaceSelection();
+      if (!workspace) {
         throw new Error("Choose a workspace folder before starting a coding session.");
       }
       const title = input.title.trim() || "New session";
       const started = await opts.backend.startSession({
         title,
         modelId: input.modelId || opts.getModelId(),
-        workspacePath,
+        workspacePath: workspace.primaryRoot,
+        workspaceRoots: workspace.roots,
+        primaryRoot: workspace.primaryRoot,
       });
-      if (input.folderId !== null) {
-        requireFolder(input.folderId);
-        overlay = {
-          ...overlay,
-          sessionFolders: { ...overlay.sessionFolders, [started.sessionId]: input.folderId },
-        };
-        save();
-      }
       opts.onSessionCreated?.(started);
-      return sessionToChat(started, input.folderId);
+      return sessionToChat(
+        started,
+        started.workspaceId ? workspaceFolderId(started.workspaceId) : LEGACY_UNSORTED_ID,
+      );
     },
     async renameChat(id, title) {
       const trimmed = title.trim();
       if (!trimmed) throw new Error("session title is required");
       const renamed = await opts.backend.renameSession(id, trimmed);
-      return sessionToChat(renamed, overlay.sessionFolders[id] ?? null);
+      return sessionToChat(
+        renamed,
+        renamed.workspaceId ? workspaceFolderId(renamed.workspaceId) : overlay.sessionFolders[id] ?? LEGACY_UNSORTED_ID,
+      );
     },
     async moveChat(id, newFolderId) {
       if (newFolderId !== null) requireFolder(newFolderId);
@@ -341,7 +414,7 @@ export function createCodingSessionsAsChatExplorer(
         sessionFolders: { ...overlay.sessionFolders, [id]: newFolderId },
       };
       save();
-      const chats = await chatsFromSessions();
+      const chats = (await readTreeState()).chats;
       const chat = chats.find((row) => row.id === id);
       if (!chat) throw new Error(`session not found: ${id}`);
       return chat;
@@ -362,15 +435,17 @@ export function createCodingSessionsAsChatExplorer(
       save();
     },
     async getFolder(id) {
-      return folderMap().get(id) ?? null;
+      const state = await readTreeState();
+      return state.folders.find((folder) => folder.id === id) ?? null;
     },
     async getChat(id) {
-      const chats = await chatsFromSessions();
+      const chats = (await readTreeState()).chats;
       return chats.find((row) => row.id === id) ?? null;
     },
     async ancestors(folderId) {
       if (folderId === null) return [];
-      const byId = folderMap();
+      const state = await readTreeState();
+      const byId = new Map(state.folders.map((folder) => [folder.id, folder]));
       const chain: Folder[] = [];
       let current: string | null = folderId;
       const seen = new Set<string>();
@@ -386,7 +461,8 @@ export function createCodingSessionsAsChatExplorer(
     async search(query, limit = 25) {
       const trimmed = query.trim().toLowerCase();
       if (!trimmed) return [];
-      const tree = buildTree(overlay.folders, await chatsFromSessions());
+      const state = await readTreeState();
+      const tree = buildTree(state.folders, state.chats);
       const hits: ChatExplorerSearchHit[] = [];
       const walk = (node: FolderTreeNode): void => {
         if (node.folder && node.folder.name.toLowerCase().includes(trimmed)) {

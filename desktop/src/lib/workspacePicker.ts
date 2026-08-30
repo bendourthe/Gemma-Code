@@ -43,3 +43,9 @@ export function pickWorkspaceFolders(): Promise<readonly string[]> {
   );
   return request;
 }
+
+export async function getDefaultWorkspaceRoot(): Promise<string> {
+  const reply = await invokeCommand<string>("default_workspace_root");
+  if (!reply.ok) throw new Error(reply.message);
+  return reply.value;
+}
