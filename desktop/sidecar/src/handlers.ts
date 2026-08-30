@@ -927,7 +927,7 @@ export const handlers: Record<Method, HandlerFn> = {
     const models = await runtime.service.list();
     const { loadSnapshot } = await import("./models/selectionSnapshot.js");
     const selection = await loadSnapshot();
-    return { models, catalogStatus: runtime.catalogStatus, selection };
+    return { models, catalogStatus: runtime.catalogStatus, catalogHash: runtime.service.catalogHash, selection };
   },
   "models.install": async (params, ctx) => {
     const req = ModelsInstallRequest.parse(params ?? {});

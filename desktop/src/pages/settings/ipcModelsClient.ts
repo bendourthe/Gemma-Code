@@ -32,9 +32,11 @@ export function createIpcModelsClient(): ModelsClient & { lastSelection: Selecti
       const reply = await ipcCall<{
         models: ListedModelDto[];
         selection?: SelectionSnapshot | null;
+        catalogHash?: string;
       }>("models.list", {});
       if (!reply.ok) throw new Error(reply.message);
       client.lastSelection = reply.value.selection ?? null;
+      client.catalogHash = reply.value.catalogHash ?? null;
       return reply.value.models;
     },
 

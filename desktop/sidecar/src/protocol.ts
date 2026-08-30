@@ -2099,6 +2099,7 @@ export const ModelsRegistryListResponse = z
   .object({
     models: z.array(ModelListedEntry),
     catalogStatus: z.string().optional(),
+    catalogHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     selection: SelectionSnapshotSchema.nullable().optional(),
   })
   .strict();
@@ -2113,7 +2114,14 @@ export const ModelsOkResponse = z.object({ ok: z.literal(true) }).strict();
 export type ModelsOkResponseT = z.infer<typeof ModelsOkResponse>;
 
 export const ModelsDiskUsageResponse = z
-  .object({ usedBytes: z.number(), freeBytes: z.number().nullable() })
+  .object({
+    usedBytes: z.number(),
+    modelBytes: z.number(),
+    freeBytes: z.number().nullable(),
+    capacityBytes: z.number().nullable(),
+    measurementPath: z.string(),
+    measuredAt: z.string(),
+  })
   .strict();
 export type ModelsDiskUsageResponseT = z.infer<typeof ModelsDiskUsageResponse>;
 

@@ -1,0 +1,24 @@
+{
+  "catalog": {
+    "models": [
+      { "id": "compat-beta", "displayName": "Beta", "task": "chat", "type": "llm", "releaseDate": "2026-03-01", "tags": [] },
+      { "id": "required-embed", "displayName": "Required Embed", "task": "embed", "type": "embed", "releaseDate": "2024-01-01", "tags": ["required"] },
+      { "id": "recommended-old", "displayName": "Recommended Old", "task": "chat", "type": "llm", "releaseDate": "2025-01-01", "tags": ["recommended"] },
+      { "id": "external-row", "displayName": "External", "task": "chat", "type": "llm", "source": "external", "releaseDate": "2027-01-01", "tags": ["recommended"] },
+      { "id": "compat-alpha", "displayName": "Alpha", "task": "chat", "type": "llm", "releaseDate": "2026-03-01", "tags": [] },
+      { "id": "recommended-new", "displayName": "Recommended New", "task": "chat", "type": "llm", "releaseDate": "2026-02-01", "tags": ["recommended"] },
+      { "id": "dependency-only", "displayName": "Dependency", "type": "vae", "releaseDate": "2027-01-01", "tags": [] },
+      { "id": "bad-date", "displayName": "Last", "task": "chat", "type": "llm", "releaseDate": "unknown", "tags": [] }
+    ]
+  },
+  "expectedIds": [
+    "required-embed",
+    "recommended-new",
+    "recommended-old",
+    "compat-alpha",
+    "compat-beta",
+    "bad-date"
+  ],
+  "expectedOutsideIds": ["external-row"],
+  "expectedFingerprint": "a743e50d08c19bdc4f1afb046f9da025867f518ea44755d1078af733abdca9fb"
+}

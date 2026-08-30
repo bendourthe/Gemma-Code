@@ -85,5 +85,9 @@ export interface InstallProgressDto {
 
 export interface DiskUsageDto {
   usedBytes: number;
+  modelBytes: number;
   freeBytes: number | null;
+  capacityBytes: number | null;
+  measurementPath: string;
+  measuredAt: string;
 }

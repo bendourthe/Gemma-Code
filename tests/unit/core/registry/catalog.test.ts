@@ -67,6 +67,7 @@ describe("catalog", () => {
       type: "audio",
       task: "audio",
       displayName: "Kokoro",
+      description: "Kokoro provides compact local text-to-speech generation.",
       source: {
         protocol: "huggingface",
         url: "https://huggingface.co/x/resolve/main/kokoro.pth",
@@ -196,10 +197,22 @@ describe("catalog", () => {
         type: "image",
         task: "image",
         displayName: "X",
+        description: "This model creates local images.",
         uncensored: true,
         source: { protocol: "huggingface", url: "https://x/y" },
       }),
     ).toThrow(/provenance/);
+  });
+
+  it("validateSpec requires complete-sentence descriptions on selectable entries", () => {
+    expect(() =>
+      validateSpec({
+        id: "x", family: "x", name: "x", tag: "1",
+        type: "llm", task: "chat", displayName: "X",
+        description: "Incomplete copy",
+        source: { protocol: "ollama" },
+      }),
+    ).toThrow(/complete-sentence description/);
   });
 
   it("validateSpec accepts optional toolCallingVerified + MoE fields (v1.18.0 Phase 3)", () => {

@@ -47,11 +47,19 @@ describe("createIpcModelsClient", () => {
   });
 
   it("diskUsage maps models.diskUsage", async () => {
+    const dto = {
+      usedBytes: 42,
+      modelBytes: 42,
+      freeBytes: null,
+      capacityBytes: null,
+      measurementPath: "/models",
+      measuredAt: "2026-08-29T00:00:00.000Z",
+    };
     stub((m) => {
-      if (m === "models.diskUsage") return { usedBytes: 42, freeBytes: null };
+      if (m === "models.diskUsage") return dto;
       throw new Error(m);
     });
-    expect(await createIpcModelsClient().diskUsage()).toEqual({ usedBytes: 42, freeBytes: null });
+    expect(await createIpcModelsClient().diskUsage()).toEqual(dto);
   });
 
   it("list throws when the sidecar is unavailable", async () => {

@@ -2,7 +2,7 @@
  * v1.15.0 Phase 4 (Issue 3) -- sidecar ModelsService (reconcile + probes).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -156,19 +156,81 @@ describe("ModelsService.list", () => {
 });
 
 describe("ModelsService.diskUsage / remove", () => {
-  it("sums installed registry model sizes", async () => {
-    const listed = [
-      { id: "a", displayName: "A", installed: true, source: "registry", sizeBytes: 100 },
-      { id: "b", displayName: "B", installed: false, source: "catalog-only", sizeBytes: 999 },
-    ] as ListedModel[];
+  it("measures actual model files and excludes temporary partial downloads", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "nexus-model-usage-"));
+    await fs.mkdir(path.join(root, "weights", "a"), { recursive: true });
+    await fs.mkdir(path.join(root, "_tmp"), { recursive: true });
+    await fs.writeFile(path.join(root, "weights", "a", "model.bin"), Buffer.alloc(100));
+    await fs.writeFile(path.join(root, "_tmp", "partial.bin"), Buffer.alloc(999));
     const svc = new ModelsService({
-      registry: fakeRegistry(listed),
+      registry: fakeRegistry([]),
       catalog: CATALOG,
-      modelsRoot: "/nonexistent-models-root",
+      modelsRoot: root,
       fetchFn: throwingFetch,
       loadSnapshot: async () => null,
     });
-    expect((await svc.diskUsage()).usedBytes).toBe(100);
+    const usage = await svc.diskUsage();
+    expect(usage.usedBytes).toBe(100);
+    expect(usage.modelBytes).toBe(100);
+    expect(usage.measurementPath).toBe(path.resolve(root));
+    expect(Number.isNaN(Date.parse(usage.measuredAt))).toBe(false);
+  });
+
+  it("shares an in-flight disk measurement across concurrent callers", async () => {
+    let resolveMeasurement!: (value: Awaited<ReturnType<ModelsService["diskUsage"]>>) => void;
+    const measureDisk = vi.fn(
+      () => new Promise<Awaited<ReturnType<ModelsService["diskUsage"]>>>((resolve) => {
+        resolveMeasurement = resolve;
+      }),
+    );
+    const svc = new ModelsService({
+      registry: fakeRegistry([]),
+      catalog: CATALOG,
+      modelsRoot: "/x",
+      fetchFn: throwingFetch,
+      loadSnapshot: async () => null,
+      measureDisk,
+    });
+    const first = svc.diskUsage();
+    const second = svc.diskUsage();
+    const expected = {
+      usedBytes: 10,
+      modelBytes: 10,
+      freeBytes: 90,
+      capacityBytes: 100,
+      measurementPath: "/x",
+      measuredAt: "2026-08-29T00:00:00.000Z",
+    };
+    resolveMeasurement(expected);
+    await expect(Promise.all([first, second])).resolves.toEqual([expected, expected]);
+    expect(measureDisk).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the last measurement when a refresh exceeds its response bound", async () => {
+    const first = {
+      usedBytes: 10,
+      modelBytes: 10,
+      freeBytes: 90,
+      capacityBytes: 100,
+      measurementPath: "/x",
+      measuredAt: "2026-08-29T00:00:00.000Z",
+    };
+    const never = new Promise<Awaited<ReturnType<ModelsService["diskUsage"]>>>(() => undefined);
+    const measureDisk = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockReturnValueOnce(never);
+    const svc = new ModelsService({
+      registry: fakeRegistry([]),
+      catalog: CATALOG,
+      modelsRoot: "/x",
+      fetchFn: throwingFetch,
+      loadSnapshot: async () => null,
+      measureDisk,
+      diskMeasurementTimeoutMs: 5,
+    });
+    await expect(svc.diskUsage()).resolves.toEqual(first);
+    await expect(svc.diskUsage()).resolves.toEqual(first);
+    expect(measureDisk).toHaveBeenCalledTimes(2);
   });
 
   it("delegates remove to the registry", async () => {

@@ -228,7 +228,6 @@ class TestLoadCatalog:
             "nomic-embed-text",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
-            "legacy-text-no-task",
         }
 
     def test_task_drives_tab(self, tmp_path: Path) -> None:
@@ -241,11 +240,9 @@ class TestLoadCatalog:
         assert models["juggernaut-xl-v9"].type == "image"
         assert models["wan2.1-t2v-1.3b"].type == "video"
 
-    def test_missing_task_falls_back_to_type(self, tmp_path: Path) -> None:
+    def test_missing_task_is_not_user_selectable(self, tmp_path: Path) -> None:
         models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
-        legacy = models["legacy-text-no-task"]
-        assert legacy.type == "chat"
-        assert legacy.task == "chat"
+        assert "legacy-text-no-task" not in models
 
     def test_phase4_copy_fields_parsed(self, tmp_path: Path) -> None:
         models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
@@ -353,7 +350,7 @@ class TestCompatibilityBadge:
             total_ram_gb=16,
             gpu_vendor="none",
         )
-        assert "Requires 8" in text
+        assert text == "Incompatible - needs 8 GB VRAM"
         assert color == "#ef4444"
 
     def test_short_vram(self) -> None:
@@ -363,7 +360,7 @@ class TestCompatibilityBadge:
             total_ram_gb=16,
             gpu_vendor="nvidia",
         )
-        assert "Requires 12" in text
+        assert text == "Incompatible - needs 12 GB VRAM"
         assert color == "#f59e0b"
 
     def test_compatible(self) -> None:
@@ -373,7 +370,7 @@ class TestCompatibilityBadge:
             total_ram_gb=16,
             gpu_vendor="nvidia",
         )
-        assert text == "Compatible"
+        assert text == "Compatible - 4 GB VRAM"
 
     def test_ram_shortfall_shows_host_ram(self) -> None:
         text, color = compatibility_badge(
@@ -382,7 +379,7 @@ class TestCompatibilityBadge:
             total_ram_gb=4,
             gpu_vendor="nvidia",
         )
-        assert "Requires 8 GB RAM (you have 4)" in text
+        assert text == "Incompatible - needs 8 GB RAM (you have 4)"
         assert color == "#f59e0b"
 
     def test_ram_probe_failed_is_not_you_have_zero(self) -> None:
@@ -402,7 +399,7 @@ class TestCompatibilityBadge:
             total_ram_gb=32,
             gpu_vendor="nvidia",
         )
-        assert text == "Compatible"
+        assert text == "Compatible - CPU"
 
 
 class TestModelMetadata:
@@ -660,7 +657,7 @@ class TestTypedCatalogPage:
         enabled = [m.id for m in models if m.required_vram_gb <= 8]
         # v2.2.9 Phase 5: embed rows live on the Embeddings tab, not Chat.
         assert "nomic-embed-text" not in enabled
-        assert enabled.index("gemma4:e4b") < enabled.index("legacy-text-no-task")
+        assert "gemma4:e4b" in enabled
         embed_models = page._sorted_section_models(
             "embeddings", 8, "nvidia", {"nomic-embed-text"}
         )
@@ -721,23 +718,13 @@ class TestRealCatalogPage:
         assert "faster-whisper-large-v3" in audio_ids
         assert "kokoro-82m" in audio_ids
 
-    def test_agentic_tab_collapses_to_best_fit_per_family(self, qt_app) -> None:
-        # v1.14.0 Phase 3: the real-catalog agentic tab shows one best-fitting
-        # model per family; the over-budget Gemma tiers (18/22 GB) are grayed at
-        # the bottom on an 8 GB GPU.
+    def test_agentic_tab_lists_all_variants_including_over_budget(self, qt_app) -> None:
         state = _gpu_state(vram_mb=8192)
         page = TypedCatalogPage(state)
         models = page._sorted_section_models("agentic", 8, "nvidia")
-        over = [m.required_vram_gb > 8 for m in models]
-        assert over == sorted(over)  # fitting first, over-budget last
-        fitting = [m for m in models if m.required_vram_gb <= 8]
-        fams = [m.family for m in fitting]
-        assert len(fams) == len(set(fams))  # one best-fit per family
-        gemma_fit = [m for m in fitting if m.family == "gemma4"]
-        assert gemma_fit and gemma_fit[0].required_vram_gb <= 8
-        # The smaller Gemma tier is hidden (collapsed away), not shown alongside.
-        fitting_ids = {m.id for m in fitting}
-        assert not ({"gemma4:e2b", "gemma4:e4b"} <= fitting_ids)
+        ids = {m.id for m in models}
+        assert {"gemma4:e2b", "gemma4:e4b", "gemma4:26b", "gemma4:31b"} <= ids
+        assert any(m.required_vram_gb > 8 for m in models)
 
     def test_over_budget_model_disabled(self, qt_app) -> None:
         # v1.13.0 Phase 4: a model needing more VRAM than the GPU has is marked
@@ -782,9 +769,10 @@ class TestRealCatalogPage:
             fitted,
             list(page._matrix["16"]["agentic"]),
         )
-        enabled = [m.id for m in models if m.required_vram_gb <= 16]
-        assert enabled[:2] == ["gemma-4-12b-it-gguf", "gpt-oss:20b"]
-        assert enabled.index("gpt-oss:20b") < enabled.index("lfm2.5:2.6b")
+        ordered = [m.id for m in models]
+        assert ordered[0] == "lfm2.5:2.6b"
+        assert "gemma-4-12b-it-gguf" in ordered
+        assert "gpt-oss:20b" in ordered
 
     def test_8gb_agentic_order_follows_recommended_list(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=8192))
@@ -795,8 +783,9 @@ class TestRealCatalogPage:
             set(page._current_defaults()),
             list(page._matrix["8"]["agentic"]),
         )
-        enabled = [m.id for m in models if m.required_vram_gb <= 8]
-        assert enabled[:3] == ["gemma4:e4b", "lfm2.5:2.6b", "qwen3.5:9b"]
+        ordered = [m.id for m in models]
+        assert ordered[0] == "lfm2.5:2.6b"
+        assert {"gemma4:e4b", "qwen3.5:9b"} <= set(ordered)
 
     def test_new_specialists_listed_retired_coders_absent(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=24576))
@@ -1001,15 +990,15 @@ class TestPhase3Collapse:
         gemma_fit = [m.id for m in fitting if m.family == "gemma4"]
         assert gemma_fit == ["gemma4:e2b"]
 
-    def test_family_with_no_fitting_variant_shows_one_smallest(self, qt_app) -> None:
-        # A no-GPU host: every VRAM-needing model is over budget; each family
-        # still appears exactly once (its smallest variant, grayed).
+    def test_family_with_no_fitting_variant_keeps_every_variant_visible(
+        self, qt_app
+    ) -> None:
         state = InstallerState()
         state.gpu_vendor = "none"
         page = TypedCatalogPage(state)
         models = page._sorted_section_models("image", 0, "none")
         sana_imgs = [m for m in models if m.family == "sana" and m.type == "image"]
-        assert len(sana_imgs) == 1
+        assert len(sana_imgs) > 1
 
     def test_divider_rendered_when_over_budget(self, qt_app) -> None:
         from PyQt5.QtWidgets import QLabel
@@ -1039,13 +1028,16 @@ class TestPhase3Collapse:
 class TestV21CatalogVisibility:
     """v2.1.0 Phase 1 -- Muse Glimmer / Lightning hide-below-VRAM gates."""
 
-    def test_muse_hidden_on_12gb(self, qt_app) -> None:
+    def test_muse_visible_but_incompatible_on_12gb(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=12 * 1024))
-        ids = {
-            m.id for m in page._sorted_section_models("agentic", 12, "nvidia", set())
-        }
-        assert not any(i.startswith("muse-glimmer") for i in ids)
-        assert not any(i.startswith("nemotron-lightning") for i in ids)
+        models = page._sorted_section_models("agentic", 12, "nvidia", set())
+        assert any(m.id.startswith("muse-glimmer") for m in models)
+        assert any(m.id.startswith("nemotron-lightning") for m in models)
+        assert all(
+            m.required_vram_gb > 12
+            for m in models
+            if m.id.startswith(("muse-glimmer", "nemotron-lightning"))
+        )
 
     def test_muse_visible_on_24gb(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=24 * 1024))
@@ -1111,6 +1103,6 @@ class TestV21CatalogVisibility:
         assert gemma is not None
         assert gemma.over_budget is True
         texts = [lbl.text() for lbl in page.findChildren(QLabel)]
-        assert any("Requires 18 GB VRAM (you have 16)" in t for t in texts)
+        assert any("Incompatible - needs 18 GB VRAM" in t for t in texts)
         ram_labels = [t for t in texts if "RAM" in t]
         assert not any("you have 0" in t for t in ram_labels)

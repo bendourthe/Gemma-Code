@@ -6,6 +6,10 @@
  */
 
 import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
+import {
+  canonicalModelDisplayOrder,
+  installedOutsideCatalog,
+} from "../../../../core/registry/modelDisplayPolicy";
 
 export type CatalogTab =
   | "embeddings"
@@ -72,6 +76,12 @@ export function modelsOnTab(
   tab: CatalogTab,
 ): ListedModelDto[] {
   return models.filter((m) => catalogTabsFor(m).includes(tab));
+}
+
+export function installedOutsideCatalogModels(
+  models: readonly ListedModelDto[],
+): ListedModelDto[] {
+  return installedOutsideCatalog(models);
 }
 
 export type RecommendationKind = "required" | "recommended" | "compatible";
@@ -302,8 +312,6 @@ export function visibleModelsOnTab(
   tab: CatalogTab,
   options: CatalogSortOptions = {},
 ): ListedModelDto[] {
-  const ordered = collapseAndSortModels(modelsOnTab(models, tab), options);
-  const downloaded = ordered.filter(isDownloaded);
-  if (downloaded.length === 0) return ordered;
-  return [...downloaded, ...ordered.filter((m) => !isDownloaded(m))];
+  void options;
+  return canonicalModelDisplayOrder(modelsOnTab(models, tab));
 }

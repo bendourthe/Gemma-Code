@@ -1,12 +1,15 @@
-"""Shared Models-tab collapse + sort (v2.2.8 Phase 4).
+"""Shared legacy and v2.4.1 model display ordering helpers.
 
-Installer `typed_catalog._sorted_section_models` and desktop `visibleModelsOnTab`
-must produce the same id order for the same rows: hideBelowVram, one best-fit
-per family, required / recommended / compatible, then over-budget last.
+The v2.4.1 installer and desktop use ``canonical_display_order`` so every
+selectable catalog row appears in the same deterministic order. The older
+collapse helpers remain only for compatibility tests and callers outside the
+new catalog surfaces.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -187,3 +190,52 @@ def downloaded_first(
     downloaded = [i for i in ordered if is_downloaded_row(by_id.get(i, {}))]
     downloaded_set = set(downloaded)
     return downloaded + [i for i in ordered if i not in downloaded_set]
+
+
+def canonical_display_order(rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Return every selectable catalog id in the stable v2.4.1 display order."""
+
+    def tier(row: Mapping[str, Any]) -> int:
+        tags = row.get("tags") or ()
+        if (
+            "required" in tags
+            or row.get("task") == "embed"
+            or row.get("type") == "embed"
+        ):
+            return 0
+        if "recommended" in tags:
+            return 1
+        return 2
+
+    selectable = [
+        row
+        for row in rows
+        if str(row.get("task") or "").strip() and row.get("source") != "external"
+    ]
+    selectable.sort(
+        key=lambda row: (
+            tier(row),
+            -release_ordinal(str(row.get("releaseDate") or "")),
+            display_name(row).casefold(),
+            str(row.get("id") or "").casefold(),
+        )
+    )
+    return [str(row.get("id") or "") for row in selectable]
+
+
+def catalog_fingerprint(catalog: Mapping[str, Any]) -> str:
+    def normalize(value: Any) -> Any:
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        if isinstance(value, Mapping):
+            return {str(key): normalize(item) for key, item in value.items()}
+        if isinstance(value, Sequence) and not isinstance(
+            value, (str, bytes, bytearray)
+        ):
+            return [normalize(item) for item in value]
+        return value
+
+    payload = json.dumps(
+        normalize(catalog), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()

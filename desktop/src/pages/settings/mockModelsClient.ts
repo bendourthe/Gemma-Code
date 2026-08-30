@@ -108,7 +108,14 @@ export function createMockModelsClient(): ModelsClient {
       const used = items
         .filter((m) => m.installed && m.source === "registry")
         .reduce((acc, m) => acc + (m.sizeBytes ?? 0), 0);
-      return { usedBytes: used, freeBytes: 250_000_000_000 };
+      return {
+        usedBytes: used,
+        modelBytes: used,
+        freeBytes: 250_000_000_000,
+        capacityBytes: 500_000_000_000,
+        measurementPath: "/mock/models",
+        measuredAt: new Date().toISOString(),
+      };
     },
   };
 }

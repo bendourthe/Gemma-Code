@@ -10,7 +10,7 @@
  * iframed.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Button, SearchInput } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
@@ -19,9 +19,9 @@ import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus"
 import {
   CATALOG_TAB_DEFS,
   catalogTabsFor,
-  cardBadgeLabel,
   catalogSortGpuVendor,
-  modelsOnTab,
+  installedOutsideCatalogModels,
+  recommendationKind,
   visibleModelsOnTab,
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
@@ -43,6 +43,7 @@ import type {
 export type InstallHandle = { cancel(): void };
 
 export interface ModelsClient {
+  catalogHash?: string | null;
   list(): Promise<readonly ListedModelDto[]>;
   install(
     id: string,
@@ -80,6 +81,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   const [progress, setProgress] = useState<Record<string, InstallProgressDto>>({});
   const [active, setActive] = useState<Record<string, InstallHandle>>({});
   const [disk, setDisk] = useState<DiskUsageDto | null>(null);
+  const diskRequest = useRef(0);
   const [favorites, setFavorites] = useState<Partial<Record<string, string | null>>>(() => {
     const next: Partial<Record<string, string | null>> = {};
     for (const t of TASK_TABS) next[t] = readFavorite(t);
@@ -94,6 +96,16 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   });
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(error);
+
+  const refreshDisk = useCallback(async (): Promise<void> => {
+    const request = ++diskRequest.current;
+    try {
+      const next = await client.diskUsage();
+      if (request === diskRequest.current) setDisk(next);
+    } catch {
+      if (request === diskRequest.current) setDisk(null);
+    }
+  }, [client]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,18 +124,25 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    client
-      .diskUsage()
-      .then((d) => {
-        if (!cancelled) setDisk(d);
-      })
-      .catch(() => {
-        /* disk usage is informational */
-      });
+    void refreshDisk();
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, refreshDisk]);
+
+  useEffect(() => {
+    const refreshWhenVisible = (): void => {
+      if (document.visibilityState === "visible") void refreshDisk();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 30_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshDisk]);
 
   const searched = useMemo(
     () =>
@@ -138,18 +157,21 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
     [items, query, hostVramGB],
   );
 
-  const otherCount = modelsOnTab(searched, "other").length;
-  const tabDefs = otherCount > 0 ? [...CATALOG_TAB_DEFS, { id: "other" as const, label: "Other" }] : CATALOG_TAB_DEFS;
-  const visible = visibleModelsOnTab(searched, tab, {
-    hostVramGB,
-    gpuVendor: catalogSortGpuVendor(hostVramGB),
-  });
+  const external = installedOutsideCatalogModels(searched);
+  const tabDefs = external.length > 0
+    ? [...CATALOG_TAB_DEFS, { id: "other" as const, label: "Installed outside catalog" }]
+    : CATALOG_TAB_DEFS;
+  const visible = tab === "other"
+    ? external
+    : visibleModelsOnTab(searched, tab, {
+        hostVramGB,
+        gpuVendor: catalogSortGpuVendor(hostVramGB),
+      });
 
   async function refresh(): Promise<void> {
     const list = await client.list();
     setItems(list);
-    const d = await client.diskUsage();
-    setDisk(d);
+    await refreshDisk();
   }
 
   function startInstall(id: string): void {
@@ -227,7 +249,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   return (
     <section data-testid="settings-models" style={pageStyle}>
       <header style={headerStyle}>
-        <h1 style={{ margin: 0 }}>Models</h1>
+        <div><h1 style={{ margin: 0 }}>Models</h1>{client.catalogHash ? <small style={{ color: "var(--fg-muted)" }}>Catalog {client.catalogHash.slice(0, 12)}</small> : null}</div>
         <DiskSummary disk={disk} />
       </header>
 
@@ -286,6 +308,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
                 <ModelCard
                   key={m.id}
                   item={m}
+                  components={componentsFor(m, items)}
                   hostVramGB={hostVramGB}
                   progress={progress[m.id]}
                   installing={Boolean(active[m.id])}
@@ -310,6 +333,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
 
 interface ModelCardProps {
   item: ListedModelDto;
+  components: readonly ListedModelDto[];
   hostVramGB?: number | null;
   progress?: InstallProgressDto;
   installing?: boolean;
@@ -324,6 +348,7 @@ interface ModelCardProps {
 
 function ModelCard({
   item,
+  components,
   hostVramGB,
   progress,
   installing,
@@ -335,18 +360,26 @@ function ModelCard({
   onRemove,
   onReveal,
 }: ModelCardProps): JSX.Element {
-  const kindLabel = cardBadgeLabel(item, hostVramGB);
+  const tier = recommendationKind(item);
+  const kindLabel = tier === "compatible" ? "" : tier === "required" ? "Required" : "Recommended";
   const overBudget = modelFitsHost(item, hostVramGB) === false;
   const downloaded = item.installed && item.source !== "catalog-only";
   const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
   // v2.2.9 Phase 5 (T010): the locked name-row pill set (shared card grammar).
   const pills = buildModelPills(item);
+  const description = item.description?.trim() || "Catalog metadata is unavailable for this installed model.";
+  const compatibilityLabel = typeof item.vramGB === "number"
+    ? overBudget
+      ? `Incompatible - needs ${item.vramGB} GB VRAM`
+      : typeof hostVramGB === "number"
+        ? `Compatible - ${item.vramGB} GB VRAM`
+        : `${item.vramGB} GB VRAM required`
+    : null;
   const card: CSSProperties = {
     ...cardStyle,
     ...(downloaded
       ? {
-          background: "color-mix(in srgb, var(--status-ok, #16a34a) 14%, var(--bg-1, transparent))",
-          border: "1px solid color-mix(in srgb, var(--status-ok, #16a34a) 45%, var(--border-1, #2a2a2a))",
+          boxShadow: "inset 3px 0 color-mix(in srgb, var(--accent-primary, #6366f1) 35%, transparent)",
         }
       : null),
     ...(overBudget
@@ -384,6 +417,12 @@ function ModelCard({
                 ))}
               </span>
             ) : null}
+            {typeof item.sizeBytes === "number" ? <span style={chipStyle}>{formatBytes(item.sizeBytes)}</span> : null}
+            {compatibilityLabel ? (
+              <span data-testid={`models-compatibility-${item.id}`} style={badgeStyle(overBudget ? "Incompatible" : "Compatible")}>
+                {compatibilityLabel}
+              </span>
+            ) : null}
             {kindLabel ? (
               <span data-testid={`models-badge-${item.id}`} style={badgeStyle(kindLabel)}>
                 {kindLabel}
@@ -393,20 +432,11 @@ function ModelCard({
               <span style={{ fontSize: "0.75em", color: "var(--fg-muted)" }}>Also agentic</span>
             ) : null}
           </div>
-          <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
-            {item.family ?? "?"}
-            {item.tag ? `:${item.tag}` : ""}
-            {item.task ? ` - ${item.task}` : ""} - {formatBytes(item.sizeBytes)}
-            {typeof item.vramGB === "number" ? ` - ${item.vramGB} GB VRAM` : ""}
-          </div>
-          {item.description || (item.strengths && item.strengths.length > 0) || item.whyRecommended ? (
+          <p data-testid={`models-row-${item.id}-description`} style={copyStyle}>{description}</p>
+          {item.task || item.strengths?.length || item.whyRecommended || item.license || item.family || item.tag || components.length > 0 ? (
             <details data-testid={`models-row-${item.id}-details`} style={{ marginTop: 4 }}>
               <summary style={{ cursor: "pointer", fontSize: "0.8em", color: "var(--fg-muted)" }}>Details</summary>
-              {item.description ? (
-                <p data-testid={`models-row-${item.id}-description`} style={copyStyle}>
-                  {item.description}
-                </p>
-              ) : null}
+              <p style={copyStyle}>ID: {item.id}{item.task ? `; task: ${item.task}` : ""}</p>
               {item.strengths && item.strengths.length > 0 ? (
                 <p data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
                   Best for: {item.strengths.join(", ")}
@@ -416,6 +446,21 @@ function ModelCard({
                 <p data-testid={`models-row-${item.id}-why`} style={copyStyle}>
                   Why this one: {item.whyRecommended}
                 </p>
+              ) : null}
+              {item.license ? <p style={copyStyle}>License: {item.license}</p> : null}
+              {item.family || item.tag ? <p style={copyStyle}>Backend model: {item.family ?? item.id}{item.tag ? `:${item.tag}` : ""}</p> : null}
+              {components.length > 0 ? (
+                <div data-testid={`models-row-${item.id}-components`} style={copyStyle}>
+                  Components:
+                  <ul style={{ margin: "4px 0 0", paddingInlineStart: 20 }}>
+                    {components.map((component) => (
+                      <li key={component.id}>
+                        {component.displayName}
+                        {typeof component.sizeBytes === "number" ? ` (${formatBytes(component.sizeBytes)})` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
             </details>
           ) : null}
@@ -532,8 +577,8 @@ function RowActions({
             fontWeight: 600,
             padding: "2px 8px",
             borderRadius: "999px",
-            background: "color-mix(in srgb, var(--status-ok, #16a34a) 22%, transparent)",
-            color: "var(--status-ok, #16a34a)",
+            background: "color-mix(in srgb, var(--fg-muted) 12%, transparent)",
+            color: "var(--fg-muted)",
           }}
         >
           Downloaded
@@ -620,19 +665,53 @@ function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
 }
 
 function DiskSummary({ disk }: { disk: DiskUsageDto | null }): JSX.Element {
-  if (!disk) {
+  if (!disk || disk.freeBytes === null) {
     return (
-      <p data-testid="models-disk-summary" style={{ margin: 0, color: "var(--fg-muted)" }}>
-        Disk usage: ...
-      </p>
+      <div data-testid="models-disk-summary" role="status" style={{ margin: 0, color: "var(--fg-muted)" }}>
+        Model storage unavailable.
+      </div>
     );
   }
-  const free = disk.freeBytes !== null ? formatBytes(disk.freeBytes) : "unknown";
+  const modelBytes = disk.modelBytes ?? disk.usedBytes;
+  const totalAvailableWithoutModels = modelBytes + disk.freeBytes;
+  const percent = totalAvailableWithoutModels > 0
+    ? Math.min(100, (modelBytes / totalAvailableWithoutModels) * 100)
+    : 0;
+  const label = `${formatBytes(modelBytes)} used by models, ${formatBytes(disk.freeBytes)} free, ${percent.toFixed(1)}% used`;
   return (
-    <p data-testid="models-disk-summary" style={{ margin: 0, color: "var(--fg-muted)" }}>
-      Models occupy {formatBytes(disk.usedBytes)}. {free} free. Weights left from an older install can appear until you remove them here.
-    </p>
+    <div
+      data-testid="models-disk-summary"
+      title={disk.measurementPath && disk.measuredAt ? `Measured at ${disk.measurementPath} on ${new Date(disk.measuredAt).toLocaleString()}` : undefined}
+      style={{ minWidth: 320, color: "var(--fg-muted)" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: "0.82em" }}>
+        <span>{formatBytes(modelBytes)} used by models</span>
+        <span>{formatBytes(disk.freeBytes)} free ({percent.toFixed(1)}%)</span>
+      </div>
+      <progress
+        aria-label="Model storage usage"
+        aria-valuetext={label}
+        value={modelBytes}
+        max={totalAvailableWithoutModels || 1}
+        style={{ width: "100%", accentColor: "var(--accent-primary, #6366f1)" }}
+      />
+    </div>
   );
+}
+
+function componentsFor(
+  model: ListedModelDto,
+  rows: readonly ListedModelDto[],
+): ListedModelDto[] {
+  if (!model.family) return [];
+  return rows
+    .filter(
+      (row) =>
+        !row.task &&
+        (row.type === "vae" || row.type === "controlnet") &&
+        row.family === model.family,
+    )
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 function formatBytes(n: number | undefined): string {
@@ -653,7 +732,7 @@ function messageFor(e: unknown): string {
 }
 
 function badgeStyle(kind: string): CSSProperties {
-  const over = kind.startsWith("Needs ");
+  const over = kind.startsWith("Needs ") || kind === "Incompatible";
   return {
     fontSize: "0.75em",
     padding: "2px 8px",

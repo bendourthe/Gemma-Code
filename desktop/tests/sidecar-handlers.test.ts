@@ -75,6 +75,9 @@ describe("sidecar handlers", () => {
           "coding.session.resume",
           "coding.session.rename",
           "coding.session.delete",
+          "sessions.archive",
+          "sessions.listArchived",
+          "sessions.restore",
           "coding.memory.snapshot",
           "coding.trace.subscribe",
           "coding.sessions.list",
@@ -263,7 +266,15 @@ describe("sidecar handlers", () => {
         remove: async (id: string) => {
           removed.push(id);
         },
-        diskUsage: async () => ({ usedBytes: 5, freeBytes: null }),
+        get catalogHash() { return "a".repeat(64); },
+        diskUsage: async () => ({
+          usedBytes: 5,
+          modelBytes: 5,
+          freeBytes: null,
+          capacityBytes: null,
+          measurementPath: "/models",
+          measuredAt: "2026-08-29T00:00:00.000Z",
+        }),
       },
       installer: {
         start: (id: string) => `job:${id}`,
@@ -282,7 +293,11 @@ describe("sidecar handlers", () => {
     );
     expect(await dispatch("models.diskUsage", {}, ctx)).toEqual({
       usedBytes: 5,
+      modelBytes: 5,
       freeBytes: null,
+      capacityBytes: null,
+      measurementPath: "/models",
+      measuredAt: "2026-08-29T00:00:00.000Z",
     });
     expect(await dispatch("models.install", { id: "a" }, ctx)).toEqual({ jobId: "job:a" });
     expect(await dispatch("models.install.drainEvents", { jobId: "job:a" }, ctx)).toEqual({

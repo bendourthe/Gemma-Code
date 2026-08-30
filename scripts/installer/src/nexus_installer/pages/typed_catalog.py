@@ -56,13 +56,12 @@ from PyQt5.QtWidgets import (
 from nexus_installer import registry_paths
 from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
 from nexus_installer.catalog_tab_sort import (
-    collapse_and_sort as shared_collapse_and_sort,
+    canonical_display_order,
+    catalog_fingerprint,
+    release_ordinal,
 )
 from nexus_installer.catalog_tab_sort import (
     is_over_budget as shared_is_over_budget,
-)
-from nexus_installer.catalog_tab_sort import (
-    release_ordinal,
 )
 from nexus_installer.constants import (
     ACCENT,
@@ -73,7 +72,6 @@ from nexus_installer.constants import (
     FAMILY_TO_PUBLISHER,
     FS_BODY,
     FS_CAPTION,
-    FS_H3,
     PROVIDER_COLORS,
     SUCCESS,
     TEXT_BODY,
@@ -461,8 +459,7 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
     models: list[CatalogModel] = []
     for entry in data.get("models", []):
         raw_task = str(entry.get("task") or "")
-        raw_type = entry.get("type") or ""
-        tab = TASK_TO_TAB.get(raw_task) or CATALOG_TYPE_TO_TAB.get(raw_type)
+        tab = TASK_TO_TAB.get(raw_task)
         if tab is None:
             # VAEs, ControlNets, etc. are not user-facing top-level picks.
             continue
@@ -572,22 +569,24 @@ def compatibility_badge(
     """Return `(text, color)` for the compatibility badge of the given model."""
     if gpu_vendor == "none" and model.required_vram_gb > 0:
         return (
-            f"Requires {model.required_vram_gb} GB VRAM (no GPU detected)",
+            f"Incompatible - needs {model.required_vram_gb} GB VRAM",
             ERROR,
         )
     if model.required_vram_gb > 0 and total_vram_gb < model.required_vram_gb:
         return (
-            f"Requires {model.required_vram_gb} GB VRAM (you have {total_vram_gb})",
+            f"Incompatible - needs {model.required_vram_gb} GB VRAM",
             WARNING,
         )
     if model.required_ram_gb > 0 and total_ram_gb < model.required_ram_gb:
         if total_ram_gb <= 0:
             return (
-                f"Requires {model.required_ram_gb} GB RAM (RAM not detected)",
+                f"Incompatible - needs {model.required_ram_gb} GB RAM "
+                "(RAM not detected)",
                 WARNING,
             )
         return (
-            f"Requires {model.required_ram_gb} GB RAM (you have {total_ram_gb})",
+            f"Incompatible - needs {model.required_ram_gb} GB RAM "
+            f"(you have {total_ram_gb})",
             WARNING,
         )
     if model.min_ollama_version:
@@ -595,7 +594,9 @@ def compatibility_badge(
             f"Requires Ollama {model.min_ollama_version}+",
             SUCCESS,
         )
-    return "Compatible", SUCCESS
+    if model.required_vram_gb > 0:
+        return f"Compatible - {model.required_vram_gb} GB VRAM", SUCCESS
+    return "Compatible - CPU", SUCCESS
 
 
 def _card_status(
@@ -620,13 +621,9 @@ def _card_status(
         gpu_vendor=gpu_vendor,
     )
     fits = compat_color == SUCCESS
-    if model.is_required:
-        return "Required", accent, fits
     if not fits:
         return compat_text, compat_color, False
-    if recommended:
-        return "Recommended", accent, True
-    return "Compatible", SUCCESS, True
+    return compat_text, SUCCESS, True
 
 
 def _pill(
@@ -810,6 +807,10 @@ class _ModelCard(QWidget):
         header_flow.addWidget(title)
         for pill_text in build_fact_pills(model):
             header_flow.addWidget(_pill(pill_text))
+        if model.is_required:
+            header_flow.addWidget(_pill("Required", color=accent, border=accent))
+        elif recommended:
+            header_flow.addWidget(_pill("Recommended", color=accent, border=accent))
         if model.tool_calling_verified:
             header_flow.addWidget(
                 _pill("Tool calling verified", color=accent, border=accent)
@@ -824,11 +825,7 @@ class _ModelCard(QWidget):
         )
         title_row.addWidget(status)
 
-        size_label = QLabel(f"{model.size_gb:.1f} GB")
-        size_label.setStyleSheet(
-            f"color: {accent}; font-weight: bold; font-size: {FS_H3}px; "
-            f"background: transparent;"
-        )
+        size_label = _pill(f"{model.size_gb:.1f} GB", color=accent, border=accent)
         title_row.addWidget(size_label)
         layout.addLayout(title_row)
 
@@ -848,8 +845,10 @@ class _ModelCard(QWidget):
                 f"border: 1px dashed {BORDER_STRONG}; border-radius: 8px; }}"
             )
             size_label.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-weight: bold; "
-                f"font-size: {FS_H3}px; background: transparent;"
+                f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+                "background: transparent; "
+                f"border: 1px solid {BORDER_STRONG}; border-radius: 9px; "
+                "padding: 1px 8px;"
             )
 
         # --- Plain-language description leads the card (Phase 2 copy, T023) ---
@@ -941,6 +940,8 @@ class TypedCatalogPage(QWidget):
         self._catalog: dict[str, CatalogModel] = {
             m.id: m for m in load_catalog_models(catalog_path)
         }
+        catalog_data = json.loads(catalog_path.read_text(encoding="utf-8"))
+        self.catalog_hash = catalog_fingerprint(catalog_data)
         self._matrix = load_tier_matrix(recommended_path)
         self._selection = TypedSelection()
         self._cards: list[_ModelCardState] = []
@@ -968,6 +969,12 @@ class TypedCatalogPage(QWidget):
         )
         self._subtitle.setWordWrap(True)
         layout.addWidget(self._subtitle)
+
+        catalog_label = QLabel(f"Catalog {self.catalog_hash[:12]}")
+        catalog_label.setStyleSheet(
+            f"color: {TEXT_MUTED}; font-size: {FS_CAPTION}px; background: transparent;"
+        )
+        layout.addWidget(catalog_label)
 
         # v1.9.0 Phase 6 (T025): a compact per-provider color legend so the
         # per-maker card colors are self-explanatory. Shown only when more than
@@ -1154,12 +1161,9 @@ class TypedCatalogPage(QWidget):
         """
         section = list(self._models_for_section(section_key))
         by_id = {m.id: m for m in section}
-        ordered = shared_collapse_and_sort(
-            [_catalog_model_sort_row(m) for m in section],
-            host_vram_gb=host_vram_gb,
-            gpu_vendor=gpu_vendor,
-            defaults=defaults or set(),
-            recommend_order=recommend_order,
+        del host_vram_gb, gpu_vendor, defaults, recommend_order
+        ordered = canonical_display_order(
+            [_catalog_model_sort_row(model) | {"task": model.task} for model in section]
         )
         return [by_id[i] for i in ordered if i in by_id]
 

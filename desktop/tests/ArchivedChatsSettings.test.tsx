@@ -7,10 +7,10 @@ describe("ArchivedChatsSettings", () => {
     const client: ArchivedChatsClient = {
       list: vi.fn(async () => ({
         sessions: [
-          { pillar: "chatbot", id: "c1", title: "Chat one", archivedAt: "2026-08-29T00:00:00.000Z", originalParent: "Folder" },
-          { pillar: "agents", id: "a1", title: "Agent one", archivedAt: "2026-08-29T01:00:00.000Z", originalParent: null },
+          { pillar: "chatbot" as const, id: "c1", title: "Chat one", archivedAt: "2026-08-29T00:00:00.000Z", originalParent: "Folder" },
+          { pillar: "agents" as const, id: "a1", title: "Agent one", archivedAt: "2026-08-29T01:00:00.000Z", originalParent: null },
         ],
-        errors: [{ pillar: "videos", message: "store busy" }],
+        errors: [{ pillar: "videos" as const, message: "store busy" }],
       })),
       restore: vi.fn(async () => ({ parentFallback: false })),
     };

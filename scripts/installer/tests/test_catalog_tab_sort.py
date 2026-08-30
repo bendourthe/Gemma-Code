@@ -11,11 +11,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nexus_installer.catalog_tab_sort import collapse_and_sort, downloaded_first
+from nexus_installer.catalog_tab_sort import (
+    canonical_display_order,
+    catalog_fingerprint,
+    collapse_and_sort,
+    downloaded_first,
+)
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "fixtures"
 FIXTURE_V228 = _FIXTURES / "v2.2.8-catalog-tab-sort.json"
 FIXTURE_V229 = _FIXTURES / "v2.2.9-catalog-tab-sort.json"
+FIXTURE_V241 = _FIXTURES / "v2.4.1-model-display-order.json"
 
 # v2.2.9 Phase 5 (T010): embed maps to the Embeddings tab, not Chat.
 TASK_TAB = {
@@ -83,6 +89,14 @@ def test_golden_v229_settings_order_is_downloaded_first() -> None:
     for tab, expected in data["expectedSettingsIds"].items():
         rows = [m for m in models if tab in _tabs_for(m)]
         assert downloaded_first(rows, **opts) == expected, tab
+
+
+def test_v241_canonical_order_and_fingerprint() -> None:
+    fixture = json.loads(FIXTURE_V241.read_text(encoding="utf-8"))
+    assert canonical_display_order(fixture["catalog"]["models"]) == fixture[
+        "expectedIds"
+    ]
+    assert catalog_fingerprint(fixture["catalog"]) == fixture["expectedFingerprint"]
 
 
 def test_gpt_oss_moves_up_within_the_downloaded_partition_once_installed() -> None:

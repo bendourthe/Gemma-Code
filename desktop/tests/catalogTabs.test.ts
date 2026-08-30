@@ -13,7 +13,6 @@ import {
   recommendationKind,
   sortModelsOnTab,
   visibleModelsOnTab,
-  type CatalogTab,
 } from "../src/shared/models/catalogTabs";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
@@ -153,20 +152,14 @@ describe("catalogTabs", () => {
     ]);
   });
 
-  it("matches the shared v2.2.8 golden fixture (hideBelow + family collapse + over-budget last)", () => {
+  it("shows every selectable row without family collapse or VRAM hiding", () => {
     const opts = sortOptions(GOLDEN);
-    expect(visibleModelsOnTab(GOLDEN.models, "chat", opts).map((m) => m.id)).toEqual(
-      GOLDEN.expectedIds.chat,
-    );
-    expect(visibleModelsOnTab(GOLDEN.models, "embeddings", opts).map((m) => m.id)).toEqual(
-      GOLDEN.expectedIds.embeddings,
-    );
-    expect(visibleModelsOnTab(GOLDEN.models, "image", opts).map((m) => m.id)).toEqual(
-      GOLDEN.expectedIds.image,
-    );
-    expect(GOLDEN.expectedIds.chat).not.toContain("gemma-e2b");
-    expect(GOLDEN.expectedIds.chat).not.toContain("kimi-hidden");
-    expect(GOLDEN.expectedIds.chat).not.toContain("nomic-embed-text");
+    const chat = visibleModelsOnTab(GOLDEN.models, "chat", opts).map((m) => m.id);
+    expect(chat).toContain("gemma-e2b");
+    expect(chat).toContain("gemma-e4b");
+    expect(chat).toContain("kimi-hidden");
+    expect(chat).not.toContain("nomic-embed-text");
+    expect(visibleModelsOnTab(GOLDEN.models, "embeddings", opts).map((m) => m.id)).toContain("nomic-embed-text");
   });
 
   it("puts the Embeddings tab first, before Chat (installer TYPE_TABS parity)", () => {
@@ -182,29 +175,25 @@ describe("catalogTabs", () => {
     expect(CATALOG_TAB_DEFS[0]!.label).toBe("Embeddings");
   });
 
-  it("matches the v2.2.9 fixture: Settings is downloaded-first, installer order untouched", () => {
+  it("does not promote downloaded rows ahead of canonical catalog order", () => {
     const opts = sortOptions(GOLDEN_V229);
-    for (const [tab, expected] of Object.entries(GOLDEN_V229.expectedSettingsIds)) {
-      expect(
-        visibleModelsOnTab(GOLDEN_V229.models, tab as CatalogTab, opts).map((m) => m.id),
-      ).toEqual(expected);
-    }
-    for (const [tab, expected] of Object.entries(GOLDEN_V229.expectedInstallerIds)) {
-      expect(
-        collapseAndSortModels(modelsOnTab(GOLDEN_V229.models, tab as CatalogTab), opts).map(
-          (m) => m.id,
-        ),
-      ).toEqual(expected);
-    }
+    const baseline = visibleModelsOnTab(GOLDEN_V229.models, "agentic", opts).map((m) => m.id);
+    const statusesFlipped = GOLDEN_V229.models.map((model) => ({
+      ...model,
+      installed: !model.installed,
+      source: model.installed ? "catalog-only" as const : "registry" as const,
+    }));
+    expect(visibleModelsOnTab(statusesFlipped, "agentic", opts).map((m) => m.id)).toEqual(baseline);
   });
 
-  it("moves gpt-oss above LFM within the downloaded partition once installed", () => {
+  it("keeps canonical order when gpt-oss becomes installed", () => {
+    const before = visibleModelsOnTab(GOLDEN_V229.models, "agentic", sortOptions(GOLDEN_V229)).map((m) => m.id);
     const models = GOLDEN_V229.models.map((m) =>
       m.id === "gpt-oss:20b" ? { ...m, installed: true, source: "registry" as const } : m,
     );
     expect(
       visibleModelsOnTab(models, "agentic", sortOptions(GOLDEN_V229)).map((m) => m.id),
-    ).toEqual(GOLDEN_V229.expectedSettingsIdsAfterGptOssDownload.agentic);
+    ).toEqual(before);
   });
 
   it("lists the patient-tier Inkling-Small row on both surfaces (no env gate)", () => {

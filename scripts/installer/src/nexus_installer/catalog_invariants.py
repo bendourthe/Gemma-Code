@@ -133,6 +133,14 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
         else:
             seen_ids.add(str(model_id))
 
+        if model.get("task") is not None:
+            description = str(model.get("description") or "").strip()
+            if not description or description[-1:] not in {".", "!", "?"}:
+                problems.append(
+                    f"{where}: selectable entry requires a complete-sentence "
+                    "description"
+                )
+
         source = model.get("source")
         if not isinstance(source, dict) or not source.get("protocol"):
             problems.append(f"{where}: missing 'source.protocol'")
