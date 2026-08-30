@@ -99,6 +99,9 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
     deleteChat(id) {
       return wrap(client.deleteSession(id), () => undefined);
     },
+    archiveChat(id) {
+      return wrap(client.archiveSession(id), () => undefined);
+    },
     getFolder(id) {
       return wrap(client.getFolder(id), (folder) => (folder ? folderToChatFolder(folder) : null));
     },

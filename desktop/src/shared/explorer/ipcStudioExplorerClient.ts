@@ -50,6 +50,9 @@ export function createIpcStudioExplorerClient(pillar: StudioPillar): StudioExplo
     async deleteSession(id) {
       await call("studio.session.deleteSession", { id });
     },
+    async archiveSession(id) {
+      await call("sessions.archive", { pillar: pillar === "image" ? "images" : "videos", id });
+    },
     async getFolder(id) {
       const tree = await this.listTree();
       const stack = [tree];

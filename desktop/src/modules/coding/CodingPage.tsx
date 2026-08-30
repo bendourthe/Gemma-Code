@@ -259,13 +259,6 @@ export function CodingPage({
       return createCodingSessionsAsChatExplorer({
         backend: {
           ...ipcBackend,
-          async deleteSession(id) {
-            await ipcBackend.deleteSession(id);
-            if (sessionIdRef.current === id) {
-              setSessionId(null);
-              setTurns([]);
-            }
-          },
         },
         getWorkspacePath: () => workspacePathRef.current,
         getModelId: () => modelIdRef.current,
@@ -698,6 +691,22 @@ export function CodingPage({
             storageKey="nexus.coding.expanded"
             refreshToken={historyEpoch}
             collapsed={historyCollapsed}
+            onBeforeSessionDisposition={async (id) => {
+              if (sessionIdRef.current === id && busy) {
+                const reply = await ipc.call("coding.session.cancel", { sessionId: id });
+                if (!reply.ok) throw new Error(reply.message);
+              }
+            }}
+            onSessionDisposition={(id) => {
+              if (sessionIdRef.current !== id) return;
+              sessionIdRef.current = null;
+              setSessionId(null);
+              setTurns([]);
+              setHistorySelected(null);
+              setBusy(false);
+              setError(null);
+              pendingPromptRef.current = { text: "", attachments: [] };
+            }}
           />
         )}
       </CollapsibleHistoryAside>

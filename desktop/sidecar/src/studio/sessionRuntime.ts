@@ -80,6 +80,9 @@ export interface StudioSessionOps {
   renameSession(input: { id: string; title: string }): StudioSession;
   moveSession(input: { id: string; folderId: string | null }): StudioSession;
   deleteSession(input: { id: string }): { ok: true };
+  archiveSession(input: { id: string }): StudioSession;
+  restoreSession(input: { id: string }): { session: StudioSession; parentFallback: boolean };
+  listArchived(input: { pillar?: StudioPillar }): { sessions: ReturnType<StudioSessionStore["listArchivedSessions"]> };
   appendTurn(input: AppendStudioTurnInput): StudioTurn;
   listTurns(input: { sessionId: string; limit?: number }): { turns: readonly StudioTurn[] };
 }
@@ -104,6 +107,9 @@ export function createStudioSessionOps(
       store.deleteSession(input.id);
       return { ok: true };
     },
+    archiveSession: (input) => store.archiveSession(input.id),
+    restoreSession: (input) => store.restoreSession(input.id),
+    listArchived: (input) => ({ sessions: store.listArchivedSessions(input.pillar) }),
     appendTurn: (input) => store.appendTurn(input),
     listTurns: (input) => ({
       turns: store.listTurns(input.sessionId, input.limit ?? 500),

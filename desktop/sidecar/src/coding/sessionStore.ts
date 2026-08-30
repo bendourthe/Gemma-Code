@@ -56,6 +56,8 @@ export interface PersistedSession {
   readonly messages: readonly string[];
   /** v2.2.6 Phase 4 -- optional because files written before this field omit it. */
   readonly turns?: readonly PersistedTurn[];
+  /** ISO timestamp while archived. Missing/null records are active. */
+  readonly archivedAt?: string | null;
 }
 
 /** Persistence seam for `CodingSessionManager`. Synchronous to match the manager. */
@@ -68,6 +70,9 @@ export interface SessionStore {
   upsert(session: PersistedSession): void;
   /** Remove a session. Missing ids are a no-op. */
   delete(id: string): void;
+  archive(id: string, archivedAt?: string): PersistedSession;
+  restore(id: string): PersistedSession;
+  listArchived(): readonly PersistedSession[];
 }
 
 /** A session as persisted to disk, where messages may be dehydration markers. */
@@ -181,5 +186,27 @@ export class JsonFileSessionStore implements SessionStore {
   delete(id: string): void {
     if (!this._sessions.delete(id)) return;
     this._persist();
+  }
+
+  archive(id: string, archivedAt = new Date().toISOString()): PersistedSession {
+    const existing = this._sessions.get(id);
+    if (!existing) throw new Error(`session not found: ${id}`);
+    const archived = { ...existing, archivedAt };
+    this._sessions.set(id, archived);
+    this._persist();
+    return archived;
+  }
+
+  restore(id: string): PersistedSession {
+    const existing = this._sessions.get(id);
+    if (!existing || !existing.archivedAt) throw new Error(`archived session not found: ${id}`);
+    const restored = { ...existing, archivedAt: null };
+    this._sessions.set(id, restored);
+    this._persist();
+    return restored;
+  }
+
+  listArchived(): readonly PersistedSession[] {
+    return Array.from(this._sessions.values()).filter((session) => Boolean(session.archivedAt));
   }
 }

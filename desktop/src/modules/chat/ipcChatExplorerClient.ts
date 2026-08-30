@@ -45,6 +45,7 @@ export interface IpcChatExplorerClient {
   renameChat(id: string, title: string, byUser?: boolean): Promise<Chat>;
   moveChat(id: string, folderId: string | null): Promise<Chat>;
   deleteChat(id: string): Promise<void>;
+  archiveChat?(id: string): Promise<void>;
   setPersona(id: string, persona: string | null): Promise<void>;
   /** OPTIONAL so IPC-shaped fakes in tests can omit it; the adapter falls back to its cached tree. */
   search?(query: string, limit?: number): Promise<readonly ChatExplorerSearchHit[]>;
@@ -113,6 +114,9 @@ export function createIpcChatExplorerClient(): IpcChatExplorerClient {
     moveChat: (id, folderId) => call<Chat>("chat.explorer.moveChat", { id, folderId }),
     async deleteChat(id) {
       await call("chat.explorer.deleteChat", { id });
+    },
+    async archiveChat(id) {
+      await call("sessions.archive", { pillar: "chatbot", id });
     },
     async setPersona(id, persona) {
       await call("chat.explorer.setPersona", { id, persona });
@@ -253,6 +257,11 @@ export function createExplorerAdapter(ipc: IpcChatExplorerClient): ExplorerAdapt
     moveChat: async (id, newFolderId) => invalidate(await ipc.moveChat(id, newFolderId)),
     deleteChat: async (id) => {
       await ipc.deleteChat(id);
+      cachedTree = null;
+    },
+    archiveChat: async (id) => {
+      if (!ipc.archiveChat) throw new Error("Archive is unavailable.");
+      await ipc.archiveChat(id);
       cachedTree = null;
     },
     getFolder: async (id) => findFolderIn(await ensureTree(), id),

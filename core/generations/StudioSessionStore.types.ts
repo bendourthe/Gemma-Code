@@ -36,6 +36,13 @@ export interface StudioSession {
   createdAt: number;
   updatedAt: number;
   turnCount: number;
+  archivedAt?: number | null;
+  /** Former folder retained while archived, without keeping a cascading foreign key alive. */
+  archivedFolderId?: string | null;
+}
+
+export interface ArchivedStudioSession extends StudioSession {
+  archivedAt: number;
 }
 
 export interface StudioTurn {

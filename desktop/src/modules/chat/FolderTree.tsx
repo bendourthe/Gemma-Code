@@ -29,6 +29,7 @@ import {
   type MouseEvent,
 } from "react";
 import {
+  Archive,
   ChevronDown,
   ChevronRight,
   Folder as FolderIcon,
@@ -88,6 +89,10 @@ export interface FolderTreeProps {
    * hiding the tree. Delete still confirms.
    */
   collapsed?: boolean;
+  /** Called after durable archive/delete succeeds so an active transcript can reset. */
+  onSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
+  /** May cancel active work; rejection prevents the storage mutation. */
+  onBeforeSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
 }
 
 export interface FolderTreeCopy {
@@ -156,6 +161,11 @@ interface ConfirmDeleteState {
   label: string;
 }
 
+interface ConfirmArchiveState {
+  id: string;
+  label: string;
+}
+
 interface FlatNode {
   depth: number;
   kind: "folder" | "chat";
@@ -220,6 +230,8 @@ export function FolderTree({
   copy = CHAT_FOLDER_TREE_COPY,
   storageKey = DEFAULT_STORAGE_KEY,
   collapsed = false,
+  onSessionDisposition,
+  onBeforeSessionDisposition,
 }: FolderTreeProps): JSX.Element {
   const storage = storageAdapter ?? makeDefaultStorage(storageKey);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(storage.read()));
@@ -227,20 +239,24 @@ export function FolderTree({
   const [renameValue, setRenameValue] = useState<string>("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState<ConfirmArchiveState | null>(null);
+  const [actionPending, setActionPending] = useState(false);
   const [revision, setRevision] = useState(0);
   const dragSourceRef = useRef<SelectedNode | null>(null);
   const itemNoun = copy.itemNoun ?? "chat";
 
   useEffect(() => {
-    if (!confirmDelete) return;
+    if (!confirmDelete && !confirmArchive) return;
     const onKey = (event: globalThis.KeyboardEvent): void => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      if (actionPending) return;
       setConfirmDelete(null);
+      setConfirmArchive(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmDelete]);
+  }, [actionPending, confirmArchive, confirmDelete]);
 
   const refresh = useCallback(() => {
     setRevision((r) => r + 1);
@@ -549,24 +565,44 @@ export function FolderTree({
   const confirmDeleteNow = useCallback(() => {
     if (!confirmDelete) return;
     const target = confirmDelete.target;
-    setConfirmDelete(null);
-    resolveMaybe(
-      () => {
-        if (target.kind === "folder" && target.id !== null) {
-          return client.deleteFolder(target.id);
-        }
-        if (target.kind === "chat") {
-          return client.deleteChat(target.id);
-        }
-        return undefined;
-      },
-      () => refresh(),
-      (err) => {
-        setLoadError(errorMessage(err));
+    if (actionPending) return;
+    setActionPending(true);
+    void Promise.resolve()
+      .then(() => target.kind === "chat" ? onBeforeSessionDisposition?.(target.id, "deleted") : undefined)
+      .then(() =>
+        target.kind === "folder" && target.id !== null
+          ? client.deleteFolder(target.id)
+          : target.kind === "chat"
+            ? client.deleteChat(target.id)
+            : undefined,
+      )
+      .then(async () => {
+        if (target.kind === "chat") await onSessionDisposition?.(target.id, "deleted");
+        setConfirmDelete(null);
         refresh();
-      },
-    );
-  }, [client, confirmDelete, refresh]);
+      })
+      .catch((err: unknown) => setLoadError(errorMessage(err)))
+      .finally(() => setActionPending(false));
+  }, [actionPending, client, confirmDelete, onBeforeSessionDisposition, onSessionDisposition, refresh]);
+
+  const confirmArchiveNow = useCallback(() => {
+    if (!confirmArchive || actionPending) return;
+    if (!client.archiveChat) {
+      setLoadError("Archive is unavailable.");
+      return;
+    }
+    setActionPending(true);
+    void Promise.resolve()
+      .then(() => onBeforeSessionDisposition?.(confirmArchive.id, "archived"))
+      .then(() => client.archiveChat!(confirmArchive.id))
+      .then(async () => {
+        await onSessionDisposition?.(confirmArchive.id, "archived");
+        setConfirmArchive(null);
+        refresh();
+      })
+      .catch((err: unknown) => setLoadError(errorMessage(err)))
+      .finally(() => setActionPending(false));
+  }, [actionPending, client, confirmArchive, onBeforeSessionDisposition, onSessionDisposition, refresh]);
 
   const toolbar = (
     <span
@@ -801,6 +837,20 @@ export function FolderTree({
                   >
                     <button
                       type="button"
+                      data-testid={`tree-archive-${node.chat.id}`}
+                      aria-label={`Archive ${node.label}`}
+                      title="Archive"
+                      disabled={actionPending || !client.archiveChat}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmArchive({ id: node.chat!.id, label: node.label });
+                      }}
+                      style={iconButtonStyle}
+                    >
+                      <Archive size={12} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
                       data-testid={`tree-rename-${node.chat.id}`}
                       aria-label={`Rename ${node.label}`}
                       title="Rename"
@@ -817,6 +867,7 @@ export function FolderTree({
                       data-testid={`tree-delete-${node.chat.id}`}
                       aria-label={`Delete ${node.label}`}
                       title="Delete"
+                      disabled={actionPending}
                       onClick={(e) => {
                         e.stopPropagation();
                         setConfirmDelete({
@@ -961,12 +1012,27 @@ export function FolderTree({
               </strong>
               {confirmDelete.target.kind === "folder"
                 ? " and all of its contents?"
-                : "?"}
+                : ` permanently? This action cannot be undone.`}
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
+              {confirmDelete.target.kind === "chat" ? (
+                <button
+                  type="button"
+                  data-testid="confirm-delete-archive-instead"
+                  disabled={actionPending || !client.archiveChat}
+                  onClick={() => {
+                    setConfirmArchive({ id: confirmDelete.target.id ?? "", label: confirmDelete.label });
+                    setConfirmDelete(null);
+                  }}
+                  style={quietCancelStyle}
+                >
+                  Archive instead
+                </button>
+              ) : null}
               <button
                 type="button"
                 data-testid="confirm-delete-cancel"
+                disabled={actionPending}
                 onClick={() => setConfirmDelete(null)}
                 style={quietCancelStyle}
               >
@@ -978,7 +1044,31 @@ export function FolderTree({
                 onClick={confirmDeleteNow}
                 style={quietDestructiveStyle}
               >
-                Delete
+                {confirmDelete.target.kind === "chat" ? "Delete permanently" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmArchive && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm archive"
+          data-testid="folder-tree-confirm-archive"
+          style={modalBackdropStyle}
+        >
+          <div style={modalCardStyle}>
+            <p style={{ margin: 0, color: "var(--fg-0)" }}>
+              Archive <strong>{confirmArchive.label.trim() || `this ${itemNoun}`}</strong>? You can restore it from Settings.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
+              <button type="button" disabled={actionPending} onClick={() => setConfirmArchive(null)} style={quietCancelStyle}>
+                Cancel
+              </button>
+              <button type="button" data-testid="confirm-archive-ok" disabled={actionPending} onClick={confirmArchiveNow} style={quietCancelStyle}>
+                {actionPending ? "Archiving..." : "Archive"}
               </button>
             </div>
           </div>

@@ -29,6 +29,7 @@ import { createMockCredentialsClient } from "./mockCredentialsClient";
 import { createMockServingClient } from "./mockServingClient";
 import { createMockFineTuningClient } from "./mockFineTuningClient";
 import { createMockMcpRegistryClient } from "./mockMcpRegistryClient";
+import { ArchivedChatsSettings, type ArchivedChatsClient } from "./ArchivedChatsSettings";
 
 // v2.2.0 Phase 7: "data" hosts export/import; the retired User Profile page
 // redirects here rather than rendering a placeholder that read nothing.
@@ -42,7 +43,8 @@ type SettingsTab =
   | "mcp"
   | "security"
   | "data"
-  | "video";
+  | "video"
+  | "archives";
 
 const SETTINGS_TABS: readonly SettingsTab[] = [
   "models",
@@ -55,6 +57,7 @@ const SETTINGS_TABS: readonly SettingsTab[] = [
   "security",
   "data",
   "video",
+  "archives",
 ];
 
 function parseSettingsTab(raw: string | null): SettingsTab | null {
@@ -78,6 +81,7 @@ export interface SettingsPageProps {
   securityClient?: SecuritySettingsClient;
   auditClient?: AuditLogClient;
   videoClient?: VideoSettingsClient;
+  archivedChatsClient?: ArchivedChatsClient;
   initialTab?: SettingsTab;
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
@@ -94,6 +98,7 @@ export function SettingsPage({
   securityClient,
   auditClient,
   videoClient,
+  archivedChatsClient,
   initialTab = "models",
   hostVramGB = null,
 }: SettingsPageProps = {}): JSX.Element {
@@ -153,6 +158,14 @@ export function SettingsPage({
   return (
     <div data-testid="settings-shell" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <nav data-testid="settings-tabs" style={tabsStyle}>
+        <button
+          type="button"
+          data-testid="settings-tab-archives"
+          onClick={() => setTab("archives")}
+          style={tabButtonStyle(tab === "archives")}
+        >
+          Archived chats
+        </button>
         <button
           type="button"
           data-testid="settings-tab-models"
@@ -252,6 +265,8 @@ export function SettingsPage({
         <SecuritySettings client={securityClient} auditClient={auditClient} />
       ) : tab === "data" ? (
         <DataSettings />
+      ) : tab === "archives" ? (
+        <ArchivedChatsSettings client={archivedChatsClient} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

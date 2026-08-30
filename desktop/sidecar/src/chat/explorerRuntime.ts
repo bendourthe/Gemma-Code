@@ -96,6 +96,9 @@ export interface ChatExplorerOps {
   getChat(input: { id: string }): Chat | null;
   moveChat(input: { id: string; folderId: string | null }): Chat;
   deleteChat(input: { id: string }): { ok: true };
+  archiveChat(input: { id: string }): Chat;
+  restoreChat(input: { id: string }): { chat: Chat; parentFallback: boolean };
+  listArchived(): { chats: ReturnType<ChatExplorerStore["listArchivedChats"]> };
   setPersona(input: { id: string; persona: string | null }): { ok: true };
   appendMessage(input: AppendMessageInput): ChatMessageRecord;
   listMessages(input: { chatId: string; limit?: number }): { messages: readonly ChatMessageRecord[] };
@@ -133,6 +136,9 @@ export function createChatExplorerOps(
       store.deleteChat(input.id);
       return { ok: true };
     },
+    archiveChat: (input) => store.archiveChat(input.id),
+    restoreChat: (input) => store.restoreChat(input.id),
+    listArchived: () => ({ chats: store.listArchivedChats() }),
     setPersona: (input) => {
       store.setPersona(input.id, input.persona);
       return { ok: true };

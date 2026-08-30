@@ -26,6 +26,7 @@ export interface StudioExplorerClient {
   renameSession(id: string, title: string): MaybeAsync<StudioSession>;
   moveSession(id: string, newFolderId: string | null): MaybeAsync<StudioSession>;
   deleteSession(id: string): MaybeAsync<void>;
+  archiveSession(id: string): MaybeAsync<void>;
   getFolder(id: string): MaybeAsync<StudioFolder | null>;
   getSession(id: string): MaybeAsync<StudioSession | null>;
   ancestors(folderId: string | null): MaybeAsync<readonly StudioFolder[]>;
@@ -44,6 +45,7 @@ function makeId(): string {
 export class InMemoryStudioExplorerClient implements StudioExplorerClient {
   private readonly folders = new Map<string, StudioFolder>();
   private readonly sessions = new Map<string, StudioSession>();
+  private readonly archivedSessions = new Map<string, StudioSession>();
   private readonly turns = new Map<string, StudioTurn[]>();
 
   constructor(private readonly pillar: "image" | "video") {}
@@ -183,7 +185,15 @@ export class InMemoryStudioExplorerClient implements StudioExplorerClient {
 
   deleteSession(id: string): void {
     this.sessions.delete(id);
+    this.archivedSessions.delete(id);
     this.turns.delete(id);
+  }
+
+  archiveSession(id: string): void {
+    const session = this.sessions.get(id);
+    if (!session) throw new Error(`session not found: ${id}`);
+    this.sessions.delete(id);
+    this.archivedSessions.set(id, { ...session, archivedAt: Date.now() });
   }
 
   getFolder(id: string): StudioFolder | null {

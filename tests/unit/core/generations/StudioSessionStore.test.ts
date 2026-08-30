@@ -250,4 +250,38 @@ describe("StudioSessionStore", () => {
     expect(turn?.reasoningText).toContain("<redacted>");
     expect(turn?.reasoningText).not.toContain("ghp_");
   });
+
+  it("archives by pillar without deleting turns and restores the session", () => {
+    const store = mem();
+    const session = store.createSession({ pillar: "video", folderId: null, title: "Clip", modelId: "wan" });
+    store.appendTurn({ sessionId: session.id, role: "user", content: "preserved" });
+    store.archiveSession(session.id, 1000);
+    expect(store.listTree("video").sessions).toEqual([]);
+    expect(store.getSession(session.id)).toBeNull();
+    expect(store.listArchivedSessions("image")).toEqual([]);
+    expect(store.listArchivedSessions("video")[0]?.archivedAt).toBe(1000);
+    expect(store.listTurns(session.id)[0]?.content).toBe("preserved");
+    expect(store.restoreSession(session.id).session.pillar).toBe("video");
+    expect(store.listTree("video").sessions[0]?.id).toBe(session.id);
+  });
+
+  it("keeps an archive after its former folder is deleted and restores it at root", () => {
+    const store = mem();
+    const folder = store.createFolder({ pillar: "image", parentId: null, name: "Temporary" });
+    const session = store.createSession({
+      pillar: "image",
+      folderId: folder.id,
+      title: "Survivor",
+      modelId: "sana",
+    });
+    store.appendTurn({ sessionId: session.id, role: "user", content: "still here" });
+    store.archiveSession(session.id, 1000);
+    store.deleteFolder(folder.id);
+
+    expect(store.listArchivedSessions("image")[0]?.id).toBe(session.id);
+    const restored = store.restoreSession(session.id);
+    expect(restored.parentFallback).toBe(true);
+    expect(restored.session.folderId).toBeNull();
+    expect(store.listTurns(session.id)[0]?.content).toBe("still here");
+  });
 });

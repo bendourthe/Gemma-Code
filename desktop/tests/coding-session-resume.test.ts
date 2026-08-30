@@ -182,4 +182,23 @@ describe("JsonFileSessionStore", () => {
     expect(b.get("abc")).toBeUndefined();
     expect(b.list()).toEqual([]);
   });
+
+  it("archives and restores without losing the transcript", () => {
+    const storePath = tempStorePath("archive");
+    const session: PersistedSession = {
+      id: "abc",
+      model: requireModel("gemma4:e4b"),
+      title: "T",
+      createdAt: "2026-06-14T00:00:00.000Z",
+      messages: ["one"],
+      turns: [{ prompt: "one", assistantText: "answer" }],
+    };
+    const first = new JsonFileSessionStore(storePath);
+    first.upsert(session);
+    first.archive("abc", "2026-08-29T00:00:00.000Z");
+    const second = new JsonFileSessionStore(storePath);
+    expect(second.listArchived()[0]?.messages).toEqual(["one"]);
+    expect(second.restore("abc").archivedAt).toBeNull();
+    expect(new JsonFileSessionStore(storePath).get("abc")?.turns?.[0]?.assistantText).toBe("answer");
+  });
 });

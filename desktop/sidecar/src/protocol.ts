@@ -43,6 +43,9 @@ export const IPC_METHODS = [
   "coding.session.resume",
   "coding.session.rename",
   "coding.session.delete",
+  "sessions.archive",
+  "sessions.listArchived",
+  "sessions.restore",
   "coding.memory.snapshot",
   "coding.trace.subscribe",
   "coding.sessions.list",
@@ -472,6 +475,37 @@ export const CodingSessionDeleteResponse = z
 export type CodingSessionDeleteResponseT = z.infer<
   typeof CodingSessionDeleteResponse
 >;
+
+export const SessionPillar = z.enum(["chatbot", "agents", "images", "videos"]);
+export type SessionPillarT = z.infer<typeof SessionPillar>;
+export const SessionDispositionRequest = z
+  .object({ pillar: SessionPillar, id: z.string().min(1) })
+  .strict();
+export const SessionDispositionResponse = z
+  .object({
+    pillar: SessionPillar,
+    id: z.string(),
+    archivedAt: z.string().optional(),
+    parentFallback: z.boolean().optional(),
+  })
+  .strict();
+export const ArchivedSessionDto = z
+  .object({
+    pillar: SessionPillar,
+    id: z.string(),
+    title: z.string(),
+    archivedAt: z.string(),
+    originalParent: z.string().nullable(),
+  })
+  .strict();
+export type ArchivedSessionDtoT = z.infer<typeof ArchivedSessionDto>;
+export const SessionsListArchivedRequest = z.object({}).strict();
+export const SessionsListArchivedResponse = z
+  .object({
+    sessions: z.array(ArchivedSessionDto),
+    errors: z.array(z.object({ pillar: SessionPillar, message: z.string() }).strict()),
+  })
+  .strict();
 
 // ---- Panel data (Memory / Trace / Sessions) ---------------------------------
 
@@ -2869,6 +2903,21 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "coding.session.delete": {
     request: CodingSessionDeleteRequest,
     response: CodingSessionDeleteResponse,
+    implemented: true,
+  },
+  "sessions.archive": {
+    request: SessionDispositionRequest,
+    response: SessionDispositionResponse,
+    implemented: true,
+  },
+  "sessions.listArchived": {
+    request: SessionsListArchivedRequest,
+    response: SessionsListArchivedResponse,
+    implemented: true,
+  },
+  "sessions.restore": {
+    request: SessionDispositionRequest,
+    response: SessionDispositionResponse,
     implemented: true,
   },
   "coding.memory.snapshot": {

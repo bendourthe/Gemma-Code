@@ -34,6 +34,7 @@ export interface CodingExplorerBackend {
   }): Promise<CodingSessionSummaryT>;
   renameSession(sessionId: string, title: string): Promise<CodingSessionSummaryT>;
   deleteSession(sessionId: string): Promise<void>;
+  archiveSession?(sessionId: string): Promise<void>;
 }
 
 interface FolderOverlay {
@@ -106,6 +107,9 @@ export function createIpcCodingExplorerBackend(): CodingExplorerBackend {
     },
     async deleteSession(sessionId) {
       unwrap(await ipcCall("coding.session.delete", { sessionId }));
+    },
+    async archiveSession(sessionId) {
+      unwrap(await ipcCall("sessions.archive", { pillar: "agents", id: sessionId }));
     },
   };
 }
@@ -344,6 +348,14 @@ export function createCodingSessionsAsChatExplorer(
     },
     async deleteChat(id) {
       await opts.backend.deleteSession(id);
+      const nextSessionFolders = { ...overlay.sessionFolders };
+      delete nextSessionFolders[id];
+      overlay = { ...overlay, sessionFolders: nextSessionFolders };
+      save();
+    },
+    async archiveChat(id) {
+      if (!opts.backend.archiveSession) throw new Error("Archive is unavailable.");
+      await opts.backend.archiveSession(id);
       const nextSessionFolders = { ...overlay.sessionFolders };
       delete nextSessionFolders[id];
       overlay = { ...overlay, sessionFolders: nextSessionFolders };

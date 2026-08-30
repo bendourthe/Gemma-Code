@@ -55,6 +55,8 @@ interface ChatRow {
   // undefined for these until the ALTER runs, hence the optional types.
   persona?: string | null;
   user_renamed?: number;
+  archived_at?: number | null;
+  archived_folder_id?: string | null;
 }
 
 interface MessageRow {
@@ -97,6 +99,8 @@ function rowToChat(row: ChatRow): Chat {
     // SQLite has no boolean; 1 means the user renamed this chat by hand and
     // auto-titling must never overwrite it.
     userRenamed: row.user_renamed === 1,
+    archivedAt: row.archived_at ?? null,
+    archivedFolderId: row.archived_folder_id ?? null,
   };
 }
 
@@ -188,6 +192,8 @@ export class ChatExplorerStore {
     // the constructor idempotent on an already-migrated database.
     this._addColumnIfMissing("chat_chats", "persona", "TEXT");
     this._addColumnIfMissing("chat_chats", "user_renamed", "INTEGER NOT NULL DEFAULT 0");
+    this._addColumnIfMissing("chat_chats", "archived_at", "INTEGER");
+    this._addColumnIfMissing("chat_chats", "archived_folder_id", "TEXT");
     this._addColumnIfMissing("chat_chat_messages", "input_tokens", "INTEGER");
     this._addColumnIfMissing("chat_chat_messages", "reasoning_tokens", "INTEGER");
     this._addColumnIfMissing("chat_chat_messages", "reasoning_text", "TEXT");
@@ -380,9 +386,74 @@ export class ChatExplorerStore {
     this._db.prepare(`DELETE FROM chat_chats WHERE id = ?`).run(id);
   }
 
+  archiveChat(id: string, archivedAt = Date.now()): Chat {
+    const tx = this._db.transaction(() => {
+      const existing = this._getChatRow(id);
+      if (!existing) throw new Error(`chat not found: ${id}`);
+      if (existing.archived_at != null) return rowToChat(existing);
+      this._db
+        .prepare(
+          `UPDATE chat_chats
+              SET archived_folder_id = folder_id, folder_id = NULL, archived_at = ?, updated_at = ?
+            WHERE id = ?`,
+        )
+        .run(archivedAt, archivedAt, id);
+      return rowToChat({
+        ...existing,
+        folder_id: null,
+        archived_folder_id: existing.folder_id,
+        archived_at: archivedAt,
+        updated_at: archivedAt,
+      });
+    });
+    return tx();
+  }
+
+  restoreChat(id: string): { chat: Chat; parentFallback: boolean } {
+    const tx = this._db.transaction(() => {
+      const existing = this._db
+        .prepare<[string], ChatRow>(`SELECT * FROM chat_chats WHERE id = ?`)
+        .get(id);
+      if (!existing || existing.archived_at == null) throw new Error(`archived chat not found: ${id}`);
+      const archivedFolderId = existing.archived_folder_id ?? existing.folder_id;
+      const parentFallback =
+        archivedFolderId !== null && this._getFolderRow(archivedFolderId) === undefined;
+      const folderId = parentFallback ? null : archivedFolderId;
+      const now = Date.now();
+      this._db
+        .prepare(
+          `UPDATE chat_chats
+              SET folder_id = ?, archived_folder_id = NULL, archived_at = NULL, updated_at = ?
+            WHERE id = ?`,
+        )
+        .run(folderId, now, id);
+      return {
+        chat: rowToChat({
+          ...existing,
+          folder_id: folderId,
+          archived_folder_id: null,
+          archived_at: null,
+          updated_at: now,
+        }),
+        parentFallback,
+      };
+    });
+    return tx();
+  }
+
+  listArchivedChats(): readonly import("./ChatExplorerStore.types.js").ArchivedChat[] {
+    return this._db
+      .prepare<unknown[], ChatRow>(
+        `SELECT * FROM chat_chats WHERE archived_at IS NOT NULL ORDER BY archived_at DESC, title ASC`,
+      )
+      .all()
+      .map(rowToChat)
+      .filter((chat): chat is import("./ChatExplorerStore.types.js").ArchivedChat => chat.archivedAt != null);
+  }
+
   getChat(id: string): Chat | null {
     const row = this._getChatRow(id);
-    return row ? rowToChat(row) : null;
+    return row && row.archived_at == null ? rowToChat(row) : null;
   }
 
   bumpMessageCount(id: string, delta = 1): void {
@@ -409,7 +480,7 @@ export class ChatExplorerStore {
       .prepare<unknown[], FolderRow>(`SELECT * FROM chat_folders ORDER BY name ASC`)
       .all();
     const chats = this._db
-      .prepare<unknown[], ChatRow>(`SELECT * FROM chat_chats ORDER BY title ASC`)
+      .prepare<unknown[], ChatRow>(`SELECT * FROM chat_chats WHERE archived_at IS NULL ORDER BY title ASC`)
       .all();
     const byParent = new Map<string | null, Folder[]>();
     for (const row of folders) {
@@ -466,7 +537,7 @@ export class ChatExplorerStore {
         `SELECT chat_chats.id, chat_chats.title, chat_chats.folder_id
            FROM chat_chats_fts
            JOIN chat_chats ON chat_chats.rowid = chat_chats_fts.rowid
-          WHERE chat_chats_fts MATCH ?
+          WHERE chat_chats_fts MATCH ? AND chat_chats.archived_at IS NULL
           ORDER BY chat_chats.title ASC
           LIMIT ?`,
       )

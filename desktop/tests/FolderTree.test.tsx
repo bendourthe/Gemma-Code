@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FolderTree, type SelectedNode } from "../src/modules/chat/FolderTree";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
@@ -168,7 +168,7 @@ describe("<FolderTree>", () => {
     fireEvent.click(await screen.findByTestId("ctx-delete"));
     expect(await screen.findByTestId("folder-tree-confirm-delete")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("confirm-delete-ok"));
-    expect(client.getFolder(folder.id)).toBeNull();
+    await waitFor(() => expect(client.getFolder(folder.id)).toBeNull());
   });
 
   it("confirm-delete cancel keeps the folder", async () => {
@@ -361,7 +361,7 @@ describe("<FolderTree>", () => {
     expect(onOpenChat).not.toHaveBeenCalled();
   });
 
-  it("delete icon opens the confirm modal and does not delete until confirmed", () => {
+  it("delete icon opens the confirm modal and does not delete until confirmed", async () => {
     const client = setupClient();
     const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
     render(<FolderTree client={client} storageAdapter={storageAdapter} />);
@@ -369,7 +369,30 @@ describe("<FolderTree>", () => {
     expect(screen.getByTestId("folder-tree-confirm-delete")).toBeInTheDocument();
     expect(client.getChat(chat.id)?.title).toBe("draft");
     fireEvent.click(screen.getByTestId("confirm-delete-ok"));
-    expect(client.getChat(chat.id)).toBeNull();
+    await waitFor(() => expect(client.getChat(chat.id)).toBeNull());
+  });
+
+  it("archives a chat through reversible copy and reports disposition after success", async () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "Keep safely", modelId: "m" });
+    const before = vi.fn();
+    const after = vi.fn();
+    render(<FolderTree client={client} storageAdapter={storageAdapter} onBeforeSessionDisposition={before} onSessionDisposition={after} />);
+    fireEvent.click(screen.getByTestId(`tree-archive-${chat.id}`));
+    expect(screen.getByTestId("folder-tree-confirm-archive")).toHaveTextContent(/restore it from Settings/i);
+    fireEvent.click(screen.getByTestId("confirm-archive-ok"));
+    await waitFor(() => expect(client.getChat(chat.id)).toBeNull());
+    expect(before).toHaveBeenCalledWith(chat.id, "archived");
+    expect(after).toHaveBeenCalledWith(chat.id, "archived");
+  });
+
+  it("offers Archive instead and labels permanent deletion as irreversible", () => {
+    const client = setupClient();
+    const chat = client.createChat({ folderId: null, title: "Risky", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
+    expect(screen.getByTestId("folder-tree-confirm-delete")).toHaveTextContent(/cannot be undone/i);
+    expect(screen.getByTestId("confirm-delete-archive-instead")).toBeInTheDocument();
   });
 
   it("confirm-delete uses a rounded quiet destructive, not a square flash-red fill", () => {
@@ -401,7 +424,7 @@ describe("<FolderTree>", () => {
     expect(client.getChat(chat.id)?.title).toBe("keep-me");
   });
 
-  it("collapsed rail keeps new/folder actions and still confirms delete", () => {
+  it("collapsed rail keeps new/folder actions and still confirms delete", async () => {
     const client = setupClient();
     const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
     render(<FolderTree client={client} storageAdapter={storageAdapter} collapsed />);
@@ -417,7 +440,7 @@ describe("<FolderTree>", () => {
     expect(client.getChat(chat.id)).not.toBeNull();
     fireEvent.keyDown(row, { key: "Delete" });
     fireEvent.click(screen.getByTestId("confirm-delete-ok"));
-    expect(client.getChat(chat.id)).toBeNull();
+    await waitFor(() => expect(client.getChat(chat.id)).toBeNull());
   });
 
   it("left-click on the already-selected chat enters rename", () => {

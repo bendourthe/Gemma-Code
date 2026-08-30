@@ -149,6 +149,44 @@ describe("messages", () => {
   });
 });
 
+describe("archive lifecycle", () => {
+  it("filters archived chats while preserving messages and restores the original parent", () => {
+    const s = store();
+    const folder = s.createFolder({ parentId: null, name: "Keep" });
+    const chat = s.createChat({ folderId: folder.id, title: "Archive me", modelId: "m" });
+    s.appendMessage({ chatId: chat.id, role: "user", content: "preserved" });
+    const archived = s.archiveChat(chat.id, 1234);
+    expect(archived.archivedAt).toBe(1234);
+    expect(s.listTree().children[0]?.chats).toEqual([]);
+    expect(s.search("Archive")).toEqual([]);
+    expect(s.getChat(chat.id)).toBeNull();
+    expect(s.listArchivedChats()[0]?.folderId).toBeNull();
+    expect(s.listArchivedChats()[0]?.archivedFolderId).toBe(folder.id);
+    expect(s.listMessages(chat.id)[0]?.content).toBe("preserved");
+    const restored = s.restoreChat(chat.id);
+    expect(restored.parentFallback).toBe(false);
+    expect(restored.chat.folderId).toBe(folder.id);
+    expect(s.getChat(chat.id)?.archivedAt).toBeNull();
+    s.close();
+  });
+
+  it("keeps an archive after its former folder is deleted and restores it at root", () => {
+    const s = store();
+    const folder = s.createFolder({ parentId: null, name: "Temporary" });
+    const chat = s.createChat({ folderId: folder.id, title: "Survivor", modelId: "m" });
+    s.appendMessage({ chatId: chat.id, role: "user", content: "still here" });
+    s.archiveChat(chat.id, 1234);
+    s.deleteFolder(folder.id);
+
+    expect(s.listArchivedChats()[0]?.id).toBe(chat.id);
+    const restored = s.restoreChat(chat.id);
+    expect(restored.parentFallback).toBe(true);
+    expect(restored.chat.folderId).toBeNull();
+    expect(s.listMessages(chat.id)[0]?.content).toBe("still here");
+    s.close();
+  });
+});
+
 describe("persona", () => {
   it("persists and clears the per-chat persona", () => {
     const s = store();

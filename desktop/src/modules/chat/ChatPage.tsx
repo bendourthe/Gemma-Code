@@ -1040,6 +1040,17 @@ export function ChatPage({
           refreshToken={treeVersion}
           defaultModelId={modelId}
           collapsed={chatsCollapsed}
+          onSessionDisposition={(id) => {
+            if (activeChat?.id !== id) return;
+            const next = new Map(messagesByChatRef.current);
+            next.delete(id);
+            messagesByChatRef.current = next;
+            setMessagesByChat(next);
+            pendingPromptRef.current = { text: "", attachments: [] };
+            setActiveChat(null);
+            setSelected(null);
+            setPersonaOpen(false);
+          }}
         />
       </CollapsibleHistoryAside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, padding: "var(--space-4)", gap: "var(--space-3)" }}>

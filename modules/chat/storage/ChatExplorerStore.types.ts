@@ -47,6 +47,14 @@ export interface Chat {
    * must never overwrite a title the user chose.
    */
   userRenamed?: boolean;
+  /** Set only while the chat is archived; active listings exclude these rows. */
+  archivedAt?: number | null;
+  /** Former folder retained while archived, without keeping a cascading foreign key alive. */
+  archivedFolderId?: string | null;
+}
+
+export interface ArchivedChat extends Chat {
+  archivedAt: number;
 }
 
 /** v2.2.0 Phase 5: one persisted message turn. */

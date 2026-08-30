@@ -162,6 +162,7 @@ export class CodingSessionManager {
     // started in another surface (e.g. the CLI) is visible + resumable here.
     if (this._store) {
       for (const s of this._store.list()) {
+        if (s.archivedAt) continue;
         this._sessions.set(s.id, {
           id: s.id,
           model: s.model,
@@ -306,6 +307,35 @@ export class CodingSessionManager {
     this._sessions.delete(sessionId);
     this._store?.delete(sessionId);
     return { sessionId, deleted: true };
+  }
+
+  archive(sessionId: string): { sessionId: string; archivedAt: string } {
+    this._requireSession(sessionId, "sessions.archive");
+    if (!this._store) throw new IpcMethodError("sessions.archive", "session storage is unavailable");
+    const archivedAt = this._now().toISOString();
+    this._store.archive(sessionId, archivedAt);
+    this._sessions.delete(sessionId);
+    return { sessionId, archivedAt };
+  }
+
+  listArchived(): readonly PersistedSession[] {
+    return this._store?.listArchived() ?? [];
+  }
+
+  restore(sessionId: string): { session: CodingSessionSummaryT; parentFallback: false } {
+    if (!this._store) throw new IpcMethodError("sessions.restore", "session storage is unavailable");
+    const s = this._store.restore(sessionId);
+    const rec: SessionRecord = {
+      id: s.id,
+      model: s.model,
+      title: s.title,
+      createdAt: s.createdAt,
+      messages: [...s.messages],
+      turns: (s.turns ?? s.messages.map((prompt) => ({ prompt, assistantText: "" }))).map(copyTurn),
+      cancelRequested: false,
+    };
+    this._sessions.set(rec.id, rec);
+    return { session: this._summary(rec), parentFallback: false };
   }
 
   private _summary(rec: SessionRecord): CodingSessionSummaryT {

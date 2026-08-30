@@ -57,6 +57,8 @@ export interface StudioHistoryPaneProps {
    * click state.
    */
   readonly activeSessionId?: string | null;
+  readonly onBeforeSessionDisposition?: (sessionId: string) => void | Promise<void>;
+  readonly onSessionDisposition?: (sessionId: string) => void | Promise<void>;
 }
 
 export function StudioHistoryPane({
@@ -67,6 +69,8 @@ export function StudioHistoryPane({
   onSelectSession,
   refreshToken,
   activeSessionId,
+  onBeforeSessionDisposition,
+  onSessionDisposition,
 }: StudioHistoryPaneProps): JSX.Element {
   const explorer = useMemo(() => studioClientAsChatExplorer(client), [client]);
   const [localSelected, setLocalSelected] = useState<SelectedNode | null>(null);
@@ -109,6 +113,8 @@ export function StudioHistoryPane({
           storageKey={`nexus.${pillar}.expanded`}
           refreshToken={refreshToken}
           collapsed={collapsed}
+          onBeforeSessionDisposition={(id) => onBeforeSessionDisposition?.(id)}
+          onSessionDisposition={(id) => onSessionDisposition?.(id)}
         />
       )}
     </CollapsibleHistoryAside>

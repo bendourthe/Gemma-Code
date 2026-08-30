@@ -20,6 +20,8 @@ import {
   CodingSessionResumeRequest,
   CodingSessionSendMessageRequest,
   CodingSessionStartRequest,
+  SessionDispositionRequest,
+  SessionsListArchivedRequest,
   CodingTraceSubscribeRequest,
   CredentialsDeleteRequest,
   CredentialsListRequest,
@@ -1111,6 +1113,61 @@ export const handlers: Record<Method, HandlerFn> = {
   "coding.session.delete": async (params, ctx) => {
     const req = CodingSessionDeleteRequest.parse(params ?? {});
     return ctx.sessions.delete(req.sessionId);
+  },
+  "sessions.archive": async (params, ctx) => {
+    const req = SessionDispositionRequest.parse(params ?? {});
+    if (req.pillar === "agents") {
+      const result = ctx.sessions.archive(req.id);
+      return { pillar: req.pillar, id: req.id, archivedAt: result.archivedAt };
+    }
+    if (req.pillar === "chatbot") {
+      const chat = (await explorerOps()).archiveChat({ id: req.id });
+      return { pillar: req.pillar, id: req.id, archivedAt: new Date(chat.archivedAt ?? Date.now()).toISOString() };
+    }
+    const session = (await studioSessionOps()).archiveSession({ id: req.id });
+    return { pillar: req.pillar, id: req.id, archivedAt: new Date(session.archivedAt ?? Date.now()).toISOString() };
+  },
+  "sessions.listArchived": async (params, ctx) => {
+    SessionsListArchivedRequest.parse(params ?? {});
+    const sessions: Array<{ pillar: "chatbot" | "agents" | "images" | "videos"; id: string; title: string; archivedAt: string; originalParent: string | null }> = [];
+    const errors: Array<{ pillar: "chatbot" | "agents" | "images" | "videos"; message: string }> = [];
+    try {
+      for (const chat of (await explorerOps()).listArchived().chats) {
+        sessions.push({ pillar: "chatbot", id: chat.id, title: chat.title, archivedAt: new Date(chat.archivedAt).toISOString(), originalParent: chat.archivedFolderId ?? chat.folderId });
+      }
+    } catch (error) {
+      errors.push({ pillar: "chatbot", message: error instanceof Error ? error.message : String(error) });
+    }
+    try {
+      for (const session of ctx.sessions.listArchived()) {
+        sessions.push({ pillar: "agents", id: session.id, title: session.title, archivedAt: session.archivedAt ?? session.createdAt, originalParent: null });
+      }
+    } catch (error) {
+      errors.push({ pillar: "agents", message: error instanceof Error ? error.message : String(error) });
+    }
+    for (const [pillar, studioPillar] of [["images", "image"], ["videos", "video"]] as const) {
+      try {
+        for (const session of (await studioSessionOps()).listArchived({ pillar: studioPillar }).sessions) {
+          sessions.push({ pillar, id: session.id, title: session.title, archivedAt: new Date(session.archivedAt).toISOString(), originalParent: session.archivedFolderId ?? session.folderId });
+        }
+      } catch (error) {
+        errors.push({ pillar, message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return { sessions, errors };
+  },
+  "sessions.restore": async (params, ctx) => {
+    const req = SessionDispositionRequest.parse(params ?? {});
+    if (req.pillar === "agents") {
+      const restored = ctx.sessions.restore(req.id);
+      return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
+    }
+    if (req.pillar === "chatbot") {
+      const restored = (await explorerOps()).restoreChat({ id: req.id });
+      return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
+    }
+    const restored = (await studioSessionOps()).restoreSession({ id: req.id });
+    return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
   },
   "coding.memory.snapshot": async (params) => {
     CodingMemorySnapshotRequest.parse(params ?? {});
