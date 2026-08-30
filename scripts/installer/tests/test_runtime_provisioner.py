@@ -178,6 +178,9 @@ class TestRuntimeProvisionerStep:
                     gpu_name="Test GPU",
                     smoke_at="2026-08-29T00:00:00Z",
                     manifest_fingerprint="abc123",
+                    attempt_id="attempt-1",
+                    repair_started_at="2026-08-29T00:00:00Z",
+                    repair_owner_pid=1234,
                 )
 
         monkeypatch.setattr(rp, "DiffusionVenvProvisioner", FakeProvisioner)
@@ -186,10 +189,12 @@ class TestRuntimeProvisionerStep:
         data = json.loads(
             (tmp_path / ".nexus" / "runtime.json").read_text(encoding="utf-8")
         )
-        assert data["schemaVersion"] == 2
+        assert data["schemaVersion"] == 3
         assert data["diffusion"]["status"] == "ready"
         assert data["diffusion"]["cuda_available"] is True
         assert data["diffusionPython"] == str(python)
+        assert data["repairAttempt"]["attemptId"] is not None
+        assert data["repairAttempt"]["status"] == "ready"
 
     def test_failed_media_repair_keeps_core_runtime_success(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock

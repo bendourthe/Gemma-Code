@@ -14,19 +14,23 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import shutil
+import socket
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 
+from nexus_installer.background.process import pid_alive
 from nexus_installer.engine.platform_utils import (
     is_macos,
     is_windows,
@@ -37,6 +41,7 @@ LogFn = Callable[[str, str], None]
 ProgressFn = Callable[[float], None]
 
 PROVISIONER_VERSION = "2.4.1"
+REPAIR_LEASE_SCHEMA_VERSION = 1
 ENVIRONMENT_MARKER = ".nexus-diffusion-environment.json"
 SMOKE_TIMEOUT_SECONDS = 45
 DOWNLOAD_CHUNK_SIZE = 1024 * 1024
@@ -58,6 +63,9 @@ class DiffusionProvisionResult:
     smoke_at: str = ""
     manifest_fingerprint: str = ""
     provisioner_version: str = PROVISIONER_VERSION
+    attempt_id: str = ""
+    repair_started_at: str = ""
+    repair_owner_pid: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -125,26 +133,245 @@ def diffusion_target_key(gpu_vendor: str) -> str:
     return f"linux-{arch}-{vendor}"
 
 
-@contextmanager
-def environment_lock(path: Path, timeout_seconds: float = 5.0) -> Iterator[None]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.monotonic() + timeout_seconds
-    fd: int | None = None
-    while fd is None:
-        try:
-            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError as exc:
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    "diffusion environment repair is already running"
-                ) from exc
-            time.sleep(0.05)
+@dataclass(frozen=True)
+class RepairLease:
+    schema_version: int
+    pid: int
+    process_start: str
+    created_at: str
+    target: str
+    nonce: str
+    host: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schemaVersion": self.schema_version,
+            "pid": self.pid,
+            "processStart": self.process_start,
+            "createdAt": self.created_at,
+            "target": self.target,
+            "nonce": self.nonce,
+            "host": self.host,
+        }
+
+
+class RepairLeaseError(TimeoutError):
+    """A repair lease could not be acquired without risking another owner."""
+
+    def __init__(self, code: str, lease: dict[str, Any] | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.lease = lease or {}
+
+
+def _linux_boot_id() -> str:
     try:
-        os.write(fd, str(os.getpid()).encode("ascii"))
+        return (
+            Path("/proc/sys/kernel/random/boot_id").read_text(encoding="ascii").strip()
+        )
+    except OSError:
+        return ""
+
+
+def process_start_identity(pid: int) -> str:
+    """Return a stable process-start identity when the host exposes one."""
+    if pid <= 0:
+        return ""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            process_query = 0x1000  # PROCESS_QUERY_LIMITED_INFORMATION
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(process_query, False, pid)
+            if not handle:
+                return ""
+            try:
+                creation = ctypes.c_ulonglong()
+                exit_time = ctypes.c_ulonglong()
+                kernel = ctypes.c_ulonglong()
+                user = ctypes.c_ulonglong()
+                if not kernel32.GetProcessTimes(
+                    handle,
+                    ctypes.byref(creation),
+                    ctypes.byref(exit_time),
+                    ctypes.byref(kernel),
+                    ctypes.byref(user),
+                ):
+                    return ""
+                return f"windows-filetime:{creation.value}"
+            finally:
+                kernel32.CloseHandle(handle)
+        except (AttributeError, OSError, ValueError):
+            return ""
+    if sys.platform.startswith("linux"):
+        try:
+            raw = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+            # Field 2 is parenthesized and may contain spaces. Fields after the
+            # final ')' begin at field 3; starttime is field 22.
+            fields = raw[raw.rfind(")") + 2 :].split()
+            start_ticks = fields[19]
+            return f"linux:{_linux_boot_id()}:{start_ticks}"
+        except (OSError, IndexError):
+            return ""
+    try:
+        completed = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "lstart="],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+            **no_window_kwargs(),
+        )
+        started = completed.stdout.strip()
+        return f"ps:{started}" if completed.returncode == 0 and started else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+@contextmanager
+def _lease_guard(path: Path) -> Iterator[None]:
+    """Serialize lease inspect/reclaim/create; OS locks release after crashes."""
+    guard_path = path.with_name(f"{path.name}.guard")
+    guard_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = guard_path.open("a+b")
+    try:
+        if is_windows():
+            import msvcrt
+
+            if guard_path.stat().st_size == 0:
+                handle.write(b"0")
+                handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         yield
     finally:
-        os.close(fd)
+        try:
+            handle.seek(0)
+            if is_windows():
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
+
+
+def _read_lease(path: Path) -> tuple[dict[str, Any] | None, bytes]:
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None, b""
+    try:
+        parsed = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        # v2.4.1 compatibility: the old lock was just an ASCII PID.
+        try:
+            return {"schemaVersion": 0, "pid": int(raw.decode("ascii").strip())}, raw
+        except (UnicodeDecodeError, ValueError):
+            return None, raw
+    return (parsed if isinstance(parsed, dict) else None), raw
+
+
+def _lease_owner_status(lease: dict[str, Any] | None) -> str:
+    if lease is None:
+        return "invalid"
+    try:
+        pid = int(lease.get("pid", 0))
+    except (TypeError, ValueError):
+        return "invalid"
+    if pid <= 0:
+        return "invalid"
+    if not pid_alive(pid):
+        return "stale"
+    recorded_start = str(lease.get("processStart") or "")
+    if not recorded_start:
+        # A live legacy PID cannot be reclaimed safely because PID reuse cannot
+        # be ruled out. Waiting is safer than deleting another installer.
+        return "live"
+    actual_start = process_start_identity(pid)
+    if not actual_start:
+        return "unknown"
+    return "live" if actual_start == recorded_start else "stale"
+
+
+def _quarantine_lease(path: Path, raw: bytes, *, invalid: bool) -> None:
+    if not path.exists():
+        return
+    if invalid:
+        quarantine = path.with_name(
+            f"{path.name}.invalid-{int(time.time())}-{uuid.uuid4().hex[:8]}"
+        )
+        os.replace(path, quarantine)
+        return
+    # The guard prevents another cooperating claimant from replacing the file
+    # between this final content comparison and deletion.
+    if path.read_bytes() == raw:
         path.unlink(missing_ok=True)
+
+
+@contextmanager
+def environment_lock(
+    path: Path,
+    timeout_seconds: float = 5.0,
+    *,
+    target: str = "",
+    attempt_id: str | None = None,
+) -> Iterator[RepairLease]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout_seconds
+    lease = RepairLease(
+        schema_version=REPAIR_LEASE_SCHEMA_VERSION,
+        pid=os.getpid(),
+        process_start=process_start_identity(os.getpid()),
+        created_at=datetime.now(UTC).isoformat(),
+        target=target,
+        nonce=attempt_id or uuid.uuid4().hex,
+        host=f"{socket.gethostname()}:{platform.system()}:{_linux_boot_id()}",
+    )
+    payload = (json.dumps(lease.to_dict(), sort_keys=True) + "\n").encode("utf-8")
+    last_status = "live"
+    last_lease: dict[str, Any] | None = None
+    acquired = False
+    while not acquired:
+        with _lease_guard(path):
+            try:
+                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                existing, raw = _read_lease(path)
+                last_status = _lease_owner_status(existing)
+                last_lease = existing
+                if last_status in {"stale", "invalid"}:
+                    _quarantine_lease(path, raw, invalid=last_status == "invalid")
+                    continue
+            else:
+                try:
+                    os.write(fd, payload)
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+                acquired = True
+        if acquired:
+            break
+        if last_status == "unknown":
+            raise RepairLeaseError("REPAIR_OWNER_UNKNOWN", last_lease)
+        if time.monotonic() >= deadline:
+            raise RepairLeaseError("REPAIR_BUSY", last_lease)
+        time.sleep(0.05)
+    try:
+        yield lease
+    finally:
+        with _lease_guard(path):
+            current, _raw = _read_lease(path)
+            if current and current.get("nonce") == lease.nonce:
+                path.unlink(missing_ok=True)
 
 
 def _sha256_path(path: Path) -> str:
@@ -545,6 +772,32 @@ class DiffusionVenvProvisioner:
         progress: ProgressFn | None = None,
         manifest_path: Path | None = None,
     ) -> DiffusionProvisionResult:
+        """Run one traceable repair attempt and attach its identity to the result."""
+        attempt_id = uuid.uuid4().hex
+        started_at = datetime.now(UTC).isoformat()
+        result = self._provision_verified(
+            log,
+            gpu_vendor=gpu_vendor,
+            progress=progress,
+            manifest_path=manifest_path,
+            attempt_id=attempt_id,
+        )
+        return replace(
+            result,
+            attempt_id=attempt_id,
+            repair_started_at=started_at,
+            repair_owner_pid=os.getpid(),
+        )
+
+    def _provision_verified(
+        self,
+        log: LogFn,
+        *,
+        gpu_vendor: str,
+        progress: ProgressFn | None = None,
+        manifest_path: Path | None = None,
+        attempt_id: str,
+    ) -> DiffusionProvisionResult:
         """Build, smoke, and atomically activate a pinned diffusion environment."""
         update = progress or (lambda _value: None)
         try:
@@ -579,7 +832,7 @@ class DiffusionVenvProvisioner:
         marker = final / ENVIRONMENT_MARKER
         lock = final.parent / ".diffusion-repair.lock"
         try:
-            with environment_lock(lock):
+            with environment_lock(lock, target=key, attempt_id=attempt_id):
                 if marker.is_file():
                     try:
                         recorded = json.loads(marker.read_text(encoding="utf-8"))
@@ -743,6 +996,20 @@ class DiffusionVenvProvisioner:
                         "manifest_fingerprint": fingerprint,
                     }
                 )
+        except RepairLeaseError as exc:
+            status = "repairing" if exc.code == "REPAIR_BUSY" else "failed"
+            log(
+                "Diffusion repair lease could not be acquired "
+                f"({exc.code}, owner pid {exc.lease.get('pid', 'unknown')}).",
+                "warn",
+            )
+            return DiffusionProvisionResult(
+                status=status,
+                backend=backend,
+                failure_code=exc.code,
+                retryable=True,
+                manifest_fingerprint=fingerprint,
+            )
         except TimeoutError:
             return DiffusionProvisionResult(
                 status="repairing",

@@ -53,7 +53,7 @@ from nexus_installer.installer_state import InstallerState
 
 LogFn = Callable[[str, str], None]
 
-RUNTIME_CONFIG_SCHEMA_VERSION = 2
+RUNTIME_CONFIG_SCHEMA_VERSION = 3
 
 # Pinned Node runtime downloads (nodejs.org SHASUMS256.txt for v22.11.0),
 # matching the version pinned in build/versions.lock.json. Used only when
@@ -268,6 +268,14 @@ def write_runtime_config(
         "diffusionPython": str(diffusion_python) if diffusion_python_ready else None,
         "diffusionCwd": str(diffusion_cwd) if diffusion_cwd else None,
         "diffusion": readiness.to_dict(),
+        "repairAttempt": {
+            "attemptId": readiness.attempt_id or None,
+            "status": readiness.status,
+            "failureCode": readiness.failure_code or None,
+            "ownerPid": readiness.repair_owner_pid or None,
+            "startedAt": readiness.repair_started_at or None,
+            "finishedAt": datetime.now(UTC).isoformat(),
+        },
         "modelsRoot": str(models_root),
         "ollama": {"url": getattr(state, "ollama_url", None)},
         "writtenBy": f"nexus-installer {app_version or ''}".strip(),

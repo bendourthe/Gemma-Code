@@ -604,7 +604,7 @@ class TestInstallThreadCrashContainment:
         assert seen[0] is QApplication.instance().thread()
         assert threading.get_ident() != worker_ident[0] or seen[0] is qt_app.thread()
 
-    def test_marshal_failure_records_state_without_worker_emit(
+    def test_marshal_failure_is_diagnostic_not_model_failure(
         self, qt_app: object
     ) -> None:
         engine = InstallEngine()
@@ -616,4 +616,48 @@ class TestInstallThreadCrashContainment:
         engine.marshal_model_started("m1")
         qt_app.processEvents()
         assert seen == []
-        assert "m1" in state.model_failures
+        assert "m1" not in state.model_failures
+        assert "m1" not in state.failed_models
+        assert any("display update was dropped" in line for line in state.install_log)
+
+    def test_void_invoke_result_is_success_not_false_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = InstallEngine()
+        state = InstallerState()
+        engine._active_state = state
+        invoked: list[str] = []
+
+        def queued(_target, name, *_args):
+            invoked.append(name)
+            return None
+
+        monkeypatch.setattr(
+            "nexus_installer.engine.installer.QMetaObject.invokeMethod", queued
+        )
+        engine.marshal_model_completed("m1")
+        assert invoked == ["_slot_model_completed"]
+        assert state.model_failures == {}
+        assert state.failed_models == []
+
+    def test_terminal_event_burst_is_exactly_once_and_diagnostic_only(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = InstallEngine()
+        state = InstallerState()
+        engine._active_state = state
+        invoked: list[str] = []
+
+        def queued(_target, name, *_args):
+            invoked.append(name)
+            return None
+
+        monkeypatch.setattr(
+            "nexus_installer.engine.installer.QMetaObject.invokeMethod", queued
+        )
+        for index in range(100):
+            engine.marshal_model_completed(f"model-{index}")
+
+        assert invoked == ["_slot_model_completed"] * 100
+        assert state.model_failures == {}
+        assert state.failed_models == []

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -77,6 +78,98 @@ class TestPreflight:
         ok, msg = provisioner.preflight()
         assert ok is True
         assert msg == "ok"
+
+
+class TestRepairLease:
+    def test_dead_legacy_pid_is_reclaimed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        lock = tmp_path / ".diffusion-repair.lock"
+        lock.write_text("99999999", encoding="ascii")
+        monkeypatch.setattr(venv_mod, "pid_alive", lambda _pid: False)
+
+        with venv_mod.environment_lock(lock, timeout_seconds=0.1) as lease:
+            assert lease.pid == os.getpid()
+            assert json.loads(lock.read_text(encoding="utf-8"))["nonce"] == lease.nonce
+        assert not lock.exists()
+
+    def test_live_matching_owner_remains_busy(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        lock = tmp_path / ".diffusion-repair.lock"
+        lock.write_text(
+            json.dumps({"schemaVersion": 1, "pid": 41, "processStart": "same"}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(venv_mod, "pid_alive", lambda _pid: True)
+        monkeypatch.setattr(venv_mod, "process_start_identity", lambda _pid: "same")
+
+        with (
+            pytest.raises(venv_mod.RepairLeaseError, match="REPAIR_BUSY") as error,
+            venv_mod.environment_lock(lock, timeout_seconds=0.01),
+        ):
+            pass
+        assert error.value.code == "REPAIR_BUSY"
+        assert lock.exists()
+
+    def test_reused_pid_with_different_start_is_reclaimed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        lock = tmp_path / ".diffusion-repair.lock"
+        lock.write_text(
+            json.dumps({"schemaVersion": 1, "pid": 41, "processStart": "old"}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(venv_mod, "pid_alive", lambda _pid: True)
+        monkeypatch.setattr(venv_mod, "process_start_identity", lambda _pid: "new")
+
+        with venv_mod.environment_lock(lock, timeout_seconds=0.1):
+            assert json.loads(lock.read_text(encoding="utf-8"))["processStart"] == "new"
+        assert not lock.exists()
+
+    def test_malformed_lease_is_quarantined(self, tmp_path: Path) -> None:
+        lock = tmp_path / ".diffusion-repair.lock"
+        lock.write_text("not-a-lease", encoding="utf-8")
+
+        with venv_mod.environment_lock(lock, timeout_seconds=0.1):
+            pass
+        assert len(list(tmp_path.glob(".diffusion-repair.lock.invalid-*"))) == 1
+
+    def test_unverifiable_live_owner_fails_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        lock = tmp_path / ".diffusion-repair.lock"
+        lock.write_text(
+            json.dumps({"schemaVersion": 1, "pid": 41, "processStart": "known"}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(venv_mod, "pid_alive", lambda _pid: True)
+        monkeypatch.setattr(venv_mod, "process_start_identity", lambda _pid: "")
+
+        with (
+            pytest.raises(venv_mod.RepairLeaseError) as error,
+            venv_mod.environment_lock(lock, timeout_seconds=0.1),
+        ):
+            pass
+        assert error.value.code == "REPAIR_OWNER_UNKNOWN"
+
+    def test_old_owner_cleanup_does_not_delete_replacement(
+        self, tmp_path: Path
+    ) -> None:
+        lock = tmp_path / ".diffusion-repair.lock"
+        replacement = {
+            "schemaVersion": 1,
+            "pid": os.getpid(),
+            "processStart": venv_mod.process_start_identity(os.getpid()),
+            "nonce": "replacement-owner",
+        }
+
+        with venv_mod.environment_lock(lock, timeout_seconds=0.1):
+            lock.write_text(json.dumps(replacement), encoding="utf-8")
+
+        assert json.loads(lock.read_text(encoding="utf-8"))["nonce"] == (
+            "replacement-owner"
+        )
 
 
 class TestCreateVenv:

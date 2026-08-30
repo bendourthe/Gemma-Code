@@ -50,26 +50,26 @@ class InstallEngine(QObject):
 
     def _invoke_slot(self, name: str, *qargs: object) -> bool:
         try:
-            return bool(
-                QMetaObject.invokeMethod(self, name, Qt.QueuedConnection, *qargs)
-            )
+            # PyQt returns None for a successfully queued void slot. Casting
+            # that result to bool misclassified every successful delivery as
+            # a failure and queued each event twice.
+            QMetaObject.invokeMethod(self, name, Qt.QueuedConnection, *qargs)
+            return True
         except Exception:
             return False
 
-    def _record_marshal_failure(self, model_id: str, reason: str) -> None:
+    def _record_telemetry_failure(self, model_id: str, reason: str) -> None:
         state = self._active_state
         if state is None:
             return
-        state.model_failures[model_id] = reason
-        if model_id not in state.failed_models:
-            state.failed_models.append(model_id)
+        state.install_log.append(
+            f"[WARN] Model progress display update was dropped for {model_id}: {reason}"
+        )
 
     def marshal_model_started(self, model_id: str) -> None:
         if self._invoke_slot("_slot_model_started", Q_ARG(str, model_id)):
             return
-        if self._invoke_slot("_slot_model_started", Q_ARG(str, model_id)):
-            return
-        self._record_marshal_failure(model_id, "Could not update the installer window.")
+        self._record_telemetry_failure(model_id, "started event")
 
     def marshal_model_progress(self, sample: object) -> None:
         if self._invoke_slot("_slot_model_progress", Q_ARG(object, sample)):
@@ -80,20 +80,14 @@ class InstallEngine(QObject):
     def marshal_model_completed(self, model_id: str) -> None:
         if self._invoke_slot("_slot_model_completed", Q_ARG(str, model_id)):
             return
-        if self._invoke_slot("_slot_model_completed", Q_ARG(str, model_id)):
-            return
-        self._record_marshal_failure(model_id, "Could not update the installer window.")
+        self._record_telemetry_failure(model_id, "completed event")
 
     def marshal_model_failed(self, model_id: str, reason: str) -> None:
         if self._invoke_slot(
             "_slot_model_failed", Q_ARG(str, model_id), Q_ARG(str, reason)
         ):
             return
-        if self._invoke_slot(
-            "_slot_model_failed", Q_ARG(str, model_id), Q_ARG(str, reason)
-        ):
-            return
-        self._record_marshal_failure(model_id, reason)
+        self._record_telemetry_failure(model_id, "failed event")
 
     @pyqtSlot(str)
     def _slot_model_started(self, model_id: str) -> None:
