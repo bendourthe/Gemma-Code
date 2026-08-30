@@ -21,6 +21,7 @@ from typing import Any
 from PyQt5.QtCore import QObject, Qt, QThread, QUrl, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
+    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -54,6 +55,7 @@ OpenUrlFn = Callable[[str], bool]
 
 #: Where a user creates a free Hugging Face read token (v1.15.0 Phase 3).
 HF_TOKENS_URL = "https://huggingface.co/settings/tokens"
+HF_SIGNUP_URL = "https://huggingface.co/join"
 
 
 class _BrowserLoginWorker(QObject):
@@ -135,25 +137,43 @@ class GatedAuthDialog(QDialog):
         body = QLabel(
             'A few high-end models are "gated": they are free and open-weight, '
             "but the publisher asks you to accept their license on Hugging Face "
-            "first. The installer cannot accept the license for you.\n\n"
-            "One-time steps (about a minute):\n"
-            "  1. Open the license page and click 'Agree and access repository'.\n"
-            "  2. Click 'Sign in with Hugging Face' and approve the browser login.\n"
-            "  3. Nexus validates access and continues automatically.\n\n"
-            "Prefer to skip? Click 'Skip this model' - the rest of the install "
-            "continues normally and only this one model is left out. You can add "
-            "it later from the app's Models settings."
+            "first. Nexus cannot accept those terms on your behalf. Complete the "
+            "steps below in order; creating an account is free."
         )
         body.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: {FS_BODY}px;")
         body.setWordWrap(True)
         layout.addWidget(body)
 
-        open_btn = QPushButton("Open the license page")
+        signup_label = QLabel("Optional - Need an account?")
+        signup_label.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: {FS_BODY}px; font-weight: 600;"
+        )
+        layout.addWidget(signup_label)
+        signup_btn = QPushButton("Create a free Hugging Face account")
+        signup_btn.setObjectName("openSignupButton")
+        signup_btn.clicked.connect(self._open_signup)
+        layout.addWidget(signup_btn)
+
+        license_label = QLabel("Step 1 - Accept the model license")
+        license_label.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: {FS_BODY}px; font-weight: 600;"
+        )
+        layout.addWidget(license_label)
+        open_btn = QPushButton("Open license page")
         open_btn.setObjectName("openLicenseButton")
+        open_btn.setStyleSheet(
+            f"background: {ACCENT}; color: #0a0e17; font-weight: 600; "
+            "border-radius: 6px; padding: 8px 16px;"
+        )
         open_btn.clicked.connect(self._open_license)
         open_btn.setEnabled(bool(self._license_url))
         layout.addWidget(open_btn)
 
+        sign_in_label = QLabel("Step 2 - Sign in and authorize Nexus")
+        sign_in_label.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: {FS_BODY}px; font-weight: 600;"
+        )
+        layout.addWidget(sign_in_label)
         self._sign_in_btn = QPushButton("Sign in with Hugging Face")
         self._sign_in_btn.setObjectName("browserSignInButton")
         self._sign_in_btn.setStyleSheet(
@@ -162,6 +182,24 @@ class GatedAuthDialog(QDialog):
         )
         self._sign_in_btn.clicked.connect(self._start_browser_login)
         layout.addWidget(self._sign_in_btn)
+
+        self._code_row = QWidget()
+        code_layout = QHBoxLayout(self._code_row)
+        code_layout.setContentsMargins(0, 0, 0, 0)
+        self._device_code = QLabel("")
+        self._device_code.setObjectName("deviceCode")
+        self._device_code.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; background: #10131c; border: 1px solid {ACCENT}; "
+            f"border-radius: 8px; padding: 12px; font-size: {FS_H3}px; "
+            "font-weight: 700; letter-spacing: 2px;"
+        )
+        code_layout.addWidget(self._device_code, 1)
+        self._copy_code_btn = QPushButton("Copy code")
+        self._copy_code_btn.setObjectName("copyDeviceCodeButton")
+        self._copy_code_btn.clicked.connect(self._copy_device_code)
+        code_layout.addWidget(self._copy_code_btn)
+        self._code_row.setVisible(False)
+        layout.addWidget(self._code_row)
 
         fallback = QLabel("Or paste an existing read token manually:")
         fallback.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px;")
@@ -220,6 +258,15 @@ class GatedAuthDialog(QDialog):
     def _open_tokens(self) -> None:
         self._open_or_report(HF_TOKENS_URL, "token settings")
 
+    def _open_signup(self) -> None:
+        self._open_or_report(HF_SIGNUP_URL, "Hugging Face sign-up page")
+
+    def _copy_device_code(self) -> None:
+        code = self._device_code.text().strip()
+        if code:
+            QApplication.clipboard().setText(code)
+            self._copy_code_btn.setText("Copied")
+
     @staticmethod
     def _open_external_url(url: str) -> bool:
         """Open a URL through Qt, falling back to the OS browser launcher."""
@@ -266,14 +313,16 @@ class GatedAuthDialog(QDialog):
 
     @pyqtSlot(str, str)
     def _on_authorization_required(self, url: str, user_code: str) -> None:
+        self._device_code.setText(user_code)
+        self._code_row.setVisible(bool(user_code))
         opened = self._open_or_report(url, "Hugging Face sign-in page")
         if opened:
-            suffix = f" Code: {user_code}" if user_code else ""
             self._status.setStyleSheet(
                 f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px;"
             )
             self._status.setText(
-                "Browser opened. Approve the Hugging Face sign-in to continue." + suffix
+                "Browser opened. Enter the code shown above if prompted, then approve "
+                "Nexus. This dialog continues automatically after authorization."
             )
             self._status.setVisible(True)
 

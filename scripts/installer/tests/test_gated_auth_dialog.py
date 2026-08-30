@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from PyQt5.QtTest import QTest
-from PyQt5.QtWidgets import QDialog, QPushButton
+from PyQt5.QtWidgets import QApplication, QDialog, QPushButton
 
-from nexus_installer.widgets.gated_auth_dialog import HF_TOKENS_URL, GatedAuthDialog
+from nexus_installer.widgets.gated_auth_dialog import (
+    HF_SIGNUP_URL,
+    HF_TOKENS_URL,
+    GatedAuthDialog,
+)
 
 _ENTRY = {
     "displayName": "Stable Video Diffusion 1.1",
@@ -79,6 +83,17 @@ class TestGatedAuthDialog:
 
         dlg._open_tokens()
         assert opened == [_ENTRY["licenseUrl"], HF_TOKENS_URL]
+        dlg._open_signup()
+        assert opened[-1] == HF_SIGNUP_URL
+
+    def test_device_code_is_prominent_and_copyable(self, qt_app: object) -> None:
+        dlg = _dialog(qt_app, valid=True)
+        dlg._on_authorization_required("https://example.test/device", "PCVG-D8GM")
+        assert dlg._device_code.text() == "PCVG-D8GM"
+        assert not dlg._code_row.isHidden()
+        dlg._copy_device_code()
+        assert dlg._copy_code_btn.text() == "Copied"
+        assert QApplication.clipboard().text() == "PCVG-D8GM"
 
     def test_failed_browser_launch_shows_copyable_url(self, qt_app: object) -> None:
         dlg = GatedAuthDialog(

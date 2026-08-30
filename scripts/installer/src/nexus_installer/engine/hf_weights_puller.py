@@ -23,7 +23,7 @@ v1.13.0 Phase 1 (installer reliability):
 * **Gated repos handled, not blindly retried.** A repo the catalog marks
   `"gated": true` is skipped fast with its `gatedReason` when no Hugging Face
   token is configured (it can never succeed unauthenticated). This is the
-  class behind the real 401 failure of `sana-1.6b-int4`.
+  class behind historical unauthenticated 401 failures.
 * **Optional Hugging Face token.** A token read from the environment
   (`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`) is sent as an `Authorization: Bearer`
   header; never required for public models, never logged.

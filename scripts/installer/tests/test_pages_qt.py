@@ -465,6 +465,19 @@ class TestCompletePage:
         assert page._title.text() == "Installation Completed with Warnings"
         assert "unexpected error" not in page._subtitle.text()
         assert not page._warning_callout.isHidden()
+        assert "#f" in page._warning_callout.styleSheet().lower()
+
+    def test_dropped_progress_diagnostic_is_not_a_completion_warning(
+        self, qt_app: object
+    ) -> None:
+        page = self._refreshed_page(
+            install_log=[
+                "[WARN] Model progress display update was dropped for m1: "
+                "completed event"
+            ]
+        )
+        assert page._title.text() == "Installation Complete"
+        assert page._warning_callout.isHidden()
 
 
 class TestInstallingGatedAuthWiring:

@@ -2,7 +2,7 @@
   "_meta": {
     "version": 1,
     "phase": "v2.1.0 Phase 1",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry (official Liquid GGUF via the Ollama hf.co bridge -- the official Ollama library does not carry it at curation time -- plus a real SHA-256 pin on weights.files) and an optional licenseNote use-restriction string so ungated licenses with a commercial-use cap stay visible without triggering requiresLicense gated-auth. Record contextWindow conservatively at 32K until Phase 2 verifies the 128K claim. v1.19.2 Phase 1 adds `modalities` (backfilled text-only unless documented otherwise), `audioConditioning` on video entries, official precision `weights.variants` for quantized delivery, the Hermes 3 family (hermes3:8b / hermes3:70b) via the Ollama library, and the opt-in Inkling-Small patient-tier GGUF (never a recommended.json default). v2.1 develop follow-up: installer catalog drops pre-2025 opt-ins unless they are required (embed), recommended.json defaults, RapidOCR, or SAM2; remaining cards sort newest-first then by size. Nemotron Lightning pulls the Ollama library tag nemotron-3.5-lightning:30b. Gemma 4 entries declare minOllamaVersion 0.32.15. v2.1 develop follow-up: installer catalog adds Qwen 3.5 4B/9B, gpt-oss 20B, Qwen3-Coder 30B, EmbeddingGemma, and Qwen3-Embedding 0.6B; drops Qwen 2.5 Coder and DeepSeek Coder V2 now that 2025+ specialists cover those tiers. Extra embedders are opt-in; nomic-embed-text stays required."
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation introduced gated opt-in metadata and the guided Hugging Face authorization flow. v2.4.1 moves SANA INT4 to the maintained public nunchaku-ai/nunchaku-sana repository at an immutable revision and real SHA-256, so it no longer requests authorization. Auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry and an optional licenseNote. v1.19.2 Phase 1 adds modalities, audioConditioning, quantized variants, Hermes 3, and Inkling-Small. v2.1 follow-up adds current 2025+ models. Extra embedders are opt-in; EmbeddingGemma is the required default."
   },
   "models": [
     {
@@ -892,11 +892,11 @@
       },
       "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
       "origin": "USA",
-      "description": "NVIDIA's SANA 1.5 1.6B INT4 is a compressed image model from the USA that fits 5 GB GPUs. The low-VRAM way to still get 1024px generation (needs the nunchaku runtime).",
+      "description": "NVIDIA's SANA 1.5 1.6B INT4 is a Nunchaku-quantized image model that fits 5 GB GPUs. It is the low-VRAM route to local 1024px generation on pre-Blackwell NVIDIA cards.",
       "strengths": [
         "Smallest capable 1024px model (1.4 GB, 5 GB VRAM)",
         "INT4 quantization with minimal quality loss",
-        "Apache-2.0: fully permissive license"
+        "Public download with NVIDIA's model license"
       ],
       "differentiators": "The low-VRAM safety net of the image catalog; needs the nunchaku runtime dependency.",
       "sizeGB": 1.4,
@@ -907,26 +907,23 @@
       "multimodal": false,
       "contextWindow": null,
       "linkedVAE": "dc-ae-f32c32-sana-1.1",
-      "license": "Apache-2.0",
-      "gated": true,
-      "requiresLicense": true,
-      "licenseUrl": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
-      "gatedReason": "Access-gated open-weight model (HTTP 401) that also needs the nunchaku runtime dependency: the installer guided Hugging Face step unlocks the download and the diffusion runtime provides nunchaku. The public sana-1.6b-1024 covers 1024px generation without either requirement.",
+      "license": "NVIDIA License",
       "runtimeDeps": [
         "nunchaku"
       ],
       "source": {
         "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4/resolve/main/transformer/diffusion_pytorch_model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "repo": "nunchaku-ai/nunchaku-sana",
+        "revision": "437e41b979ec875f63c18e67d55373aa5230c308",
+        "url": "https://huggingface.co/nunchaku-ai/nunchaku-sana/resolve/437e41b979ec875f63c18e67d55373aa5230c308/svdq-int4_r32-sana1.6b.safetensors",
+        "sha256": "320be49f2501c71825b92ab1aeddd2cb589873e73fa1d9a254ca39cd6400b1a4"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "path": "svdq-int4_r32-sana1.6b.safetensors",
+            "sha256": "320be49f2501c71825b92ab1aeddd2cb589873e73fa1d9a254ca39cd6400b1a4"
           }
         ]
       },

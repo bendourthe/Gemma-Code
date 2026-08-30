@@ -158,15 +158,13 @@ class TestCatalogIntegrity:
         assert "ltx-video" not in self._catalog()
         assert "svd" not in self._catalog()
 
-    def test_gated_opt_ins_carry_license_metadata(self) -> None:
-        # Remaining license-gated open-weight opt-in after the pre-2025 prune.
+    def test_sana_int4_is_public_and_commit_pinned(self) -> None:
         catalog = self._catalog()
-        for mid in ("sana-1.6b-int4",):
-            entry = catalog[mid]
-            assert entry.get("gated") is True, f"{mid} must be gated"
-            assert entry.get("requiresLicense") is True, f"{mid} needs requiresLicense"
-            url = str(entry.get("licenseUrl", ""))
-            assert url.startswith("https://huggingface.co/"), f"{mid} needs licenseUrl"
+        entry = catalog["sana-1.6b-int4"]
+        assert entry.get("gated") is not True
+        assert entry.get("requiresLicense") is not True
+        assert entry["source"]["repo"] == "nunchaku-ai/nunchaku-sana"
+        assert len(entry["source"]["revision"]) == 40
         for retired in ("svd", "stable-audio-open-1.0"):
             assert retired not in catalog
 

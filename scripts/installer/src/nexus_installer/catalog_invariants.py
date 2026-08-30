@@ -6,9 +6,9 @@ The PyInstaller spec bundles ``core/registry/catalog.json`` straight from the
 repo, so a *fresh* build always ships the current catalog. The failure the user
 hit was a *stale* catalog: an older build whose Gemma entry still pointed at the
 Unsloth ``hf.co`` GGUF pull target (Ollama manifest bug -> the blobs download
-fully, then the manifest commit errors HTTP 400) and whose access-gated SANA
-INT4 entry was not flagged ``gated`` (an unauthenticated fetch -> HTTP 401 retry
-loop). This module encodes those two fixes as invariants so CI and the build
+fully, then the manifest commit errors HTTP 400). The former access-gated SANA
+INT4 source was replaced in v2.4.1 by a public, pinned Nunchaku repository.
+This module keeps the remaining catalog fixes as invariants so CI and the build
 fail if the catalog ever regresses to a shippable-but-broken shape.
 
 Pure and Qt-free: :func:`validate_catalog` takes the parsed catalog dict and
@@ -28,7 +28,7 @@ KNOWN_BROKEN_OLLAMA_REFS: tuple[str, ...] = ("unsloth/gemma-4-12b-it-GGUF",)
 #: unauthenticated fetch returns HTTP 401). They MUST stay flagged ``gated`` so
 #: the installer offers the guided token step / clean skip instead of looping on
 #: a 401 it can never satisfy without credentials.
-KNOWN_GATED_IDS: frozenset[str] = frozenset({"sana-1.6b-int4"})
+KNOWN_GATED_IDS: frozenset[str] = frozenset()
 
 #: v1.19.0 Phase 1 -- low-VRAM Agentic entry. Present-or-valid: synthetic
 #: catalogs without this id are unchanged; when the id is present the

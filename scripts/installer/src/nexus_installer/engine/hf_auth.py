@@ -1,6 +1,6 @@
 """v1.14.0 Phase 2 -- Hugging Face auth discovery and validation.
 
-Gated open-weight models (sana-1.6b-int4) are
+Gated open-weight models are
 open but sit behind a Hugging Face license click-through, so downloading them
 needs a token from an account that accepted the license. This module resolves
 that token automatically from every place a user might already have one, so

@@ -131,6 +131,11 @@ class CompletePage(QWidget):
 
         # Failure warning (hidden by default)
         self._warning_callout = CalloutBox(title="Some steps encountered issues")
+        self._warning_callout.setStyleSheet(
+            "QFrame#calloutBox { background: #2a2112; "
+            f"border-left: 3px solid {WARNING}; "
+            "border-radius: 6px; }}"
+        )
         self._warning_callout.setVisible(False)
         layout.addWidget(self._warning_callout)
 
@@ -235,7 +240,7 @@ class CompletePage(QWidget):
             for outcome in summary.failed
         ]
         callout_lines += [
-            f"\u2022 {outcome.display_name}: {outcome.reason}"
+            f"\u2022 Optional model skipped - {outcome.display_name}: {outcome.reason}"
             for outcome in summary.skipped
         ]
         if engine_failure:
