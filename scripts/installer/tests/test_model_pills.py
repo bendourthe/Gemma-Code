@@ -150,9 +150,9 @@ def test_card_renders_pills_on_the_name_row(qt_app, tmp_path: Path) -> None:
         "Multimodal: Yes",
         "Guardrails: Censored",
         "License: Gemma Terms of Use",
-            "Released: May 2026",
-            "Recommended",
-        ]
+        "Released: May 2026",
+        "Recommended",
+    ]
     assert header_widget.objectName() == "cardHeaderRow"
     assert not header_widget.autoFillBackground()
     assert "transparent" in header_widget.styleSheet()

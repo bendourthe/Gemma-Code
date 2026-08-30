@@ -26,8 +26,8 @@ npm run lint
 echo "[pre-push] step 3/6: npm run build (tsc)"
 npm run build
 
-echo "[pre-push] step 4/6: npm run check (nexus-check src/)"
-npm run check src/
+echo "[pre-push] step 4/6: npm run check (repository baseline)"
+npm run check
 
 # v1.4.0 Phase 3 (A2) -- test-tampering gate over tests/ and the CI workflows.
 # Catches focused/.only tests, unjustified .skip, tautological assertions,

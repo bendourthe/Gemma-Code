@@ -141,9 +141,7 @@ class TestVerifiedProvisioning:
         }
 
     @staticmethod
-    def _response(
-        chunks: list[bytes], status_code: int = 200
-    ) -> object:
+    def _response(chunks: list[bytes], status_code: int = 200) -> object:
         class Response:
             def __init__(self) -> None:
                 self.status_code = status_code
@@ -224,12 +222,7 @@ class TestVerifiedProvisioning:
     ) -> None:
         payload = b"abcdef"
         artifact = self._artifact(payload)
-        partial = (
-            tmp_path
-            / "cache"
-            / str(artifact["sha256"])
-            / "torch.whl.partial"
-        )
+        partial = tmp_path / "cache" / str(artifact["sha256"]) / "torch.whl.partial"
         partial.parent.mkdir(parents=True)
         partial.write_bytes(b"abc")
         monkeypatch.setattr(
@@ -237,9 +230,7 @@ class TestVerifiedProvisioning:
             "stream",
             lambda *_a, **_k: self._response([b"def"], status_code=206),
         )
-        cached, failure = DiffusionVenvProvisioner(
-            tmp_path
-        )._fetch_verified_artifact(
+        cached, failure = DiffusionVenvProvisioner(tmp_path)._fetch_verified_artifact(
             artifact, tmp_path / "cache", lambda *_: None, lambda _: None
         )
         assert failure == ""
@@ -254,9 +245,7 @@ class TestVerifiedProvisioning:
             "stream",
             lambda *_a, **_k: self._response([b"tampered"]),
         )
-        cached, failure = DiffusionVenvProvisioner(
-            tmp_path
-        )._fetch_verified_artifact(
+        cached, failure = DiffusionVenvProvisioner(tmp_path)._fetch_verified_artifact(
             self._artifact(expected),
             tmp_path / "cache",
             lambda *_: None,
@@ -276,9 +265,7 @@ class TestVerifiedProvisioning:
                 venv_mod.httpx.ConnectError("offline")
             ),
         )
-        cached, failure = DiffusionVenvProvisioner(
-            tmp_path
-        )._fetch_verified_artifact(
+        cached, failure = DiffusionVenvProvisioner(tmp_path)._fetch_verified_artifact(
             self._artifact(b"missing"),
             tmp_path / "cache",
             lambda *_: None,

@@ -13,6 +13,7 @@
  *   nexus-check [path]              walk path recursively (default: cwd)
  *   nexus-check --json              emit JSON instead of human-readable
  *   nexus-check --rule <id>         restrict to a single rule (repeatable)
+ *   nexus-check --baseline <file>   accept an exact-count finding baseline
  *   nexus-check --list-rules        print rule ids and exit
  *   nexus-check --help              print usage and exit
  *
@@ -74,6 +75,7 @@ Usage:
   nexus-check [path]              walk path recursively (default: cwd)
   nexus-check --json              emit JSON instead of human-readable
   nexus-check --rule <id>         restrict to a single rule (repeatable)
+  nexus-check --baseline <file>   accept an exact-count finding baseline
   nexus-check --list-rules        print rule ids and exit
   nexus-check --strict            exit 1 on any finding (legacy behaviour)
   nexus-check --help              print usage and exit
@@ -93,6 +95,7 @@ export function parseArgs(argv) {
     paths: [],
     json: false,
     rules: [],
+    baseline: null,
     listRules: false,
     strict: false,
     help: false,
@@ -104,7 +107,14 @@ export function parseArgs(argv) {
     else if (a === "--json") args.json = true;
     else if (a === "--list-rules") args.listRules = true;
     else if (a === "--strict") args.strict = true;
-    else if (a === "--rule") {
+    else if (a === "--baseline") {
+      const next = argv[++i];
+      if (!next) {
+        args.unknown.push("--baseline requires a value");
+      } else {
+        args.baseline = next;
+      }
+    } else if (a === "--rule") {
       const next = argv[++i];
       if (!next) {
         args.unknown.push("--rule requires a value");
@@ -168,7 +178,10 @@ export function* walk(
         stack.push(full);
         continue;
       }
-      if (entry.isFile() && isScannable(full, includeMarkdown, extraExtensions)) {
+      if (
+        entry.isFile() &&
+        isScannable(full, includeMarkdown, extraExtensions)
+      ) {
         yield full;
       }
     }
@@ -177,7 +190,11 @@ export function* walk(
 
 const EMPTY_EXTENSIONS = new Set();
 
-function isScannable(filePath, includeMarkdown, extraExtensions = EMPTY_EXTENSIONS) {
+function isScannable(
+  filePath,
+  includeMarkdown,
+  extraExtensions = EMPTY_EXTENSIONS,
+) {
   const dot = filePath.lastIndexOf(".");
   if (dot === -1) return false;
   const ext = filePath.slice(dot).toLowerCase();
@@ -265,8 +282,65 @@ function reportHuman(findings) {
   );
 }
 
-function reportJson(findings) {
-  process.stdout.write(`${JSON.stringify({ findings }, null, 2)}\n`);
+function reportJson(findings, baseline) {
+  process.stdout.write(`${JSON.stringify({ findings, baseline }, null, 2)}\n`);
+}
+
+function baselineKey(value) {
+  return JSON.stringify([value.rule, value.file, value.message]);
+}
+
+export function loadBaseline(filePath) {
+  const parsed = JSON.parse(readFileSync(resolve(filePath), "utf-8"));
+  if (parsed?.version !== 1 || !Array.isArray(parsed.entries)) {
+    throw new Error("baseline must use version 1 with an entries array");
+  }
+  const seen = new Set();
+  for (const entry of parsed.entries) {
+    if (
+      typeof entry?.rule !== "string" ||
+      typeof entry?.file !== "string" ||
+      typeof entry?.message !== "string" ||
+      !Number.isInteger(entry?.count) ||
+      entry.count < 1
+    ) {
+      throw new Error(
+        "baseline entries require rule, file, message, and a positive integer count",
+      );
+    }
+    const key = baselineKey(entry);
+    if (seen.has(key)) {
+      throw new Error(`duplicate baseline entry: ${entry.rule} ${entry.file}`);
+    }
+    seen.add(key);
+  }
+  return parsed.entries;
+}
+
+export function applyBaseline(findings, entries) {
+  const allowed = new Map(
+    entries.map((entry) => [baselineKey(entry), entry.count]),
+  );
+  const consumed = new Map();
+  const remaining = [];
+  let matched = 0;
+
+  for (const finding of findings) {
+    const key = baselineKey(finding);
+    const used = consumed.get(key) ?? 0;
+    if (used < (allowed.get(key) ?? 0)) {
+      consumed.set(key, used + 1);
+      matched++;
+    } else {
+      remaining.push(finding);
+    }
+  }
+
+  const stale = entries.flatMap((entry) => {
+    const missing = entry.count - (consumed.get(baselineKey(entry)) ?? 0);
+    return missing > 0 ? [{ ...entry, missing }] : [];
+  });
+  return { findings: remaining, matched, stale };
 }
 
 // ---------------------------------------------------------------------------
@@ -297,24 +371,62 @@ export function main(argv) {
   try {
     rules = selectRules(args.rules);
   } catch (err) {
-    process.stderr.write(`nexus-check: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(
+      `nexus-check: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
     return 2;
   }
 
-  const allFindings = [];
+  let allFindings = [];
   for (const target of args.paths) {
     const resolved = resolve(target);
     if (!existsSync(resolved)) {
       process.stderr.write(`nexus-check: path not found: ${target}\n`);
       return 2;
     }
-    const base = statSync(resolved).isFile() ? resolve(resolved, "..") : resolved;
-    const findings = scanPath(resolved, rules).map((f) => relativizeFinding(f, base));
+    const base = statSync(resolved).isFile()
+      ? resolve(resolved, "..")
+      : resolved;
+    const findings = scanPath(resolved, rules).map((f) =>
+      relativizeFinding(f, base),
+    );
     allFindings.push(...findings);
   }
 
-  if (args.json) reportJson(allFindings);
-  else reportHuman(allFindings);
+  let baseline = null;
+  if (args.baseline) {
+    try {
+      baseline = applyBaseline(allFindings, loadBaseline(args.baseline));
+      allFindings = baseline.findings;
+    } catch (err) {
+      process.stderr.write(
+        `nexus-check: invalid baseline: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      return 2;
+    }
+  }
+
+  const baselineReport = baseline
+    ? { matched: baseline.matched, stale: baseline.stale }
+    : null;
+  if (args.json) reportJson(allFindings, baselineReport);
+  else {
+    reportHuman(allFindings);
+    if (baselineReport) {
+      process.stdout.write(
+        `nexus-check baseline: ${baselineReport.matched} matched, ${baselineReport.stale.length} stale\n`,
+      );
+    }
+  }
+
+  if (baselineReport?.stale.length) {
+    for (const entry of baselineReport.stale) {
+      process.stderr.write(
+        `nexus-check: stale baseline entry (${entry.missing} missing): ${entry.rule} ${entry.file}\n`,
+      );
+    }
+    return 1;
+  }
 
   if (args.strict) return allFindings.length > 0 ? 1 : 0;
   const hasError = allFindings.some((f) => f.severity === "error");
@@ -329,4 +441,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
 // Export helpers so tests can drive the CLI in-process without spawning a
 // child. The main() entry above is the only side-effectful path.
 // Re-export the legacy name alongside the new one so existing tests keep working.
-export { CODE_EXTENSIONS as SCANNED_EXTENSIONS, CODE_EXTENSIONS, MARKDOWN_EXTENSIONS, SKIPPED_DIRECTORIES, HELP };
+export {
+  CODE_EXTENSIONS as SCANNED_EXTENSIONS,
+  CODE_EXTENSIONS,
+  MARKDOWN_EXTENSIONS,
+  SKIPPED_DIRECTORIES,
+  HELP,
+};

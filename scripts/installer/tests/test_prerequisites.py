@@ -1,4 +1,4 @@
-﻿"""Tests for prerequisite detection functions."""
+"""Tests for prerequisite detection functions."""
 
 from __future__ import annotations
 
@@ -14,27 +14,31 @@ from nexus_installer.pages.prerequisites import (
 
 class TestFindVscode:
     def test_found_via_which(self) -> None:
-        with patch(
-            "nexus_installer.pages.prerequisites.shutil.which",
-            return_value="/usr/bin/code",
+        with (
+            patch(
+                "nexus_installer.pages.prerequisites.shutil.which",
+                return_value="/usr/bin/code",
+            ),
+            patch("nexus_installer.pages.prerequisites.sys") as mock_sys,
         ):
-            with patch("nexus_installer.pages.prerequisites.sys") as mock_sys:
-                mock_sys.platform = "linux"
-                path = find_vscode()
-                assert path == "/usr/bin/code"
+            mock_sys.platform = "linux"
+            path = find_vscode()
+            assert path == "/usr/bin/code"
 
     def test_not_found_returns_empty(self) -> None:
-        with patch(
-            "nexus_installer.pages.prerequisites.shutil.which", return_value=None
+        with (
+            patch(
+                "nexus_installer.pages.prerequisites.shutil.which", return_value=None
+            ),
+            patch("nexus_installer.pages.prerequisites.sys") as mock_sys,
         ):
-            with patch("nexus_installer.pages.prerequisites.sys") as mock_sys:
-                mock_sys.platform = "linux"
-                with patch(
-                    "nexus_installer.pages.prerequisites.os.path.isfile",
-                    return_value=False,
-                ):
-                    path = find_vscode()
-                    assert path == ""
+            mock_sys.platform = "linux"
+            with patch(
+                "nexus_installer.pages.prerequisites.os.path.isfile",
+                return_value=False,
+            ):
+                path = find_vscode()
+                assert path == ""
 
 
 class TestFindPython:

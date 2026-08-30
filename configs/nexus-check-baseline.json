@@ -1,0 +1,276 @@
+{
+  "version": 1,
+  "_comment": "Exact-count baseline for intentional historical secret-shaped fixtures and archived examples. New, excess, or stale findings fail npm run check.",
+  "entries": [
+    {
+      "rule": "no-secret-patterns",
+      "file": "desktop/tests/audio-handlers.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "desktop/tests/coding-panelData.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "desktop/tests/coding-session-dehydration.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "desktop/tests/tuning-handlers.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 2
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "docs/archive/v0/v0.5/plans/routa-harness-adoption.md",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "docs/archive/v0/v0.5/plans/routa-harness-adoption.md",
+      "message": "PEM private key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "docs/archive/v0/v0.7/development/history/2026-05_phase-6-skill-packaging-and-gemma-check.md",
+      "message": "PEM private key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "docs/harness-integration.md",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "scripts/hooks/check-prompt-policy.mjs",
+      "message": "PEM private key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/fixtures/background-workers/with-finding.mjs",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/integration/guardrails/v1.19.1-hardening.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/integration/hooks/preToolUse.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/browser/browser-surface.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 2
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/cli/gemma-check.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/cli/gemma-check.test.ts",
+      "message": "PEM private key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/cli/gemma-check.test.ts",
+      "message": "SSH private key header matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/audio/transcript.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/audit/AuditLog.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/generations/studioStore.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 2
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/generations/studioStore.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/memory/advisoryKinds.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/memory/ArtifactStore.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/memory/multimodalSurrogate.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 2
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/memory/RejectedEditBuffer.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/memory/sessionArtifacts.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/observability/CommandCompressor.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/observability/InferenceMetrics.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/observability/redactSecrets.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/observability/redactSecrets.test.ts",
+      "message": "JWT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/observability/redactSecrets.test.ts",
+      "message": "SSH private key header matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/observability/scrubEnv.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 2
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/security/CredentialVault.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/core/tuning/datasetBuilder.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 4
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/desktop/chatMemoryRuntime.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/hooks/check-prompt-policy.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 3
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/hooks/check-prompt-policy.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/hooks/check-prompt-policy.test.ts",
+      "message": "JWT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/hooks/check-prompt-policy.test.ts",
+      "message": "PEM private key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/hooks/check-prompt-policy.test.ts",
+      "message": "SSH private key header matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/orchestration/FusionAgent.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 2
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/runtime/headlessTools.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/skilloptimizer/ReflexionDiagnoser.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/storage/MemoryStore.provenance.test.ts",
+      "message": "AWS access key matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/tools/handlers/parseDocument.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    },
+    {
+      "rule": "no-secret-patterns",
+      "file": "tests/unit/tools/OutputRedirector.test.ts",
+      "message": "GitHub PAT matched in committed file; rotate the credential and remove from source",
+      "count": 1
+    }
+  ]
+}

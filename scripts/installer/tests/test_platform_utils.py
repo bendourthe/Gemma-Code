@@ -1,4 +1,4 @@
-﻿"""Tests for platform_utils module."""
+"""Tests for platform_utils module."""
 
 from __future__ import annotations
 
@@ -91,28 +91,28 @@ class TestFindExecutable:
             assert result == "/usr/bin/python3"
 
     def test_not_found(self) -> None:
-        with patch(
-            "nexus_installer.engine.platform_utils.shutil.which", return_value=None
-        ):
-            with patch(
+        with (
+            patch(
+                "nexus_installer.engine.platform_utils.shutil.which", return_value=None
+            ),
+            patch(
                 "nexus_installer.engine.platform_utils.os.path.isfile",
                 return_value=False,
-            ):
-                result = find_executable("nonexistent", ["/tmp"])
-                assert result is None
+            ),
+        ):
+            result = find_executable("nonexistent", ["/tmp"])
+            assert result is None
 
     def test_found_in_extra_paths(self) -> None:
-        with patch(
-            "nexus_installer.engine.platform_utils.shutil.which", return_value=None
+        with (
+            patch(
+                "nexus_installer.engine.platform_utils.shutil.which", return_value=None
+            ),
+            patch(
+                "nexus_installer.engine.platform_utils.os.path.isfile",
+                return_value=True,
+            ),
+            patch("nexus_installer.engine.platform_utils.os.access", return_value=True),
         ):
-            with (
-                patch(
-                    "nexus_installer.engine.platform_utils.os.path.isfile",
-                    return_value=True,
-                ),
-                patch(
-                    "nexus_installer.engine.platform_utils.os.access", return_value=True
-                ),
-            ):
-                result = find_executable("tool", ["/opt/bin"])
-                assert result is not None
+            result = find_executable("tool", ["/opt/bin"])
+            assert result is not None

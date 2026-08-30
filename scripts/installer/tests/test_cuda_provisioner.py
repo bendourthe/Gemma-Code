@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +17,7 @@ from nexus_installer.engine.cuda_provisioner import (
 )
 
 
-def _logs() -> tuple[list[tuple[str, str]], "callable"]:
+def _logs() -> tuple[list[tuple[str, str]], callable]:
     log: list[tuple[str, str]] = []
 
     def fn(msg: str, level: str) -> None:
@@ -69,7 +68,10 @@ class TestCudaCompatibility:
 
 class TestInstallModeDecision:
     def test_missing_payload_short_circuits(self) -> None:
-        assert decide_install_mode(driver_major=560, has_payload=False) == "missing-payload"
+        assert (
+            decide_install_mode(driver_major=560, has_payload=False)
+            == "missing-payload"
+        )
 
     def test_old_driver_returns_cpu_fallback(self) -> None:
         assert decide_install_mode(driver_major=520, has_payload=True) == "cpu-fallback"
@@ -85,9 +87,7 @@ class TestCpuFallbackCopy:
 
 
 class TestProvisionerCopy:
-    def test_install_with_no_payload_fails_gracefully(
-        self, tmp_path: Path
-    ) -> None:
+    def test_install_with_no_payload_fails_gracefully(self, tmp_path: Path) -> None:
         payload = tmp_path / "payload"
         payload.mkdir()
         provisioner = CudaProvisioner(payload)

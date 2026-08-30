@@ -111,7 +111,9 @@ def find_python() -> tuple[str, str]:
                 [
                     path,
                     "-c",
-                    "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')",
+                    "import sys; "
+                    "print(f'{sys.version_info.major}."
+                    "{sys.version_info.minor}.{sys.version_info.micro}')",
                 ],
                 capture_output=True,
                 text=True,

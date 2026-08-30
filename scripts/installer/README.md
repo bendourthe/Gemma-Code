@@ -2,6 +2,14 @@
 
 The PyQt5 setup wizard that installs Nexus AI Studio: the VS Code extension, the Ollama runtime, Python venvs, the selected local models, and the desktop app. Built into a one-file `NexusSetup.exe` via PyInstaller (`build/build-windows.ps1`).
 
+## v2.4.1 reliability contract
+
+The Installing page gives the overall operation a visually larger bar than its phase rows, displays a monotonic percentage, and uses a reduced-motion-safe animated gradient. The engine persists completed work for repair runs and turns optional-component exceptions into in-window failures with a log path instead of terminating the wizard.
+
+PyInstaller must freeze every optional file consumed at runtime. `build/nexus-installer.spec` includes the Unsloth pin manifest and diffusion wheel/runtime inputs; packaging tests fail when those files are missing. Unsloth remains opt-in. Selecting an image model provisions or repairs the diffusion venv through a staged replacement, and readiness is written only after required weights and a CUDA-capable torch probe pass. A CPU-only torch build is not reported as ready merely because another runtime can see NVIDIA VRAM.
+
+The installer and Settings consume the same canonical catalog order and display facts. Model cards always show a one-sentence summary, storage size as a pill, and VRAM beside Compatible/Incompatible. The installer does not invent metadata for external weights.
+
 ## Running from source
 
 ```bash

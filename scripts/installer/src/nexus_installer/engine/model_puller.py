@@ -224,9 +224,7 @@ class ModelPuller:
                     buf += chunk
                     while True:
                         cuts = [
-                            i
-                            for i in (buf.find(b"\n"), buf.find(b"\r"))
-                            if i != -1
+                            i for i in (buf.find(b"\n"), buf.find(b"\r")) if i != -1
                         ]
                         if not cuts:
                             break

@@ -81,7 +81,7 @@ class GatedAuthDialog(QDialog):
         layout.addWidget(heading)
 
         body = QLabel(
-            "A few high-end models are \"gated\": they are free and open-weight, "
+            'A few high-end models are "gated": they are free and open-weight, '
             "but the publisher asks you to accept their license on Hugging Face "
             "first, so the download needs a free account and a personal access "
             "token. The installer cannot accept the license for you.\n\n"

@@ -21,7 +21,14 @@ import * as path from "node:path";
 // Vite resolution handles this fine and TypeScript's Node16 moduleResolution
 // accepts the explicit extension.
 // @ts-expect-error -- no .d.ts for the .mjs helper, by design (it is a script, not a published API).
-import { isAllowed, isInComment, isTestFile, isSecuritySensitiveFile, offsetToPosition, lineBounds } from "../../../lib/checks/helpers.mjs";
+import {
+  isAllowed,
+  isInComment,
+  isTestFile,
+  isSecuritySensitiveFile,
+  offsetToPosition,
+  lineBounds,
+} from "../../../lib/checks/helpers.mjs";
 // @ts-expect-error -- script export, see above.
 import * as noConsoleLog from "../../../lib/checks/no-committed-console-log.mjs";
 // @ts-expect-error -- script export, see above.
@@ -33,7 +40,14 @@ import * as noSecretPatterns from "../../../lib/checks/no-secret-patterns.mjs";
 // @ts-expect-error -- script export, see above.
 import { RULES, RULE_BY_ID } from "../../../lib/checks/index.mjs";
 // @ts-expect-error -- script export, see above.
-import { parseArgs, walk, selectRules, scanPath, SCANNED_EXTENSIONS } from "../../../bin/nexus-check.mjs";
+import {
+  applyBaseline,
+  parseArgs,
+  walk,
+  selectRules,
+  scanPath,
+  SCANNED_EXTENSIONS,
+} from "../../../bin/nexus-check.mjs";
 
 const BIN_PATH = path.resolve(__dirname, "../../../bin/nexus-check.mjs");
 
@@ -165,16 +179,23 @@ describe("no-committed-console-log", () => {
   });
 
   it("does not flag test files", () => {
-    expect(noConsoleLog.scan("tests/foo.test.ts", "console.log('hi');")).toEqual([]);
+    expect(
+      noConsoleLog.scan("tests/foo.test.ts", "console.log('hi');"),
+    ).toEqual([]);
   });
 
   it("does not flag console.log inside comments", () => {
-    expect(noConsoleLog.scan("src/foo.ts", "// console.log('hi');")).toEqual([]);
-    expect(noConsoleLog.scan("src/foo.ts", " * console.log('hi');")).toEqual([]);
+    expect(noConsoleLog.scan("src/foo.ts", "// console.log('hi');")).toEqual(
+      [],
+    );
+    expect(noConsoleLog.scan("src/foo.ts", " * console.log('hi');")).toEqual(
+      [],
+    );
   });
 
   it("respects allow markers", () => {
-    const code = "console.log('hi'); // gemma-check-allow: no-committed-console-log\n";
+    const code =
+      "console.log('hi'); // gemma-check-allow: no-committed-console-log\n";
     expect(noConsoleLog.scan("src/foo.ts", code)).toEqual([]);
   });
 
@@ -186,17 +207,23 @@ describe("no-committed-console-log", () => {
 
 describe("no-math-random-for-tokens", () => {
   it("flags Math.random in security-sensitive files", () => {
-    const findings = noMathRandom.scan("src/auth/token.ts", "const t = Math.random();");
+    const findings = noMathRandom.scan(
+      "src/auth/token.ts",
+      "const t = Math.random();",
+    );
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe("error");
   });
 
   it("ignores non-sensitive files", () => {
-    expect(noMathRandom.scan("src/utils/list.ts", "const r = Math.random();")).toEqual([]);
+    expect(
+      noMathRandom.scan("src/utils/list.ts", "const r = Math.random();"),
+    ).toEqual([]);
   });
 
   it("respects allow markers", () => {
-    const code = "// gemma-check-allow-next-line: no-math-random-for-tokens\nconst t = Math.random();\n";
+    const code =
+      "// gemma-check-allow-next-line: no-math-random-for-tokens\nconst t = Math.random();\n";
     expect(noMathRandom.scan("src/auth/token.ts", code)).toEqual([]);
   });
 });
@@ -209,60 +236,90 @@ describe("no-env-file-leakage", () => {
   });
 
   it("does not flag property accessors like process.env", () => {
-    expect(noEnvLeakage.scan("src/loader.ts", "const v = process.env.X;")).toEqual([]);
-    expect(noEnvLeakage.scan("src/loader.ts", "const v = vscode.env.openExternal;")).toEqual([]);
+    expect(
+      noEnvLeakage.scan("src/loader.ts", "const v = process.env.X;"),
+    ).toEqual([]);
+    expect(
+      noEnvLeakage.scan("src/loader.ts", "const v = vscode.env.openExternal;"),
+    ).toEqual([]);
   });
 
   it("does not flag test files or docs", () => {
-    expect(noEnvLeakage.scan("tests/loader.test.ts", `readFile(".env");`)).toEqual([]);
-    expect(noEnvLeakage.scan("docs/loader.md", `readFile(".env");`)).toEqual([]);
+    expect(
+      noEnvLeakage.scan("tests/loader.test.ts", `readFile(".env");`),
+    ).toEqual([]);
+    expect(noEnvLeakage.scan("docs/loader.md", `readFile(".env");`)).toEqual(
+      [],
+    );
   });
 
   it("does not flag references inside comments", () => {
-    expect(noEnvLeakage.scan("src/loader.ts", "// load .env at boot")).toEqual([]);
+    expect(noEnvLeakage.scan("src/loader.ts", "// load .env at boot")).toEqual(
+      [],
+    );
   });
 
   it("skips the .env.example literal", () => {
-    expect(noEnvLeakage.scan("src/loader.ts", `const sample = ".env.example";`)).toEqual([]);
+    expect(
+      noEnvLeakage.scan("src/loader.ts", `const sample = ".env.example";`),
+    ).toEqual([]);
   });
 
   it("flags the .env.production family", () => {
-    const findings = noEnvLeakage.scan("src/loader.ts", `readFile(".env.production");`);
+    const findings = noEnvLeakage.scan(
+      "src/loader.ts",
+      `readFile(".env.production");`,
+    );
     expect(findings).toHaveLength(1);
   });
 });
 
 describe("no-secret-patterns", () => {
   it("flags an AWS access key", () => {
-    const findings = noSecretPatterns.scan("src/foo.ts", `const k = "AKIA${"X".repeat(16)}";`);
+    const findings = noSecretPatterns.scan(
+      "src/foo.ts",
+      `const k = "AKIA${"X".repeat(16)}";`,
+    );
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe("error");
     expect(findings[0].message).toContain("AWS access key");
   });
 
   it("flags a GitHub PAT", () => {
-    const findings = noSecretPatterns.scan("src/foo.ts", `const t = "ghp_${"a".repeat(36)}";`);
+    const findings = noSecretPatterns.scan(
+      "src/foo.ts",
+      `const t = "ghp_${"a".repeat(36)}";`,
+    );
     expect(findings).toHaveLength(1);
     expect(findings[0].message).toContain("GitHub PAT");
   });
 
   it("flags a PEM private-key block header", () => {
-    const findings = noSecretPatterns.scan("src/foo.ts", "-----BEGIN PRIVATE KEY-----");
+    const findings = noSecretPatterns.scan(
+      "src/foo.ts",
+      "-----BEGIN PRIVATE KEY-----",
+    );
     expect(findings).toHaveLength(1);
     expect(findings[0].message).toContain("PEM private key");
   });
 
   it("flags an SSH private-key block header", () => {
-    const findings = noSecretPatterns.scan("src/foo.ts", "-----BEGIN OPENSSH PRIVATE KEY-----");
+    const findings = noSecretPatterns.scan(
+      "src/foo.ts",
+      "-----BEGIN OPENSSH PRIVATE KEY-----",
+    );
     expect(findings).toHaveLength(1);
   });
 
   it("does not flag benign text", () => {
-    expect(noSecretPatterns.scan("src/foo.ts", "Just some normal source code")).toEqual([]);
+    expect(
+      noSecretPatterns.scan("src/foo.ts", "Just some normal source code"),
+    ).toEqual([]);
   });
 
   it("respects allow markers", () => {
-    const code = "// gemma-check-allow-next-line: no-secret-patterns\n-----BEGIN PRIVATE KEY-----";
+    const code =
+      "// gemma-check-allow-next-line: no-secret-patterns\n-----BEGIN PRIVATE KEY-----";
     expect(noSecretPatterns.scan("src/foo.ts", code)).toEqual([]);
   });
 });
@@ -313,6 +370,18 @@ describe("parseArgs", () => {
     expect(parseArgs(["--rule", "no-secret-patterns"]).rules).toEqual([
       "no-secret-patterns",
     ]);
+  });
+
+  it("parses --baseline with a value", () => {
+    expect(
+      parseArgs(["--baseline", "configs/check-baseline.json"]).baseline,
+    ).toBe("configs/check-baseline.json");
+  });
+
+  it("rejects --baseline without a value", () => {
+    expect(parseArgs(["--baseline"]).unknown).toContain(
+      "--baseline requires a value",
+    );
   });
 
   it("collects positional paths", () => {
@@ -389,6 +458,44 @@ describe("scanPath", () => {
     writeFile("src/b.ts", "console.log('debug');\n");
     const findings = scanPath(tmpRoot, RULES);
     expect(findings.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("applyBaseline", () => {
+  const finding = {
+    rule: "no-secret-patterns",
+    severity: "error",
+    file: "tests/fixture.test.ts",
+    line: 1,
+    column: 1,
+    message: "fixture finding",
+  };
+  const entry = {
+    rule: finding.rule,
+    file: finding.file,
+    message: finding.message,
+    count: 1,
+  };
+
+  it("consumes an exact finding count", () => {
+    expect(applyBaseline([finding], [entry])).toEqual({
+      findings: [],
+      matched: 1,
+      stale: [],
+    });
+  });
+
+  it("leaves findings beyond the allowed count", () => {
+    const result = applyBaseline([finding, finding], [entry]);
+    expect(result.findings).toEqual([finding]);
+    expect(result.matched).toBe(1);
+    expect(result.stale).toEqual([]);
+  });
+
+  it("reports a stale count when findings disappear", () => {
+    expect(applyBaseline([], [{ ...entry, count: 2 }]).stale).toEqual([
+      { ...entry, count: 2, missing: 2 },
+    ]);
   });
 });
 
@@ -472,6 +579,88 @@ describe("nexus-check CLI (spawn)", () => {
     const parsed = JSON.parse(r.stdout);
     expect(parsed.findings).toHaveLength(1);
     expect(parsed.findings[0].rule).toBe("no-secret-patterns");
+    expect(parsed.baseline).toBeNull();
+  });
+
+  it("accepts an exact-count baseline", async () => {
+    const awsKey = ["AKIA", "IOSFODNN7EXAMPLE"].join("");
+    writeFile("src/auth/secret.ts", `export const KEY = "${awsKey}";\n`);
+    const baselinePath = writeFile(
+      "baseline.json",
+      JSON.stringify({
+        version: 1,
+        entries: [
+          {
+            rule: "no-secret-patterns",
+            file: "src/auth/secret.ts",
+            message:
+              "AWS access key matched in committed file; rotate the credential and remove from source",
+            count: 1,
+          },
+        ],
+      }),
+    );
+    const r = await runCli(["--baseline", baselinePath, tmpRoot]);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain("1 matched, 0 stale");
+  });
+
+  it("fails when findings exceed the baseline count", async () => {
+    const awsKey = ["AKIA", "IOSFODNN7EXAMPLE"].join("");
+    writeFile(
+      "src/auth/secret.ts",
+      `export const A = "${awsKey}";\nexport const B = "${awsKey}";\n`,
+    );
+    const baselinePath = writeFile(
+      "baseline.json",
+      JSON.stringify({
+        version: 1,
+        entries: [
+          {
+            rule: "no-secret-patterns",
+            file: "src/auth/secret.ts",
+            message:
+              "AWS access key matched in committed file; rotate the credential and remove from source",
+            count: 1,
+          },
+        ],
+      }),
+    );
+    const r = await runCli(["--baseline", baselinePath, tmpRoot]);
+    expect(r.exitCode).toBe(1);
+    expect(r.stdout).toContain("1 error");
+  });
+
+  it("fails when a baseline entry becomes stale", async () => {
+    writeFile("src/clean.ts", "export const X = 1;\n");
+    const baselinePath = writeFile(
+      "baseline.json",
+      JSON.stringify({
+        version: 1,
+        entries: [
+          {
+            rule: "no-secret-patterns",
+            file: "src/auth/secret.ts",
+            message: "fixture finding",
+            count: 1,
+          },
+        ],
+      }),
+    );
+    const r = await runCli(["--baseline", baselinePath, tmpRoot]);
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain("stale baseline entry");
+  });
+
+  it("exits 2 for a malformed baseline", async () => {
+    writeFile("src/clean.ts", "export const X = 1;\n");
+    const baselinePath = writeFile(
+      "baseline.json",
+      JSON.stringify({ version: 2 }),
+    );
+    const r = await runCli(["--baseline", baselinePath, tmpRoot]);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toContain("invalid baseline");
   });
 
   it("exits 2 on unknown flag", async () => {

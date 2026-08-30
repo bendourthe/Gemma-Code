@@ -125,7 +125,8 @@ def detect_amd_windows() -> tuple[str, int]:
             "powershell",
             "-NoProfile",
             "-Command",
-            "Get-CimInstance -ClassName Win32_VideoController | Select-Object Name,AdapterRAM | ConvertTo-Csv -NoTypeInformation",
+            "Get-CimInstance -ClassName Win32_VideoController | "
+            "Select-Object Name,AdapterRAM | ConvertTo-Csv -NoTypeInformation",
         ]
     )
     if output is None:

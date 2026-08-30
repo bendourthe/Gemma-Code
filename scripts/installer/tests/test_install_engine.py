@@ -45,26 +45,30 @@ class TestInstallEngineOrder:
             patch("nexus_installer.engine.installer.ModelStepRouter") as MockRouter,
             patch("nexus_installer.engine.installer.DesktopProvisioner") as MockDesktop,
         ):
-            MockOllama.return_value.install.side_effect = lambda s, l: (
+            MockOllama.return_value.install.side_effect = lambda _state, _log: (
                 call_order.append("ollama"),
                 True,
             )[1]
-            MockExt.return_value.install.side_effect = lambda s, l: (
+            MockExt.return_value.install.side_effect = lambda _state, _log: (
                 call_order.append("extension"),
                 True,
             )[1]
-            MockVenv.return_value.install.side_effect = lambda s, l: (
+            MockVenv.return_value.install.side_effect = lambda _state, _log: (
                 call_order.append("venv"),
                 True,
             )[1]
-            MockRouter.return_value.install.side_effect = lambda s, l, p, e=None: (
-                call_order.append("model"),
-                True,
-            )[1]
-            MockDesktop.return_value.install.side_effect = lambda s, l, p: (
-                call_order.append("desktop"),
-                True,
-            )[1]
+            MockRouter.return_value.install.side_effect = (
+                lambda _state, _log, _progress, _event=None: (
+                    call_order.append("model"),
+                    True,
+                )[1]
+            )
+            MockDesktop.return_value.install.side_effect = (
+                lambda _state, _log, _progress: (
+                    call_order.append("desktop"),
+                    True,
+                )[1]
+            )
 
             engine = InstallEngine()
             # Connect signals to prevent errors

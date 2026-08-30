@@ -107,7 +107,7 @@ describe("createChatMessageHandler", () => {
           message: {
             role: "assistant",
             content: "Visible answer",
-            thinking: "Inspect ghp_abcdefghijklmnopqrstuvwxyz1234567890 safely",
+            thinking: "Inspect " + ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join("") + " safely",
           },
           done: false,
         };

@@ -93,9 +93,9 @@ def test_golden_v229_settings_order_is_downloaded_first() -> None:
 
 def test_v241_canonical_order_and_fingerprint() -> None:
     fixture = json.loads(FIXTURE_V241.read_text(encoding="utf-8"))
-    assert canonical_display_order(fixture["catalog"]["models"]) == fixture[
-        "expectedIds"
-    ]
+    assert (
+        canonical_display_order(fixture["catalog"]["models"]) == fixture["expectedIds"]
+    )
     assert catalog_fingerprint(fixture["catalog"]) == fixture["expectedFingerprint"]
 
 

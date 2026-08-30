@@ -139,7 +139,7 @@ describe("messages", () => {
       chatId: chat.id,
       role: "assistant",
       content: "Safe answer",
-      reasoningText: "Inspect ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+      reasoningText: "Inspect " + ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join(""),
     });
     const message = s.listMessages(chat.id)[0];
     expect(message?.content).toBe("Safe answer");

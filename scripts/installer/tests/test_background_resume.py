@@ -109,9 +109,7 @@ class TestResumePlan:
         assert plan.is_complete is False
 
     def test_all_done_is_complete(self) -> None:
-        state = InstallState(
-            components=["ollama"], steps={"ollama": STEP_DONE}
-        )
+        state = InstallState(components=["ollama"], steps={"ollama": STEP_DONE})
         assert resume_plan(state).is_complete is True
 
 

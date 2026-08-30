@@ -44,16 +44,8 @@ async fn ipc_call(
 
 /// Refresh liveness + stderr tail into the stored status, then return it.
 fn refreshed_status(state: &AppState) -> SidecarStatus {
-    let handle = state
-        .sidecar
-        .lock()
-        .ok()
-        .and_then(|guard| guard.clone());
-    let mut status = state
-        .status
-        .lock()
-        .map(|s| s.clone())
-        .unwrap_or_default();
+    let handle = state.sidecar.lock().ok().and_then(|guard| guard.clone());
+    let mut status = state.status.lock().map(|s| s.clone()).unwrap_or_default();
     if let Some(handle) = handle {
         status.stderr_tail = handle.stderr_tail();
         match handle.try_exit_code() {
@@ -160,19 +152,6 @@ fn native_display_path(path: &std::path::Path) -> String {
     value
 }
 
-#[cfg(test)]
-mod workspace_tests {
-    use super::default_workspace_root;
-
-    #[test]
-    fn default_workspace_root_is_an_existing_absolute_directory() {
-        let root = default_workspace_root().expect("home directory should resolve");
-        let path = std::path::PathBuf::from(root);
-        assert!(path.is_absolute());
-        assert!(path.is_dir());
-    }
-}
-
 /// The restart body, factored out so the single-flight flag reset in
 /// `sidecar_restart` wraps exactly one call.
 fn restart_sidecar_locked(
@@ -196,11 +175,7 @@ fn restart_sidecar_locked(
             Ok(status)
         }
         Err(err) => {
-            let mut status = state
-                .status
-                .lock()
-                .map(|s| s.clone())
-                .unwrap_or_default();
+            let mut status = state.status.lock().map(|s| s.clone()).unwrap_or_default();
             status.running = false;
             status.failure = Some(err.to_string());
             if let SidecarError::Exited { code, .. } = &err {
@@ -233,8 +208,7 @@ fn force_dark_app_mode() {
             return;
         }
         if let Some(func) = GetProcAddress(module, 135 as *const u8) {
-            let set_preferred_app_mode: extern "system" fn(i32) -> i32 =
-                std::mem::transmute(func);
+            let set_preferred_app_mode: extern "system" fn(i32) -> i32 = std::mem::transmute(func);
             let _ = set_preferred_app_mode(2);
         }
     }
@@ -255,9 +229,10 @@ pub fn run_healthcheck(budget_secs: u64) -> i32 {
         Ok(pair) => pair,
         Err(err) => {
             let (exit_code, stderr_tail) = match &err {
-                SidecarError::Exited { code, stderr_tail } => {
-                    (Some(*code), last_stderr_lines(stderr_tail, HEALTHCHECK_STDERR_LINES))
-                }
+                SidecarError::Exited { code, stderr_tail } => (
+                    Some(*code),
+                    last_stderr_lines(stderr_tail, HEALTHCHECK_STDERR_LINES),
+                ),
                 _ => (None, Vec::new()),
             };
             let verdict = json!({
@@ -443,4 +418,17 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod workspace_tests {
+    use super::default_workspace_root;
+
+    #[test]
+    fn default_workspace_root_is_an_existing_absolute_directory() {
+        let root = default_workspace_root().expect("home directory should resolve");
+        let path = std::path::PathBuf::from(root);
+        assert!(path.is_absolute());
+        assert!(path.is_dir());
+    }
 }

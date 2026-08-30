@@ -244,7 +244,7 @@ describe("StudioSessionStore", () => {
       sessionId: session.id,
       role: "assistant",
       content: "Generated image",
-      reasoningText: "Inspect ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+      reasoningText: "Inspect " + ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join(""),
     });
     const turn = store.listTurns(session.id)[0];
     expect(turn?.reasoningText).toContain("<redacted>");

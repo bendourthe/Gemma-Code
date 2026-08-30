@@ -1,4 +1,4 @@
-﻿"""Tests for VenvInstaller.
+"""Tests for VenvInstaller.
 
 The venv step was reduced to a no-op stub in v0.4.0 (ADR-0001) because the
 Python backend was removed. These tests lock in the stub's contract: it
@@ -15,9 +15,7 @@ from nexus_installer.installer_state import InstallerState
 
 class TestVenvInstaller:
     def test_install_returns_true_for_valid_state(self) -> None:
-        state = InstallerState(
-            python_path="/usr/bin/python3", install_path="/tmp/test"
-        )
+        state = InstallerState(python_path="/usr/bin/python3", install_path="/tmp/test")
         log = MagicMock()
         result = VenvInstaller().install(state, log)
         assert result is True
@@ -38,7 +36,10 @@ class TestVenvInstaller:
         # users see why the venv step is silent.
         assert log.called
         combined_messages = " ".join(call.args[0] for call in log.call_args_list)
-        assert "v0.4.0" in combined_messages or "no longer bundled" in combined_messages.lower()
+        assert (
+            "v0.4.0" in combined_messages
+            or "no longer bundled" in combined_messages.lower()
+        )
 
     def test_install_accepts_default_installer_state(self) -> None:
         # Smoke test: even the bare default state must not raise.

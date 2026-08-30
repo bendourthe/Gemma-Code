@@ -58,13 +58,10 @@ def load_smoke_profile(path: str | Path) -> dict[str, Any]:
     components = data.get("components")
     if components is not None and (
         not isinstance(components, list)
-        or not all(
-            isinstance(c, str) and c in VALID_COMPONENTS for c in components
-        )
+        or not all(isinstance(c, str) and c in VALID_COMPONENTS for c in components)
     ):
         raise SmokeProfileError(
-            f"profile {p}: 'components' must be a list drawn from "
-            f"{VALID_COMPONENTS}"
+            f"profile {p}: 'components' must be a list drawn from {VALID_COMPONENTS}"
         )
     models = data.get("selected_model_ids")
     if models is not None and (

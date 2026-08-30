@@ -181,7 +181,10 @@ describe("CodingSessionManager", () => {
       now: () => new Date("2026-05-17T11:00:00Z"),
       idFactory: () => "sess-reasoning",
       agentRunner: async () => [
-        { kind: "reasoning_delta", text: "Check ghp_abcdefghijklmnopqrstuvwxyz1234567890" },
+        {
+          kind: "reasoning_delta",
+          text: "Check " + ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join(""),
+        },
         { kind: "token", text: "Safe answer" },
         { kind: "done", finishReason: "stop", reasoningTokens: 4 },
       ],

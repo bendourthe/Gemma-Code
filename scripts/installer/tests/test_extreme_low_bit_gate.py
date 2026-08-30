@@ -40,15 +40,18 @@ def _write(tmp_path: Path, models: list[dict]) -> Path:
 class TestExtremeLowBitGate:
     def test_hidden_by_default(self, tmp_path, monkeypatch) -> None:
         monkeypatch.delenv("NEXUS_EXTREME_LOW_BIT", raising=False)
-        ids = {m.id for m in load_catalog_models(_write(tmp_path, [_BITNET, _STANDARD]))}
+        ids = {
+            model.id
+            for model in load_catalog_models(_write(tmp_path, [_BITNET, _STANDARD]))
+        }
         assert "bitnet/b1.58" not in ids  # extreme-low-bit hidden
         assert "gemma4:e4b" in ids  # ordinary 4-bit entry unaffected
 
-    def test_hidden_without_benchmark_even_when_opted_in(self, tmp_path, monkeypatch) -> None:
+    def test_opt_in_still_requires_benchmark(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setenv("NEXUS_EXTREME_LOW_BIT", "1")
         assert load_catalog_models(_write(tmp_path, [_BITNET])) == []
 
-    def test_surfaced_when_opted_in_and_benchmarked(self, tmp_path, monkeypatch) -> None:
+    def test_opt_in_with_benchmark_is_visible(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setenv("NEXUS_EXTREME_LOW_BIT", "1")
         entry = {**_BITNET, "benchmark": "https://example.org/bitnet-bench"}
         models = load_catalog_models(_write(tmp_path, [entry]))

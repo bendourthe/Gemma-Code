@@ -29,9 +29,7 @@ class TestReattachHandshake:
 
     def test_no_primary_returns_false(self, qt_app: object) -> None:
         assert (
-            signal_running_instance(
-                "nexus-installer-phase7-absent-key", timeout_ms=200
-            )
+            signal_running_instance("nexus-installer-phase7-absent-key", timeout_ms=200)
             is False
         )
 

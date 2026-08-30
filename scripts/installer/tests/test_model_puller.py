@@ -114,7 +114,8 @@ class TestModelPullerExecution:
         state = InstallerState(selected_model="gemma4:12b")
         proc = _mock_proc(
             b"Error: pull model manifest: 412:\n"
-            b"The model you are attempting to pull requires a newer version of Ollama.\n"
+            b"The model you are attempting to pull requires a newer version "
+            b"of Ollama.\n"
             b"Please download the latest version at:\n"
             b"https://ollama.com/download\n",
             returncode=1,
@@ -133,7 +134,8 @@ class TestModelPullerExecution:
         reason = summarize_pull_failure(
             [
                 "Error: pull model manifest: 412:",
-                "The model you are attempting to pull requires a newer version of Ollama.",
+                "The model you are attempting to pull requires a newer version "
+                "of Ollama.",
                 "https://ollama.com/download",
             ],
             1,

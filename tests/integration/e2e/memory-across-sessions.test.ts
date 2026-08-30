@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -15,7 +16,7 @@ import { MemoryStore } from "../../../src/storage/MemoryStore.js";
 function tempDbPath(): string {
   return path.join(
     os.tmpdir(),
-    `gemma-e2e-memory-${Date.now()}-${Math.floor(Math.random() * 1e6)}.db`
+    `gemma-e2e-memory-${Date.now()}-${randomUUID()}.db`,
   );
 }
 
@@ -50,7 +51,10 @@ describe("e2e: memory across sessions", () => {
     await session1.save("Project uses strict TypeScript", "fact");
     await session1.save("Never mock the database", "decision");
     await session1.save("React components under src/webview/", "file_pattern");
-    await session1.save("Fixed race in counter.ts with mutex", "error_resolution");
+    await session1.save(
+      "Fixed race in counter.ts with mutex",
+      "error_resolution",
+    );
     session1.close();
 
     // Session 2: open the same db and verify we can retrieve them
@@ -74,7 +78,7 @@ describe("e2e: memory across sessions", () => {
     const session1 = new MemoryStore(dbPath);
     await session1.save(
       "Always use async/await instead of callbacks",
-      "decision"
+      "decision",
     );
     session1.close();
 
