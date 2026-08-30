@@ -94,6 +94,12 @@ import {
 } from "../../shared/explorer/studioSessionMemory";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
 import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
+import {
+  createIpcMediaRuntimeClient,
+  isMediaRuntimeFailure,
+  type MediaRuntimeClient,
+  type MediaRuntimeState,
+} from "../../shared/studio/mediaRuntimeClient";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_VIDEO_FORM_VALUES.modelId,
@@ -140,6 +146,7 @@ export interface VideoLabPageProps {
   readonly initialSessionId?: string;
   /** Test seam: probe whether a last-output path still exists on disk. */
   readonly outputExists?: (path: string) => boolean;
+  readonly mediaRuntimeClient?: MediaRuntimeClient;
 }
 
 interface VideoEnhancementSourceBinding {
@@ -157,6 +164,19 @@ const OUTPUT_HASH_PATTERN = /^[a-f0-9]{64}$/;
 function nextId(prefix: string): string {
   messageSeq += 1;
   return `${prefix}-${messageSeq}`;
+}
+
+function videoRecoveryState(state: MediaRuntimeState): ChatMessage["mediaRecovery"] {
+  if (state.state === "ready") return undefined;
+  return {
+    state: state.state,
+    code: state.code,
+    message: state.message,
+    retryable: state.retryable,
+    progress: state.progress,
+    ...(state.details ? { details: state.details } : {}),
+    ...(state.logPath ? { logPath: state.logPath } : {}),
+  };
 }
 
 export function VideoLabPage({
@@ -178,6 +198,7 @@ export function VideoLabPage({
   explorerClient: explorerClientOverride,
   initialSessionId,
   outputExists,
+  mediaRuntimeClient: mediaRuntimeOverride,
 }: VideoLabPageProps = {}): JSX.Element {
   const tierClip = getDiffusionTierConfig(diffusionTier).video.clipSeconds || 4;
   const canAvatar = avatarAvailable(diffusionTier, vramGB);
@@ -188,12 +209,20 @@ export function VideoLabPage({
   const [queueClient] = useState<GenerationQueueClient>(
     () => queueOverride ?? createIpcGenerationQueueClient(),
   );
+  const [mediaRuntimeClient] = useState<MediaRuntimeClient>(
+    () => mediaRuntimeOverride ?? createIpcMediaRuntimeClient(),
+  );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
   // v2.2.0 Phase 2 (2.2): "backend down" is not "no models installed".
   const [listFailure, setListFailure] = useState<string | null>(null);
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
+  const mediaRetryRef = useRef<{
+    assistantId: string;
+    text: string;
+    attachments: readonly string[];
+  } | null>(null);
   const studioClient = useMemo(() => {
     if (explorerClientOverride) return explorerClientOverride;
     if (backendDown || !tauriAvailable()) return new InMemoryStudioExplorerClient("video");
@@ -600,6 +629,9 @@ export function VideoLabPage({
             });
           }
           chainRef.current = null;
+          if (mediaRetryRef.current?.assistantId === messageId) {
+            mediaRetryRef.current = null;
+          }
           return { done: true };
         } else if (event.kind === "error") {
           chainRef.current = null;
@@ -610,6 +642,19 @@ export function VideoLabPage({
             next.delete(messageId);
             return next;
           });
+          const runtimeMessage = event.message ?? "unknown error";
+          if (isMediaRuntimeFailure(runtimeMessage)) {
+            void mediaRuntimeClient.status().then((state) => {
+              patchMessage(messageId, {
+                pending: false,
+                progress: undefined,
+                media: undefined,
+                content: "",
+                mediaRecovery: videoRecoveryState(state),
+              });
+            });
+            return { done: true };
+          }
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
@@ -625,7 +670,7 @@ export function VideoLabPage({
       }
       return { done: false };
     },
-    [patchMessage, resolveMp4Url, dispatchSegment, client, persistTurn],
+    [patchMessage, resolveMp4Url, dispatchSegment, client, persistTurn, mediaRuntimeClient],
   );
 
   const handleMediaError = useCallback(
@@ -710,11 +755,34 @@ export function VideoLabPage({
     };
   }, [queueClient, drainIntervalMs]);
 
+  const markMediaRuntimeFailure = useCallback(
+    async (assistantId: string, error: unknown): Promise<boolean> => {
+      const message = formatInferenceError(error);
+      if (!isMediaRuntimeFailure(message)) return false;
+      try {
+        const state = await mediaRuntimeClient.status();
+        patchMessage(assistantId, {
+          pending: false,
+          content: "",
+          mediaRecovery: videoRecoveryState(state),
+        });
+      } catch {
+        patchMessage(assistantId, {
+          pending: false,
+          content: `Generation failed: ${message}`,
+        });
+      }
+      return true;
+    },
+    [mediaRuntimeClient, patchMessage],
+  );
+
   const handleSubmit = useCallback(
     async (
       text: string,
       attachments: readonly string[],
       residencyApproved = false,
+      retryAssistantId?: string,
     ): Promise<void> => {
       if (isGenerating) return;
       if (!residencyApproved) {
@@ -775,20 +843,30 @@ export function VideoLabPage({
         content: text,
         ...(attachments.length > 0 ? { attachments: [...attachments] } : {}),
       };
-      const assistantId = nextId("vassistant");
-      setMessages((prev) => [
-        ...prev,
-        withLiveTimestamp(userMsg),
-        withLiveTimestamp({
-          id: assistantId,
-          role: "assistant",
-          content: "",
+      const assistantId = retryAssistantId ?? nextId("vassistant");
+      if (retryAssistantId) {
+        patchMessage(assistantId, {
           pending: true,
+          content: "",
+          mediaRecovery: undefined,
           activity: "video-generation",
-        }),
-      ]);
-      await ensureSession(text);
-      persistTurn({ role: "user", content: text });
+        });
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          withLiveTimestamp(userMsg),
+          withLiveTimestamp({
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            pending: true,
+            activity: "video-generation",
+          }),
+        ]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+      }
+      mediaRetryRef.current = { assistantId, text, attachments: [...attachments] };
 
       if (intent.blockedReason) {
         patchMessage(assistantId, { pending: false, content: intent.blockedReason });
@@ -860,14 +938,17 @@ export function VideoLabPage({
         setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
       } catch (err) {
         chainRef.current = null;
-        patchMessage(assistantId, {
-          pending: false,
-          content: `Generation failed: ${formatInferenceError(err)}`,
-        });
-        persistTurn({
-          role: "assistant",
-          content: `Generation failed: ${formatInferenceError(err)}`,
-        });
+        if (!(await markMediaRuntimeFailure(assistantId, err))) {
+          patchMessage(assistantId, {
+            pending: false,
+            content: `Generation failed: ${formatInferenceError(err)}`,
+          });
+          persistTurn({
+            role: "assistant",
+            content: `Generation failed: ${formatInferenceError(err)}`,
+          });
+          mediaRetryRef.current = null;
+        }
       }
     },
     [
@@ -885,7 +966,35 @@ export function VideoLabPage({
       persistTurn,
       ensureSession,
       outputExists,
+      markMediaRuntimeFailure,
     ],
+  );
+
+  const repairMediaRuntime = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      let state = await mediaRuntimeClient.repair();
+      patchMessage(message.id, { mediaRecovery: videoRecoveryState(state) });
+      while (state.state === "repairing") {
+        await new Promise((resolve) => window.setTimeout(resolve, 750));
+        state = await mediaRuntimeClient.status();
+        patchMessage(message.id, { mediaRecovery: videoRecoveryState(state) });
+      }
+      const pending = mediaRetryRef.current;
+      if (state.state === "ready" && pending?.assistantId === message.id) {
+        mediaRetryRef.current = null;
+        await handleSubmit(pending.text, pending.attachments, true, pending.assistantId);
+      }
+    },
+    [handleSubmit, mediaRuntimeClient, patchMessage],
+  );
+
+  const cancelMediaRepair = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const state = await mediaRuntimeClient.cancelRepair();
+      mediaRetryRef.current = null;
+      patchMessage(message.id, { mediaRecovery: videoRecoveryState(state) });
+    },
+    [mediaRuntimeClient, patchMessage],
   );
 
   const handleEnhancementComplete = useCallback(
@@ -1252,6 +1361,9 @@ export function VideoLabPage({
                 </>
               ) : null
             }
+            onRepairMediaRuntime={(message) => void repairMediaRuntime(message)}
+            onCancelMediaRepair={(message) => void cancelMediaRepair(message)}
+            onOpenMediaRepairLog={() => void mediaRuntimeClient.openLogLocation()}
           />
         )}
       </div>

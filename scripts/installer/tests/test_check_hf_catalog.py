@@ -22,6 +22,7 @@ def _catalog(*, gated: bool = False) -> dict:
         "models": [
             {
                 "id": "image",
+                "type": "image",
                 "gated": gated,
                 "source": {"protocol": "huggingface", "repo": "org/model"},
                 "weights": {"files": [{"path": "model.safetensors"}]},
@@ -57,3 +58,37 @@ def test_declared_gated_file_may_require_auth_but_not_be_missing() -> None:
         return MagicMock(status_code=401)
 
     assert mod.check_catalog(_catalog(gated=True), head) == []
+
+
+def test_variant_files_are_release_checked() -> None:
+    mod = _module()
+    catalog = _catalog()
+    catalog["models"][0]["weights"] = {
+        "defaultVariant": "int8",
+        "variants": [
+            {
+                "id": "int8",
+                "official": True,
+                "files": [{"path": "variant/model.safetensors"}],
+            }
+        ],
+    }
+    visited: list[str] = []
+
+    def head(url: str, **_kwargs: object) -> MagicMock:
+        visited.append(url)
+        return MagicMock(status_code=200)
+
+    assert mod.check_catalog(catalog, head) == []
+    assert visited == [
+        "https://huggingface.co/org/model/resolve/main/variant/model.safetensors"
+    ]
+
+
+def test_non_selectable_auxiliary_models_are_not_release_checked() -> None:
+    mod = _module()
+    catalog = _catalog()
+    catalog["models"][0]["type"] = "controlnet"
+    head = MagicMock()
+    assert mod.check_catalog(catalog, head) == []
+    head.assert_not_called()

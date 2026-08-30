@@ -163,6 +163,7 @@ import {
   type DiffusionRuntimeClient,
   InMemoryDiffusionRuntime,
 } from "./diffusion/runtimeClient.js";
+import type { MediaRuntimeService } from "./diffusion/runtimeFactory.js";
 import {
   buildJobRequest,
   extractWorkflowFromBase64Png,
@@ -266,6 +267,8 @@ export interface HandlerContext {
   /** v1.7.0 -- Local Chatbot Explorer session manager. */
   chat: ChatSessionManager;
   diffusion: DiffusionRuntimeClient;
+  /** v2.4.1 -- shared media readiness and bounded repair coordinator. */
+  mediaRuntime?: MediaRuntimeService;
   ffmpeg: FfmpegContext;
   /**
    * v1.5.0 Phase 5 (item 25) -- OS-keychain credential vault. The credential
@@ -919,6 +922,17 @@ function mcpHarnessFor(ctx: HandlerContext) {
           "mcp.invoke has no stdio harness in the sidecar. Deny tools via mcp.registry.setToolDenied.",
       };
     },
+  };
+}
+
+function unavailableMediaRepairState() {
+  return {
+    state: "failed" as const,
+    code: "REPAIR_SERVICE_UNAVAILABLE",
+    message: "The media repair service is unavailable.",
+    retryable: false,
+    progress: 0,
+    logPath: "",
   };
 }
 
@@ -1581,6 +1595,22 @@ export const handlers: Record<Method, HandlerFn> = {
   "diffusion.version": async (params, ctx) => {
     DiffusionEmptyRequest.parse(params ?? {});
     return ctx.diffusion.call("version", {});
+  },
+  "diffusion.runtime.status": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.status() ?? unavailableMediaRepairState();
+  },
+  "diffusion.runtime.repair": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.startRepair() ?? unavailableMediaRepairState();
+  },
+  "diffusion.runtime.cancelRepair": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.cancelRepair() ?? unavailableMediaRepairState();
+  },
+  "diffusion.runtime.openLogLocation": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.openLogLocation() ?? { opened: false };
   },
   "diffusion.txt2img": async (params, ctx) => {
     const req = DiffusionTxt2ImgRequest.parse(params ?? {});

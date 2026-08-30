@@ -261,11 +261,15 @@ def write_runtime_config(
         backend="none",
         failure_code="NOT_REQUESTED",
     )
-    diffusion_python_ready = diffusion_python.is_file() and readiness.status == "ready"
+    # Record an existing interpreter even when package smoke failed. The
+    # sidecar never launches it for generation unless readiness is ``ready``,
+    # but the v2.4.1 media-repair service needs the interpreter path to run the
+    # bounded in-place repair command.
+    diffusion_python_present = diffusion_python.is_file()
     config = {
         "schemaVersion": RUNTIME_CONFIG_SCHEMA_VERSION,
         "nodePath": str(node_path) if node_path else None,
-        "diffusionPython": str(diffusion_python) if diffusion_python_ready else None,
+        "diffusionPython": str(diffusion_python) if diffusion_python_present else None,
         "diffusionCwd": str(diffusion_cwd) if diffusion_cwd else None,
         "diffusion": readiness.to_dict(),
         "repairAttempt": {

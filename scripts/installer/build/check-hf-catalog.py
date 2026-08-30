@@ -11,6 +11,8 @@ from typing import Any
 
 import httpx
 
+SELECTABLE_TYPES = {"llm", "embed", "image", "video", "audio", "document"}
+
 
 def catalog_path() -> Path:
     return Path(__file__).resolve().parents[3] / "core" / "registry" / "catalog.json"
@@ -22,12 +24,21 @@ def hf_file_urls(entry: dict[str, Any]) -> list[str]:
         return []
     repo = str(source.get("repo") or "")
     revision = str(source.get("revision") or "main")
-    files = (entry.get("weights") or {}).get("files") or []
-    return [
-        f"https://huggingface.co/{repo}/resolve/{revision}/{item['path']}"
-        for item in files
-        if isinstance(item, dict) and item.get("path")
-    ]
+    weights = entry.get("weights") or {}
+    files = list(weights.get("files") or [])
+    for variant in weights.get("variants") or []:
+        if isinstance(variant, dict):
+            files.extend(variant.get("files") or [])
+    urls: list[str] = []
+    seen: set[str] = set()
+    for item in files:
+        if not isinstance(item, dict) or not item.get("path"):
+            continue
+        url = f"https://huggingface.co/{repo}/resolve/{revision}/{item['path']}"
+        if url not in seen:
+            seen.add(url)
+            urls.append(url)
+    return urls
 
 
 def check_catalog(
@@ -37,6 +48,8 @@ def check_catalog(
     issues: list[str] = []
     for entry in catalog.get("models", []):
         if not isinstance(entry, dict):
+            continue
+        if entry.get("type") not in SELECTABLE_TYPES:
             continue
         model_id = str(entry.get("id") or "<missing-id>")
         urls = hf_file_urls(entry)

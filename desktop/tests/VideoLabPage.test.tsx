@@ -134,6 +134,70 @@ describe("VideoLabPage (chat)", () => {
     expect(screen.queryAllByTestId(/^message-tokens-/).length).toBe(0);
   });
 
+  it("repairs an unavailable runtime and retries the same video turn exactly once", async () => {
+    const client = new InMemoryVideoClient();
+    const text2video = client.text2video.bind(client);
+    const text2videoSpy = vi
+      .spyOn(client, "text2video")
+      .mockRejectedValueOnce(new Error("runtime-unavailable: CUDA runtime is not ready"))
+      .mockImplementation(text2video);
+    client.scriptEvents("mem-video-1", [
+      {
+        kind: "complete",
+        jobId: "mem-video-1",
+        outputPath: "/tmp/repaired.mp4",
+        outputId: "mem-video-1",
+        outputHash: "b".repeat(64),
+      },
+    ]);
+    const mediaRuntimeClient = {
+      status: vi.fn(async () => ({
+        state: "repairable" as const,
+        code: "RUNTIME_UNAVAILABLE",
+        message: "The local media runtime needs repair.",
+        retryable: true,
+        progress: 0,
+        logPath: "C:\\logs\\media-runtime-repair.log",
+      })),
+      repair: vi.fn(async () => ({
+        state: "ready" as const,
+        code: "READY",
+        message: "The local media runtime is ready.",
+        retryable: false,
+        progress: 100,
+        logPath: "C:\\logs\\media-runtime-repair.log",
+      })),
+      cancelRepair: vi.fn(),
+      openLogLocation: vi.fn(async () => true),
+    };
+
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        mediaRuntimeClient={mediaRuntimeClient}
+        drainIntervalMs={20}
+        resolveMp4Url={(path) => `mock://${path}`}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a repaired clip" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => expect(screen.getByTestId("media-runtime-recovery")).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-runtime-repair"));
+      await Promise.resolve();
+      vi.advanceTimersByTime(60);
+    });
+    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    expect(text2videoSpy).toHaveBeenCalledTimes(2);
+    expect(mediaRuntimeClient.repair).toHaveBeenCalledTimes(1);
+    const page = screen.getByTestId("video-lab-page");
+    expect(page.querySelectorAll('[data-testid^="message-shell-vuser-"]')).toHaveLength(1);
+    expect(page.querySelectorAll('[data-testid^="message-shell-vassistant-"]')).toHaveLength(1);
+  });
+
   it("does not generate until a conflicting active model switch is approved", async () => {
     const client = new InMemoryVideoClient();
     render(

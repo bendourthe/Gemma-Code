@@ -33,6 +33,9 @@ export interface MessageListProps {
   renderPreviewExtra?: (message: ChatMessage) => ReactNode;
   /** v2.2.7 Phase 4 -- tests pin `en-US`; production uses the host locale. */
   locale?: string;
+  onRepairMediaRuntime?: (message: ChatMessage) => void;
+  onCancelMediaRepair?: (message: ChatMessage) => void;
+  onOpenMediaRepairLog?: (message: ChatMessage) => void;
 }
 
 export function messageRowAlign(role: ChatMessage["role"]): "flex-end" | "flex-start" {
@@ -49,6 +52,9 @@ export function MessageList({
   renderAfter,
   renderPreviewExtra,
   locale,
+  onRepairMediaRuntime,
+  onCancelMediaRepair,
+  onOpenMediaRepairLog,
 }: MessageListProps): JSX.Element {
   if (messages.length === 0) {
     return (
@@ -101,6 +107,9 @@ export function MessageList({
           {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
           {...(onMediaError ? { onMediaError } : {})}
           {...(renderPreviewExtra ? { renderPreviewExtra } : {})}
+          {...(onRepairMediaRuntime ? { onRepairMediaRuntime } : {})}
+          {...(onCancelMediaRepair ? { onCancelMediaRepair } : {})}
+          {...(onOpenMediaRepairLog ? { onOpenMediaRepairLog } : {})}
         />
         {renderAfter?.(msg)}
       </li>,

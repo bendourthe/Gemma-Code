@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import sys
+import types
 from pathlib import Path
 
 import pytest
-
 from runtimes.diffusion.pipelines import base, real_execute, video_base, video_params
 
 
@@ -329,3 +330,126 @@ def test_typed_messages_are_ascii_only(monkeypatch: pytest.MonkeyPatch):
             base.gpu_unavailable_message(kind),
         ):
             message.encode("ascii")
+
+
+def test_sdxl_single_checkpoint_uses_from_single_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    checkpoint = tmp_path / "model.safetensors"
+    checkpoint.write_bytes(b"weights")
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class FakeSdxl:
+        @staticmethod
+        def from_single_file(path: str, **kwargs):
+            calls.append((path, kwargs))
+            return "pipe"
+
+    fake = types.ModuleType("diffusers")
+    fake.StableDiffusionXLPipeline = FakeSdxl
+    monkeypatch.setitem(sys.modules, "diffusers", fake)
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: "bf16")
+
+    assert real_execute._load_text_pipe(tmp_path, "realvisxl-v5") == "pipe"
+    assert calls == [
+        (
+            str(checkpoint),
+            {"torch_dtype": "bf16", "local_files_only": True},
+        )
+    ]
+
+
+def test_partial_sana_layout_fails_before_model_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    (tmp_path / "transformer").mkdir()
+    (tmp_path / "transformer" / "diffusion_pytorch_model.safetensors").write_bytes(
+        b"partial"
+    )
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: "bf16")
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute._load_text_pipe(tmp_path, "sana-1.6b-1024")
+    assert excinfo.value.kind == "model-layout-invalid"
+
+
+def test_wan_video_uses_complete_pipeline_and_atomically_finalizes_mp4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    models = tmp_path / "models"
+    weights = models / "weights" / "wan2.1-t2v-1.3b"
+    weights.mkdir(parents=True)
+    (weights / "model_index.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(models))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: True)
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: "bf16")
+
+    calls: dict[str, object] = {}
+
+    class FakeGenerator:
+        def __init__(self, device: str):
+            calls["generator_device"] = device
+
+        def manual_seed(self, seed: int):
+            calls["seed"] = seed
+            return self
+
+    torch = types.ModuleType("torch")
+    torch.Generator = FakeGenerator
+    torch.cuda = types.SimpleNamespace(is_available=lambda: True)
+
+    class FakePipe:
+        def to(self, device: str):
+            calls["device"] = device
+
+        def __call__(self, **kwargs):
+            calls["kwargs"] = kwargs
+            return types.SimpleNamespace(frames=[[object(), object()]])
+
+    class FakeWanPipeline:
+        @staticmethod
+        def from_pretrained(path: str, **kwargs):
+            calls["load"] = (path, kwargs)
+            return FakePipe()
+
+    diffusers = types.ModuleType("diffusers")
+    diffusers.WanPipeline = FakeWanPipeline
+    utils = types.ModuleType("diffusers.utils")
+
+    def export_to_video(_frames, path: str, fps: int):
+        calls["fps"] = fps
+        Path(path).write_bytes(b"\x00\x00\x00\x18ftypisomdata")
+
+    utils.export_to_video = export_to_video
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "diffusers", diffusers)
+    monkeypatch.setitem(sys.modules, "diffusers.utils", utils)
+
+    output = tmp_path / "result.mp4"
+    ctx = _video_ctx("wan2.1-t2v-1.3b")
+    ctx = video_base.VideoExecutionContext(
+        job_id=ctx.job_id,
+        params=ctx.params,
+        offload_strategy=ctx.offload_strategy,
+        output_path=str(output),
+    )
+    result = real_execute.video_execute(ctx)
+
+    assert result.mp4_path == str(output)
+    assert output.read_bytes()[4:8] == b"ftyp"
+    assert calls["kwargs"]["num_frames"] == 13
+    assert calls["fps"] == 12
+    assert not list(tmp_path.glob("*.partial.mp4"))
+
+
+def test_wan_video_rejects_partial_raw_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    models = tmp_path / "models"
+    weights = models / "weights" / "wan2.1-t2v-1.3b"
+    weights.mkdir(parents=True)
+    (weights / "diffusion_pytorch_model.safetensors").write_bytes(b"partial")
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(models))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: True)
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute.video_execute(_video_ctx("wan2.1-t2v-1.3b"))
+    assert excinfo.value.kind == "model-layout-invalid"

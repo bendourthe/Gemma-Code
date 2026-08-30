@@ -87,6 +87,12 @@ import {
 } from "../../shared/explorer/studioSessionMemory";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
 import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
+import {
+  createIpcMediaRuntimeClient,
+  isMediaRuntimeFailure,
+  type MediaRuntimeClient,
+  type MediaRuntimeState,
+} from "../../shared/studio/mediaRuntimeClient";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_FORM_VALUES.modelId,
@@ -138,12 +144,26 @@ export interface ImageStudioPageProps {
   readonly initialSessionId?: string;
   /** Test seam: probe whether a last-output path still exists on disk. */
   readonly outputExists?: (path: string) => boolean;
+  readonly mediaRuntimeClient?: MediaRuntimeClient;
 }
 
 let messageSeq = 0;
 function nextId(prefix: string): string {
   messageSeq += 1;
   return `${prefix}-${messageSeq}`;
+}
+
+function imageRecoveryState(state: MediaRuntimeState): ChatMessage["mediaRecovery"] {
+  if (state.state === "ready") return undefined;
+  return {
+    state: state.state,
+    code: state.code,
+    message: state.message,
+    retryable: state.retryable,
+    progress: state.progress,
+    ...(state.details ? { details: state.details } : {}),
+    ...(state.logPath ? { logPath: state.logPath } : {}),
+  };
 }
 
 export function ImageStudioPage({
@@ -160,10 +180,14 @@ export function ImageStudioPage({
   explorerClient: explorerClientOverride,
   initialSessionId,
   outputExists,
+  mediaRuntimeClient: mediaRuntimeOverride,
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
   const [queueClient] = useState<GenerationQueueClient>(
     () => queueOverride ?? createIpcGenerationQueueClient(),
+  );
+  const [mediaRuntimeClient] = useState<MediaRuntimeClient>(
+    () => mediaRuntimeOverride ?? createIpcMediaRuntimeClient(),
   );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
@@ -180,6 +204,11 @@ export function ImageStudioPage({
     text: "",
     attachments: [],
   });
+  const mediaRetryRef = useRef<{
+    assistantId: string;
+    text: string;
+    attachments: readonly string[];
+  } | null>(null);
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
   const studioClient = useMemo(() => {
     if (explorerClientOverride) return explorerClientOverride;
@@ -426,9 +455,25 @@ export function ImageStudioPage({
               }));
             }
           });
+          if (mediaRetryRef.current?.assistantId === messageId) {
+            mediaRetryRef.current = null;
+          }
         } else if (event.kind === "error") {
           done = true;
           outputs.current.delete(messageId);
+          const runtimeMessage = event.message ?? "unknown error";
+          if (isMediaRuntimeFailure(runtimeMessage)) {
+            void mediaRuntimeClient.status().then((state) => {
+              patchMessage(messageId, {
+                pending: false,
+                progress: undefined,
+                media: undefined,
+                content: "",
+                mediaRecovery: imageRecoveryState(state),
+              });
+            });
+            continue;
+          }
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
@@ -443,7 +488,7 @@ export function ImageStudioPage({
       }
       return { done };
     },
-    [patchMessage, client, persistTurn],
+    [patchMessage, client, persistTurn, mediaRuntimeClient],
   );
 
   const handleMediaError = useCallback(
@@ -507,11 +552,34 @@ export function ImageStudioPage({
     };
   }, [queueClient, drainIntervalMs]);
 
+  const markMediaRuntimeFailure = useCallback(
+    async (assistantId: string, error: unknown): Promise<boolean> => {
+      const message = formatInferenceError(error);
+      if (!isMediaRuntimeFailure(message)) return false;
+      try {
+        const state = await mediaRuntimeClient.status();
+        patchMessage(assistantId, {
+          pending: false,
+          content: "",
+          mediaRecovery: imageRecoveryState(state),
+        });
+      } catch {
+        patchMessage(assistantId, {
+          pending: false,
+          content: `Generation failed: ${message}`,
+        });
+      }
+      return true;
+    },
+    [mediaRuntimeClient, patchMessage],
+  );
+
   const handleSubmit = useCallback(
     async (
       text: string,
       attachments: readonly string[],
       residencyApproved = false,
+      retryAssistantId?: string,
     ): Promise<void> => {
       if (isGenerating) return;
       // v2.2.0 Phase 4: ask the policy before doing GPU work. A `confirm`
@@ -581,7 +649,7 @@ export function ImageStudioPage({
         content: text,
         ...(attachments.length > 0 ? { attachments: [...attachments] } : {}),
       };
-      const assistantId = nextId("assistant");
+      const assistantId = retryAssistantId ?? nextId("assistant");
       const assistantMsg: ChatMessage = {
         id: assistantId,
         role: "assistant",
@@ -589,9 +657,19 @@ export function ImageStudioPage({
         pending: true,
         activity: "image-generation",
       };
-      setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
-      await ensureSession(text);
-      persistTurn({ role: "user", content: text });
+      if (retryAssistantId) {
+        patchMessage(assistantId, {
+          pending: true,
+          content: "",
+          mediaRecovery: undefined,
+          activity: "image-generation",
+        });
+      } else {
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+      }
+      mediaRetryRef.current = { assistantId, text, attachments: [...attachments] };
 
       const base = valuesToBaseRequest(values, {
         prompt: replace ? inpaintPromptFor(replace) : intent.prompt,
@@ -661,17 +739,47 @@ export function ImageStudioPage({
         }
         setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
       } catch (err) {
-        patchMessage(assistantId, {
-          pending: false,
-          content: `Generation failed: ${formatInferenceError(err)}`,
-        });
-        persistTurn({
-          role: "assistant",
-          content: `Generation failed: ${formatInferenceError(err)}`,
-        });
+        if (!(await markMediaRuntimeFailure(assistantId, err))) {
+          patchMessage(assistantId, {
+            pending: false,
+            content: `Generation failed: ${formatInferenceError(err)}`,
+          });
+          persistTurn({
+            role: "assistant",
+            content: `Generation failed: ${formatInferenceError(err)}`,
+          });
+          mediaRetryRef.current = null;
+        }
       }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists],
+    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists, markMediaRuntimeFailure],
+  );
+
+  const repairMediaRuntime = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      let state = await mediaRuntimeClient.repair();
+      patchMessage(message.id, { mediaRecovery: imageRecoveryState(state) });
+      while (state.state === "repairing") {
+        await new Promise((resolve) => window.setTimeout(resolve, 750));
+        state = await mediaRuntimeClient.status();
+        patchMessage(message.id, { mediaRecovery: imageRecoveryState(state) });
+      }
+      const pending = mediaRetryRef.current;
+      if (state.state === "ready" && pending?.assistantId === message.id) {
+        mediaRetryRef.current = null;
+        await handleSubmit(pending.text, pending.attachments, true, pending.assistantId);
+      }
+    },
+    [handleSubmit, mediaRuntimeClient, patchMessage],
+  );
+
+  const cancelMediaRepair = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const state = await mediaRuntimeClient.cancelRepair();
+      mediaRetryRef.current = null;
+      patchMessage(message.id, { mediaRecovery: imageRecoveryState(state) });
+    },
+    [mediaRuntimeClient, patchMessage],
   );
 
   const pickCandidate = useCallback(
@@ -906,6 +1014,9 @@ export function ImageStudioPage({
                 </>
               ) : null
             }
+            onRepairMediaRuntime={(message) => void repairMediaRuntime(message)}
+            onCancelMediaRepair={(message) => void cancelMediaRepair(message)}
+            onOpenMediaRepairLog={() => void mediaRuntimeClient.openLogLocation()}
           />
         )}
       </div>

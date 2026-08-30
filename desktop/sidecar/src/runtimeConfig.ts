@@ -36,6 +36,14 @@ export interface RuntimeConfigFile {
     manifest_fingerprint?: string;
     provisioner_version?: string;
   } | null;
+  repairAttempt?: {
+    attemptId?: string | null;
+    status?: string;
+    failureCode?: string | null;
+    ownerPid?: number | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+  } | null;
   modelsRoot?: string | null;
   ollama?: { url?: string | null } | null;
 }

@@ -117,6 +117,61 @@ describe("ImageStudioPage (chat)", () => {
     expect(screen.getAllByText("a fox").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("repairs an unavailable runtime and retries the same image turn exactly once", async () => {
+    const client = new InMemoryDiffusionClient();
+    const txt2img = client.txt2img.bind(client);
+    const txt2imgSpy = vi
+      .spyOn(client, "txt2img")
+      .mockRejectedValueOnce(new Error("runtime-unavailable: CUDA runtime is not ready"))
+      .mockImplementation(txt2img);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "PNGB64==" }]);
+    const mediaRuntimeClient = {
+      status: vi.fn(async () => ({
+        state: "repairable" as const,
+        code: "RUNTIME_UNAVAILABLE",
+        message: "The local media runtime needs repair.",
+        retryable: true,
+        progress: 0,
+        logPath: "C:\\logs\\media-runtime-repair.log",
+      })),
+      repair: vi.fn(async () => ({
+        state: "ready" as const,
+        code: "READY",
+        message: "The local media runtime is ready.",
+        retryable: false,
+        progress: 100,
+        logPath: "C:\\logs\\media-runtime-repair.log",
+      })),
+      cancelRepair: vi.fn(),
+      openLogLocation: vi.fn(async () => true),
+    };
+
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        mediaRuntimeClient={mediaRuntimeClient}
+        drainIntervalMs={20}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a repaired fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => expect(screen.getByTestId("media-runtime-recovery")).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-runtime-repair"));
+      await Promise.resolve();
+      vi.advanceTimersByTime(60);
+    });
+    await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
+    expect(txt2imgSpy).toHaveBeenCalledTimes(2);
+    expect(mediaRuntimeClient.repair).toHaveBeenCalledTimes(1);
+    const page = screen.getByTestId("image-studio-page");
+    expect(page.querySelectorAll('[data-testid^="message-shell-user-"]')).toHaveLength(1);
+    expect(page.querySelectorAll('[data-testid^="message-shell-assistant-"]')).toHaveLength(1);
+  });
+
   it("does not generate until a conflicting active model switch is approved", async () => {
     const client = new InMemoryDiffusionClient();
     render(

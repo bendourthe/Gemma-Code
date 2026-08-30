@@ -57,6 +57,18 @@ export interface ChatMessage {
   tokensEstimated?: boolean;
   /** Provider-exposed reasoning content only. Never inferred from ordinary output. */
   reasoningText?: string | null;
+  /** v2.4.1 -- shared Image/Video runtime recovery state. */
+  mediaRecovery?: MediaRuntimeRecovery;
+}
+
+export interface MediaRuntimeRecovery {
+  readonly state: "repairable" | "repairing" | "failed";
+  readonly code: string;
+  readonly message: string;
+  readonly retryable: boolean;
+  readonly progress: number;
+  readonly details?: string;
+  readonly logPath?: string;
 }
 
 export interface ChatMedia {

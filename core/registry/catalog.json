@@ -1188,16 +1188,31 @@
       "source": {
         "protocol": "huggingface",
         "repo": "SG161222/RealVisXL_V5.0",
-        "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "revision": "ac93e0dda1f6d448cae19bbfab8c5e720a5e48bc",
+        "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/ac93e0dda1f6d448cae19bbfab8c5e720a5e48bc/model_index.json",
+        "sha256": "f15de0dfcd39efb54005fe7110fc07580dc7b90e73b2a7fb2ad4500381592e96"
       },
       "weights": {
-        "layoutVersion": 1,
+        "layoutVersion": 2,
         "files": [
-          {
-            "path": "RealVisXL_V5.0_fp16.safetensors",
-            "sha256": "6a35a7855770ae9820a3c931d4964c3817b6d9e3c6f9c4dabb5b3a94e5643b80"
-          }
+          { "path": "model_index.json", "sha256": "f15de0dfcd39efb54005fe7110fc07580dc7b90e73b2a7fb2ad4500381592e96" },
+          { "path": "scheduler/scheduler_config.json", "sha256": "4276ecb13fc42b6667fe47bac67a376e99e4c26d477e189c4630dd7037a25a9a" },
+          { "path": "text_encoder/config.json", "sha256": "c5975e04befd9ced7cb307e2b6e935449e775d1963445c139d0bae8abdfacc34" },
+          { "path": "text_encoder/model.fp16.safetensors", "sha256": "0a873801e35a008b17e228189a83a8b41e068ffe7bde7c1105e8c6e947758bc5" },
+          { "path": "text_encoder_2/config.json", "sha256": "a07d5cbb8a2b6c5834e67008de0aee108bd6396edfe909ef7b6c08c21d5c4c07" },
+          { "path": "text_encoder_2/model.fp16.safetensors", "sha256": "dfa429b268cd3f6297927f1fd3eacac04781b17ab4caa97892a461ff41400a5e" },
+          { "path": "tokenizer/merges.txt", "sha256": "0bc7695944744789d6fd6d0ab754bcbbb9e36f1c182df0a006d619ce70a1e052" },
+          { "path": "tokenizer/special_tokens_map.json", "sha256": "c8227988aadac941e93b5ffef08b4add8ccbdb26404a62b3e41f61eef119b252" },
+          { "path": "tokenizer/tokenizer_config.json", "sha256": "2edbd316072af0382bb999f82b007ad8af159d6277648e29b7747d72c3add791" },
+          { "path": "tokenizer/vocab.json", "sha256": "fd67774a869730a6b27bf53d3e434e72054f2a825873c7af3bece183bb1f791e" },
+          { "path": "tokenizer_2/merges.txt", "sha256": "0bc7695944744789d6fd6d0ab754bcbbb9e36f1c182df0a006d619ce70a1e052" },
+          { "path": "tokenizer_2/special_tokens_map.json", "sha256": "a83f5831a70d1d21c057186d35aaa504894103d24ee905baa99bc7e83ceb70ee" },
+          { "path": "tokenizer_2/tokenizer_config.json", "sha256": "6e6c80bd367c7b39df2d7add74577ffd79d0840f3aa96e3b5893b95230743bcf" },
+          { "path": "tokenizer_2/vocab.json", "sha256": "fd67774a869730a6b27bf53d3e434e72054f2a825873c7af3bece183bb1f791e" },
+          { "path": "unet/config.json", "sha256": "a7f46710bde141386d8b1249b16beabb769affd8873eb9c6def581e8a110798a" },
+          { "path": "unet/diffusion_pytorch_model.fp16.safetensors", "sha256": "ea10386073d39ffdde9fda426745b3f5e9dcd2af204c128ece0f4ea84570ffee" },
+          { "path": "vae/config.json", "sha256": "5d301324288c14277bab2b284004b91b81faffc800202ddba59e401c82683959" },
+          { "path": "vae/diffusion_pytorch_model.fp16.safetensors", "sha256": "6353737672c94b96174cb590f711eac6edf2fcce5b6e91aa9d73c5adc589ee48" }
         ]
       },
       "tags": [
@@ -1300,16 +1315,31 @@
       "source": {
         "protocol": "huggingface",
         "repo": "RunDiffusion/Juggernaut-XL-v9",
-        "url": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/main/Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "revision": "cf419233522daa0b9ea36c3aff98fa2cab1fb0fb",
+        "url": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/cf419233522daa0b9ea36c3aff98fa2cab1fb0fb/model_index.json",
+        "sha256": "153b1da39e7cc780003d5b25eb8d07b9c84b08cc20fd05b95652e780a15c8011"
       },
       "weights": {
-        "layoutVersion": 1,
+        "layoutVersion": 2,
         "files": [
-          {
-            "path": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
-            "sha256": "c9e3e68f89b8e38689e1097d4be4573cf308de4e3fd044c64ca697bdb4aa8bca"
-          }
+          { "path": "model_index.json", "sha256": "153b1da39e7cc780003d5b25eb8d07b9c84b08cc20fd05b95652e780a15c8011" },
+          { "path": "scheduler/scheduler_config.json", "sha256": "db6b4739b5e23285a9552ec7c59de7ce40f6a4a3562fc1eccbd843f6444e5102" },
+          { "path": "text_encoder/config.json", "sha256": "47ced7a4ab2ecec78818ac4e8e1578c66253c2b93861c67c0b6d6c33ce3ff829" },
+          { "path": "text_encoder/model.fp16.safetensors", "sha256": "698656aa4f452e1f8f38287240054a9b8d339b3051ec17d77d63bdb5605db01a" },
+          { "path": "text_encoder_2/config.json", "sha256": "d9f7e7eb1e2d162908ecf7925234425c4f1c978152fd60e18e4af2c67ccebb19" },
+          { "path": "text_encoder_2/model.fp16.safetensors", "sha256": "9962c194f50a9c580ebe573f2a4756d76dcd29abe15bffb0a5905509eb6a8dda" },
+          { "path": "tokenizer/merges.txt", "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a" },
+          { "path": "tokenizer/special_tokens_map.json", "sha256": "2cdb3b8331a60c92fc1e55a13e9fd61fd2293c5a51275fdcccd62b780052530e" },
+          { "path": "tokenizer/tokenizer_config.json", "sha256": "6bdcee9ccce2a16ca2b4c0c5ed00b42c50ea225f4472a8c4c1e963a2902c2881" },
+          { "path": "tokenizer/vocab.json", "sha256": "e089ad92ba36837a0d31433e555c8f45fe601ab5c221d4f607ded32d9f7a4349" },
+          { "path": "tokenizer_2/merges.txt", "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a" },
+          { "path": "tokenizer_2/special_tokens_map.json", "sha256": "c934044566ac411c4739e9cec969e061e8dcdf2bd108196a66ce917376d4d68e" },
+          { "path": "tokenizer_2/tokenizer_config.json", "sha256": "e70eb3e2b85a508e32bb81c32c13fc3f2b015548ca469b94627c2f32e445cba1" },
+          { "path": "tokenizer_2/vocab.json", "sha256": "e089ad92ba36837a0d31433e555c8f45fe601ab5c221d4f607ded32d9f7a4349" },
+          { "path": "unet/config.json", "sha256": "73cd3f7bd618835b6d09eefd5155b84ccdeea07c32a4d201574af19bd405a5bc" },
+          { "path": "unet/diffusion_pytorch_model.fp16.safetensors", "sha256": "cf1ee18eb36712683f50c1e674634875e2adf7413d7492d5f9aa7e69e1a8c17a" },
+          { "path": "vae/config.json", "sha256": "bcbed358bb80da88bc8b61785b7d14c39b5be5745d813e4c6a56e9084d4dc9d2" },
+          { "path": "vae/diffusion_pytorch_model.fp16.safetensors", "sha256": "6353737672c94b96174cb590f711eac6edf2fcce5b6e91aa9d73c5adc589ee48" }
         ]
       },
       "tags": [
@@ -1570,7 +1600,7 @@
       },
       "displayName": "Wan 2.1 T2V 1.3B",
       "origin": "China",
-      "description": "Alibaba's Wan 2.1 T2V is a 1.3B text-to-video model from China that runs on ~8 GB VRAM at 480p, with no built-in content filter. The consumer-hardware entry point for local video.",
+      "description": "Alibaba's Wan 2.1 T2V is a 1.3B text-to-video model from China with an official Diffusers pipeline, no built-in content filter, and a supported local 480p path on 13 GB VRAM and up.",
       "strengths": [
         "Runs on ~8 GB consumer GPUs (480p)",
         "Leading VBench motion quality in the small-model class",
@@ -1579,9 +1609,9 @@
       "whyRecommended": "The best open video model that fits consumer 8-16 GB GPUs, under a fully permissive Apache-2.0 license.",
       "differentiators": "The consumer-hardware entry point for local video: where LTX-Video optimizes speed, Wan 2.1 optimizes quality per GB of VRAM.",
       "provenance": "Published by Alibaba (Wan-AI) at huggingface.co/Wan-AI/Wan2.1-T2V-1.3B; original release, not a fine-tune. Uncensored basis: no safety filter in the released weights (content filtering in the hosted service is pipeline-level). License verified 2026-07-03 from the HF model card.",
-      "sizeGB": 17.6,
-      "vramGB": 8,
-      "requiredVramGB": 8,
+      "sizeGB": 28.9,
+      "vramGB": 13,
+      "requiredVramGB": 13,
       "releaseDate": "2025-02-25",
       "uncensored": true,
       "multimodal": false,
@@ -1589,24 +1619,89 @@
       "license": "Apache-2.0",
       "source": {
         "protocol": "huggingface",
-        "repo": "Wan-AI/Wan2.1-T2V-1.3B",
-        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "repo": "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+        "revision": "0fad780a534b6463e45facd96134c9f345acfa5b",
+        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers/resolve/0fad780a534b6463e45facd96134c9f345acfa5b/model_index.json",
+        "sha256": "b8b28e022329acf975e027579a1d2dc3de44dba28f4c909b98a880fbf5b0de7d"
       },
       "weights": {
-        "layoutVersion": 1,
+        "layoutVersion": 2,
         "files": [
           {
-            "path": "diffusion_pytorch_model.safetensors",
-            "sha256": "96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f"
+            "path": "model_index.json",
+            "sha256": "b8b28e022329acf975e027579a1d2dc3de44dba28f4c909b98a880fbf5b0de7d"
           },
           {
-            "path": "models_t5_umt5-xxl-enc-bf16.pth",
-            "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
+            "path": "scheduler/scheduler_config.json",
+            "sha256": "3fed2abbd9bbc301a74db01947198057ec5049808910dccab320925bf27bea6e"
           },
           {
-            "path": "Wan2.1_VAE.pth",
-            "sha256": "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
+            "path": "text_encoder/config.json",
+            "sha256": "4087b6192155a4643f6d29fd326c4610103130674011ef4d0a53f8bce5de967d"
+          },
+          {
+            "path": "text_encoder/model-00001-of-00005.safetensors",
+            "sha256": "c0ef3a140898e228a3520c9adec60743d2e8e5b3d229651bb37f1a3921919f99"
+          },
+          {
+            "path": "text_encoder/model-00002-of-00005.safetensors",
+            "sha256": "481c7b2b39771c44df6dd8d13ee12ed072d731b4a650bd092885d4d52db229ad"
+          },
+          {
+            "path": "text_encoder/model-00003-of-00005.safetensors",
+            "sha256": "f93148bcc04052a169e1e49bfcf6125df6cf9bf243cb9c627da75266cf8e35c3"
+          },
+          {
+            "path": "text_encoder/model-00004-of-00005.safetensors",
+            "sha256": "a451792c739c05bca4606190cc2dd16731411bac03b4cf6aacc5767321f857c9"
+          },
+          {
+            "path": "text_encoder/model-00005-of-00005.safetensors",
+            "sha256": "7e76e18d224531b8197a46231cb53daf7f2f6ca707130252becf933026ac4eea"
+          },
+          {
+            "path": "text_encoder/model.safetensors.index.json",
+            "sha256": "8af791f24a6447aa30c95786f40adf23d3c9df97470d2f36159c8f1113f120b4"
+          },
+          {
+            "path": "tokenizer/special_tokens_map.json",
+            "sha256": "456b58fd240a06c743a7c2cf8008bec501240d68ebd1fc4018ea569505fea270"
+          },
+          {
+            "path": "tokenizer/spiece.model",
+            "sha256": "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458"
+          },
+          {
+            "path": "tokenizer/tokenizer.json",
+            "sha256": "20a46ac256746594ed7e1e3ef733b83fbc5a6f0922aa7480eda961743de080ef"
+          },
+          {
+            "path": "tokenizer/tokenizer_config.json",
+            "sha256": "1d8d2a216bf8e70ac15b7ddcea566c4dd0433c024b39a58ca5e4c66bd78defbd"
+          },
+          {
+            "path": "transformer/config.json",
+            "sha256": "0b093fa072e9ff28763febe9b964ee582f566733a6d6709deb9dfba1bde16b81"
+          },
+          {
+            "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+            "sha256": "6d011927dbd2cc8afe53d57abab04a8fd86f615d83324770d985fb058ece3a24"
+          },
+          {
+            "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+            "sha256": "b92ec2309b1f239af6f746431815a881afcc938abb26a4f08d9a2fd6c892f872"
+          },
+          {
+            "path": "transformer/diffusion_pytorch_model.safetensors.index.json",
+            "sha256": "dcbcf3497134a3f50557ff069dd7d2c84b5c4d8c5932472f6bdb780fb4016589"
+          },
+          {
+            "path": "vae/config.json",
+            "sha256": "f0c1cc1d7decb5badc384f54691746a27a9aeff49f7ebca974e583389342d527"
+          },
+          {
+            "path": "vae/diffusion_pytorch_model.safetensors",
+            "sha256": "d6e524b3fffede1787a74e81b30976dce5400c4439ba64222168e607ed19e793"
           }
         ]
       },

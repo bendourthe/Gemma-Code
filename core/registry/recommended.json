@@ -19,7 +19,7 @@
       "agentic": ["gemma4:e4b", "lfm2.5:2.6b", "qwen3.5:9b"],
       "embed": ["embeddinggemma"],
       "image": ["juggernaut-xl-v9"],
-      "video": ["wan2.1-t2v-1.3b"],
+      "video": [],
       "audio": ["faster-whisper-large-v3", "kokoro-82m"],
       "document": ["rapidocr-ppocrv4"]
     },
@@ -28,7 +28,7 @@
       "agentic": ["gemma-4-12b-it-gguf", "qwen3.5:9b"],
       "embed": ["embeddinggemma"],
       "image": ["juggernaut-xl-v9"],
-      "video": ["wan2.1-t2v-1.3b"],
+      "video": [],
       "audio": ["faster-whisper-large-v3", "kokoro-82m"],
       "document": ["unlimited-ocr-3b"]
     },

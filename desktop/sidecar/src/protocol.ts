@@ -124,6 +124,10 @@ export const IPC_METHODS = [
   "gpu.sample",
   "diffusion.health",
   "diffusion.version",
+  "diffusion.runtime.status",
+  "diffusion.runtime.repair",
+  "diffusion.runtime.cancelRepair",
+  "diffusion.runtime.openLogLocation",
   "diffusion.txt2img",
   "diffusion.img2img",
   "diffusion.inpaint",
@@ -813,6 +817,20 @@ export type DiffusionDrainEventsResponseT = z.infer<
 >;
 
 export const DiffusionEmptyRequest = z.object({}).strict();
+
+export const MediaRuntimeStateResponse = z
+  .object({
+    state: z.enum(["ready", "repairable", "repairing", "failed"]),
+    code: z.string(),
+    message: z.string(),
+    retryable: z.boolean(),
+    progress: z.number().min(0).max(1),
+    details: z.string().optional(),
+    logPath: z.string(),
+  })
+  .strict();
+export type MediaRuntimeStateResponseT = z.infer<typeof MediaRuntimeStateResponse>;
+export const MediaRuntimeOpenLogResponse = z.object({ opened: z.boolean() }).strict();
 
 // v2.2.0 Phase 2 (2.4) -- GPU telemetry sample for the status widget.
 // v2.2.0 Phase 3 (3.2) -- installed skills listing for Settings > Skills.
@@ -3285,6 +3303,26 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "diffusion.version": {
     request: DiffusionEmptyRequest,
     response: DiffusionVersionResponse,
+    implemented: true,
+  },
+  "diffusion.runtime.status": {
+    request: DiffusionEmptyRequest,
+    response: MediaRuntimeStateResponse,
+    implemented: true,
+  },
+  "diffusion.runtime.repair": {
+    request: DiffusionEmptyRequest,
+    response: MediaRuntimeStateResponse,
+    implemented: true,
+  },
+  "diffusion.runtime.cancelRepair": {
+    request: DiffusionEmptyRequest,
+    response: MediaRuntimeStateResponse,
+    implemented: true,
+  },
+  "diffusion.runtime.openLogLocation": {
+    request: DiffusionEmptyRequest,
+    response: MediaRuntimeOpenLogResponse,
     implemented: true,
   },
   "diffusion.txt2img": {

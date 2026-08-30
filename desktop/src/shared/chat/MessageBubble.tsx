@@ -15,6 +15,7 @@ import {
   parseMessageTime,
 } from "./transcriptChrome";
 import { ReasoningDisclosure } from "./ReasoningDisclosure";
+import { MediaRuntimeRecoveryCard } from "../../components/GenerationCanvas";
 
 const COMPACT_MEDIA_STYLE: CSSProperties = {
   display: "block",
@@ -46,6 +47,9 @@ export interface MessageBubbleProps {
   renderPreviewExtra?: (message: ChatMessage) => ReactNode;
   /** v2.2.7 Phase 4 -- tests pin `en-US`; production uses the host locale. */
   locale?: string;
+  onRepairMediaRuntime?: (message: ChatMessage) => void;
+  onCancelMediaRepair?: (message: ChatMessage) => void;
+  onOpenMediaRepairLog?: (message: ChatMessage) => void;
 }
 
 export function MessageBubble({
@@ -55,6 +59,9 @@ export function MessageBubble({
   onMediaError,
   renderPreviewExtra,
   locale,
+  onRepairMediaRuntime,
+  onCancelMediaRepair,
+  onOpenMediaRepairLog,
 }: MessageBubbleProps): JSX.Element {
   const [mediaFailed, setMediaFailed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -116,6 +123,14 @@ export function MessageBubble({
         : {})}
       style={bubbleStyle(message, selectable)}
     >
+      {message.mediaRecovery ? (
+        <MediaRuntimeRecoveryCard
+          {...message.mediaRecovery}
+          onRepair={() => onRepairMediaRuntime?.(message)}
+          onCancel={() => onCancelMediaRepair?.(message)}
+          onOpenLog={() => onOpenMediaRepairLog?.(message)}
+        />
+      ) : null}
       {caption}
       {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
       {message.attachments && message.attachments.length > 0 && (
