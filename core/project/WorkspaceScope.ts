@@ -46,10 +46,15 @@ function hasParentTraversal(value: string): boolean {
   return value.split(/[\\/]+/).includes("..");
 }
 
-function withoutTrailingSeparator(value: string): string {
-  const parsed = path.parse(value);
-  let next = path.normalize(value);
-  while (next.length > parsed.root.length && next.endsWith(path.sep)) {
+function pathApiFor(platform: NodeJS.Platform): typeof path.win32 | typeof path.posix {
+  return platform === "win32" ? path.win32 : path.posix;
+}
+
+function withoutTrailingSeparator(value: string, platform: NodeJS.Platform = process.platform): string {
+  const pathApi = pathApiFor(platform);
+  const parsed = pathApi.parse(value);
+  let next = pathApi.normalize(value);
+  while (next.length > parsed.root.length && next.endsWith(pathApi.sep)) {
     next = next.slice(0, -1);
   }
   return next;
@@ -59,7 +64,7 @@ export function workspacePathKey(
   value: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
-  const normalized = withoutTrailingSeparator(path.resolve(value)).normalize("NFKC");
+  const normalized = withoutTrailingSeparator(pathApiFor(platform).resolve(value), platform).normalize("NFKC");
   return platform === "win32" ? normalized.toLocaleLowerCase("en-US") : normalized;
 }
 
@@ -71,8 +76,8 @@ export function workspaceIdForRoots(
   return `ws-${createHash("sha256").update(identity.join("\0"), "utf8").digest("hex").slice(0, 24)}`;
 }
 
-function labelFor(primaryRoot: string, rootCount: number): string {
-  const primaryName = path.basename(primaryRoot) || primaryRoot;
+function labelFor(primaryRoot: string, rootCount: number, platform: NodeJS.Platform): string {
+  const primaryName = pathApiFor(platform).basename(primaryRoot) || primaryRoot;
   return rootCount > 1 ? `${primaryName} +${rootCount - 1}` : primaryName;
 }
 
@@ -108,18 +113,19 @@ export async function createWorkspaceScope(
   const realpath = options.realpath ?? fs.realpath;
   const stat = options.stat ?? fs.stat;
   const timeoutMs = options.timeoutMs ?? WORKSPACE_CANONICALIZE_TIMEOUT_MS;
+  const pathApi = pathApiFor(platform);
   const ordered: string[] = [];
   const byKey = new Map<string, string>();
   for (const raw of rawRoots) {
     const root = typeof raw === "string" ? raw.trim() : "";
     if (!root) throw new WorkspaceScopeError("Workspace root must be a non-empty path");
-    if (!path.isAbsolute(root)) throw new WorkspaceScopeError("Workspace root must be absolute", root);
+    if (!pathApi.isAbsolute(root)) throw new WorkspaceScopeError("Workspace root must be absolute", root);
     if (hasParentTraversal(root)) throw new WorkspaceScopeError("Workspace root must not contain parent traversal", root);
     let canonical: string;
     try {
       const info = await bounded(stat(root), timeoutMs, root);
       if (!info.isDirectory()) throw new WorkspaceScopeError("Workspace root is not a directory", root);
-      canonical = withoutTrailingSeparator(await bounded(realpath(root), timeoutMs, root));
+      canonical = withoutTrailingSeparator(await bounded(realpath(root), timeoutMs, root), platform);
     } catch (error) {
       if (error instanceof WorkspaceScopeError) throw error;
       throw new WorkspaceScopeError(
@@ -136,7 +142,7 @@ export async function createWorkspaceScope(
 
   let primaryRoot = ordered[0]!;
   if (input.primaryRoot?.trim()) {
-    if (!path.isAbsolute(input.primaryRoot) || hasParentTraversal(input.primaryRoot)) {
+    if (!pathApi.isAbsolute(input.primaryRoot) || hasParentTraversal(input.primaryRoot)) {
       throw new WorkspaceScopeError("Primary root must be an absolute selected directory", input.primaryRoot);
     }
     const primaryKey = workspacePathKey(input.primaryRoot, platform);
@@ -157,7 +163,7 @@ export async function createWorkspaceScope(
     workspaceRoots: Object.freeze([...ordered]),
     identityRoots: Object.freeze(identityRoots),
     primaryRoot,
-    displayLabel: labelFor(primaryRoot, ordered.length),
+    displayLabel: labelFor(primaryRoot, ordered.length, platform),
     createdAt: previous?.createdAt ?? now,
     lastUsedAt: now,
   });
@@ -176,9 +182,10 @@ export function workspaceScopeFromPersisted(
       : [(options.homeDir ?? os.homedir)()];
   const ordered: string[] = [];
   const keys = new Set<string>();
+  const pathApi = pathApiFor(platform);
   for (const root of roots) {
-    if (!path.isAbsolute(root) || hasParentTraversal(root)) continue;
-    const normalized = withoutTrailingSeparator(path.resolve(root));
+    if (!pathApi.isAbsolute(root) || hasParentTraversal(root)) continue;
+    const normalized = withoutTrailingSeparator(pathApi.resolve(root), platform);
     const key = workspacePathKey(normalized, platform);
     if (keys.has(key)) continue;
     keys.add(key);
@@ -194,7 +201,7 @@ export function workspaceScopeFromPersisted(
     workspaceRoots: Object.freeze([...ordered]),
     identityRoots: Object.freeze([...keys].sort()),
     primaryRoot,
-    displayLabel: labelFor(primaryRoot, ordered.length),
+    displayLabel: labelFor(primaryRoot, ordered.length, platform),
     createdAt: input.createdAt ?? now,
     lastUsedAt: input.lastUsedAt ?? now,
   });

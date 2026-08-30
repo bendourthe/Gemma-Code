@@ -151,7 +151,7 @@ class TestRuntimeProvisionerStep:
         node = tmp_path / "node.exe"
         node.write_bytes(b"stub")
         final = tmp_path / "diffusion-venv"
-        python = final / "Scripts" / "python.exe"
+        python = rp.venv_python(final)
         python.parent.mkdir(parents=True)
         python.write_bytes(b"stub")
         monkeypatch.setattr(rp, "venv_dir", lambda: final)
