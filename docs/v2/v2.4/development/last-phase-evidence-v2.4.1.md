@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-29
 **Branch**: `feat/v2.4.1-field-reliability`
-**Status**: T047 rerun after field-correction implementation; PR 58 is the integration vehicle and the replacement Windows installer is smoke-verified
+**Status**: T047 follow-up rerun after the second field correction; PR 58 is the integration vehicle and the second replacement Windows installer is smoke-verified
 
 ## Architecture refactor
 
@@ -44,7 +44,15 @@
 
 ## Post-integration field correction
 
-> User observation on the first packaged candidate found four concrete regressions: Nomic remained required, incompatible models were not bottom-partitioned, gated Hugging Face setup remained manual, and progress motion/contrast/step accounting did not match the intended liquid global bar. The correction makes EmbeddingGemma 300M the sole required/default embedder across registry, installer, extension settings, and coding configuration; shares compatibility-first ordering across installer and Settings; adds browser device authorization with repo validation and manual-token fallback; and makes all weighted finalization steps visible while painting a repeating moving gradient and high-contrast percentage capsule. The replacement unsigned `dist/NexusSetup.exe` is 239.2 MB, SHA-256 `8D36450A6F5A751360E02548C6CC36BC622F4947D88F8F539B126312648B6769`, and passes version, registry, single-artifact, and embedded-desktop-payload smoke probes. Visual, live-account, clean-install, and repair-install observation of this replacement remains pending.
+> User observation on the first packaged candidate found four concrete regressions: Nomic remained required, incompatible models were not bottom-partitioned, gated Hugging Face setup remained manual, and progress motion/contrast/step accounting did not match the intended liquid global bar. The first correction made EmbeddingGemma 300M the sole required/default embedder, shared compatibility-first ordering, added an attempted browser authorization path, and made weighted finalization steps visible. Its unsigned artifact was 239.2 MB with SHA-256 `8D36450A6F5A751360E02548C6CC36BC622F4947D88F8F539B126312648B6769`; it is now superseded because field observation showed that OAuth still blocked and the progress segment moved too quickly with rectangular geometry.
+
+## Second packaged field correction
+
+> Root-cause inspection of Hugging Face Hub 1.29 proved that `huggingface_hub.login()` invokes `interpreter_login()`, which asks for a login method on stdin before opening the browser. The windowed PyInstaller executable has no console, so the worker waited indefinitely. Nexus now calls the library's device-code request and poll primitives directly, delivers the authorization URL to Qt's main thread, falls back to the OS browser launcher, exposes a selectable URL on launch failure, keeps Skip and manual-token controls enabled, and requests clean polling interruption before closing. The SANA INT4 dialog remains necessary only when the user explicitly selects that gated model; no gated model appears in `recommended.json` defaults.
+>
+> The progress widget no longer uses an indeterminate block or repeating bands. It starts determinate at 0%, paints the filled fraction as an inset rounded pill, and moves one broad glass highlight through that stationary fill on a 12-second cycle. Reduced motion uses a static centered highlight. A rendered 73% preview confirmed the pill silhouette, glass layer, and percentage capsule.
+>
+> Fresh verification: 43 focused OAuth/dialog/progress tests pass; strict MyPy passes all three changed source modules; the complete 1,275-case installer suite passes 1,272 tests with 3 skips; full installer Ruff passes. Repository-wide strict MyPy still reports the inherited 65-error baseline across 23 untouched files and is not expanded into this field fix. The rebuilt unsigned `dist/NexusSetup.exe` is 250,829,311 bytes (239.2 MB), SHA-256 `85350CE1FF3A1FBE9EC06D6332D7540B2A7AC1E889973E4623C45A803B653E58`. Frozen version, registry, single-artifact, and embedded-desktop-payload smoke probes pass, and recursive archive inspection confirms `huggingface_hub._login` plus `huggingface_hub.utils._oauth_device` are bundled. Packaged visual and live-account observation of this second replacement remains pending.
 
 ## Publish and integrate
 

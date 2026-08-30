@@ -23,15 +23,18 @@ written to the log; ``mask_token`` produces a safe form for UI confirmation.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import cast
 
 import httpx
 
 from nexus_installer.installer_state import InstallerState
 
-LoginFn = Callable[..., object]
-GetTokenFn = Callable[[], object]
+AuthorizeFn = Callable[[str, str], None]
+CancelFn = Callable[[], bool]
+RequestDeviceCodeFn = Callable[[], Mapping[str, object]]
+PollDeviceTokenFn = Callable[..., Mapping[str, object]]
 ValidateFn = Callable[[str, str], bool]
 HttpGetFn = Callable[..., object]
 
@@ -46,31 +49,66 @@ HF_MODEL_INFO_URL = "https://huggingface.co/api/models/{repo}"
 def browser_login_for_repo(
     repo: str,
     *,
-    login: LoginFn | None = None,
-    get_token: GetTokenFn | None = None,
+    authorize: AuthorizeFn,
+    cancelled: CancelFn | None = None,
+    request_device_code: RequestDeviceCodeFn | None = None,
+    poll_device_token: PollDeviceTokenFn | None = None,
     validate: ValidateFn | None = None,
 ) -> str | None:
     """Run Hugging Face browser device login and return a repo-valid token.
 
-    The library owns the OAuth device-code exchange and persists/refeshes the
-    token in its standard cache. The model publisher's gated-access form still
-    must be accepted by the user in a browser before validation can succeed.
-    Injectable callables keep the network/browser flow out of unit tests.
+    This deliberately calls the device-code primitives instead of
+    ``huggingface_hub.login``. The latter asks the user to choose a login method
+    on stdin before opening a browser, which cannot work in the windowed frozen
+    installer. The model publisher's gated-access form still must be accepted
+    by the user before validation can succeed. Injectable callables keep the
+    network/browser flow out of unit tests.
     """
     if not repo:
         return None
-    if login is None or get_token is None:
-        from huggingface_hub import get_token as hf_get_token
-        from huggingface_hub import login as hf_login
+    requester = request_device_code
+    poller = poll_device_token
+    if requester is None or poller is None:
+        from huggingface_hub import _login as hf_login
 
-        login = login or hf_login
-        get_token = get_token or hf_get_token
-    login(skip_if_logged_in=False)
-    token = get_token()
+        requester = requester or cast(
+            RequestDeviceCodeFn,
+            hf_login.request_device_code,  # type: ignore[attr-defined]
+        )
+        poller = poller or cast(
+            PollDeviceTokenFn,
+            hf_login.poll_device_token,  # type: ignore[attr-defined]
+        )
+
+    if cancelled and cancelled():
+        return None
+    device_info = requester()
+    verification_url = str(
+        device_info.get("verification_uri_complete")
+        or device_info.get("verification_uri")
+        or ""
+    )
+    user_code = str(device_info.get("user_code") or "")
+    if not verification_url:
+        return None
+    authorize(verification_url, user_code)
+
+    def _on_pending() -> None:
+        if cancelled and cancelled():
+            raise BrowserLoginCancelled
+
+    response = poller(device_info, on_pending=_on_pending)
+    if cancelled and cancelled():
+        return None
+    token = response.get("access_token")
     if not isinstance(token, str) or not token.strip():
         return None
     validator = validate or validate_token_for_repo
     return token.strip() if validator(repo, token.strip()) else None
+
+
+class BrowserLoginCancelled(Exception):
+    """Internal signal used to stop device polling after the dialog is closed."""
 
 
 def hf_token_from_env() -> str | None:

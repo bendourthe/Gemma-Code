@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import QDialog, QPushButton
 
-from nexus_installer.widgets.gated_auth_dialog import GatedAuthDialog
+from nexus_installer.widgets.gated_auth_dialog import HF_TOKENS_URL, GatedAuthDialog
 
 _ENTRY = {
     "displayName": "Stable Video Diffusion 1.1",
@@ -66,15 +67,79 @@ class TestGatedAuthDialog:
         tokens_btn = dlg.findChild(QPushButton, "openTokensButton")
         assert tokens_btn is not None and tokens_btn.isEnabled()
 
+    def test_license_button_opens_external_url(self, qt_app: object) -> None:
+        opened: list[str] = []
+        dlg = GatedAuthDialog(
+            dict(_ENTRY),
+            validate=lambda repo, tok: True,
+            open_url=lambda url: opened.append(url) or True,
+        )
+        dlg._open_license()
+        assert opened == [_ENTRY["licenseUrl"]]
+
+        dlg._open_tokens()
+        assert opened == [_ENTRY["licenseUrl"], HF_TOKENS_URL]
+
+    def test_failed_browser_launch_shows_copyable_url(self, qt_app: object) -> None:
+        dlg = GatedAuthDialog(
+            dict(_ENTRY),
+            validate=lambda repo, tok: True,
+            open_url=lambda url: False,
+        )
+        dlg._on_authorization_required("https://example.test/device", "ABCD")
+        assert "https://example.test/device" in dlg._status.text()
+        assert not dlg._status.isHidden()
+
+    def test_manual_and_skip_controls_stay_enabled_during_browser_login(
+        self, qt_app: object
+    ) -> None:
+        dlg = _dialog(qt_app, valid=True)
+        dlg._login_thread = type(
+            "RunningThread",
+            (),
+            {"isRunning": lambda self: True},
+        )()
+        dlg._sign_in_btn.setEnabled(False)
+        assert dlg._unlock_btn.isEnabled()
+        assert dlg._skip_btn.isEnabled()
+
     def test_browser_login_success_accepts_without_manual_token(
         self, qt_app: object
     ) -> None:
         dlg = GatedAuthDialog(
             dict(_ENTRY),
             validate=lambda repo, tok: True,
-            browser_login=lambda repo: "oauth-token",
+            browser_login=lambda repo, **kw: "oauth-token",
         )
         dlg._on_browser_login_finished("oauth-token", "")
+        assert dlg.token == "oauth-token"
+        assert dlg.result() == QDialog.Accepted
+
+    def test_sign_in_worker_opens_device_url_and_accepts(self, qt_app: object) -> None:
+        opened: list[str] = []
+
+        def fake_browser_login(repo: str, **kwargs: object) -> str:
+            assert repo == _ENTRY["source"]["repo"]
+            authorize = kwargs["authorize"]
+            assert callable(authorize)
+            authorize("https://example.test/device?code=ABCD", "ABCD")
+            return "oauth-token"
+
+        dlg = GatedAuthDialog(
+            dict(_ENTRY),
+            validate=lambda repo, tok: True,
+            browser_login=fake_browser_login,
+            open_url=lambda url: opened.append(url) or True,
+        )
+        dlg.show()
+        dlg._start_browser_login()
+        for _ in range(100):
+            qt_app.processEvents()
+            if dlg.result() == QDialog.Accepted:
+                break
+            QTest.qWait(5)
+
+        assert opened == ["https://example.test/device?code=ABCD"]
         assert dlg.token == "oauth-token"
         assert dlg.result() == QDialog.Accepted
 

@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import QProgressBar
 from nexus_installer.installer_state import InstallerState
 from nexus_installer.pages.installing import InstallingPage
 from nexus_installer.widgets.overall_progress import (
+    ANIMATION_CYCLE_MS,
     OVERALL_PROGRESS_HEIGHT,
     OverallProgressBar,
 )
@@ -65,6 +66,23 @@ def test_fixed_percentage_renders_a_moving_gradient(qt_app: object) -> None:
     second = bar.grab().toImage()
     assert bar.value() == value
     assert first != second
+
+
+def test_overall_animation_uses_a_slow_cycle(qt_app: object) -> None:
+    bar = OverallProgressBar(reduced_motion=False)
+    first = bar.animation_phase
+    bar._advance_gradient()
+    assert ANIMATION_CYCLE_MS >= 10_000
+    assert 0.0 < bar.animation_phase - first < 0.01
+
+
+def test_reset_is_stationary_zero_percent_not_a_travelling_segment(
+    qt_app: object,
+) -> None:
+    bar = OverallProgressBar(reduced_motion=False)
+    assert bar.minimum() == 0
+    assert bar.maximum() == 1000
+    assert bar.value() == 0
 
 
 def test_reduced_motion_never_starts_timer(qt_app: object) -> None:
