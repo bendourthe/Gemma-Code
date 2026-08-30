@@ -231,6 +231,7 @@ export type CodingSessionSendMessageRequestT = z.infer<
 // shapes; later phases will widen them as new agent surfaces are added.
 export const CodingSessionEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("token"), text: z.string() }),
+  z.object({ kind: z.literal("reasoning_delta"), text: z.string().min(1).max(16_384) }),
   z.object({
     kind: z.literal("toolCallHeader"),
     callId: z.string(),
@@ -325,6 +326,7 @@ export type ChatSessionSendMessageRequestT = z.infer<
 
 export const ChatSessionEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("token"), text: z.string() }),
+  z.object({ kind: z.literal("reasoning_delta"), text: z.string().min(1).max(16_384) }),
   z.object({
     kind: z.literal("done"),
     finishReason: z.string().optional(),
@@ -420,6 +422,7 @@ export const CodingSessionTurn = z
     assistantText: z.string(),
     inputTokens: z.number().int().nonnegative().nullable().optional(),
     reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningText: z.string().max(65_536).nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
     tokensEstimated: z.boolean().optional(),
     createdAt: z.string().optional(),
@@ -792,6 +795,7 @@ const ChatMessageDto = z.object({
   createdAt: z.number(),
   inputTokens: z.number().int().nonnegative().nullable().optional(),
   reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+  reasoningText: z.string().max(65_536).nullable().optional(),
   outputTokens: z.number().int().nonnegative().nullable().optional(),
   tokensEstimated: z.boolean().optional(),
 });
@@ -840,6 +844,7 @@ export const ChatExplorerAppendMessageRequest = z
     attachments: z.array(z.string()).optional(),
     inputTokens: z.number().int().nonnegative().nullable().optional(),
     reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningText: z.string().max(65_536).nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
     tokensEstimated: z.boolean().optional(),
   })
@@ -920,6 +925,7 @@ export const StudioSessionAppendTurnRequest = z
     mediaRef: z.string().nullable().optional(),
     inputTokens: z.number().int().nonnegative().nullable().optional(),
     reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+    reasoningText: z.string().max(65_536).nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
     tokensEstimated: z.boolean().optional(),
     visualUnits: z.number().int().nonnegative().nullable().optional(),
@@ -934,6 +940,7 @@ export const StudioSessionTurnResponse = z.object({
   createdAt: z.number(),
   inputTokens: z.number().int().nonnegative().nullable().optional(),
   reasoningTokens: z.number().int().nonnegative().nullable().optional(),
+  reasoningText: z.string().max(65_536).nullable().optional(),
   outputTokens: z.number().int().nonnegative().nullable().optional(),
   tokensEstimated: z.boolean().optional(),
   visualUnits: z.number().int().nonnegative().nullable().optional(),

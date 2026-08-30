@@ -93,6 +93,7 @@ interface Turn {
   activity?: AgentActivity;
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
   createdAt?: string;
@@ -128,6 +129,7 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
         pending: turn.pending,
         activity: turn.activity,
         reasoningTokens: turn.reasoningTokens ?? null,
+        reasoningText: turn.reasoningText ?? null,
         outputTokens: turn.outputTokens ?? null,
         tokensEstimated: turn.tokensEstimated,
       });
@@ -161,6 +163,15 @@ function usageFromCodingEvents(events: readonly CodingSessionEventT[]): {
     }
   }
   return { inputTokens: null, reasoningTokens: null, outputTokens: null };
+}
+
+function reasoningFromCodingEvents(events: readonly CodingSessionEventT[]): string | null {
+  const text = events
+    .filter((event) => event.kind === "reasoning_delta")
+    .map((event) => event.text)
+    .join("")
+    .slice(0, 65_536);
+  return text || null;
 }
 
 export interface CodingPageProps {
@@ -446,6 +457,7 @@ export function CodingPage({
         }
         const rendered = applyEvents(reply.value.events);
         const usage = usageFromCodingEvents(reply.value.events);
+        const reasoningText = reasoningFromCodingEvents(reply.value.events);
         const estimated =
           usage.inputTokens == null &&
           usage.reasoningTokens == null &&
@@ -459,6 +471,7 @@ export function CodingPage({
             rendered,
             inputTokens: estimated ? estimateTokens(text) : usage.inputTokens,
             reasoningTokens: usage.reasoningTokens,
+            reasoningText,
             outputTokens: estimated ? estimateTokens(rendered.text) : usage.outputTokens,
             tokensEstimated: estimated,
           },
@@ -522,6 +535,7 @@ export function CodingPage({
           rendered: { text: turn.assistantText, cards: [], done: true },
           inputTokens: turn.inputTokens ?? null,
           reasoningTokens: turn.reasoningTokens ?? null,
+          reasoningText: turn.reasoningText ?? null,
           outputTokens: turn.outputTokens ?? null,
           tokensEstimated: turn.tokensEstimated,
           createdAt: turn.createdAt,

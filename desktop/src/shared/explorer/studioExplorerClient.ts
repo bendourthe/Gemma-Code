@@ -222,6 +222,7 @@ export class InMemoryStudioExplorerClient implements StudioExplorerClient {
       createdAt: now,
       inputTokens: input.inputTokens,
       reasoningTokens: input.reasoningTokens,
+      reasoningText: input.reasoningText,
       outputTokens: input.outputTokens,
       tokensEstimated: input.tokensEstimated,
       visualUnits: input.visualUnits,

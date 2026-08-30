@@ -15,6 +15,7 @@
 
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
+import { redactSecrets } from "../../../core/observability/redactSecrets.js";
 import { sanitizeFtsQuery } from "../../../src/storage/embeddingUtils.js";
 import { createFtsTableAndTriggers } from "../../../src/storage/sqliteFts.js";
 import { secureDbPermissions } from "../../../src/storage/dbPermissions.js";
@@ -65,6 +66,7 @@ interface MessageRow {
   created_at: number;
   input_tokens?: number | null;
   reasoning_tokens?: number | null;
+  reasoning_text?: string | null;
   output_tokens?: number | null;
   tokens_estimated?: number | null;
 }
@@ -122,6 +124,7 @@ function rowToMessage(row: MessageRow): ChatMessageRecord {
     createdAt: row.created_at,
     inputTokens: nullableInt(row.input_tokens),
     reasoningTokens: nullableInt(row.reasoning_tokens),
+    reasoningText: row.reasoning_text ?? null,
     outputTokens: nullableInt(row.output_tokens),
     tokensEstimated: row.tokens_estimated === 1,
   };
@@ -187,6 +190,7 @@ export class ChatExplorerStore {
     this._addColumnIfMissing("chat_chats", "user_renamed", "INTEGER NOT NULL DEFAULT 0");
     this._addColumnIfMissing("chat_chat_messages", "input_tokens", "INTEGER");
     this._addColumnIfMissing("chat_chat_messages", "reasoning_tokens", "INTEGER");
+    this._addColumnIfMissing("chat_chat_messages", "reasoning_text", "TEXT");
     this._addColumnIfMissing("chat_chat_messages", "output_tokens", "INTEGER");
     this._addColumnIfMissing("chat_chat_messages", "tokens_estimated", "INTEGER NOT NULL DEFAULT 0");
 
@@ -528,6 +532,9 @@ export class ChatExplorerStore {
         : null;
     const inputTokens = input.inputTokens ?? null;
     const reasoningTokens = input.reasoningTokens ?? null;
+    const reasoningText = input.reasoningText
+      ? redactSecrets(input.reasoningText).slice(0, 65_536)
+      : null;
     const outputTokens = input.outputTokens ?? null;
     const tokensEstimated = input.tokensEstimated ? 1 : 0;
     // One transaction: a message that is stored but not counted (or the
@@ -537,8 +544,8 @@ export class ChatExplorerStore {
         .prepare(
           `INSERT INTO chat_chat_messages
              (id, chat_id, role, content, attachments, created_at,
-              input_tokens, reasoning_tokens, output_tokens, tokens_estimated)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              input_tokens, reasoning_tokens, reasoning_text, output_tokens, tokens_estimated)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -549,6 +556,7 @@ export class ChatExplorerStore {
           now,
           inputTokens,
           reasoningTokens,
+          reasoningText,
           outputTokens,
           tokensEstimated,
         );
@@ -569,6 +577,7 @@ export class ChatExplorerStore {
       createdAt: now,
       inputTokens,
       reasoningTokens,
+      reasoningText,
       outputTokens,
       tokensEstimated: tokensEstimated === 1,
     };

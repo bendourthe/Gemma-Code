@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bubbleTokenMetadata,
   calendarDayKey,
   formatBubbleTime,
   formatBubbleTokens,
@@ -32,31 +33,30 @@ describe("transcriptChrome", () => {
     expect(parseMessageTime(new Date(2026, 7, 24, 14, 15).toISOString())).not.toBeNull();
   });
 
-  // v2.2.9 Phase 1.3 (T003): full-word token copy; unknown counts omit the
-  // span (empty string), never an em dash and never a guessed 0.
-  it("prints full-word user token copy with correct pluralization", () => {
-    expect(formatBubbleTokens({ role: "user", inputTokens: 1 })).toBe("1 input token");
-    expect(formatBubbleTokens({ role: "user", inputTokens: 12 })).toBe("12 input tokens");
+  it("formats the compact total for user messages", () => {
+    expect(formatBubbleTokens({ role: "user", inputTokens: 1 })).toBe("(1 token)");
+    expect(formatBubbleTokens({ role: "user", inputTokens: 12 })).toBe("(12 tokens)");
     expect(formatBubbleTokens({ role: "user" })).toBe("");
   });
 
-  it("sums assistant reasoning + output into a total when both are known", () => {
+  it("sums all reported assistant parts without inventing missing fields", () => {
     expect(
-      formatBubbleTokens({ role: "assistant", reasoningTokens: 75, outputTokens: 96 }),
-    ).toBe("171 tokens (75 reasoning + 96 output)");
-    expect(
-      formatBubbleTokens({ role: "assistant", reasoningTokens: 12, outputTokens: 36 }),
-    ).toBe("48 tokens (12 reasoning + 36 output)");
+      formatBubbleTokens({ role: "assistant", inputTokens: 10, reasoningTokens: 75, outputTokens: 96 }),
+    ).toBe("(181 tokens)");
+    expect(formatBubbleTokens({ role: "assistant", outputTokens: 48 })).toBe("(48 tokens)");
   });
 
-  it("names the single known assistant part and omits unknown counts", () => {
-    expect(formatBubbleTokens({ role: "assistant", outputTokens: 48 })).toBe("48 output tokens");
-    expect(formatBubbleTokens({ role: "assistant", outputTokens: 1 })).toBe("1 output token");
-    expect(formatBubbleTokens({ role: "assistant", reasoningTokens: 75 })).toBe(
-      "75 reasoning tokens",
-    );
+  it("provides accessible details, unavailable labels, and estimate state", () => {
+    expect(
+      bubbleTokenMetadata({ role: "assistant", reasoningTokens: 75, tokensEstimated: true }),
+    ).toEqual({
+      total: 75,
+      label: "(75 tokens)",
+      detail: "Estimated. Input: unavailable. Reasoning: 75. Output: unavailable.",
+    });
     expect(formatBubbleTokens({ role: "assistant" })).toBe("");
     expect(formatBubbleTokens({ role: "system" })).toBe("");
+    expect(formatBubbleTokens({ role: "assistant", outputTokens: -2 })).toBe("");
   });
 
   it("keeps the new copy ASCII-only (no em dash)", () => {

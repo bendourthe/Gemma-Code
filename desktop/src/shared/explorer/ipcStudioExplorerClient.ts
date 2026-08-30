@@ -97,6 +97,7 @@ export function createIpcStudioExplorerClient(pillar: StudioPillar): StudioExplo
         mediaRef: input.mediaRef ?? null,
         ...(input.inputTokens !== undefined ? { inputTokens: input.inputTokens } : {}),
         ...(input.reasoningTokens !== undefined ? { reasoningTokens: input.reasoningTokens } : {}),
+        ...(input.reasoningText !== undefined ? { reasoningText: input.reasoningText } : {}),
         ...(input.outputTokens !== undefined ? { outputTokens: input.outputTokens } : {}),
         ...(input.tokensEstimated ? { tokensEstimated: true } : {}),
         ...(input.visualUnits !== undefined ? { visualUnits: input.visualUnits } : {}),

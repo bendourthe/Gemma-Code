@@ -23,6 +23,7 @@ import {
   IpcMethodError,
 } from "../protocol.js";
 import { estimateTokens } from "../../../../core/chat/sessionContextUsage.js";
+import { redactSecrets } from "../../../../core/observability/redactSecrets.js";
 import { requireModel, type SidecarModelEntry } from "./models.js";
 import type { AgentRunner } from "./headlessAgentRunner.js";
 import type { PersistedSession, PersistedTurn, SessionStore } from "./sessionStore.js";
@@ -32,6 +33,7 @@ interface SessionTurn {
   assistantText: string;
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
   createdAt?: string;
@@ -67,6 +69,7 @@ function copyTurn(turn: PersistedTurn | SessionTurn): SessionTurn {
     assistantText: turn.assistantText,
     inputTokens: turn.inputTokens,
     reasoningTokens: turn.reasoningTokens,
+    reasoningText: turn.reasoningText,
     outputTokens: turn.outputTokens,
     tokensEstimated: turn.tokensEstimated,
     createdAt: turn.createdAt,
@@ -97,6 +100,12 @@ function persistedTurnFromEvents(
   now: Date,
 ): SessionTurn {
   const assistantText = tokenTextFromEvents(events);
+  const reasoningText = redactSecrets(
+    events
+      .filter((event) => event.kind === "reasoning_delta")
+      .map((event) => event.text)
+      .join(""),
+  ).slice(0, 65_536) || null;
   const usage = usageFromCodingEvents(events);
   const hasReported =
     usage.inputTokens != null || usage.reasoningTokens != null || usage.outputTokens != null;
@@ -107,6 +116,7 @@ function persistedTurnFromEvents(
       assistantText,
       inputTokens: usage.inputTokens,
       reasoningTokens: usage.reasoningTokens,
+      ...(reasoningText ? { reasoningText } : {}),
       outputTokens: usage.outputTokens,
       tokensEstimated: false,
       createdAt,
@@ -117,6 +127,7 @@ function persistedTurnFromEvents(
     assistantText,
     inputTokens: estimateTokens(prompt),
     outputTokens: estimateTokens(assistantText),
+    ...(reasoningText ? { reasoningText } : {}),
     tokensEstimated: true,
     createdAt,
   };

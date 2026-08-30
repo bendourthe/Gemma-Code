@@ -60,6 +60,7 @@ export interface ChatMessageRecord {
   /** v2.2.7 Phase 2 -- null when the backend did not report usage. Never invent 0. */
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
 }
@@ -74,6 +75,7 @@ export interface AppendMessageInput {
   createdAt?: number;
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
 }

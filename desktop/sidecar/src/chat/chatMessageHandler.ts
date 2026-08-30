@@ -10,6 +10,7 @@
 // usage stays omitted (null at persist), never invented as 0.
 
 import { createHeadlessOllamaClient } from "../../../../modules/coding/llm/headlessOllamaClient.js";
+import { redactSecrets } from "../../../../core/observability/redactSecrets.js";
 import type { LLMClient, LLMMessage } from "../../../../modules/coding/llm/types.js";
 import type { ChatSessionEventT } from "../protocol.js";
 import type { SidecarModelEntry } from "../coding/models.js";
@@ -36,6 +37,8 @@ export interface ChatMessageHandlerOptions {
   readonly llm?: LLMClient;
 }
 
+const MAX_REASONING_TEXT_CHARS = 65_536;
+
 /**
  * Build the production chat runner. Streams the conversation through the local
  * model and collects token events; a fresh client call per turn. Errors become
@@ -49,6 +52,7 @@ export function createChatMessageHandler(
     const events: ChatSessionEventT[] = [];
     const usage = newUsage();
     let thinking = "";
+    let reasoningCaptured = 0;
     try {
       for await (const chunk of llm.streamChat(
         { model: input.model.id, messages: [...input.messages], stream: true },
@@ -56,7 +60,17 @@ export function createChatMessageHandler(
       )) {
         collectUsage(chunk, usage);
         const thinkDelta = chunk.message?.thinking ?? "";
-        if (thinkDelta) thinking += thinkDelta;
+        if (thinkDelta) {
+          thinking += thinkDelta;
+          const safeDelta = redactSecrets(thinkDelta).slice(
+            0,
+            Math.max(MAX_REASONING_TEXT_CHARS - reasoningCaptured, 0),
+          );
+          if (safeDelta) {
+            events.push({ kind: "reasoning_delta", text: safeDelta });
+            reasoningCaptured += safeDelta.length;
+          }
+        }
         const delta = chunk.message?.content ?? "";
         if (delta) events.push({ kind: "token", text: delta });
         if (chunk.done) break;

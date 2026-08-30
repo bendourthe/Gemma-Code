@@ -39,6 +39,7 @@ export interface PersistedTurn {
   readonly assistantText: string;
   readonly inputTokens?: number | null;
   readonly reasoningTokens?: number | null;
+  readonly reasoningText?: string | null;
   readonly outputTokens?: number | null;
   readonly tokensEstimated?: boolean;
   /** v2.2.7 Phase 4 -- ISO time for transcript chrome. Optional on older files. */
@@ -75,13 +76,13 @@ interface DiskSession extends Omit<PersistedSession, "messages"> {
 }
 
 interface SessionsFile {
-  /** Schema version: 1 = inline-only messages; 2 = dehydration-aware. */
+  /** Schema version: 1 = inline-only; 2 = dehydration; 3 = optional reasoning text. */
   readonly version: number;
   readonly sessions: readonly DiskSession[];
 }
 
-/** Schema version this store writes. Bumped from 1 in v1.6.0 Phase 3 (A1). */
-const SCHEMA_VERSION = 2;
+/** Older schemas remain readable because every added turn field is optional. */
+const SCHEMA_VERSION = 3;
 
 /** Default path for the shared session store: `<nexusHome>/sessions.json`. */
 export function defaultSessionStorePath(homeDirFn?: () => string): string {

@@ -10,10 +10,11 @@ import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKey
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 import {
+  bubbleTokenMetadata,
   formatBubbleTime,
-  formatBubbleTokens,
   parseMessageTime,
 } from "./transcriptChrome";
+import { ReasoningDisclosure } from "./ReasoningDisclosure";
 
 const COMPACT_MEDIA_STYLE: CSSProperties = {
   display: "block",
@@ -70,8 +71,33 @@ export function MessageBubble({
   const studioPending = isStudioPending(message);
   const handleSelect = () => onSelect?.(message);
   const caption = captionFor(message);
+  const purePending = Boolean(
+    message.pending &&
+      !message.content &&
+      !message.media &&
+      (!message.toolCards || message.toolCards.length === 0),
+  );
+  if (purePending) {
+    return <PendingMessage message={message} studioPending={studioPending} />;
+  }
   return (
-    <article
+    <div
+      data-testid={`message-shell-${message.id}`}
+      style={{
+        width: "fit-content",
+        maxWidth: message.media ? "min(100%, 28rem)" : "80%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {message.role === "assistant" ? (
+        <ReasoningDisclosure
+          messageId={message.id}
+          text={message.reasoningText}
+          tokenCount={message.reasoningTokens}
+        />
+      ) : null}
+      <article
       data-testid={`message-bubble-${message.id}`}
       data-role={message.role}
       {...(selectable
@@ -91,8 +117,6 @@ export function MessageBubble({
       style={bubbleStyle(message, selectable)}
     >
       {caption}
-      {/* v2.2.9 Phase 1.3 (T003): meta sits ABOVE the body, never on pending rows. */}
-      {message.pending ? null : <BubbleMeta message={message} locale={locale} />}
       {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
       {message.attachments && message.attachments.length > 0 && (
         <div
@@ -199,7 +223,47 @@ export function MessageBubble({
           ))}
         </ul>
       )}
-    </article>
+      </article>
+      {message.pending ? null : <BubbleMeta message={message} locale={locale} />}
+    </div>
+  );
+}
+
+function PendingMessage({
+  message,
+  studioPending,
+}: {
+  message: ChatMessage;
+  studioPending: boolean;
+}): JSX.Element {
+  return (
+    <div
+      data-testid={`message-pending-${message.id}`}
+      role="status"
+      aria-label={studioPending ? "Generating media" : "Generating reply"}
+      style={{
+        color: "var(--fg-muted)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: studioPending ? "center" : "flex-start",
+        justifyContent: "center",
+        gap: "var(--space-2)",
+        width: studioPending ? "100%" : "fit-content",
+        minHeight: studioPending ? "12rem" : undefined,
+      }}
+    >
+      <AgentStateOrb
+        activity={message.activity ?? "chat-streaming"}
+        size={studioPending ? "hero" : "bubble"}
+        showCaption
+        rotateCaptions={!studioPending}
+        accessibleName={studioPending ? undefined : "Generating reply"}
+        surfaceId={`message-${message.id}`}
+      />
+      {message.progress && message.progress.total > 0 ? (
+        <progress value={message.progress.step} max={message.progress.total} />
+      ) : null}
+    </div>
   );
 }
 
@@ -211,17 +275,18 @@ function BubbleMeta({
   locale?: string;
 }): JSX.Element | null {
   const when = parseMessageTime(message.timestamp);
-  const tokens = formatBubbleTokens(message);
+  const tokens = bubbleTokenMetadata(message);
   // Nothing known: no empty chrome row above the text.
-  if (!when && tokens.length === 0) return null;
+  if (!when && !tokens) return null;
   return (
     <div
       data-testid={`message-meta-${message.id}`}
       style={{
         display: "flex",
         alignItems: "baseline",
-        gap: "var(--space-2)",
-        marginBottom: "var(--space-1)",
+        justifyContent: "space-between",
+        gap: "var(--space-4)",
+        marginTop: "var(--space-1)",
         color: "var(--fg-muted)",
         fontSize: "var(--text-xs)",
       }}
@@ -234,8 +299,16 @@ function BubbleMeta({
           {formatBubbleTime(when, locale)}
         </time>
       ) : null}
-      {tokens.length > 0 ? (
-        <span data-testid={`message-tokens-${message.id}`}>{tokens}</span>
+      {tokens ? (
+        <span
+          data-testid={`message-tokens-${message.id}`}
+          tabIndex={0}
+          title={tokens.detail}
+          aria-label={`${tokens.label}. ${tokens.detail}`}
+          style={{ fontStyle: "italic", marginLeft: "auto" }}
+        >
+          {tokens.label}
+        </span>
       ) : null}
     </div>
   );
@@ -434,16 +507,16 @@ function bubbleStyle(message: ChatMessage, selectable = false): CSSProperties {
   }
   return {
     width: "fit-content",
-    maxWidth: message.media ? "min(100%, 28rem)" : "80%",
+    maxWidth: "100%",
     boxSizing: "border-box",
     padding: "var(--space-2) var(--space-3)",
     borderRadius: "var(--radius-lg, 12px)",
-    border: `1px solid ${user ? "var(--border-subtle, #2a2a2a)" : "var(--border-1)"}`,
+    border: "1px solid var(--bubble-border, var(--border-1))",
     backgroundColor: system
       ? "transparent"
       : user
-        ? "color-mix(in srgb, var(--bg-2, #2a2a2a) 70%, transparent)"
-        : "color-mix(in srgb, var(--bg-1, #1b1b1b) 85%, transparent)",
+        ? "var(--bubble-user, var(--bg-2))"
+        : "var(--bubble-assistant, var(--bg-1))",
     color: "var(--fg-0)",
     ...(selectable ? { cursor: "pointer" } : {}),
   };

@@ -149,6 +149,7 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           mediaRef: input.attachments?.[0] ?? null,
           inputTokens: input.inputTokens,
           reasoningTokens: input.reasoningTokens,
+          reasoningText: input.reasoningText,
           outputTokens: input.outputTokens,
           tokensEstimated: input.tokensEstimated,
         }),
@@ -162,6 +163,7 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
             createdAt: turn.createdAt,
             inputTokens: turn.inputTokens,
             reasoningTokens: turn.reasoningTokens,
+            reasoningText: turn.reasoningText,
             outputTokens: turn.outputTokens,
             tokensEstimated: turn.tokensEstimated,
           };
@@ -181,6 +183,7 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           createdAt: turn.createdAt,
           inputTokens: turn.inputTokens,
           reasoningTokens: turn.reasoningTokens,
+          reasoningText: turn.reasoningText,
           outputTokens: turn.outputTokens,
           tokensEstimated: turn.tokensEstimated,
         })),

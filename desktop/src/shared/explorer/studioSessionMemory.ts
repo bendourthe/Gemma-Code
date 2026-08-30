@@ -59,6 +59,7 @@ export function studioTurnsToChatMessages(
         timestamp: isoTimestampFromMillis(turn.createdAt),
         inputTokens: turn.inputTokens ?? null,
         reasoningTokens: turn.reasoningTokens ?? null,
+        reasoningText: turn.reasoningText ?? null,
         outputTokens: turn.outputTokens ?? null,
         tokensEstimated: turn.tokensEstimated,
         ...(turn.mediaRef ? { attachments: [turn.mediaRef] } : {}),
@@ -73,6 +74,7 @@ export function studioTurnsToChatMessages(
         timestamp: isoTimestampFromMillis(turn.createdAt),
         inputTokens: turn.inputTokens ?? null,
         reasoningTokens: turn.reasoningTokens ?? null,
+        reasoningText: turn.reasoningText ?? null,
         outputTokens: turn.outputTokens ?? null,
         tokensEstimated: turn.tokensEstimated,
       };
@@ -84,6 +86,7 @@ export function studioTurnsToChatMessages(
         timestamp: isoTimestampFromMillis(turn.createdAt),
       inputTokens: turn.inputTokens ?? null,
       reasoningTokens: turn.reasoningTokens ?? null,
+      reasoningText: turn.reasoningText ?? null,
       outputTokens: turn.outputTokens ?? null,
       tokensEstimated: turn.tokensEstimated,
       ...(ref ? { media: { kind: mediaKind, src: ref } } : {}),

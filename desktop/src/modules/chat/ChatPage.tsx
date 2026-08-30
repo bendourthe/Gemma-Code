@@ -31,6 +31,7 @@ import type {
 } from "./chatExplorerClient";
 import {
   createChatIpcClient,
+  joinChatReasoning,
   joinChatReply,
   usageFromChatEvents,
   type ChatSessionClient,
@@ -446,6 +447,9 @@ export function ChatPage({
             ...(message.reasoningTokens !== undefined
               ? { reasoningTokens: message.reasoningTokens }
               : {}),
+            ...(message.reasoningText !== undefined
+              ? { reasoningText: message.reasoningText }
+              : {}),
             ...(message.outputTokens !== undefined ? { outputTokens: message.outputTokens } : {}),
             ...(message.tokensEstimated ? { tokensEstimated: true } : {}),
           }),
@@ -504,6 +508,7 @@ export function ChatPage({
       });
       let content: string;
       let usage = { inputTokens: null as number | null, reasoningTokens: null as number | null, outputTokens: null as number | null };
+      let reasoningText: string | null = null;
       try {
         const chat = activeChat;
         let sessionId = sessionIdsRef.current.get(chatId);
@@ -548,12 +553,13 @@ export function ChatPage({
           });
         }
         content = joinChatReply(reply.events) || "(no reply)";
+        reasoningText = joinChatReasoning(reply.events) || null;
         usage = usageFromChatEvents(reply.events);
       } catch (err) {
         content = formatChatTurnError(err);
       }
-      patchMessage(chatId, assistantId, { content, pending: false, ...usage });
-      void persistMessage(chatId, { id: assistantId, role: "assistant", content, ...usage });
+      patchMessage(chatId, assistantId, { content, pending: false, reasoningText, ...usage });
+      void persistMessage(chatId, { id: assistantId, role: "assistant", content, reasoningText, ...usage });
       return content;
     },
     [activeChat, appendMessage, chatSession, modelId, patchMessage, persistMessage, personaByChat],
@@ -1243,6 +1249,7 @@ function chatMessageFromRecord(record: ChatMessageRecord): ChatMessage {
     timestamp: isoTimestampFromMillis(record.createdAt),
     inputTokens: record.inputTokens ?? null,
     reasoningTokens: record.reasoningTokens ?? null,
+    reasoningText: record.reasoningText ?? null,
     outputTokens: record.outputTokens ?? null,
     tokensEstimated: record.tokensEstimated,
   };

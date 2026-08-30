@@ -10,6 +10,9 @@
   --bg-1: #11151f;
   --bg-2: #181d2a;
   --bg-elevated: #20263a;
+  /* Transcript roles use close neutral values, not pillar/status accents. */
+  --bubble-assistant: #141925;
+  --bubble-user: #1a2030;
 
   /* Foreground */
   --fg-0: #f5f7fb;
@@ -20,6 +23,7 @@
   /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-strong: rgba(255, 255, 255, 0.12);
+  --bubble-border: rgba(255, 255, 255, 0.09);
 
   /* v2.2.0 Phase 6 (6.4) -- compatibility aliases.
    *

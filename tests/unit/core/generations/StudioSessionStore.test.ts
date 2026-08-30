@@ -231,4 +231,23 @@ describe("StudioSessionStore", () => {
     expect(turns[2]?.visualUnits).toBe(0);
     expect(turns[2]?.inputTokens).toBeUndefined();
   });
+
+  it("round-trips redacted explicit reasoning in studio turn metadata", () => {
+    const store = mem();
+    const session = store.createSession({
+      pillar: "image",
+      folderId: null,
+      title: "Reasoning",
+      modelId: "sana",
+    });
+    store.appendTurn({
+      sessionId: session.id,
+      role: "assistant",
+      content: "Generated image",
+      reasoningText: "Inspect ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+    });
+    const turn = store.listTurns(session.id)[0];
+    expect(turn?.reasoningText).toContain("<redacted>");
+    expect(turn?.reasoningText).not.toContain("ghp_");
+  });
 });

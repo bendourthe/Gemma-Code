@@ -55,6 +55,8 @@ export interface ChatMessage {
   reasoningTokens?: number | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  /** Provider-exposed reasoning content only. Never inferred from ordinary output. */
+  reasoningText?: string | null;
 }
 
 export interface ChatMedia {

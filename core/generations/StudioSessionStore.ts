@@ -12,6 +12,7 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import BetterSqlite from "better-sqlite3";
 import type Database from "better-sqlite3";
+import { redactSecrets } from "../observability/redactSecrets.js";
 import { isStudioPillar, type StudioPillar } from "./StudioSessionStore.types.js";
 import type {
   AppendStudioTurnInput,
@@ -93,6 +94,7 @@ function extraJsonOk(raw: string | null): boolean {
 interface TurnUsageExtra {
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
   visualUnits?: number | null;
@@ -113,6 +115,8 @@ function parseTurnUsage(raw: string | null): TurnUsageExtra {
     const extra: TurnUsageExtra = {
       inputTokens: optionalNumber(obj.inputTokens),
       reasoningTokens: optionalNumber(obj.reasoningTokens),
+      reasoningText:
+        typeof obj.reasoningText === "string" ? obj.reasoningText.slice(0, 65_536) : null,
       outputTokens: optionalNumber(obj.outputTokens),
     };
     if (obj.tokensEstimated === true) extra.tokensEstimated = true;
@@ -131,6 +135,11 @@ function turnUsageExtraJson(input: AppendStudioTurnInput): string | null {
   const extra: TurnUsageExtra = {};
   if (input.inputTokens !== undefined) extra.inputTokens = input.inputTokens;
   if (input.reasoningTokens !== undefined) extra.reasoningTokens = input.reasoningTokens;
+  if (input.reasoningText !== undefined) {
+    extra.reasoningText = input.reasoningText
+      ? redactSecrets(input.reasoningText).slice(0, 65_536)
+      : null;
+  }
   if (input.outputTokens !== undefined) extra.outputTokens = input.outputTokens;
   if (input.tokensEstimated) extra.tokensEstimated = true;
   if (input.visualUnits !== undefined) extra.visualUnits = input.visualUnits;
@@ -431,6 +440,9 @@ export class StudioSessionStore {
       createdAt: now,
       inputTokens: input.inputTokens,
       reasoningTokens: input.reasoningTokens,
+      reasoningText: input.reasoningText
+        ? redactSecrets(input.reasoningText).slice(0, 65_536)
+        : input.reasoningText,
       outputTokens: input.outputTokens,
       tokensEstimated: input.tokensEstimated,
       visualUnits: input.visualUnits,

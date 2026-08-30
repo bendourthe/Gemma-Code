@@ -8,7 +8,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { CodingSessionManager } from "../sidecar/src/coding/sessionManager";
@@ -118,6 +118,13 @@ describe("JsonFileSessionStore", () => {
       title: "T",
       createdAt: "2026-06-14T00:00:00.000Z",
       messages: ["one"],
+      turns: [
+        {
+          prompt: "one",
+          assistantText: "answer",
+          reasoningText: "explicit provider reasoning",
+        },
+      ],
     };
     const a = new JsonFileSessionStore(storePath);
     a.upsert(session);
@@ -125,6 +132,32 @@ describe("JsonFileSessionStore", () => {
     const b = new JsonFileSessionStore(storePath);
     expect(b.get("abc")).toEqual(session);
     expect(b.list()).toHaveLength(1);
+  });
+
+  it("loads schema-v2 sessions that predate explicit reasoning text", () => {
+    const storePath = tempStorePath("schema-v2");
+    writeFileSync(
+      storePath,
+      JSON.stringify({
+        version: 2,
+        sessions: [
+          {
+            id: "old",
+            model: requireModel("gemma4:e4b"),
+            title: "Older session",
+            createdAt: "2026-06-14T00:00:00.000Z",
+            messages: ["one"],
+            turns: [{ prompt: "one", assistantText: "answer" }],
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const store = new JsonFileSessionStore(storePath);
+    expect(store.get("old")?.turns?.[0]).toEqual({
+      prompt: "one",
+      assistantText: "answer",
+    });
   });
 
   it("degrades to an empty store on a missing file", () => {

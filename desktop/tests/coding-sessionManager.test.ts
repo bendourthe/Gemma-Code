@@ -176,6 +176,24 @@ describe("CodingSessionManager", () => {
     });
   });
 
+  it("persists redacted explicit reasoning separately from assistant output", async () => {
+    const mgr = new CodingSessionManager({
+      now: () => new Date("2026-05-17T11:00:00Z"),
+      idFactory: () => "sess-reasoning",
+      agentRunner: async () => [
+        { kind: "reasoning_delta", text: "Check ghp_abcdefghijklmnopqrstuvwxyz1234567890" },
+        { kind: "token", text: "Safe answer" },
+        { kind: "done", finishReason: "stop", reasoningTokens: 4 },
+      ],
+    });
+    const { sessionId } = mgr.start({ modelId: "gemma4:e4b" });
+    await mgr.sendMessage(sessionId, "hi");
+    const turn = mgr.resume(sessionId).turns[0];
+    expect(turn?.assistantText).toBe("Safe answer");
+    expect(turn?.reasoningText).toContain("<redacted>");
+    expect(turn?.reasoningText).not.toContain("ghp_");
+  });
+
   it("renames and deletes a session", async () => {
     const mgr = makeMgr();
     const { sessionId } = mgr.start({ modelId: "gemma4:e4b", title: "Old title" });

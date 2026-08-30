@@ -131,6 +131,22 @@ describe("messages", () => {
     expect(messages[2]?.reasoningTokens).toBeNull();
     s.close();
   });
+
+  it("round-trips bounded redacted explicit reasoning separately from output", () => {
+    const s = store();
+    const chat = seedChat(s);
+    s.appendMessage({
+      chatId: chat.id,
+      role: "assistant",
+      content: "Safe answer",
+      reasoningText: "Inspect ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+    });
+    const message = s.listMessages(chat.id)[0];
+    expect(message?.content).toBe("Safe answer");
+    expect(message?.reasoningText).toContain("<redacted>");
+    expect(message?.reasoningText).not.toContain("ghp_");
+    s.close();
+  });
 });
 
 describe("persona", () => {

@@ -55,6 +55,7 @@ export interface IpcChatExplorerClient {
     attachments?: readonly string[];
     inputTokens?: number | null;
     reasoningTokens?: number | null;
+    reasoningText?: string | null;
     outputTokens?: number | null;
     tokensEstimated?: boolean;
   }): Promise<ChatMessageRecord>;
@@ -133,6 +134,7 @@ export function createIpcChatExplorerClient(): IpcChatExplorerClient {
           : {}),
         ...(input.inputTokens !== undefined ? { inputTokens: input.inputTokens } : {}),
         ...(input.reasoningTokens !== undefined ? { reasoningTokens: input.reasoningTokens } : {}),
+        ...(input.reasoningText !== undefined ? { reasoningText: input.reasoningText } : {}),
         ...(input.outputTokens !== undefined ? { outputTokens: input.outputTokens } : {}),
         ...(input.tokensEstimated ? { tokensEstimated: true } : {}),
       }),

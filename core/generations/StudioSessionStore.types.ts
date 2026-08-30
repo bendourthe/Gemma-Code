@@ -49,6 +49,7 @@ export interface StudioTurn {
   /** v2.2.7 Phase 2 -- null when usage is unknown. Never invent 0. */
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
   /** Usable visuals this turn. 0/omit for a 1x1 stub or failed generate. */
@@ -85,6 +86,7 @@ export interface AppendStudioTurnInput {
   createdAt?: number;
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
   visualUnits?: number | null;
