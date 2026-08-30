@@ -104,7 +104,8 @@ class TestRealMatrixDefaults:
             by_task.setdefault(model.task, []).append(mid)
 
         # Composition: always a chat model + agentic coverage (+ the embed
-        # support model), plus image, video, and speech on every GPU tier.
+        # support model), plus image and speech on every GPU tier. Video is
+        # included only when an uncensored video model fits the tier VRAM.
         # v1.9.0 Phase 4: agentic coverage can come from an agentic-capable
         # chat model (a Gemma 4 variant) rather than a distinct coder.
         agentic_covered = any(
@@ -114,12 +115,23 @@ class TestRealMatrixDefaults:
         assert agentic_covered, f"tier {tier}: no agentic-capable default"
         assert by_task.get("embed"), f"tier {tier}: no embed default"
         assert by_task.get("image"), f"tier {tier}: no image default"
-        assert by_task.get("video"), f"tier {tier}: no video default"
+        video_fits = any(
+            model.task == "video"
+            and model.uncensored
+            and model.required_vram_gb <= tier_vram
+            for model in models.values()
+        )
+        if video_fits:
+            assert by_task.get("video"), f"tier {tier}: no video default"
+        else:
+            assert not by_task.get("video"), (
+                f"tier {tier}: unexpected video default {by_task.get('video')}"
+            )
         assert by_task.get("audio"), f"tier {tier}: no audio (speech) default"
         assert by_task.get("document"), f"tier {tier}: no document (OCR) default"
 
         # Product decision: image + video defaults are uncensored entries.
-        for mid in by_task["image"] + by_task["video"]:
+        for mid in by_task["image"] + (by_task.get("video") or []):
             assert models[mid].uncensored, (
                 f"tier {tier}: default {mid} must be an uncensored entry"
             )

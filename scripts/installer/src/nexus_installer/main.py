@@ -203,6 +203,7 @@ def _run_headless(args: argparse.Namespace) -> int:
     from nexus_installer.engine.extension_installer import ExtensionInstaller
     from nexus_installer.engine.model_router import ModelStepRouter
     from nexus_installer.engine.ollama_installer import OllamaInstaller
+    from nexus_installer.engine.runtime_provisioner import RuntimeProvisioner
     from nexus_installer.engine.venv_installer import VenvInstaller
     from nexus_installer.installer_state import InstallerState
     from nexus_installer.smoke import (
@@ -317,6 +318,24 @@ def _run_headless(args: argparse.Namespace) -> int:
             lambda: provisioner.install(state, log),
         )
         (steps_done if ok else steps_failed).append("desktop")
+
+    # The GUI engine always wires the runtime after component work. Keep the
+    # packaged headless contract equivalent so field repair profiles can
+    # reclaim stale leases and prove the installed media environment.
+    import sys as _sys
+
+    payload_root = (
+        Path(getattr(_sys, "_MEIPASS", "")) / "payload"
+        if getattr(_sys, "frozen", False)
+        else None
+    )
+    ok = run_step(
+        "Wiring Desktop Runtime",
+        lambda: RuntimeProvisioner(
+            payload_root if payload_root and payload_root.is_dir() else None
+        ).install(state, log),
+    )
+    (steps_done if ok else steps_failed).append("runtime")
 
     success = not steps_failed
     summary = build_smoke_result(

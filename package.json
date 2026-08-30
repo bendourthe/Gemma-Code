@@ -1027,6 +1027,8 @@
     "check:audit-prod": "node scripts/check-prod-audit.mjs",
     "check:naming": "node scripts/check-no-devai-hub.mjs",
     "check:docs-layout": "node scripts/check-docs-layout.mjs",
+    "docs:handbooks": "node scripts/generate-handbooks.mjs",
+    "docs:handbooks:check": "node scripts/generate-handbooks.mjs --check",
     "mutate": "stryker run configs/stryker.config.json",
     "debug": "node scripts/debug/cli.mjs",
     "work": "node scripts/work.mjs",

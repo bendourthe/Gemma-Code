@@ -482,6 +482,10 @@ class RuntimeProvisioner:
                 "error",
             )
             return False
+        if self._selection_requires_diffusion(state) and diffusion.status != "ready":
+            # Node and runtime.json still exist so chat can start. Selected
+            # image/video capability is a required failure, not a successful run.
+            return False
         return wrote
 
 

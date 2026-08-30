@@ -59,7 +59,7 @@ describe("<MessageBubble>", () => {
     expect(tokens).toHaveAttribute("tabindex", "0");
     expect(tokens).toHaveAttribute(
       "title",
-      "Input: unavailable. Reasoning: 75. Output: 96.",
+      "Legacy count. Reasoning: 75. Output: 96.",
     );
     expect(tokens).toHaveStyle({ fontStyle: "italic" });
   });

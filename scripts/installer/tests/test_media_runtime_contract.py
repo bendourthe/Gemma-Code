@@ -97,6 +97,7 @@ def test_installed_media_harness_uses_sidecar_and_strict_probes() -> None:
         "diffusion.video.text2video",
         "diffusion.job.drainEvents",
         "NEXUS_DIFFUSION_ALLOW_STUB = '0'",
+        "NEXUS_VIDEO_OUTPUT_DIR",
         "sampledVariance",
         "nb_read_frames",
         "Get-FileHash",
@@ -104,3 +105,4 @@ def test_installed_media_harness_uses_sidecar_and_strict_probes() -> None:
         "Kill($true)",
     ):
         assert contract in harness
+    assert "mode = 'text2video'" not in harness

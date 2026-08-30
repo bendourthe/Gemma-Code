@@ -158,6 +158,7 @@ $ffprobe = Resolve-FirstFile @((Join-Path $env:LOCALAPPDATA 'Nexus\runtime\ffmpe
 Assert-Condition ($null -ne $ffprobe) 'ffprobe is missing from the installed media runtime and PATH.'
 $desktopExe = Resolve-FirstFile @((Join-Path $DesktopRoot 'Nexus AI Studio.exe'), (Join-Path $DesktopRoot 'Nexus.exe'), (Join-Path $DesktopRoot 'nexus-shell.exe'))
 
+$env:NEXUS_VIDEO_OUTPUT_DIR = $outputRoot
 $env:NEXUS_VIDEO_OUTPUTS_DIR = $outputRoot
 $env:NEXUS_DIFFUSION_ALLOW_STUB = '0'
 $env:PYTHONUNBUFFERED = '1'
@@ -198,14 +199,14 @@ try {
     $imageJob = Invoke-SidecarRequest -Process $process -Id 2 -Method 'diffusion.txt2img' -Params @{
         modelId = $ImageModelId; prompt = 'A small blue glass sphere on a neutral studio background'; negativePrompt = ''
         width = 512; height = 512; steps = $ImageSteps; cfgScale = 5.0; sampler = 'euler_a'; seed = 2401; batchSize = 1; latentPreview = $false
-    }
+    } -RequestTimeoutSeconds $TimeoutSeconds
     $imageComplete = Wait-Generation -Process $process -JobId $imageJob.jobId -FirstRequestId 100 -Deadline $deadline
     Assert-Condition ($null -ne $imageComplete.png) 'Image job completed without PNG bytes.'
     $report.image = Get-PngEvidence -Bytes ([Convert]::FromBase64String([string]$imageComplete.png)) -Path (Join-Path $outputRoot "$attemptId.png")
     $videoJob = Invoke-SidecarRequest -Process $process -Id 3 -Method 'diffusion.video.text2video' -Params @{
-        modelId = $VideoModelId; mode = 'text2video'; prompt = 'A blue glass sphere rotating slowly on a neutral studio background'; negativePrompt = ''
+        modelId = $VideoModelId; prompt = 'A blue glass sphere rotating slowly on a neutral studio background'; negativePrompt = ''
         width = 854; height = 480; durationSeconds = 1; fps = 12; steps = $VideoSteps; cfgScale = 5.0; sampler = 'euler_a'; seed = 2401; latentPreview = $false
-    }
+    } -RequestTimeoutSeconds $TimeoutSeconds
     $videoComplete = Wait-Generation -Process $process -JobId $videoJob.jobId -FirstRequestId 10000 -Deadline $deadline
     Assert-Condition ($null -ne $videoComplete.outputPath) 'Video job completed without an output path.'
     $report.video = Get-VideoEvidence -Path ([string]$videoComplete.outputPath) -Ffprobe $ffprobe

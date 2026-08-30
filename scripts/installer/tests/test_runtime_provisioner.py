@@ -54,6 +54,7 @@ class TestRuntimeConfigWrite:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock
     ) -> None:
         monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+        monkeypatch.setattr(rp, "venv_dir", lambda: tmp_path / "missing-venv")
         state = InstallerState()
         ok = rp.write_runtime_config(state, log, node_path=None, diffusion_cwd=None)
         assert ok is True
@@ -196,10 +197,11 @@ class TestRuntimeProvisionerStep:
         assert data["repairAttempt"]["attemptId"] is not None
         assert data["repairAttempt"]["status"] == "ready"
 
-    def test_failed_media_repair_keeps_core_runtime_success(
+    def test_failed_media_repair_writes_contract_and_fails_required_runtime(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock
     ) -> None:
         monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+        monkeypatch.setattr(rp, "venv_dir", lambda: tmp_path / "missing-venv")
         node = tmp_path / "node.exe"
         node.write_bytes(b"stub")
         monkeypatch.setattr(rp, "provision_node", lambda payload, log: node)
@@ -223,7 +225,7 @@ class TestRuntimeProvisionerStep:
 
         monkeypatch.setattr(rp, "DiffusionVenvProvisioner", FakeProvisioner)
         state = InstallerState(gpu_vendor="nvidia", selected_model_ids=["image"])
-        assert rp.RuntimeProvisioner().install(state, log) is True
+        assert rp.RuntimeProvisioner().install(state, log) is False
         data = json.loads(
             (tmp_path / ".nexus" / "runtime.json").read_text(encoding="utf-8")
         )

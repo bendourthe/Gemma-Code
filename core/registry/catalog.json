@@ -892,7 +892,7 @@
       },
       "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
       "origin": "USA",
-      "description": "NVIDIA's SANA 1.5 1.6B INT4 is a Nunchaku-quantized image model that fits 5 GB GPUs. It is the low-VRAM route to local 1024px generation on pre-Blackwell NVIDIA cards.",
+      "description": "NVIDIA's USA SANA 1.5 1.6B INT4 is a Nunchaku-quantized image model that fits 5 GB GPUs. It is the low-VRAM route to local 1024px generation on pre-Blackwell NVIDIA cards.",
       "strengths": [
         "Smallest capable 1024px model (1.4 GB, 5 GB VRAM)",
         "INT4 quantization with minimal quality loss",

@@ -101,6 +101,10 @@ describe("sidecar handlers", () => {
           "diffusion.segment",
           "diffusion.job.drainEvents",
           "diffusion.workflow.extract",
+          "diffusion.runtime.status",
+          "diffusion.runtime.repair",
+          "diffusion.runtime.cancelRepair",
+          "diffusion.runtime.openLogLocation",
           // v1.0.0 Phase 7 wired the video surface.
           "diffusion.video.text2video",
           "diffusion.video.image2video",

@@ -70,6 +70,17 @@ def load_smoke_profile(path: str | Path) -> dict[str, Any]:
         raise SmokeProfileError(
             f"profile {p}: 'selected_model_ids' must be a list of strings"
         )
+    gpu_vendor = data.get("gpu_vendor")
+    if gpu_vendor is not None and gpu_vendor not in {
+        "nvidia",
+        "amd",
+        "apple",
+        "intel",
+        "none",
+    }:
+        raise SmokeProfileError(
+            f"profile {p}: 'gpu_vendor' must name a supported hardware vendor"
+        )
     return data
 
 
@@ -90,6 +101,8 @@ def apply_smoke_profile(state: InstallerState, profile: dict[str, Any]) -> None:
         value = profile.get(key)
         if isinstance(value, str) and value:
             setattr(state, state_field, value)
+    if isinstance(profile.get("gpu_vendor"), str):
+        state.gpu_vendor = profile["gpu_vendor"]
 
 
 def build_smoke_result(

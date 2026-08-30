@@ -5,6 +5,9 @@ import { Readable, Writable } from "node:stream";
 import {
   ChildProcessDiffusionRuntime,
   InMemoryDiffusionRuntime,
+  DEFAULT_DIFFUSION_REQUEST_TIMEOUT_MS,
+  GENERATION_DIFFUSION_REQUEST_TIMEOUT_MS,
+  diffusionRequestTimeoutMs,
 } from "../sidecar/src/diffusion/runtimeClient";
 
 class FakeChild extends EventEmitter {
@@ -126,5 +129,26 @@ describe("ChildProcessDiffusionRuntime", () => {
     });
     await expect(rt.call("never", {})).rejects.toThrow(/timeout/);
     await rt.shutdown();
+  });
+});
+
+describe("diffusionRequestTimeoutMs", () => {
+  it("keeps status calls on the short default", () => {
+    expect(diffusionRequestTimeoutMs("runtime.status")).toBe(
+      DEFAULT_DIFFUSION_REQUEST_TIMEOUT_MS,
+    );
+  });
+
+  it("gives generation methods 30 minutes for first GPU model load", () => {
+    expect(diffusionRequestTimeoutMs("txt2img")).toBe(
+      GENERATION_DIFFUSION_REQUEST_TIMEOUT_MS,
+    );
+    expect(diffusionRequestTimeoutMs("video.text2video")).toBe(
+      GENERATION_DIFFUSION_REQUEST_TIMEOUT_MS,
+    );
+  });
+
+  it("honors an explicit override", () => {
+    expect(diffusionRequestTimeoutMs("txt2img", 50)).toBe(50);
   });
 });

@@ -300,3 +300,8 @@ desktop/src-tauri/Cargo.lock
 # artifact. It is regenerated from the local catalog on every installer build
 # and its manifest changes each time, so tracking it only produces noise.
 scripts/installer/build/hub-snapshot/
+
+# v2.4.1 field repair smoke output is host-specific and may include logs.
+docs/v2/v2.4/development/field-installer-repair-result.json
+docs/v2/v2.4/development/installed-media-smoke-report.json
+docs/v2/v2.4/development/artifacts/

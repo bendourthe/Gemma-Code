@@ -359,6 +359,35 @@ def test_sdxl_single_checkpoint_uses_from_single_file(
     ]
 
 
+def test_sdxl_fp16_diffusers_layout_requests_variant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    (tmp_path / "model_index.json").write_text("{}", encoding="utf-8")
+    unet = tmp_path / "unet"
+    unet.mkdir()
+    (unet / "diffusion_pytorch_model.fp16.safetensors").write_bytes(b"weights")
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class FakeAuto:
+        @staticmethod
+        def from_pretrained(path: str, **kwargs):
+            calls.append((path, kwargs))
+            return "pipe"
+
+    fake = types.ModuleType("diffusers")
+    fake.AutoPipelineForText2Image = FakeAuto
+    monkeypatch.setitem(sys.modules, "diffusers", fake)
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: "bf16")
+
+    assert real_execute._load_text_pipe(tmp_path, "realvisxl-v5") == "pipe"
+    assert calls == [
+        (
+            str(tmp_path),
+            {"torch_dtype": "bf16", "local_files_only": True, "variant": "fp16"},
+        )
+    ]
+
+
 def test_partial_sana_layout_fails_before_model_load(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -370,6 +399,27 @@ def test_partial_sana_layout_fails_before_model_load(
     with pytest.raises(base.RuntimeNotReady) as excinfo:
         real_execute._load_text_pipe(tmp_path, "sana-1.6b-1024")
     assert excinfo.value.kind == "model-layout-invalid"
+
+
+def test_clip_frames_for_export_does_not_boolean_test_numpy_batch():
+    class AmbiguousArray(list):
+        def __bool__(self):
+            raise ValueError(
+                "The truth value of an array with more than one element is ambiguous."
+            )
+
+    batch = AmbiguousArray([AmbiguousArray([object(), object()])])
+    result = types.SimpleNamespace(frames=batch)
+    frames = real_execute._clip_frames_for_export(result)
+    assert len(frames) == 2
+
+
+def test_align_spatial_makes_advertised_480p_legal_for_wan():
+    assert real_execute._align_spatial(854) == 848
+    assert real_execute._align_spatial(480) == 480
+    assert real_execute._align_spatial(1280) == 1280
+    assert real_execute._align_spatial(720) == 720
+    assert real_execute._align_spatial(15) == 16
 
 
 def test_wan_video_uses_complete_pipeline_and_atomically_finalizes_mp4(
@@ -437,6 +487,8 @@ def test_wan_video_uses_complete_pipeline_and_atomically_finalizes_mp4(
     assert result.mp4_path == str(output)
     assert output.read_bytes()[4:8] == b"ftyp"
     assert calls["kwargs"]["num_frames"] == 13
+    assert calls["kwargs"]["width"] == 848
+    assert calls["kwargs"]["height"] == 480
     assert calls["fps"] == 12
     assert not list(tmp_path.glob("*.partial.mp4"))
 

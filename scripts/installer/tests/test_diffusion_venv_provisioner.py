@@ -203,7 +203,10 @@ class TestCreateVenv:
 
 
 class TestInstallWheels:
-    def test_fails_when_venv_python_missing(self, tmp_path: Path) -> None:
+    def test_fails_when_venv_python_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(venv_mod, "_python_root", lambda: tmp_path / "python-root")
         payload = tmp_path / "payload"
         wheels = payload / "python" / "wheels"
         _hydrate_wheel_dir(wheels)
@@ -432,13 +435,14 @@ class TestVerifiedProvisioning:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         def timeout(*_args, **_kwargs):
-            raise subprocess.TimeoutExpired(["python"], 45)
+            raise subprocess.TimeoutExpired(["python"], venv_mod.SMOKE_TIMEOUT_SECONDS)
 
         monkeypatch.setattr(venv_mod.subprocess, "run", timeout)
         readiness = DiffusionVenvProvisioner._smoke(tmp_path, "cuda", lambda *_: None)
         assert readiness.status == "failed"
         assert readiness.failure_code == "SMOKE_TIMEOUT"
         assert readiness.retryable is True
+        assert venv_mod.SMOKE_TIMEOUT_SECONDS >= 180
 
     def test_failed_repair_preserves_existing_environment(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="source-sha256" content="7b4507b5e2f47de048fc19cce721f313ab7136dc60d6077df185b7a845a5be1c">
+  <title>Nexus v2.4 Architecture Atlas</title>
+  <style>body{font:16px/1.6 system-ui,sans-serif;max-width:72rem;margin:auto;padding:2rem;color:#172033;background:#f7f9fc}a{color:#075eb8}code,pre{font-family:ui-monospace,monospace}pre{overflow:auto;padding:1rem;background:#e9eef6;border-radius:.5rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bac5d6;padding:.5rem;text-align:left}</style>
+</head>
+<body>
+<h1>Nexus v2.4 Architecture Atlas</h1>
+<p>This walkthrough maps the durable user flows corrected for v2.4.1 to their owning components.</p>
+<table>
+<thead>
+<tr>
+<th>User flow</th>
+<th>Primary owner</th>
+<th>Supporting contract</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Install or repair media</td>
+<td><code>scripts/installer/</code></td>
+<td>Owner-aware lease and atomic runtime state</td>
+<td>Installer tests plus packaged operator run</td>
+</tr>
+<tr>
+<td>Generate an image</td>
+<td><code>desktop/sidecar/src/image/</code></td>
+<td>Shared diffusion readiness API</td>
+<td>PNG validator and retained artifact</td>
+</tr>
+<tr>
+<td>Generate a video</td>
+<td><code>desktop/sidecar/src/video/</code></td>
+<td>Shared diffusion readiness API</td>
+<td>Video probe and retained artifact</td>
+</tr>
+<tr>
+<td>Browse and install models</td>
+<td><code>core/registry/</code> and Settings</td>
+<td>Shared availability/recommendation tuple</td>
+<td>Cross-language rank fixture</td>
+</tr>
+<tr>
+<td>Read chat usage</td>
+<td><code>core/chat/</code> and shared chat UI</td>
+<td>Role-local token provenance</td>
+<td>Protocol, hydration, and UI tests</td>
+</tr>
+<tr>
+<td>Work across local folders</td>
+<td>Coding page and workspace scope</td>
+<td>Union-of-roots path boundary</td>
+<td>Picker, persistence, and denial tests</td>
+</tr>
+</tbody></table>
+<h2>End-to-end path</h2>
+<ol>
+<li>The installer validates catalog sources, prepares the desktop payload, and provisions the media runtime.</li>
+<li>The sidecar reads the atomic readiness record and exposes one repair contract to Image Studio and Video Lab.</li>
+<li>Generation jobs validate manifests before loading models and finalize artifacts before reporting success.</li>
+<li>The desktop renders truthful capability, model, transcript, archive, and workspace state from shared contracts.</li>
+<li>The packaged acceptance harness proves that the exact installer and installed runtime cross all boundaries successfully.</li>
+</ol>
+<p>Release-specific logs and test counts belong under <code>docs/v2/v2.4/development/</code>, not in this living atlas.</p>
+</body>
+</html>

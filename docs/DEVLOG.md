@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-30] v2.4.1 - generation recovery Phase 7 local gates
+
+Index: [plan](v2/v2.4/plans/v2.4.1-generation-recovery-and-ui-corrections.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.1-correction-phase-7-release.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-generation-recovery.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Packaged NVIDIA repair now reaches `runtime.json` schema 3 / `ready`. Installed sidecar produced one validated 512x512 PNG and one H.264 848x480 MP4 on the field RTX 3080 Ti host.
+- Headless installer always wires `RuntimeProvisioner`, fails when selected media is not ready, and uses a 300s diffusion smoke.
+- Sidecar generation RPC timeout is 30 minutes. Wan aligns 854x480 to 848x480. SDXL loads `variant=fp16`.
+- Added `scripts/check_release_preconditions.py`, `scripts/validate_unicode_safety.py`, and living `docs/handbooks/` HTML parity.
+
+### Why It Changed
+
+The Codex Phase 7 session stopped during live repair. Remaining work was the fail-closed media bar plus architecture/docs/CI reconciliation.
+
+### Decisions Made
+
+- No `.github/workflows` edit (QG-5). Integration target remains `develop`.
+- Reboot persistence, clean-install visuals, gated Hugging Face account, and packaged transcript/Agents screenshots stay Not observed.
+- T097 push/PR requires explicit approval. `/update release` waits on a green merge.
+
+---
+
 ## [2026-08-29] v2.3.1 - Windows installer field repair (release preparation)
 
 Index: [plan](v2/v2.3/plans/v2.3.1-installer-field-repair.md), [history](v2/v2.3/development/history/), [gaps](v2/v2.3/known-gaps.md), [evidence](v2/v2.3/development/v2.3.1-last-phase-evidence.md). Changelog is authoritative. Package **2.3.1**.

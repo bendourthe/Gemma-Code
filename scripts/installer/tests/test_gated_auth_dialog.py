@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
+import pytest
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton
 
@@ -86,14 +89,18 @@ class TestGatedAuthDialog:
         dlg._open_signup()
         assert opened[-1] == HF_SIGNUP_URL
 
-    def test_device_code_is_prominent_and_copyable(self, qt_app: object) -> None:
+    def test_device_code_is_prominent_and_copyable(
+        self, qt_app: object, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        clip = MagicMock()
+        monkeypatch.setattr(QApplication, "clipboard", staticmethod(lambda: clip))
         dlg = _dialog(qt_app, valid=True)
         dlg._on_authorization_required("https://example.test/device", "PCVG-D8GM")
         assert dlg._device_code.text() == "PCVG-D8GM"
         assert not dlg._code_row.isHidden()
         dlg._copy_device_code()
         assert dlg._copy_code_btn.text() == "Copied"
-        assert QApplication.clipboard().text() == "PCVG-D8GM"
+        clip.setText.assert_called_once_with("PCVG-D8GM")
 
     def test_failed_browser_launch_shows_copyable_url(self, qt_app: object) -> None:
         dlg = GatedAuthDialog(

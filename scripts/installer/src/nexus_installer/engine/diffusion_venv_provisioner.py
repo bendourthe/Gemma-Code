@@ -43,7 +43,10 @@ ProgressFn = Callable[[float], None]
 PROVISIONER_VERSION = "2.4.1"
 REPAIR_LEASE_SCHEMA_VERSION = 1
 ENVIRONMENT_MARKER = ".nexus-diffusion-environment.json"
-SMOKE_TIMEOUT_SECONDS = 45
+# First CUDA import of torch + diffusers on Windows can exceed a minute
+# (cold disk, Defender scanning new DLLs). 45s caused a field SMOKE_TIMEOUT
+# after a successful wheel install and deleted the staging environment.
+SMOKE_TIMEOUT_SECONDS = 300
 DOWNLOAD_CHUNK_SIZE = 1024 * 1024
 DOWNLOAD_TIMEOUT_SECONDS = 300
 
@@ -698,6 +701,11 @@ class DiffusionVenvProvisioner:
                 **no_window_kwargs(),
             )
         except subprocess.TimeoutExpired:
+            log(
+                "Diffusion import smoke timed out after "
+                f"{SMOKE_TIMEOUT_SECONDS}s; the environment was not activated.",
+                "error",
+            )
             return DiffusionProvisionResult(
                 status="failed",
                 backend=backend,

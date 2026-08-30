@@ -46,6 +46,14 @@ class TestProfileLoading:
         with pytest.raises(SmokeProfileError, match="components"):
             load_smoke_profile(p)
 
+    def test_unknown_gpu_vendor_raises(self, tmp_path: Path) -> None:
+        p = tmp_path / "badgpu.json"
+        p.write_text(
+            json.dumps({"name": "x", "gpu_vendor": "mystery"}), encoding="utf-8"
+        )
+        with pytest.raises(SmokeProfileError, match="gpu_vendor"):
+            load_smoke_profile(p)
+
     def test_bom_profile_loads(self, tmp_path: Path) -> None:
         """Windows PowerShell's `Out-File -Encoding utf8` prepends a BOM;
         operator-authored profiles must still load."""
@@ -81,6 +89,7 @@ class TestProfileApply:
                 "install_path": "/tmp/x",
                 "models_root": "/tmp/x/models",
                 "ollama_url": "http://127.0.0.1:11434",
+                "gpu_vendor": "nvidia",
             },
         )
         assert state.components_to_install == ["venv"]
@@ -88,6 +97,7 @@ class TestProfileApply:
         assert state.selected_model == ""  # legacy default must not leak
         assert state.install_path == "/tmp/x"
         assert state.models_root == "/tmp/x/models"
+        assert state.gpu_vendor == "nvidia"
 
     def test_absent_fields_leave_state(self) -> None:
         state = InstallerState()
@@ -189,3 +199,90 @@ class TestHeadlessSmokeCli:
             debug=False,
         )
         assert _run_headless(args) == 2
+
+    def test_runtime_wiring_is_mandatory_in_headless_profile(
+        self, tmp_path: Path
+    ) -> None:
+        import argparse
+        from unittest.mock import patch
+
+        from nexus_installer.main import _run_headless
+
+        profile = tmp_path / "runtime.json"
+        profile.write_text(
+            json.dumps(
+                {
+                    "name": "runtime",
+                    "components": [],
+                    "selected_model_ids": ["realvisxl-v5"],
+                    "gpu_vendor": "nvidia",
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = tmp_path / "result.json"
+        args = argparse.Namespace(
+            install_path=None,
+            ollama_url=None,
+            model=None,
+            skip_model=False,
+            skip_extension=False,
+            skip_desktop=False,
+            desktop_bundle=None,
+            headless_smoke=str(profile),
+            smoke_output=str(result),
+            json_output=False,
+            debug=False,
+        )
+        with patch(
+            "nexus_installer.engine.runtime_provisioner.RuntimeProvisioner"
+        ) as runtime:
+            runtime.return_value.install.return_value = True
+            assert _run_headless(args) == 0
+        runtime.return_value.install.assert_called_once()
+        payload = json.loads(result.read_text(encoding="utf-8"))
+        assert payload["steps_done"] == ["runtime"]
+        assert payload["steps_failed"] == []
+
+    def test_required_media_runtime_failure_fails_headless_run(
+        self, tmp_path: Path
+    ) -> None:
+        import argparse
+        from unittest.mock import patch
+
+        from nexus_installer.main import _run_headless
+
+        profile = tmp_path / "runtime-fail.json"
+        profile.write_text(
+            json.dumps(
+                {
+                    "name": "runtime-fail",
+                    "components": [],
+                    "selected_model_ids": ["realvisxl-v5"],
+                    "gpu_vendor": "nvidia",
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = tmp_path / "result.json"
+        args = argparse.Namespace(
+            install_path=None,
+            ollama_url=None,
+            model=None,
+            skip_model=False,
+            skip_extension=False,
+            skip_desktop=False,
+            desktop_bundle=None,
+            headless_smoke=str(profile),
+            smoke_output=str(result),
+            json_output=False,
+            debug=False,
+        )
+        with patch(
+            "nexus_installer.engine.runtime_provisioner.RuntimeProvisioner"
+        ) as runtime:
+            runtime.return_value.install.return_value = False
+            assert _run_headless(args) == 1
+        payload = json.loads(result.read_text(encoding="utf-8"))
+        assert payload["success"] is False
+        assert payload["steps_failed"] == ["runtime"]

@@ -101,9 +101,47 @@ def _move_pipe(pipe, offload_strategy: str) -> None:
     pipe.to("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def _clip_frames_for_export(result) -> list:
+    """Convert a Diffusers video output into a list of frames.
+
+    WanPipeline returns a numpy batch of shape (1, frames, height, width, channels).
+    Boolean tests on that array raise ValueError, so callers must use length.
+    """
+    raw = getattr(result, "frames", None)
+    if raw is None:
+        return []
+    try:
+        if len(raw) == 0:
+            return []
+        clip = raw[0]
+        return [clip[index] for index in range(len(clip))]
+    except TypeError:
+        return []
+
+
+def _align_spatial(value: int, multiple: int = 16) -> int:
+    """Round spatial size down to a model-legal multiple, never below the multiple.
+
+    Wan / Diffusers reject sizes that are not divisible by 16. The product
+    contract still advertises 854x480, so the executor aligns at the GPU
+    boundary instead of failing the advertised 480p preset.
+    """
+    aligned = (int(value) // multiple) * multiple
+    return max(multiple, aligned)
+
+
+def _pipeline_load_kwargs(weights: Path) -> dict[str, object]:
+    kwargs: dict[str, object] = {
+        "torch_dtype": _torch_dtype(),
+        "local_files_only": True,
+    }
+    if next(weights.rglob("*.fp16.safetensors"), None) is not None:
+        kwargs["variant"] = "fp16"
+    return kwargs
+
+
 def _load_text_pipe(weights: Path, model_id: str):
-    dtype = _torch_dtype()
-    kwargs = {"torch_dtype": dtype, "local_files_only": True}
+    kwargs = _pipeline_load_kwargs(weights)
     if (weights / "model_index.json").is_file():
         if model_id.lower().startswith("sana"):
             from diffusers import SanaPipeline  # type: ignore[import-not-found]
@@ -120,7 +158,10 @@ def _load_text_pipe(weights: Path, model_id: str):
             StableDiffusionXLPipeline,  # type: ignore[import-not-found]
         )
 
-        return StableDiffusionXLPipeline.from_single_file(str(checkpoints[0]), **kwargs)
+        return StableDiffusionXLPipeline.from_single_file(
+            str(checkpoints[0]),
+            **{key: value for key, value in kwargs.items() if key != "variant"},
+        )
     raise RuntimeNotReady(
         f"image runtime is not ready: model-layout-invalid: {model_id} does not "
         "contain a complete pipeline or one supported SDXL checkpoint",
@@ -233,22 +274,24 @@ def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
         _move_pipe(pipe, ctx.offload_strategy)
         requested_frames = max(1, ctx.params.duration_seconds * ctx.params.fps)
         num_frames = ((requested_frames - 1 + 3) // 4) * 4 + 1
+        width = _align_spatial(ctx.params.width)
+        height = _align_spatial(ctx.params.height)
         generator_device = "cuda" if gpu_ready() else "cpu"
         kwargs = {
             "prompt": ctx.params.prompt,
             "negative_prompt": ctx.params.negative_prompt or None,
             "num_inference_steps": ctx.params.steps,
             "guidance_scale": ctx.params.cfg_scale,
-            "width": ctx.params.width,
-            "height": ctx.params.height,
+            "width": width,
+            "height": height,
             "num_frames": num_frames,
             "generator": torch.Generator(device=generator_device).manual_seed(
                 ctx.params.seed
             ),
         }
         result = pipe(**kwargs)
-        frames = result.frames[0] if hasattr(result, "frames") else []
-        if not frames:
+        frames = _clip_frames_for_export(result)
+        if len(frames) == 0:
             raise RuntimeNotReady(
                 "video runtime is not ready: zero-frames: the model returned no frames",
                 kind="zero-frames",
@@ -279,6 +322,10 @@ def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
                 "method": ctx.params.mode,
                 "jobId": ctx.job_id,
                 "frames": len(frames),
+                "requestedWidth": ctx.params.width,
+                "requestedHeight": ctx.params.height,
+                "width": width,
+                "height": height,
             },
         )
     except RuntimeNotReady:

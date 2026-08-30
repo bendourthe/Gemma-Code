@@ -384,8 +384,11 @@ class InstallEngine(QObject):
                 _payload_root if _payload_root and _payload_root.is_dir() else None
             ).install(state, log, on_runtime_progress),
             required=True,
-            summary="The desktop runtime could not be prepared.",
-            suggestion="Retry installation with network and disk access.",
+            summary="The desktop or media runtime could not be prepared.",
+            suggestion=(
+                "Retry installation. If image or video models were selected, "
+                "wait for the CUDA import smoke to finish, then repair again."
+            ),
             retryable=True,
         )
 

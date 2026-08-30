@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="source-sha256" content="002d73d096d83f36ee66f4d83870b349b2138b19a9a67eba06b7035b93034227">
+  <title>Local Media Runtime</title>
+  <style>body{font:16px/1.6 system-ui,sans-serif;max-width:72rem;margin:auto;padding:2rem;color:#172033;background:#f7f9fc}a{color:#075eb8}code,pre{font-family:ui-monospace,monospace}pre{overflow:auto;padding:1rem;background:#e9eef6;border-radius:.5rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bac5d6;padding:.5rem;text-align:left}</style>
+</head>
+<body>
+<h1>Local Media Runtime</h1>
+<p>The desktop sidecar exposes one vendor-neutral readiness and repair API from <code>desktop/sidecar/src/diffusion/runtimeFactory.ts</code>. Image and video runtimes consume that API rather than deriving readiness independently from GPU telemetry or model presence.</p>
+<p>Image generation validates model manifests, Python ABI, torch/CUDA readiness, and output decoding before success. Video generation also validates decoder/encoder availability and finalized container metadata. A generation failure remains retryable through the bounded Repair action and preserves the actual failure code.</p>
+<p>Packaged qualification is stronger than internal tests: the exact installed sidecar must produce a PNG with non-zero pixels and a video with valid codec, duration, frames, and dimensions.</p>
+</body>
+</html>

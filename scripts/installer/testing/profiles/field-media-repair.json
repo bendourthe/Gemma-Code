@@ -1,0 +1,11 @@
+{
+  "name": "field-media-repair",
+  "components": ["model", "desktop"],
+  "selected_model_ids": [
+    "embeddinggemma",
+    "realvisxl-v5",
+    "wan2.1-t2v-1.3b"
+  ],
+  "gpu_vendor": "nvidia",
+  "ollama_url": "http://127.0.0.1:11434"
+}
