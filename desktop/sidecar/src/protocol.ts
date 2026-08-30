@@ -192,6 +192,12 @@ export const ModelFamily = z.enum([
 ]);
 export type ModelFamilyT = z.infer<typeof ModelFamily>;
 
+const WorkspaceScopeFields = {
+  workspaceId: z.string().regex(/^ws-[a-f0-9]{24}$/).optional(),
+  workspaceRoots: z.array(z.string().min(1)).min(1).max(32).optional(),
+  primaryRoot: z.string().min(1).optional(),
+} as const;
+
 export const CodingSessionStartRequest = z
   .object({
     modelId: z.string().min(1),
@@ -200,8 +206,18 @@ export const CodingSessionStartRequest = z
     // are scoped to. When omitted, the sidecar falls back to NEXUS_WORKSPACE or
     // its cwd. Additive + optional, so existing callers are unaffected.
     workspacePath: z.string().min(1).optional(),
+    ...WorkspaceScopeFields,
   })
-  .strict();
+  .strict()
+  .superRefine((request, ctx) => {
+    if (request.primaryRoot && !request.workspaceRoots?.includes(request.primaryRoot)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["primaryRoot"],
+        message: "primaryRoot must be one of workspaceRoots",
+      });
+    }
+  });
 export type CodingSessionStartRequestT = z.infer<
   typeof CodingSessionStartRequest
 >;
@@ -212,6 +228,7 @@ export const CodingSessionStartResponse = z
     modelId: z.string().min(1),
     family: ModelFamily,
     createdAt: z.string().min(1),
+    ...WorkspaceScopeFields,
   })
   .strict();
 export type CodingSessionStartResponseT = z.infer<
@@ -404,6 +421,7 @@ export const CodingSessionSummary = z
     title: z.string(),
     createdAt: z.string(),
     messageCount: z.number().int().nonnegative(),
+    ...WorkspaceScopeFields,
   })
   .strict();
 export type CodingSessionSummaryT = z.infer<typeof CodingSessionSummary>;

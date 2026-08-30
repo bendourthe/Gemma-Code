@@ -16,11 +16,14 @@ import {
 import type { CodingSessionManager } from "../coding/sessionManager.js";
 import { SIDECAR_MODELS } from "../coding/models.js";
 import type { StudioRuntime } from "../generations/studioRuntime.js";
+import { createWorkspaceScope } from "../../../../core/project/WorkspaceScope.js";
+import { WorkspaceScopeStore } from "../../../../core/project/WorkspaceScopeStore.js";
 
 export interface JsonCliRouteDeps {
   readonly sessions: CodingSessionManager;
   readonly studio?: StudioRuntime;
   readonly listModels?: () => Promise<readonly { id: string; displayName?: string }[]>;
+  readonly workspaceStore?: WorkspaceScopeStore;
 }
 
 function queryId(path: string): string | null {
@@ -52,11 +55,20 @@ export function createJsonCliRoute(deps: JsonCliRouteDeps): ControlSurfaceRoute 
         const body = parseJsonBody(raw) as Record<string, unknown>;
         const modelId = typeof body.modelId === "string" ? body.modelId : "";
         if (!modelId) return write(400, { error: { code: "schema", message: "missing fields: modelId" } });
-        const started = deps.sessions.start({
+        const request = {
           modelId,
           title: typeof body.title === "string" ? body.title : undefined,
           workspacePath: typeof body.workspacePath === "string" ? body.workspacePath : undefined,
-        });
+          workspaceId: typeof body.workspaceId === "string" ? body.workspaceId : undefined,
+          workspaceRoots: Array.isArray(body.workspaceRoots)
+            ? body.workspaceRoots.filter((root): root is string => typeof root === "string")
+            : undefined,
+          primaryRoot: typeof body.primaryRoot === "string" ? body.primaryRoot : undefined,
+        };
+        const store = deps.workspaceStore ?? new WorkspaceScopeStore();
+        const previous = request.workspaceId ? store.get(request.workspaceId) : undefined;
+        const scope = await createWorkspaceScope(request, { previous });
+        const started = deps.sessions.startWithScope(request, store.upsert(scope));
         return write(200, started);
       }
 

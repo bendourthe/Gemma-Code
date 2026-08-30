@@ -331,6 +331,17 @@ describe("sidecar handlers", () => {
   });
 
   describe("coding session lifecycle", () => {
+    function inMemoryWorkspaceStore() {
+      const scopes = new Map<string, unknown>();
+      return {
+        get: (id: string) => scopes.get(id),
+        upsert: (scope: { workspaceId: string }) => {
+          scopes.set(scope.workspaceId, scope);
+          return scope;
+        },
+      };
+    }
+
     it("start -> sendMessage -> cancel -> list happy path", async () => {
       const ctx = makeCtx();
       const start = (await dispatch(
@@ -397,6 +408,34 @@ describe("sidecar handlers", () => {
       await expect(
         dispatch("coding.session.sendMessage", { sessionId: "x" }, makeCtx()),
       ).rejects.toThrow();
+    });
+
+    it("gives concurrent starts distinct sessions with the same workspace identity", async () => {
+      const ctx = makeCtx();
+      ctx.workspaceStore = inMemoryWorkspaceStore() as unknown as HandlerContext["workspaceStore"];
+      const first = (await dispatch("coding.session.start", { modelId: "gemma4:e4b" }, ctx)) as {
+        sessionId: string;
+        workspaceId: string;
+      };
+      const second = (await dispatch("coding.session.start", { modelId: "gemma4:e4b" }, ctx)) as {
+        sessionId: string;
+        workspaceId: string;
+      };
+      expect(first.sessionId).not.toBe(second.sessionId);
+      expect(first.workspaceId).toBe(second.workspaceId);
+    });
+
+    it("does not allocate a session when workspace persistence fails", async () => {
+      const ctx = makeCtx();
+      ctx.workspaceStore = {
+        get: () => undefined,
+        upsert: () => {
+          throw new Error("workspace storage unavailable");
+        },
+      } as unknown as HandlerContext["workspaceStore"];
+      await expect(dispatch("coding.session.start", { modelId: "gemma4:e4b" }, ctx))
+        .rejects.toThrow(/workspace storage unavailable/);
+      expect(ctx.sessions.size()).toBe(0);
     });
 
     it("sessions.list returns the same data as session.list", async () => {

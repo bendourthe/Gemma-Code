@@ -27,6 +27,10 @@ import { redactSecrets } from "../../../../core/observability/redactSecrets.js";
 import { requireModel, type SidecarModelEntry } from "./models.js";
 import type { AgentRunner } from "./headlessAgentRunner.js";
 import type { PersistedSession, PersistedTurn, SessionStore } from "./sessionStore.js";
+import {
+  workspaceScopeFromPersisted,
+  type WorkspaceScope,
+} from "../../../../core/project/WorkspaceScope.js";
 
 interface SessionTurn {
   prompt: string;
@@ -47,8 +51,20 @@ interface SessionRecord {
   messages: string[];
   turns: SessionTurn[];
   cancelRequested: boolean;
-  /** v1.7.0 -- project root the headless agent's tools are scoped to (in-memory). */
-  workspacePath?: string;
+  /** v2.4.1 -- immutable roots captured when the session starts. */
+  workspaceScope?: WorkspaceScope;
+}
+
+function scopeFromSession(session: PersistedSession): WorkspaceScope | undefined {
+  if (!session.workspaceRoots?.length && !session.workspacePath) return undefined;
+  return workspaceScopeFromPersisted({
+    workspaceRoots: session.workspaceRoots,
+    workspacePath: session.workspacePath,
+    primaryRoot: session.primaryRoot,
+    workspaceId: session.workspaceId,
+    createdAt: session.workspaceCreatedAt,
+    lastUsedAt: session.workspaceLastUsedAt,
+  });
 }
 
 function tokenTextFromEvents(events: readonly CodingSessionEventT[]): string {
@@ -173,6 +189,7 @@ export class CodingSessionManager {
             copyTurn,
           ),
           cancelRequested: false,
+          workspaceScope: scopeFromSession(s),
         });
       }
     }
@@ -188,11 +205,39 @@ export class CodingSessionManager {
       createdAt: rec.createdAt,
       messages: [...rec.messages],
       turns: turnsFromRecord(rec),
+      ...(rec.workspaceScope
+        ? {
+            workspacePath: rec.workspaceScope.primaryRoot,
+            workspaceId: rec.workspaceScope.workspaceId,
+            workspaceRoots: [...rec.workspaceScope.workspaceRoots],
+            identityRoots: [...rec.workspaceScope.identityRoots],
+            primaryRoot: rec.workspaceScope.primaryRoot,
+            workspaceLabel: rec.workspaceScope.displayLabel,
+            workspaceCreatedAt: rec.workspaceScope.createdAt,
+            workspaceLastUsedAt: rec.workspaceScope.lastUsedAt,
+          }
+        : {}),
     };
     this._store.upsert(persisted);
   }
 
   start(req: CodingSessionStartRequestT): CodingSessionStartResponseT {
+    const scope =
+      req.workspaceRoots?.length || req.workspacePath
+        ? workspaceScopeFromPersisted({
+            workspaceRoots: req.workspaceRoots,
+            workspacePath: req.workspacePath,
+            primaryRoot: req.primaryRoot,
+            workspaceId: req.workspaceId,
+          })
+        : undefined;
+    return this.startWithScope(req, scope);
+  }
+
+  startWithScope(
+    req: CodingSessionStartRequestT,
+    workspaceScope: WorkspaceScope | undefined,
+  ): CodingSessionStartResponseT {
     const model = requireModel(req.modelId);
     const id = this._idFactory();
     const createdAt = this._now().toISOString();
@@ -205,7 +250,7 @@ export class CodingSessionManager {
       messages: [],
       turns: [],
       cancelRequested: false,
-      workspacePath: req.workspacePath,
+      workspaceScope,
     };
     this._sessions.set(id, rec);
     this._persist(rec);
@@ -214,6 +259,13 @@ export class CodingSessionManager {
       modelId: model.id,
       family: model.family,
       createdAt,
+      ...(workspaceScope
+        ? {
+            workspaceId: workspaceScope.workspaceId,
+            workspaceRoots: [...workspaceScope.workspaceRoots],
+            primaryRoot: workspaceScope.primaryRoot,
+          }
+        : {}),
     };
   }
 
@@ -240,7 +292,8 @@ export class CodingSessionManager {
           sessionId: rec.id,
           message,
           model: rec.model,
-          workspacePath: rec.workspacePath,
+          workspacePath: rec.workspaceScope?.primaryRoot,
+          workspaceScope: rec.workspaceScope,
         })
       : [
           { kind: "token", text: `Acknowledged: ${message.slice(0, 80)}` },
@@ -333,6 +386,7 @@ export class CodingSessionManager {
       messages: [...s.messages],
       turns: (s.turns ?? s.messages.map((prompt) => ({ prompt, assistantText: "" }))).map(copyTurn),
       cancelRequested: false,
+      workspaceScope: scopeFromSession(s),
     };
     this._sessions.set(rec.id, rec);
     return { session: this._summary(rec), parentFallback: false };
@@ -346,6 +400,13 @@ export class CodingSessionManager {
       title: rec.title,
       createdAt: rec.createdAt,
       messageCount: rec.messages.length,
+      ...(rec.workspaceScope
+        ? {
+            workspaceId: rec.workspaceScope.workspaceId,
+            workspaceRoots: [...rec.workspaceScope.workspaceRoots],
+            primaryRoot: rec.workspaceScope.primaryRoot,
+          }
+        : {}),
     };
   }
 

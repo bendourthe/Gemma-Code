@@ -9,6 +9,7 @@ import type { LLMChatRequest, LLMClient } from "../../modules/coding/llm/types";
 import { createHeadlessAgentRunner } from "../sidecar/src/coding/headlessAgentRunner";
 import { createScheduledHeadlessRunner } from "../sidecar/src/coding/scheduledHeadlessRunner";
 import { requireModel } from "../sidecar/src/coding/models";
+import { createWorkspaceScope } from "../../core/project/WorkspaceScope";
 
 let workspace: string;
 let catalogDir: string;
@@ -111,6 +112,26 @@ describe("headless run enrichment", () => {
         "lifecycle.session.reflection",
       ]),
     );
+  });
+
+  it("merges selected-root instructions in root order with provenance", async () => {
+    const second = path.join(workspace, "secondary-root");
+    await fs.mkdir(second);
+    await fs.writeFile(path.join(workspace, "AGENTS.md"), "Primary root rules.", "utf8");
+    await fs.writeFile(path.join(second, "AGENTS.md"), "Secondary root rules.", "utf8");
+    const scope = await createWorkspaceScope({ workspaceRoots: [workspace, second] });
+    const requests: LLMChatRequest[] = [];
+    const runner = createHeadlessAgentRunner({ llm: capturingLlm(requests), catalogDir });
+    await runner({
+      sessionId: "multi-root",
+      message: "inspect both roots",
+      model: requireModel("gemma4:e4b"),
+      workspaceScope: scope,
+    });
+    const prompt = systemPrompt(requests);
+    expect(prompt).toContain(`# Workspace instructions (${scope.workspaceRoots[0]})`);
+    expect(prompt).toContain(`# Workspace instructions (${scope.workspaceRoots[1]})`);
+    expect(prompt.indexOf("Primary root rules.")).toBeLessThan(prompt.indexOf("Secondary root rules."));
   });
 
   it("skips a scanner-blocked command body and continues with the base prompt", async () => {

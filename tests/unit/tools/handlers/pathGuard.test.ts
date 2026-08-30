@@ -15,6 +15,8 @@ import * as vscode from "vscode";
 import {
   workspaceRoot,
   resolveInsideWorkspace,
+  resolveInsideWorkspaceRoots,
+  resolveWorkspacePathPair,
 } from "../../../../src/tools/handlers/pathGuard.js";
 
 const realFolders = vscode.workspace.workspaceFolders;
@@ -127,6 +129,28 @@ describe("resolveInsideWorkspace ancestor walk mutant pins", () => {
       } catch {
         // best-effort
       }
+    }
+  });
+
+  it("allows absolute paths and path pairs across selected roots", () => {
+    const second = fs.mkdtempSync(path.join(os.tmpdir(), "pathguard-second-"));
+    try {
+      expect(resolveInsideWorkspaceRoots(path.join(second, "file.txt"), [realRoot, second], realRoot))
+        .toBe(path.join(fs.realpathSync(second), "file.txt"));
+      expect(resolveWorkspacePathPair("source.txt", path.join(second, "dest.txt"), [realRoot, second], realRoot))
+        .toEqual([path.join(realRoot, "source.txt"), path.join(fs.realpathSync(second), "dest.txt")]);
+    } finally {
+      fs.rmSync(second, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects either endpoint when a path pair leaves all selected roots", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "pathguard-pair-outside-"));
+    try {
+      expect(() => resolveWorkspacePathPair("source.txt", path.join(outside, "dest.txt"), [realRoot]))
+        .toThrow(/outside the workspace/);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
     }
   });
 });

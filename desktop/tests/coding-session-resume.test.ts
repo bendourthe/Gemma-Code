@@ -160,6 +160,31 @@ describe("JsonFileSessionStore", () => {
     });
   });
 
+  it("migrates a legacy workspacePath without changing the session id", () => {
+    const storePath = tempStorePath("legacy-workspace");
+    const legacyRoot = path.resolve(os.tmpdir());
+    writeFileSync(
+      storePath,
+      JSON.stringify({
+        version: 3,
+        sessions: [{
+          id: "legacy-session-id",
+          model: requireModel("gemma4:e4b"),
+          title: "Legacy workspace",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          messages: [],
+          workspacePath: legacyRoot,
+        }],
+      }),
+      "utf8",
+    );
+    const manager = new CodingSessionManager({ store: new JsonFileSessionStore(storePath) });
+    const summary = manager.list().sessions[0];
+    expect(summary?.sessionId).toBe("legacy-session-id");
+    expect(summary?.workspaceRoots).toEqual([legacyRoot]);
+    expect(summary?.primaryRoot).toBe(legacyRoot);
+  });
+
   it("degrades to an empty store on a missing file", () => {
     const store = new JsonFileSessionStore(tempStorePath("missing"));
     expect(store.list()).toEqual([]);

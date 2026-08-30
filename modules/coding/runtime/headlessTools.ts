@@ -44,8 +44,11 @@ export const HEADLESS_OUTPUT_BYTE_CAP = 64 * 1024;
 export const HEADLESS_TERMINAL_TIMEOUT_MS = 120_000;
 
 export interface HeadlessToolContext {
-  /** Absolute root the tools are scoped to; every path resolves inside it. */
+  /** Absolute primary root. Relative paths and the default terminal cwd use it. */
   readonly workdir: string;
+  /** Immutable selected-root snapshot. Defaults to [workdir] for compatibility. */
+  readonly workspaceRoots?: readonly string[];
+  readonly workspaceId?: string;
   /** Aborted when the per-task budget elapses; cooperative tools should stop. */
   readonly signal?: AbortSignal;
 }
@@ -83,6 +86,7 @@ export type HeadlessExec = (
   cwd: string,
   signal: AbortSignal | undefined,
   timeoutMs: number,
+  workspaceRoots?: readonly string[],
 ) => Promise<HeadlessExecOutcome>;
 
 /**
@@ -146,6 +150,7 @@ export interface HeadlessToolOptions {
     text: string;
     sourcePath: string;
     engine: string;
+    workspaceId?: string;
   }) => Promise<{ stored: boolean; reason?: string }>;
 }
 
@@ -177,18 +182,33 @@ function realThroughAncestor(absolute: string): string {
  * file inside the sandboxed working copy.
  */
 export function resolveInsideWorkdir(workdir: string, relOrAbs: string): string {
+  return resolveInsideWorkspaceRoots(workdir, [workdir], relOrAbs);
+}
+
+export function resolveInsideWorkspaceRoots(
+  primaryRoot: string,
+  workspaceRoots: readonly string[],
+  relOrAbs: string,
+): string {
   if (typeof relOrAbs !== "string" || relOrAbs.length === 0) {
     throw new Error("path argument is required.");
   }
-  const rootReal = realThroughAncestor(path.resolve(workdir));
+  const roots = workspaceRoots.length ? workspaceRoots : [primaryRoot];
+  const rootReals = roots.map((root) => realThroughAncestor(path.resolve(root)));
+  const primaryReal = realThroughAncestor(path.resolve(primaryRoot));
   const absolute = path.isAbsolute(relOrAbs)
     ? relOrAbs
-    : path.resolve(rootReal, relOrAbs);
+    : path.resolve(primaryReal, relOrAbs);
   const real = realThroughAncestor(absolute);
-  if (real !== rootReal && !real.startsWith(rootReal + path.sep)) {
-    throw new Error(`path "${relOrAbs}" resolves outside the working directory.`);
+  const inside = rootReals.some((root) => real === root || real.startsWith(root + path.sep));
+  if (!inside) {
+    throw new Error(`path "${relOrAbs}" resolves outside the selected workspace roots.`);
   }
   return real;
+}
+
+function resolveForContext(ctx: HeadlessToolContext, relOrAbs: string): string {
+  return resolveInsideWorkspaceRoots(ctx.workdir, ctx.workspaceRoots ?? [ctx.workdir], relOrAbs);
 }
 
 // --- helpers ---------------------------------------------------------------
@@ -226,7 +246,7 @@ function fail(error: string): HeadlessToolResult {
 
 /** Default terminal executor: spawn through the OS sandbox abstraction. */
 function createDefaultExec(enabled: boolean): HeadlessExec {
-  return (command, cwd, signal, timeoutMs) =>
+  return (command, cwd, signal, timeoutMs, workspaceRoots = [cwd]) =>
     new Promise<HeadlessExecOutcome>((resolve) => {
       let stdout = "";
       let stderr = "";
@@ -237,7 +257,9 @@ function createDefaultExec(enabled: boolean): HeadlessExec {
         env: process.env,
         signal,
         enabled,
-        policy: deriveDefaultPolicy(cwd),
+        policy: deriveDefaultPolicy(cwd, {
+          extraWritableRoots: workspaceRoots.filter((root) => path.resolve(root) !== path.resolve(cwd)),
+        }),
       });
       const timer = setTimeout(() => {
         if (!settled) {
@@ -295,7 +317,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     parameters: { path: { type: "string", description: "File path.", required: true } },
     async execute(args, ctx) {
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         const content = await fsp.readFile(abs, "utf8");
         return ok(capBytes(content, cap));
       } catch (err) {
@@ -313,7 +335,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     },
     async execute(args, ctx) {
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         await fsp.mkdir(path.dirname(abs), { recursive: true });
         await fsp.writeFile(abs, asString(args, "content"), "utf8");
         return ok(`wrote ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
@@ -332,7 +354,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     },
     async execute(args, ctx) {
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         await fsp.mkdir(path.dirname(abs), { recursive: true });
         await fsp.writeFile(abs, asString(args, "content"), { encoding: "utf8", flag: "wx" });
         return ok(`created ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
@@ -353,7 +375,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     },
     async execute(args, ctx) {
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         const oldText = asString(args, "old_text");
         const newText = asString(args, "new_text");
         const current = await fsp.readFile(abs, "utf8");
@@ -378,7 +400,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     parameters: { path: { type: "string", description: "File path.", required: true } },
     async execute(args, ctx) {
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         await fsp.rm(abs, { force: false });
         return ok(`deleted ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
       } catch (err) {
@@ -396,7 +418,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     async execute(args, ctx) {
       try {
         const rel = optString(args, "path") ?? ".";
-        const abs = resolveInsideWorkdir(ctx.workdir, rel);
+        const abs = resolveForContext(ctx, rel);
         const entries = await fsp.readdir(abs, { withFileTypes: true });
         const lines = entries
           .map((e) => `${e.isDirectory() ? "d" : "-"} ${e.name}`)
@@ -418,7 +440,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     async execute(args, ctx) {
       try {
         const pattern = asString(args, "pattern");
-        const root = resolveInsideWorkdir(ctx.workdir, optString(args, "path") ?? ".");
+        const root = resolveForContext(ctx, optString(args, "path") ?? ".");
         const hits: string[] = [];
         const walk = async (dir: string): Promise<void> => {
           const entries = await fsp.readdir(dir, { withFileTypes: true });
@@ -486,15 +508,20 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
   const runTerminal: HeadlessTool = {
     name: "run_terminal",
     description: "Run a shell command in the working directory and return its output.",
-    parameters: { command: { type: "string", description: "Shell command.", required: true } },
+    parameters: {
+      command: { type: "string", description: "Shell command.", required: true },
+      cwd: { type: "string", description: "Selected workspace directory to run in.", required: false },
+    },
     async execute(args, ctx) {
       try {
         const command = asString(args, "command");
+        const cwd = resolveForContext(ctx, optString(args, "cwd") ?? ".");
         const outcome = await exec(
           command,
-          ctx.workdir,
+          cwd,
           ctx.signal,
           HEADLESS_TERMINAL_TIMEOUT_MS,
+          ctx.workspaceRoots ?? [ctx.workdir],
         );
         const body = [
           outcome.stdout ? `stdout:\n${outcome.stdout}` : "",
@@ -538,7 +565,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
         return fail("parse_document is not available: no document runtime is configured.");
       }
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         const rawMax = args["max_pages"];
         if (rawMax !== undefined && (typeof rawMax !== "number" || !Number.isInteger(rawMax) || rawMax < 1)) {
           return fail("Invalid max_pages: must be a positive integer.");
@@ -561,6 +588,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
               text: redactSecrets(body),
               sourcePath: asString(args, "path"),
               engine: parsed.engine,
+              workspaceId: ctx.workspaceId,
             });
           } catch {
             /* ingest is best-effort; parse still succeeds */
@@ -585,7 +613,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     parameters: { path: { type: "string", description: "File path.", required: true } },
     async execute(args, ctx) {
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         const bytes = await fsp.readFile(abs);
         const hash = createHash("sha256").update(bytes).digest("hex");
         return ok(
@@ -611,7 +639,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     },
     async execute(args, ctx) {
       try {
-        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const abs = resolveForContext(ctx, asString(args, "path"));
         const rawTimeout = args["timeout_ms"];
         const timeoutMs =
           typeof rawTimeout === "number" && Number.isFinite(rawTimeout)

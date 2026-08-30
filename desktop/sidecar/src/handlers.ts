@@ -148,6 +148,8 @@ import {
   hubLayoutDir,
   nexusHome,
 } from "../../../core/storage/paths.js";
+import { createWorkspaceScope } from "../../../core/project/WorkspaceScope.js";
+import { WorkspaceScopeStore } from "../../../core/project/WorkspaceScopeStore.js";
 import {
   readHubVersionManifest,
   resolveHubLayout,
@@ -309,6 +311,8 @@ export interface HandlerContext {
    * Production uses `NEXUS_WORKSPACE` or `process.cwd()`; tests inject a temp dir.
    */
   workspacePath?: string;
+  /** v2.4.1 -- durable workspace registry used before coding session allocation. */
+  workspaceStore?: WorkspaceScopeStore;
   /** v1.18.0 Phase 4 -- persistent approval queue. Tests inject a memory inbox. */
   askInbox?: AskInbox;
   /** v1.18.0 Phase 4 -- local cron-style agent-run scheduler. */
@@ -356,6 +360,13 @@ function resolveServingRuntime(ctx: HandlerContext): ServingRuntime {
   if (ctx.serving) return ctx.serving;
   if (!_servingRuntime) _servingRuntime = createServingRuntime();
   return _servingRuntime;
+}
+
+let _workspaceStore: WorkspaceScopeStore | null = null;
+function resolveWorkspaceStore(ctx: HandlerContext): WorkspaceScopeStore {
+  if (ctx.workspaceStore) return ctx.workspaceStore;
+  if (!_workspaceStore) _workspaceStore = new WorkspaceScopeStore();
+  return _workspaceStore;
 }
 
 /**
@@ -1068,7 +1079,10 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "coding.session.start": async (params, ctx) => {
     const req = CodingSessionStartRequest.parse(params ?? {});
-    return ctx.sessions.start(req);
+    const previous = req.workspaceId ? resolveWorkspaceStore(ctx).get(req.workspaceId) : undefined;
+    const scope = await createWorkspaceScope(req, { previous });
+    const stored = resolveWorkspaceStore(ctx).upsert(scope);
+    return ctx.sessions.startWithScope(req, stored);
   },
   "coding.session.sendMessage": async (params, ctx) => {
     const req = CodingSessionSendMessageRequest.parse(params ?? {});

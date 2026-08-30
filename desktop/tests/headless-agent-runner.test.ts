@@ -159,7 +159,7 @@ describe("CodingSessionManager.sendMessage delegation", () => {
     const started = manager.start({ modelId: "gemma4:e4b", workspacePath: "/proj/root" });
     const events = await manager.sendMessage(started.sessionId, "hi");
     expect(events).toEqual([{ kind: "token", text: "REAL" }, { kind: "done" }]);
-    expect(seen[0]?.workspacePath).toBe("/proj/root");
+    expect(seen[0]?.workspacePath).toBe(path.resolve("/proj/root"));
   });
 
   it("falls back to the deterministic placeholder when no runner is wired", async () => {

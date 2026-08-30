@@ -58,6 +58,15 @@ export interface PersistedSession {
   readonly turns?: readonly PersistedTurn[];
   /** ISO timestamp while archived. Missing/null records are active. */
   readonly archivedAt?: string | null;
+  /** v2.4.1 -- immutable workspace snapshot. workspacePath is one-cycle compatibility. */
+  readonly workspacePath?: string;
+  readonly workspaceId?: string;
+  readonly workspaceRoots?: readonly string[];
+  readonly identityRoots?: readonly string[];
+  readonly primaryRoot?: string;
+  readonly workspaceLabel?: string;
+  readonly workspaceCreatedAt?: string;
+  readonly workspaceLastUsedAt?: string;
 }
 
 /** Persistence seam for `CodingSessionManager`. Synchronous to match the manager. */
@@ -81,13 +90,13 @@ interface DiskSession extends Omit<PersistedSession, "messages"> {
 }
 
 interface SessionsFile {
-  /** Schema version: 1 = inline-only; 2 = dehydration; 3 = optional reasoning text. */
+  /** Schema version: 1 = inline-only; 2 = dehydration; 3 = reasoning; 4 = workspace scope. */
   readonly version: number;
   readonly sessions: readonly DiskSession[];
 }
 
 /** Older schemas remain readable because every added turn field is optional. */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /** Default path for the shared session store: `<nexusHome>/sessions.json`. */
 export function defaultSessionStorePath(homeDirFn?: () => string): string {

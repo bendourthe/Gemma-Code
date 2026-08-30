@@ -56,6 +56,9 @@ export interface HeadlessRunOptions {
   readonly task: string;
   /** Absolute working directory every tool is scoped to. */
   readonly workdir: string;
+  /** Immutable selected roots; relative paths still use workdir. */
+  readonly workspaceRoots?: readonly string[];
+  readonly workspaceId?: string;
   /** Registry model id to run against. */
   readonly model: string;
   /** Extra base instructions prepended to the system prompt. */
@@ -312,6 +315,10 @@ export class HeadlessAgentSession {
         opts.onEvent?.({ kind: "toolCall", name: call.tool, args: call.parameters });
         const toolResult = await tool.execute(call.parameters, {
           workdir: opts.workdir,
+          workspaceRoots: opts.workspaceRoots
+            ? Object.freeze([...opts.workspaceRoots])
+            : Object.freeze([opts.workdir]),
+          workspaceId: opts.workspaceId,
           signal: opts.signal,
         });
         const burst = guards.recordToolOutcome(toolResult.success);

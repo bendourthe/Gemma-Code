@@ -59,16 +59,36 @@ function readUserMcpJson(filePath: string): Array<{ name: string }> {
 }
 
 export function loadUserMcpServers(workspacePath: string): readonly { name: string }[] {
+  return loadUserMcpServersForRoots(workspacePath ? [workspacePath] : []);
+}
+
+export function loadUserMcpServersForRoots(workspaceRoots: readonly string[]): readonly { name: string }[] {
   const byName = new Map<string, { name: string }>();
   for (const cfg of readUserMcpJson(path.join(os.homedir(), ".nexus", "mcp.json"))) {
     byName.set(cfg.name, cfg);
   }
-  if (workspacePath) {
-    for (const cfg of readUserMcpJson(path.join(workspacePath, ".nexus", "mcp.json"))) {
-      byName.set(cfg.name, cfg);
+  for (const workspacePath of workspaceRoots) {
+    if (workspacePath) {
+      for (const cfg of readUserMcpJson(path.join(workspacePath, ".nexus", "mcp.json"))) {
+        byName.set(cfg.name, cfg);
+      }
     }
   }
   return [...byName.values()];
+}
+
+function mergedDenyFiles(workspaceRoots: readonly string[]): McpToolDenyFile {
+  const servers: Record<string, { deniedTools: string[]; knownTools: string[] }> = {};
+  for (const root of workspaceRoots) {
+    const file = readMcpToolDenyFile(root);
+    for (const [name, policy] of Object.entries(file.servers)) {
+      const current = servers[name] ?? { deniedTools: [], knownTools: [] };
+      current.deniedTools = unique([...current.deniedTools, ...policy.deniedTools]);
+      current.knownTools = unique([...current.knownTools, ...(policy.knownTools ?? [])]);
+      servers[name] = current;
+    }
+  }
+  return { version: 1, servers };
 }
 
 function toolsForServer(
@@ -101,14 +121,16 @@ function unique(names: readonly string[]): string[] {
 
 export function listMcpRegistrySettings(opts: {
   readonly workspacePath: string;
+  readonly workspaceRoots?: readonly string[];
   readonly hub?: HubRegistryFilterResult;
   readonly userServers?: readonly { name: string }[];
 }): McpRegistryListDto {
-    const deny = opts.workspacePath
-      ? readMcpToolDenyFile(opts.workspacePath)
+  const workspaceRoots = opts.workspaceRoots?.length ? opts.workspaceRoots : opts.workspacePath ? [opts.workspacePath] : [];
+    const deny = workspaceRoots.length
+      ? mergedDenyFiles(workspaceRoots)
       : emptyMcpToolDenyFile();
   const hub = opts.hub ?? (opts.workspacePath ? readHubMcpRegistry() : { allowed: [], decisions: [] });
-  const userServers = opts.userServers ?? loadUserMcpServers(opts.workspacePath);
+  const userServers = opts.userServers ?? loadUserMcpServersForRoots(workspaceRoots);
   const servers: McpRegistryServerDto[] = [];
   const seen = new Set<string>();
 
@@ -141,6 +163,7 @@ export function listMcpRegistrySettings(opts: {
 
 export function setMcpRegistryToolDenied(opts: {
   readonly workspacePath: string;
+  readonly workspaceRoots?: readonly string[];
   readonly serverName: string;
   readonly toolName: string;
   readonly denied: boolean;

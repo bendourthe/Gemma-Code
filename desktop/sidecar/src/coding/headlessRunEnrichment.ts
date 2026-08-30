@@ -7,6 +7,7 @@ import { HUB_SKILL_SCAN_ALLOWLIST } from "../../../../core/skills/hubSkillScanAl
 import {
   catalogRoot,
   hubLayoutDir,
+  nexusHome,
   type HubLayoutKey,
 } from "../../../../core/storage/paths.js";
 import { resolveHubLayout } from "../../../../core/storage/hubVersionManifest.js";
@@ -46,6 +47,8 @@ export interface HeadlessRunEnrichment {
 
 export interface HeadlessRunEnrichmentOptions {
   readonly workspacePath: string;
+  readonly workspaceRoots?: readonly string[];
+  readonly workspaceId?: string;
   readonly message: string;
   readonly baseSystemInstructions?: string;
   readonly catalogDir?: string;
@@ -70,12 +73,12 @@ async function readOptionalFile(filePath: string): Promise<string | null> {
   }
 }
 
-async function readWorkspaceRules(workspacePath: string): Promise<readonly string[]> {
+async function readRulesDirectory(configDir: string): Promise<readonly string[]> {
   const ruleSections: string[] = [];
-  const singleRule = await readOptionalFile(path.join(workspacePath, ".nexus", "rules.md"));
+  const singleRule = await readOptionalFile(path.join(configDir, "rules.md"));
   if (singleRule?.trim()) ruleSections.push(singleRule.trim());
 
-  const rulesDir = path.join(workspacePath, ".nexus", "rules");
+  const rulesDir = path.join(configDir, "rules");
   let entries: string[] = [];
   try {
     entries = (await fs.readdir(rulesDir, { withFileTypes: true }))
@@ -142,11 +145,27 @@ export async function buildHeadlessRunEnrichment(
   }
 
   try {
-    const agents = await readOptionalFile(path.join(options.workspacePath, "AGENTS.md"));
-    if (agents?.trim()) instructionSections.push(`# Workspace instructions\n${agents.trim()}`);
-    const rules = await readWorkspaceRules(options.workspacePath);
-    if (rules.length > 0) {
-      instructionSections.push(`# Workspace rules\n${rules.join("\n\n")}`);
+    const userConfigRoot = nexusHome();
+    const userAgents = await readOptionalFile(path.join(userConfigRoot, "AGENTS.md"));
+    if (userAgents?.trim()) {
+      instructionSections.push(`# User instructions (${userConfigRoot})\n${userAgents.trim()}`);
+    }
+    const userRules = await readRulesDirectory(userConfigRoot);
+    if (userRules.length > 0) {
+      instructionSections.push(`# User rules (${userConfigRoot})\n${userRules.join("\n\n")}`);
+    }
+    const roots = options.workspaceRoots?.length
+      ? options.workspaceRoots
+      : [options.workspacePath];
+    for (const root of roots) {
+      const agents = await readOptionalFile(path.join(root, "AGENTS.md"));
+      if (agents?.trim()) {
+        instructionSections.push(`# Workspace instructions (${root})\n${agents.trim()}`);
+      }
+      const rules = await readRulesDirectory(path.join(root, ".nexus"));
+      if (rules.length > 0) {
+        instructionSections.push(`# Workspace rules (${root})\n${rules.join("\n\n")}`);
+      }
     }
   } catch (error) {
     logFailure(
@@ -235,6 +254,8 @@ export async function runEnrichedHeadlessSession(
     result = await options.session.run({
       task: options.message,
       workdir: options.workspacePath,
+      workspaceRoots: options.workspaceRoots ?? [options.workspacePath],
+      workspaceId: options.workspaceId,
       model: options.model,
       systemInstructions: enrichment.systemInstructions,
       skillBody: enrichment.skillBody,

@@ -5,6 +5,7 @@
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { CodingSessionManager } from "./coding/sessionManager.js";
+import { JsonFileSessionStore } from "./coding/sessionStore.js";
 import { createHeadlessAgentRunner } from "./coding/headlessAgentRunner.js";
 import { createScheduledHeadlessRunner } from "./coding/scheduledHeadlessRunner.js";
 import {
@@ -41,6 +42,7 @@ import {
   hubLayoutDir,
 } from "../../../core/storage/paths.js";
 import { resolveHubLayout } from "../../../core/storage/hubVersionManifest.js";
+import { WorkspaceScopeStore } from "../../../core/project/WorkspaceScopeStore.js";
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -78,7 +80,9 @@ const telemetry = new InProcessTelemetryBus();
 const hookBus = createHookBus(telemetry);
 const sessions = new CodingSessionManager({
   agentRunner: createHeadlessAgentRunner({ hookBus }),
+  store: new JsonFileSessionStore(),
 });
+const workspaceStore = new WorkspaceScopeStore();
 // v1.7.0: route Image Studio + Video Lab to the real Python diffusion runtime
 // (set NEXUS_DIFFUSION_INMEMORY=1 for a no-GPU dev/test host).
 const diffusion = createDiffusionRuntime(process.env);
@@ -124,6 +128,8 @@ const serving = createServingRuntime({ askInbox });
 const scheduler = new AgentRunScheduler({
   inbox: askInbox,
   workspacePath: process.env.NEXUS_WORKSPACE ?? process.cwd(),
+  workspaceRoots: [process.env.NEXUS_WORKSPACE ?? process.cwd()],
+  primaryRoot: process.env.NEXUS_WORKSPACE ?? process.cwd(),
   filePath: join(nexusHome(), "agent-schedules.json"),
   runHeadless: createScheduledHeadlessRunner({ hookBus }),
 });
@@ -139,6 +145,7 @@ const ctx = createHandlerContext(
   serving,
 );
 ctx.askInbox = askInbox;
+ctx.workspaceStore = workspaceStore;
 ctx.scheduler = scheduler;
 ctx.telemetry = telemetry;
 const studio = createStudioRuntime({
@@ -154,6 +161,7 @@ serving.gateway.surface.mount(
   createJsonCliRoute({
     sessions,
     studio,
+    workspaceStore,
     listModels: async () =>
       SIDECAR_MODELS.map((m) => ({ id: m.id, displayName: m.displayName })),
   }),

@@ -104,6 +104,50 @@ fn sidecar_restart(
     result
 }
 
+#[tauri::command]
+fn canonicalize_workspace_roots(paths: Vec<String>) -> Result<Vec<String>, String> {
+    if paths.is_empty() || paths.len() > 32 {
+        return Err("select between 1 and 32 workspace directories".to_string());
+    }
+    let mut canonical = Vec::with_capacity(paths.len());
+    let mut seen = std::collections::HashSet::new();
+    for raw in paths {
+        let candidate = std::path::PathBuf::from(&raw);
+        if !candidate.is_absolute() {
+            return Err(format!("workspace directory must be absolute: {raw}"));
+        }
+        let resolved = std::fs::canonicalize(&candidate)
+            .map_err(|error| format!("workspace directory is unavailable ({raw}): {error}"))?;
+        if !resolved.is_dir() {
+            return Err(format!("workspace path is not a directory: {raw}"));
+        }
+        let display = native_display_path(&resolved);
+        let key = if cfg!(windows) {
+            display.to_lowercase()
+        } else {
+            display.clone()
+        };
+        if seen.insert(key) {
+            canonical.push(display);
+        }
+    }
+    Ok(canonical)
+}
+
+fn native_display_path(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy().to_string();
+    #[cfg(windows)]
+    {
+        if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{unc}");
+        }
+        if let Some(local) = value.strip_prefix(r"\\?\") {
+            return local.to_string();
+        }
+    }
+    value
+}
+
 /// The restart body, factored out so the single-flight flag reset in
 /// `sidecar_restart` wraps exactly one call.
 fn restart_sidecar_locked(
@@ -306,6 +350,7 @@ pub fn run() {
 
     force_dark_app_mode();
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             sidecar: Mutex::new(None),
             status: Mutex::new(SidecarStatus::default()),
@@ -314,7 +359,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ipc_call,
             sidecar_status,
-            sidecar_restart
+            sidecar_restart,
+            canonicalize_workspace_roots
         ])
         .setup(|app| {
             // Window icon (title bar + taskbar): the transparent no-background

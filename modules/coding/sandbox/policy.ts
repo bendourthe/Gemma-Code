@@ -97,16 +97,17 @@ export function deriveDefaultPolicy(
     ...pathAliases(options.tmpDir ?? os.tmpdir()),
     ...extraWritable,
   ]);
+  const selectedRoots = [workspace, ...(options.extraWritableRoots ?? []).map(realOrSelf)];
 
   const denyRead: string[] = [];
   for (const name of DEFAULT_SECRET_DIR_NAMES) {
     const abs = path.join(homeDir, name);
-    if (isInside(workspace, abs)) continue;
+    if (selectedRoots.some((root) => isInside(root, abs))) continue;
     denyRead.push(abs);
   }
   for (const extra of options.extraDenyReadRoots ?? []) {
     const abs = realOrSelf(extra);
-    if (isInside(workspace, abs)) continue;
+    if (selectedRoots.some((root) => isInside(root, abs))) continue;
     denyRead.push(abs);
   }
 
