@@ -23,6 +23,11 @@ import {
   IpcMethodError,
 } from "../protocol.js";
 import { estimateTokens } from "../../../../core/chat/sessionContextUsage.js";
+import {
+  estimatedMessageUsage,
+  type MessageTokenUsageV1,
+  type RequestTokenUsageV1,
+} from "../../../../core/chat/tokenUsage.js";
 import { redactSecrets } from "../../../../core/observability/redactSecrets.js";
 import { requireModel, type SidecarModelEntry } from "./models.js";
 import type { AgentRunner } from "./headlessAgentRunner.js";
@@ -40,6 +45,9 @@ interface SessionTurn {
   reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  userMessageUsage?: MessageTokenUsageV1;
+  assistantMessageUsage?: MessageTokenUsageV1;
   createdAt?: string;
 }
 
@@ -88,6 +96,9 @@ function copyTurn(turn: PersistedTurn | SessionTurn): SessionTurn {
     reasoningText: turn.reasoningText,
     outputTokens: turn.outputTokens,
     tokensEstimated: turn.tokensEstimated,
+    requestUsage: turn.requestUsage,
+    userMessageUsage: turn.userMessageUsage,
+    assistantMessageUsage: turn.assistantMessageUsage,
     createdAt: turn.createdAt,
   };
 }
@@ -126,6 +137,22 @@ function persistedTurnFromEvents(
   const hasReported =
     usage.inputTokens != null || usage.reasoningTokens != null || usage.outputTokens != null;
   const createdAt = now.toISOString();
+  const requestUsage: RequestTokenUsageV1 | undefined = hasReported
+    ? {
+        version: 1,
+        inputTokens: usage.inputTokens,
+        reasoningTokens: usage.reasoningTokens,
+        outputTokens: usage.outputTokens,
+        provenance: { accuracy: "exact", source: "provider" },
+        raw: {
+          inputTokens: usage.inputTokens,
+          reasoningTokens: usage.reasoningTokens,
+          outputTokens: usage.outputTokens,
+        },
+      }
+    : undefined;
+  const userMessageUsage = estimatedMessageUsage("user", prompt);
+  const assistantMessageUsage = estimatedMessageUsage("assistant", assistantText, reasoningText);
   if (hasReported) {
     return {
       prompt,
@@ -135,6 +162,9 @@ function persistedTurnFromEvents(
       ...(reasoningText ? { reasoningText } : {}),
       outputTokens: usage.outputTokens,
       tokensEstimated: false,
+      requestUsage,
+      userMessageUsage,
+      assistantMessageUsage,
       createdAt,
     };
   }
@@ -145,6 +175,8 @@ function persistedTurnFromEvents(
     outputTokens: estimateTokens(assistantText),
     ...(reasoningText ? { reasoningText } : {}),
     tokensEstimated: true,
+    userMessageUsage,
+    assistantMessageUsage,
     createdAt,
   };
 }

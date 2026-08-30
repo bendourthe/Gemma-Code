@@ -72,22 +72,26 @@ export interface BubbleTokenMetadata {
 export function bubbleTokenMetadata(
   message: Pick<
     ChatMessage,
-    "role" | "inputTokens" | "reasoningTokens" | "outputTokens" | "tokensEstimated"
+    "role" | "inputTokens" | "reasoningTokens" | "outputTokens" | "tokensEstimated" | "messageUsage"
   >,
 ): BubbleTokenMetadata | null {
   if (message.role === "system") return null;
-  const input = numericOrNull(message.inputTokens);
-  const reasoning = numericOrNull(message.reasoningTokens);
-  const output = numericOrNull(message.outputTokens);
-  const known = [input, reasoning, output].filter((value): value is number => value !== null);
+  const usage = message.messageUsage;
+  const input = numericOrNull(usage?.inputTokens ?? message.inputTokens);
+  const reasoning = numericOrNull(usage?.reasoningTokens ?? message.reasoningTokens);
+  const output = numericOrNull(usage?.outputTokens ?? message.outputTokens);
+  const known = message.role === "user"
+    ? [input].filter((value): value is number => value !== null)
+    : [reasoning, output].filter((value): value is number => value !== null);
   if (known.length === 0) return null;
   const total = known.reduce((sum, value) => sum + value, 0);
   const value = (count: number | null): string => (count === null ? "unavailable" : String(count));
-  const estimate = message.tokensEstimated ? "Estimated. " : "";
+  const accuracy = usage?.provenance.accuracy ?? (message.tokensEstimated ? "estimated" : "legacy");
+  const estimate = accuracy === "exact" ? "" : `${accuracy === "legacy" ? "Legacy count" : "Estimated"}. `;
   return {
     total,
     label: `(${total} token${total === 1 ? "" : "s"})`,
-    detail: `${estimate}Input: ${value(input)}. Reasoning: ${value(reasoning)}. Output: ${value(output)}.`,
+    detail: message.role === "user" ? "" : `${estimate}Reasoning: ${value(reasoning)}. Output: ${value(output)}.`,
   };
 }
 
@@ -95,7 +99,7 @@ export function bubbleTokenMetadata(
 export function formatBubbleTokens(
   message: Pick<
     ChatMessage,
-    "role" | "inputTokens" | "reasoningTokens" | "outputTokens" | "tokensEstimated"
+    "role" | "inputTokens" | "reasoningTokens" | "outputTokens" | "tokensEstimated" | "messageUsage"
   >,
 ): string {
   return bubbleTokenMetadata(message)?.label ?? "";

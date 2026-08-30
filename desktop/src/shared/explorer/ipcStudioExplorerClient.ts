@@ -103,6 +103,8 @@ export function createIpcStudioExplorerClient(pillar: StudioPillar): StudioExplo
         ...(input.reasoningText !== undefined ? { reasoningText: input.reasoningText } : {}),
         ...(input.outputTokens !== undefined ? { outputTokens: input.outputTokens } : {}),
         ...(input.tokensEstimated ? { tokensEstimated: true } : {}),
+        ...(input.requestUsage ? { requestUsage: input.requestUsage } : {}),
+        ...(input.messageUsage ? { messageUsage: input.messageUsage } : {}),
         ...(input.visualUnits !== undefined ? { visualUnits: input.visualUnits } : {}),
       }),
     async listTurns(sessionId, limit) {

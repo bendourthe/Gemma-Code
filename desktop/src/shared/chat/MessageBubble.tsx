@@ -6,7 +6,7 @@
  * Assistant labels on normal turns. Tool cards keep their name.
  */
 
-import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 import {
@@ -34,13 +34,6 @@ export interface MessageBubbleProps {
   message: ChatMessage;
   /** When false, tool-call cards are omitted from the rendered output. */
   enableTools?: boolean;
-  /**
-   * v1.5.0 Phase 5 (item 24) -- when provided, the bubble becomes selectable
-   * (click / Enter / Space) so the host can open the message's output in the
-   * side-by-side preview pane. Omitted by default; non-preview hosts (e.g. the
-   * Coding pillar) render a static bubble unchanged.
-   */
-  onSelect?: (message: ChatMessage) => void;
   /** Lets the owning Studio clear actions and cached output after decode failure. */
   onMediaError?: (message: ChatMessage) => void;
   /** v2.2.4 Phase 4 -- extra studio actions inside the media lightbox. */
@@ -55,7 +48,6 @@ export interface MessageBubbleProps {
 export function MessageBubble({
   message,
   enableTools = true,
-  onSelect,
   onMediaError,
   renderPreviewExtra,
   locale,
@@ -74,9 +66,7 @@ export function MessageBubble({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [previewOpen]);
-  const selectable = Boolean(onSelect);
   const studioPending = isStudioPending(message);
-  const handleSelect = () => onSelect?.(message);
   const caption = captionFor(message);
   const purePending = Boolean(
     message.pending &&
@@ -107,22 +97,9 @@ export function MessageBubble({
       <article
       data-testid={`message-bubble-${message.id}`}
       data-role={message.role}
-      {...(selectable
-        ? {
-            role: "button",
-            tabIndex: 0,
-            "aria-label": `Preview ${ariaRole(message.role)} message`,
-            onClick: handleSelect,
-            onKeyDown: (e: ReactKeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleSelect();
-              }
-            },
-          }
-        : {})}
-      style={bubbleStyle(message, selectable)}
+      style={bubbleStyle(message)}
     >
+      {message.pending ? null : <BubbleMeta message={message} locale={locale} />}
       {message.mediaRecovery ? (
         <MediaRuntimeRecoveryCard
           {...message.mediaRecovery}
@@ -239,7 +216,6 @@ export function MessageBubble({
         </ul>
       )}
       </article>
-      {message.pending ? null : <BubbleMeta message={message} locale={locale} />}
     </div>
   );
 }
@@ -264,6 +240,10 @@ function PendingMessage({
         justifyContent: "center",
         gap: "var(--space-2)",
         width: studioPending ? "100%" : "fit-content",
+        maxWidth: studioPending ? "100%" : "min(100%, 24rem)",
+        paddingInline: studioPending ? 0 : "var(--space-2)",
+        boxSizing: "border-box",
+        overflow: "visible",
         minHeight: studioPending ? "12rem" : undefined,
       }}
     >
@@ -301,7 +281,7 @@ function BubbleMeta({
         alignItems: "baseline",
         justifyContent: "space-between",
         gap: "var(--space-4)",
-        marginTop: "var(--space-1)",
+        marginBottom: "var(--space-2)",
         color: "var(--fg-muted)",
         fontSize: "var(--text-xs)",
       }}
@@ -314,7 +294,14 @@ function BubbleMeta({
           {formatBubbleTime(when, locale)}
         </time>
       ) : null}
-      {tokens ? (
+      {tokens && message.role === "user" ? (
+        <span
+          data-testid={`message-tokens-${message.id}`}
+          style={{ fontStyle: "italic", marginLeft: "auto" }}
+        >
+          {tokens.label}
+        </span>
+      ) : tokens ? (
         <span
           data-testid={`message-tokens-${message.id}`}
           tabIndex={0}
@@ -370,13 +357,6 @@ function captionFor(message: ChatMessage): ReactNode {
   }
   return null;
 }
-
-function ariaRole(role: ChatMessage["role"]): string {
-  if (role === "user") return "your";
-  if (role === "assistant") return "assistant";
-  return "system";
-}
-
 
 function MediaLightbox({
   message,
@@ -501,7 +481,7 @@ function isStudioPending(message: ChatMessage): boolean {
   );
 }
 
-function bubbleStyle(message: ChatMessage, selectable = false): CSSProperties {
+function bubbleStyle(message: ChatMessage): CSSProperties {
   const user = message.role === "user";
   const system = message.role === "system";
   const studioPending = isStudioPending(message);
@@ -533,6 +513,5 @@ function bubbleStyle(message: ChatMessage, selectable = false): CSSProperties {
         ? "var(--bubble-user, var(--bg-2))"
         : "var(--bubble-assistant, var(--bg-1))",
     color: "var(--fg-0)",
-    ...(selectable ? { cursor: "pointer" } : {}),
   };
 }

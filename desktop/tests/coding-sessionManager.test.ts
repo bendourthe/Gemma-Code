@@ -172,6 +172,28 @@ describe("CodingSessionManager", () => {
       reasoningTokens: 2,
       outputTokens: 10,
       tokensEstimated: false,
+      requestUsage: {
+        version: 1,
+        inputTokens: 40,
+        reasoningTokens: 2,
+        outputTokens: 10,
+        provenance: { accuracy: "exact", source: "provider" },
+        raw: { inputTokens: 40, reasoningTokens: 2, outputTokens: 10 },
+      },
+      userMessageUsage: {
+        version: 1,
+        inputTokens: 1,
+        reasoningTokens: null,
+        outputTokens: null,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
+      assistantMessageUsage: {
+        version: 1,
+        inputTokens: null,
+        reasoningTokens: null,
+        outputTokens: 1,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
       createdAt: "2026-05-17T11:00:00.000Z",
     });
   });

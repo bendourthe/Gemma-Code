@@ -207,6 +207,13 @@ describe("StudioSessionStore", () => {
       content: "a fox",
       inputTokens: 3,
       tokensEstimated: true,
+      messageUsage: {
+        version: 1,
+        inputTokens: 3,
+        reasoningTokens: null,
+        outputTokens: null,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
       visualUnits: 0,
     });
     store.appendTurn({
@@ -225,6 +232,7 @@ describe("StudioSessionStore", () => {
     const turns = store.listTurns(session.id);
     expect(turns[0]?.inputTokens).toBe(3);
     expect(turns[0]?.tokensEstimated).toBe(true);
+    expect(turns[0]?.messageUsage?.inputTokens).toBe(3);
     expect(turns[0]?.visualUnits).toBe(0);
     expect(turns[1]?.visualUnits).toBe(1);
     expect(turns[1]?.mediaRef).toBe("/tmp/fox.png");

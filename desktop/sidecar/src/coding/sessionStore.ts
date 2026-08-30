@@ -32,6 +32,10 @@ import {
   type PersistedMessage,
 } from "../../../../core/memory/sessionArtifacts.js";
 import type { SidecarModelEntry } from "./models.js";
+import type {
+  MessageTokenUsageV1,
+  RequestTokenUsageV1,
+} from "../../../../core/chat/tokenUsage.js";
 
 /** One persisted user prompt plus the assistant text that exists for that turn. */
 export interface PersistedTurn {
@@ -42,6 +46,9 @@ export interface PersistedTurn {
   readonly reasoningText?: string | null;
   readonly outputTokens?: number | null;
   readonly tokensEstimated?: boolean;
+  readonly requestUsage?: RequestTokenUsageV1;
+  readonly userMessageUsage?: MessageTokenUsageV1;
+  readonly assistantMessageUsage?: MessageTokenUsageV1;
   /** v2.2.7 Phase 4 -- ISO time for transcript chrome. Optional on older files. */
   readonly createdAt?: string;
 }
@@ -90,13 +97,13 @@ interface DiskSession extends Omit<PersistedSession, "messages"> {
 }
 
 interface SessionsFile {
-  /** Schema version: 1 = inline-only; 2 = dehydration; 3 = reasoning; 4 = workspace scope. */
+  /** Schema version: 1 = inline-only; 2 = dehydration; 3 = reasoning; 4 = workspace scope; 5 = usage provenance. */
   readonly version: number;
   readonly sessions: readonly DiskSession[];
 }
 
 /** Older schemas remain readable because every added turn field is optional. */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 /** Default path for the shared session store: `<nexusHome>/sessions.json`. */
 export function defaultSessionStorePath(homeDirFn?: () => string): string {

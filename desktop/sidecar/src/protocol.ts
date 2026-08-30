@@ -9,6 +9,26 @@
 
 import { z } from "zod";
 
+const TokenUsageProvenanceSchema = z.object({
+  accuracy: z.enum(["exact", "estimated", "legacy"]),
+  source: z.enum(["provider", "tokenizer", "estimate", "legacy"]),
+});
+const RequestTokenUsageSchema = z.object({
+  version: z.literal(1),
+  inputTokens: z.number().int().nonnegative().nullable(),
+  reasoningTokens: z.number().int().nonnegative().nullable(),
+  outputTokens: z.number().int().nonnegative().nullable(),
+  provenance: TokenUsageProvenanceSchema,
+  raw: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
+});
+const MessageTokenUsageSchema = z.object({
+  version: z.literal(1),
+  inputTokens: z.number().int().nonnegative().nullable(),
+  reasoningTokens: z.number().int().nonnegative().nullable(),
+  outputTokens: z.number().int().nonnegative().nullable(),
+  provenance: TokenUsageProvenanceSchema,
+});
+
 export const IPC_METHODS = [
   "ping",
   "models.list",
@@ -450,6 +470,9 @@ export const CodingSessionTurn = z
     reasoningText: z.string().max(65_536).nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
     tokensEstimated: z.boolean().optional(),
+    requestUsage: RequestTokenUsageSchema.optional(),
+    userMessageUsage: MessageTokenUsageSchema.optional(),
+    assistantMessageUsage: MessageTokenUsageSchema.optional(),
     createdAt: z.string().optional(),
   })
   .strict();
@@ -868,6 +891,8 @@ const ChatMessageDto = z.object({
   reasoningText: z.string().max(65_536).nullable().optional(),
   outputTokens: z.number().int().nonnegative().nullable().optional(),
   tokensEstimated: z.boolean().optional(),
+  requestUsage: RequestTokenUsageSchema.optional(),
+  messageUsage: MessageTokenUsageSchema.optional(),
 });
 // The tree is recursive; validate the leaf shapes and pass the nesting
 // through rather than fighting zod's recursive typing for an internal DTO.
@@ -917,6 +942,8 @@ export const ChatExplorerAppendMessageRequest = z
     reasoningText: z.string().max(65_536).nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
     tokensEstimated: z.boolean().optional(),
+    requestUsage: RequestTokenUsageSchema.optional(),
+    messageUsage: MessageTokenUsageSchema.optional(),
   })
   .strict();
 export const ChatExplorerListMessagesRequest = z
@@ -998,6 +1025,8 @@ export const StudioSessionAppendTurnRequest = z
     reasoningText: z.string().max(65_536).nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
     tokensEstimated: z.boolean().optional(),
+    requestUsage: RequestTokenUsageSchema.optional(),
+    messageUsage: MessageTokenUsageSchema.optional(),
     visualUnits: z.number().int().nonnegative().nullable().optional(),
   })
   .strict();
@@ -1013,6 +1042,8 @@ export const StudioSessionTurnResponse = z.object({
   reasoningText: z.string().max(65_536).nullable().optional(),
   outputTokens: z.number().int().nonnegative().nullable().optional(),
   tokensEstimated: z.boolean().optional(),
+  requestUsage: RequestTokenUsageSchema.optional(),
+  messageUsage: MessageTokenUsageSchema.optional(),
   visualUnits: z.number().int().nonnegative().nullable().optional(),
 });
 export const StudioSessionListTurnsRequest = z

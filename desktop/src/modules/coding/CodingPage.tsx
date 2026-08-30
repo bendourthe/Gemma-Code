@@ -17,6 +17,11 @@ import type {
 import { CodingInput } from "./CodingInput";
 import { foldModelId } from "../../../../core/registry/modelAliases";
 import { estimateTokens } from "../../../../core/chat/sessionContextUsage";
+import {
+  estimatedMessageUsage,
+  type MessageTokenUsageV1,
+  type RequestTokenUsageV1,
+} from "../../../../core/chat/tokenUsage";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
@@ -106,6 +111,9 @@ interface Turn {
   reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  userMessageUsage?: MessageTokenUsageV1;
+  assistantMessageUsage?: MessageTokenUsageV1;
   createdAt?: string;
 }
 
@@ -119,6 +127,7 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
       timestamp: turn.createdAt,
       inputTokens: turn.inputTokens ?? null,
       tokensEstimated: turn.tokensEstimated,
+      messageUsage: turn.userMessageUsage,
     });
     const hasAssistant =
       Boolean(turn.pending) ||
@@ -142,6 +151,8 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
         reasoningText: turn.reasoningText ?? null,
         outputTokens: turn.outputTokens ?? null,
         tokensEstimated: turn.tokensEstimated,
+        requestUsage: turn.requestUsage,
+        messageUsage: turn.assistantMessageUsage,
       });
     }
   }
@@ -488,6 +499,20 @@ export function CodingPage({
           usage.inputTokens == null &&
           usage.reasoningTokens == null &&
           usage.outputTokens == null;
+        const requestUsage: RequestTokenUsageV1 | undefined = estimated
+          ? undefined
+          : {
+              version: 1,
+              inputTokens: usage.inputTokens,
+              reasoningTokens: usage.reasoningTokens,
+              outputTokens: usage.outputTokens,
+              provenance: { accuracy: "exact", source: "provider" },
+              raw: {
+                inputTokens: usage.inputTokens,
+                reasoningTokens: usage.reasoningTokens,
+                outputTokens: usage.outputTokens,
+              },
+            };
         setTurns((prev) => [
           ...prev,
           {
@@ -500,6 +525,9 @@ export function CodingPage({
             reasoningText,
             outputTokens: estimated ? estimateTokens(rendered.text) : usage.outputTokens,
             tokensEstimated: estimated,
+            requestUsage,
+            userMessageUsage: estimatedMessageUsage("user", text),
+            assistantMessageUsage: estimatedMessageUsage("assistant", rendered.text, reasoningText),
           },
         ]);
       } finally {
@@ -621,6 +649,9 @@ export function CodingPage({
           reasoningText: turn.reasoningText ?? null,
           outputTokens: turn.outputTokens ?? null,
           tokensEstimated: turn.tokensEstimated,
+          requestUsage: turn.requestUsage,
+          userMessageUsage: turn.userMessageUsage,
+          assistantMessageUsage: turn.assistantMessageUsage,
           createdAt: turn.createdAt,
         })),
       );

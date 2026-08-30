@@ -30,7 +30,7 @@ import type {
   FolderTreeNode,
 } from "./ChatExplorerStore.types.js";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 interface FolderRow {
   id: string;
@@ -71,6 +71,8 @@ interface MessageRow {
   reasoning_text?: string | null;
   output_tokens?: number | null;
   tokens_estimated?: number | null;
+  request_usage?: string | null;
+  message_usage?: string | null;
 }
 
 function rowToFolder(row: FolderRow): Folder {
@@ -108,6 +110,19 @@ function nullableInt(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function parseUsageJson<T extends { version: 1 }>(value: string | null | undefined): T | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed === "object" && parsed !== null && (parsed as { version?: unknown }).version === 1) {
+      return parsed as T;
+    }
+  } catch {
+    // Corrupt optional telemetry must not make the message unreadable.
+  }
+  return undefined;
+}
+
 function rowToMessage(row: MessageRow): ChatMessageRecord {
   let attachments: string[] = [];
   if (row.attachments) {
@@ -131,6 +146,8 @@ function rowToMessage(row: MessageRow): ChatMessageRecord {
     reasoningText: row.reasoning_text ?? null,
     outputTokens: nullableInt(row.output_tokens),
     tokensEstimated: row.tokens_estimated === 1,
+    requestUsage: parseUsageJson<NonNullable<ChatMessageRecord["requestUsage"]>>(row.request_usage),
+    messageUsage: parseUsageJson<NonNullable<ChatMessageRecord["messageUsage"]>>(row.message_usage),
   };
 }
 
@@ -199,6 +216,8 @@ export class ChatExplorerStore {
     this._addColumnIfMissing("chat_chat_messages", "reasoning_text", "TEXT");
     this._addColumnIfMissing("chat_chat_messages", "output_tokens", "INTEGER");
     this._addColumnIfMissing("chat_chat_messages", "tokens_estimated", "INTEGER NOT NULL DEFAULT 0");
+    this._addColumnIfMissing("chat_chat_messages", "request_usage", "TEXT");
+    this._addColumnIfMissing("chat_chat_messages", "message_usage", "TEXT");
 
     createFtsTableAndTriggers(this._db, {
       ftsTable: "chat_folders_fts",
@@ -608,6 +627,8 @@ export class ChatExplorerStore {
       : null;
     const outputTokens = input.outputTokens ?? null;
     const tokensEstimated = input.tokensEstimated ? 1 : 0;
+    const requestUsage = input.requestUsage ? JSON.stringify(input.requestUsage) : null;
+    const messageUsage = input.messageUsage ? JSON.stringify(input.messageUsage) : null;
     // One transaction: a message that is stored but not counted (or the
     // reverse) would make the rail disagree with the conversation.
     const tx = this._db.transaction(() => {
@@ -615,8 +636,9 @@ export class ChatExplorerStore {
         .prepare(
           `INSERT INTO chat_chat_messages
              (id, chat_id, role, content, attachments, created_at,
-              input_tokens, reasoning_tokens, reasoning_text, output_tokens, tokens_estimated)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              input_tokens, reasoning_tokens, reasoning_text, output_tokens, tokens_estimated,
+              request_usage, message_usage)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -630,6 +652,8 @@ export class ChatExplorerStore {
           reasoningText,
           outputTokens,
           tokensEstimated,
+          requestUsage,
+          messageUsage,
         );
       this._db
         .prepare(
@@ -651,6 +675,8 @@ export class ChatExplorerStore {
       reasoningText,
       outputTokens,
       tokensEstimated: tokensEstimated === 1,
+      requestUsage: input.requestUsage,
+      messageUsage: input.messageUsage,
     };
   }
 

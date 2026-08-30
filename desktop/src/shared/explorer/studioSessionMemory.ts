@@ -62,6 +62,8 @@ export function studioTurnsToChatMessages(
         reasoningText: turn.reasoningText ?? null,
         outputTokens: turn.outputTokens ?? null,
         tokensEstimated: turn.tokensEstimated,
+        requestUsage: turn.requestUsage,
+        messageUsage: turn.messageUsage,
         ...(turn.mediaRef ? { attachments: [turn.mediaRef] } : {}),
       };
     }
@@ -77,6 +79,8 @@ export function studioTurnsToChatMessages(
         reasoningText: turn.reasoningText ?? null,
         outputTokens: turn.outputTokens ?? null,
         tokensEstimated: turn.tokensEstimated,
+        requestUsage: turn.requestUsage,
+        messageUsage: turn.messageUsage,
       };
     }
     return {
@@ -89,6 +93,8 @@ export function studioTurnsToChatMessages(
       reasoningText: turn.reasoningText ?? null,
       outputTokens: turn.outputTokens ?? null,
       tokensEstimated: turn.tokensEstimated,
+      requestUsage: turn.requestUsage,
+      messageUsage: turn.messageUsage,
       ...(ref ? { media: { kind: mediaKind, src: ref } } : {}),
     };
   });

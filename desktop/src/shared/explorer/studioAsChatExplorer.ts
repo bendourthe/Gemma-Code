@@ -155,6 +155,8 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           reasoningText: input.reasoningText,
           outputTokens: input.outputTokens,
           tokensEstimated: input.tokensEstimated,
+          requestUsage: input.requestUsage,
+          messageUsage: input.messageUsage,
         }),
         (turn) => {
           const record: ChatMessageRecord = {
@@ -169,6 +171,8 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
             reasoningText: turn.reasoningText,
             outputTokens: turn.outputTokens,
             tokensEstimated: turn.tokensEstimated,
+            requestUsage: turn.requestUsage,
+            messageUsage: turn.messageUsage,
           };
           return record;
         },
@@ -189,6 +193,8 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           reasoningText: turn.reasoningText,
           outputTokens: turn.outputTokens,
           tokensEstimated: turn.tokensEstimated,
+          requestUsage: turn.requestUsage,
+          messageUsage: turn.messageUsage,
         })),
       );
     },

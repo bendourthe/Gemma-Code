@@ -99,6 +99,8 @@ interface TurnUsageExtra {
   reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: AppendStudioTurnInput["requestUsage"];
+  messageUsage?: AppendStudioTurnInput["messageUsage"];
   visualUnits?: number | null;
 }
 
@@ -122,6 +124,12 @@ function parseTurnUsage(raw: string | null): TurnUsageExtra {
       outputTokens: optionalNumber(obj.outputTokens),
     };
     if (obj.tokensEstimated === true) extra.tokensEstimated = true;
+    if (obj.requestUsage && typeof obj.requestUsage === "object") {
+      extra.requestUsage = obj.requestUsage as NonNullable<AppendStudioTurnInput["requestUsage"]>;
+    }
+    if (obj.messageUsage && typeof obj.messageUsage === "object") {
+      extra.messageUsage = obj.messageUsage as NonNullable<AppendStudioTurnInput["messageUsage"]>;
+    }
     if (typeof obj.visualUnits === "number" && Number.isFinite(obj.visualUnits)) {
       extra.visualUnits = obj.visualUnits;
     } else if (obj.visualUnits === null) {
@@ -144,6 +152,8 @@ function turnUsageExtraJson(input: AppendStudioTurnInput): string | null {
   }
   if (input.outputTokens !== undefined) extra.outputTokens = input.outputTokens;
   if (input.tokensEstimated) extra.tokensEstimated = true;
+  if (input.requestUsage) extra.requestUsage = input.requestUsage;
+  if (input.messageUsage) extra.messageUsage = input.messageUsage;
   if (input.visualUnits !== undefined) extra.visualUnits = input.visualUnits;
   return Object.keys(extra).length === 0 ? null : JSON.stringify(extra);
 }
@@ -527,6 +537,8 @@ export class StudioSessionStore {
         : input.reasoningText,
       outputTokens: input.outputTokens,
       tokensEstimated: input.tokensEstimated,
+      requestUsage: input.requestUsage,
+      messageUsage: input.messageUsage,
       visualUnits: input.visualUnits,
     };
   }

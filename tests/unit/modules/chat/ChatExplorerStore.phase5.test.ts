@@ -111,6 +111,20 @@ describe("messages", () => {
       inputTokens: 12,
       reasoningTokens: 3,
       outputTokens: 5,
+      requestUsage: {
+        version: 1,
+        inputTokens: 12,
+        reasoningTokens: 3,
+        outputTokens: 5,
+        provenance: { accuracy: "exact", source: "provider" },
+      },
+      messageUsage: {
+        version: 1,
+        inputTokens: null,
+        reasoningTokens: 7,
+        outputTokens: 2,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
       createdAt: 2,
     });
     s.appendMessage({
@@ -126,6 +140,12 @@ describe("messages", () => {
     expect(messages[1]?.reasoningTokens).toBe(3);
     expect(messages[1]?.outputTokens).toBe(5);
     expect(messages[1]?.tokensEstimated).toBe(false);
+    expect(messages[1]?.requestUsage?.inputTokens).toBe(12);
+    expect(messages[1]?.messageUsage).toMatchObject({
+      reasoningTokens: 7,
+      outputTokens: 2,
+      provenance: { accuracy: "estimated", source: "estimate" },
+    });
     expect(messages[2]?.inputTokens).toBeNull();
     expect(messages[2]?.outputTokens).toBeNull();
     expect(messages[2]?.reasoningTokens).toBeNull();

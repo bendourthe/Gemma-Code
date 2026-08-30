@@ -235,6 +235,8 @@ export class InMemoryStudioExplorerClient implements StudioExplorerClient {
       reasoningText: input.reasoningText,
       outputTokens: input.outputTokens,
       tokensEstimated: input.tokensEstimated,
+      requestUsage: input.requestUsage,
+      messageUsage: input.messageUsage,
       visualUnits: input.visualUnits,
     };
     const list = this.turns.get(input.sessionId) ?? [];

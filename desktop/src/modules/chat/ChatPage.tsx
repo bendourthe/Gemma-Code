@@ -64,7 +64,7 @@ import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visua
 import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
 import type { EpisodicMemory } from "../../../../core/memory/MemoryHub";
 import { redactSecrets } from "../../../../core/observability/redactSecrets";
-import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
+import { estimatedMessageUsage } from "../../../../core/chat/tokenUsage";
 import { foldModelId } from "../../../../core/registry/modelAliases";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 import {
@@ -231,10 +231,6 @@ export function ChatPage({
     text: "",
     attachments: [],
   });
-  // v1.5.0 Phase 5 (item 24): the artifact currently shown in the side-by-side
-  // preview pane, or null when the pane is closed.
-  const [preview, setPreview] = useState<PreviewArtifact | null>(null);
-
   // v1.16.0 Phase 3 (adoption item A5) -- document-parse state.
   const [documentClient] = useState<DocumentClient>(
     () => documentClientOverride ?? createIpcDocumentClient(),
@@ -388,7 +384,6 @@ export function ChatPage({
   const handleOpenChat = useCallback((chat: Chat) => {
     setActiveChat(chat);
     setSelected({ kind: "chat", id: chat.id });
-    setPreview(null);
     if (!client.listMessages) return;
 
     const version = (hydrationVersionRef.current.get(chat.id) ?? 0) + 1;
@@ -416,22 +411,6 @@ export function ChatPage({
       }
     });
   }, [client]);
-
-  // v1.5.0 Phase 5 (item 24): open a message's output in the side-by-side
-  // preview pane. HTML artifacts (interactive forms / tool HTML) render through
-  // the shared `InteractiveArtifact`; everything else renders as text.
-  const handleSelectMessage = useCallback((message: ChatMessage) => {
-    const isHtmlArtifact = message.content.includes("data-nexus-artifact");
-    setPreview(
-      isHtmlArtifact
-        ? { kind: "html", title: "Artifact", html: message.content }
-        : {
-            kind: "text",
-            title: message.role === "assistant" ? "Assistant output" : "Message",
-            text: message.content,
-          },
-    );
-  }, []);
 
   const persistMessage = useCallback(
     async (chatId: string, message: ChatMessage): Promise<void> => {
@@ -558,8 +537,32 @@ export function ChatPage({
       } catch (err) {
         content = formatChatTurnError(err);
       }
-      patchMessage(chatId, assistantId, { content, pending: false, reasoningText, ...usage });
-      void persistMessage(chatId, { id: assistantId, role: "assistant", content, reasoningText, ...usage });
+      const requestUsage = {
+        version: 1 as const,
+        ...usage,
+        provenance: { accuracy: "exact" as const, source: "provider" as const },
+        raw: {
+          inputTokens: usage.inputTokens,
+          reasoningTokens: usage.reasoningTokens,
+          outputTokens: usage.outputTokens,
+        },
+      };
+      const messageUsage = estimatedMessageUsage("assistant", content, reasoningText);
+      patchMessage(chatId, assistantId, {
+        content,
+        pending: false,
+        reasoningText,
+        requestUsage,
+        messageUsage,
+      });
+      void persistMessage(chatId, {
+        id: assistantId,
+        role: "assistant",
+        content,
+        reasoningText,
+        requestUsage,
+        messageUsage,
+      });
       return content;
     },
     [activeChat, appendMessage, chatSession, modelId, patchMessage, persistMessage, personaByChat],
@@ -1091,13 +1094,12 @@ export function ChatPage({
           />
         ) : null}
 
-        <div style={{ flex: 1, display: "flex", minHeight: 0, gap: "var(--space-3)" }}>
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
             {activeChat ? (
               <MessageList
                 messages={messages}
                 enableTools={true}
-                onSelectMessage={handleSelectMessage}
               />
             ) : (
               <p data-testid="chat-page-empty" style={{ color: "var(--fg-muted)" }}>
@@ -1105,13 +1107,6 @@ export function ChatPage({
               </p>
             )}
           </div>
-          {preview ? (
-            <PreviewPane
-              artifact={preview}
-              onClose={() => setPreview(null)}
-              style={{ flex: 1 }}
-            />
-          ) : null}
         </div>
 
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", position: "relative" }}>
@@ -1263,14 +1258,21 @@ function chatMessageFromRecord(record: ChatMessageRecord): ChatMessage {
     reasoningText: record.reasoningText ?? null,
     outputTokens: record.outputTokens ?? null,
     tokensEstimated: record.tokensEstimated,
+    requestUsage: record.requestUsage,
+    messageUsage: record.messageUsage,
   };
 }
 
 function estimatedUserUsage(content: string): {
   inputTokens: number;
   tokensEstimated: true;
+  messageUsage: ReturnType<typeof estimatedMessageUsage>;
 } {
-  return { inputTokens: estimateTokens(content), tokensEstimated: true };
+  return {
+    inputTokens: estimateTokens(content),
+    tokensEstimated: true,
+    messageUsage: estimatedMessageUsage("user", content),
+  };
 }
 
 function replayHistory(

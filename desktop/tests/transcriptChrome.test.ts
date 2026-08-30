@@ -39,10 +39,10 @@ describe("transcriptChrome", () => {
     expect(formatBubbleTokens({ role: "user" })).toBe("");
   });
 
-  it("sums all reported assistant parts without inventing missing fields", () => {
+  it("keeps request input out of assistant message totals", () => {
     expect(
       formatBubbleTokens({ role: "assistant", inputTokens: 10, reasoningTokens: 75, outputTokens: 96 }),
-    ).toBe("(181 tokens)");
+    ).toBe("(171 tokens)");
     expect(formatBubbleTokens({ role: "assistant", outputTokens: 48 })).toBe("(48 tokens)");
   });
 
@@ -52,11 +52,32 @@ describe("transcriptChrome", () => {
     ).toEqual({
       total: 75,
       label: "(75 tokens)",
-      detail: "Estimated. Input: unavailable. Reasoning: 75. Output: unavailable.",
+      detail: "Estimated. Reasoning: 75. Output: unavailable.",
     });
     expect(formatBubbleTokens({ role: "assistant" })).toBe("");
     expect(formatBubbleTokens({ role: "system" })).toBe("");
     expect(formatBubbleTokens({ role: "assistant", outputTokens: -2 })).toBe("");
+  });
+
+  it("uses versioned visible-message counts ahead of request telemetry", () => {
+    const metadata = bubbleTokenMetadata({
+      role: "assistant",
+      inputTokens: 100,
+      reasoningTokens: 40,
+      outputTokens: 59,
+      messageUsage: {
+        version: 1,
+        inputTokens: null,
+        reasoningTokens: 51,
+        outputTokens: 9,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
+    });
+    expect(metadata).toEqual({
+      total: 60,
+      label: "(60 tokens)",
+      detail: "Estimated. Reasoning: 51. Output: 9.",
+    });
   });
 
   it("keeps the new copy ASCII-only (no em dash)", () => {

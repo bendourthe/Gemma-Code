@@ -6,6 +6,11 @@
  * `chat.explorer.*` and Chat types; this surface is pillar-scoped.
  */
 
+import type {
+  MessageTokenUsageV1,
+  RequestTokenUsageV1,
+} from "../chat/tokenUsage.js";
+
 export type StudioPillar = "image" | "video";
 
 export const STUDIO_PILLARS: readonly StudioPillar[] = ["image", "video"];
@@ -59,6 +64,8 @@ export interface StudioTurn {
   reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
   /** Usable visuals this turn. 0/omit for a 1x1 stub or failed generate. */
   visualUnits?: number | null;
 }
@@ -96,5 +103,7 @@ export interface AppendStudioTurnInput {
   reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
   visualUnits?: number | null;
 }

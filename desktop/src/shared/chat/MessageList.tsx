@@ -20,11 +20,6 @@ export interface MessageListProps {
   enableTools?: boolean;
   emptyMessage?: string;
   emptyTestId?: string;
-  /**
-   * v1.5.0 Phase 5 (item 24) -- when provided, each bubble becomes selectable
-   * so the host can open the message's output in the side-by-side preview pane.
-   */
-  onSelectMessage?: (message: ChatMessage) => void;
   /** Called when generated media cannot be decoded by the browser/WebView. */
   onMediaError?: (message: ChatMessage) => void;
   /** Optional trailing chrome (download / copy image) still aligned with the bubble. */
@@ -47,7 +42,6 @@ export function MessageList({
   enableTools = true,
   emptyMessage = "Start by asking a question or typing a message.",
   emptyTestId = "message-list-empty",
-  onSelectMessage,
   onMediaError,
   renderAfter,
   renderPreviewExtra,
@@ -104,7 +98,6 @@ export function MessageList({
           message={msg}
           enableTools={enableTools}
           locale={locale}
-          {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
           {...(onMediaError ? { onMediaError } : {})}
           {...(renderPreviewExtra ? { renderPreviewExtra } : {})}
           {...(onRepairMediaRuntime ? { onRepairMediaRuntime } : {})}

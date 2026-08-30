@@ -7,6 +7,11 @@
  * IPC (sidecar) but renders rows shaped by the types declared here.
  */
 
+import type {
+  MessageTokenUsageV1,
+  RequestTokenUsageV1,
+} from "../../../core/chat/tokenUsage.js";
+
 /** Identifier used for the synthetic root folder (parentId === null). */
 export const ROOT_FOLDER_ID = null;
 
@@ -71,6 +76,8 @@ export interface ChatMessageRecord {
   reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
 }
 
 export interface AppendMessageInput {
@@ -86,6 +93,8 @@ export interface AppendMessageInput {
   reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
 }
 
 /** Tree node returned by `listTree()`; children are folders, with chats as a sibling list. */
