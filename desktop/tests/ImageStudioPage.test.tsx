@@ -642,6 +642,42 @@ describe("ImageStudioPage (chat)", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
+  it("titles a pre-created untitled session on the first prompt", async () => {
+    const explorer = new InMemoryStudioExplorerClient("image");
+    const session = explorer.createSession({
+      folderId: null,
+      title: "New chat",
+      modelId: "sana-1.6b-1024",
+    });
+    const client = new InMemoryDiffusionClient();
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+        drainIntervalMs={20}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId(`tree-row-chat-${session.id}`)).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "PNGB64==" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "Generate image of a puppy" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => {
+      expect(explorer.getSession(session.id)?.title).toBe("Generate image of a puppy");
+    });
+    expect(screen.queryByText("New chat")).toBeNull();
+  });
+
   it("Make that puppy black without an attachment img2imgs the last PNG and does not segment", async () => {
     const client = new InMemoryDiffusionClient();
     const explorer = new InMemoryStudioExplorerClient("image");

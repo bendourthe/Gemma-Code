@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 2 history chrome
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-2-history-chrome.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Hairline between the four module tabs and the Chats list.
+- New chat selects and opens the empty session (no auto-rename mode).
+- Untitled Image and Video sessions title on first send even when the row already existed.
+- Delete and archive confirmation portals to `document.body`.
+
+### Why It Changed
+
+Screenshot 3 left Image chats titled "New chat". Screenshot 6 cropped the delete dialog against the sidebar.
+
+### Decisions Made
+
+- Create no longer enters inline rename; first-prompt titling names the row.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 1 installer layout and Unsloth lock
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-1-installer-layout.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

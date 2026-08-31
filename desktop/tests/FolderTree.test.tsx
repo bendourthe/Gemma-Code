@@ -100,6 +100,27 @@ describe("<FolderTree>", () => {
     expect(client.listTree().chats.length).toBe(1);
   });
 
+  it("selects and opens a chat created from the toolbar", async () => {
+    const client = setupClient();
+    const onSelect = vi.fn();
+    const onOpenChat = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <FolderTree
+        client={client}
+        storageAdapter={storageAdapter}
+        onSelect={onSelect}
+        onOpenChat={onOpenChat}
+      />,
+    );
+    await user.click(screen.getByTestId("folder-tree-new-chat"));
+    const created = client.listTree().chats[0];
+    expect(created).toBeTruthy();
+    if (!created) throw new Error("expected created chat");
+    expect(onSelect).toHaveBeenCalledWith({ kind: "chat", id: created.id });
+    expect(onOpenChat).toHaveBeenCalledWith(expect.objectContaining({ id: created.id }));
+  });
+
   it("renames a folder via double-click", async () => {
     const client = setupClient();
     const folder = client.createFolder({ parentId: null, name: "Old" });
@@ -367,6 +388,8 @@ describe("<FolderTree>", () => {
     render(<FolderTree client={client} storageAdapter={storageAdapter} />);
     fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
     expect(screen.getByTestId("folder-tree-confirm-delete")).toBeInTheDocument();
+    expect(document.body).toContainElement(screen.getByTestId("folder-tree-confirm-delete"));
+    expect(screen.getByTestId("folder-tree-confirm-delete").parentElement).toBe(document.body);
     expect(client.getChat(chat.id)?.title).toBe("draft");
     fireEvent.click(screen.getByTestId("confirm-delete-ok"));
     await waitFor(() => expect(client.getChat(chat.id)).toBeNull());

@@ -104,6 +104,18 @@ describe("sidebar history host", () => {
       screen.getByTestId("chats-pane").querySelector("[data-testid='folder-tree'], [data-testid='folder-tree-empty']"),
     ).not.toBeNull();
   });
+
+  it("draws a hairline between module tabs and history, not on Settings", async () => {
+    renderApp("/images");
+    expect(await screen.findByTestId("sidebar-history-hairline")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-history-host")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("nav-admin-settings"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("sidebar-history-hairline")).toBeNull();
+      expect(screen.getByTestId("sidebar-history-spacer")).toBeInTheDocument();
+    });
+  });
 });
 
 describe("thinking pill crop", () => {

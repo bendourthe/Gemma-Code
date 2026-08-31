@@ -97,6 +97,7 @@ import {
   applyImmediateFallbackTitle,
   DEFAULT_SESSION_TITLE,
   refineGeneratedTitle,
+  shouldTitleOnFirstSend,
 } from "../../shared/explorer/scheduleFirstPromptTitle";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
 import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
@@ -356,7 +357,30 @@ export function ImageStudioPage({
   const ensureSession = useCallback(
     async (prompt: string): Promise<string | null> => {
       if (backendDown) return null;
-      if (activeSessionIdRef.current) return activeSessionIdRef.current;
+      const scheduleTitle = (sessionId: string, title: string, turnCount: number): void => {
+        if (!shouldTitleOnFirstSend({ title, turnCount, prompt })) return;
+        titleJobRef.current = { id: sessionId, prompt };
+        void applyImmediateFallbackTitle({
+          sessionId,
+          prompt,
+          currentTitle: title,
+          rename: (id, nextTitle) => studioClient.renameSession(id, nextTitle),
+        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+      };
+      if (activeSessionIdRef.current) {
+        const existingId = activeSessionIdRef.current;
+        try {
+          const session = await Promise.resolve(studioClient.getSession(existingId));
+          scheduleTitle(
+            existingId,
+            session?.title ?? DEFAULT_SESSION_TITLE,
+            session?.turnCount ?? 0,
+          );
+        } catch {
+          scheduleTitle(existingId, DEFAULT_SESSION_TITLE, 0);
+        }
+        return existingId;
+      }
       try {
         const session = await Promise.resolve(
           studioClient.createSession({
@@ -366,13 +390,7 @@ export function ImageStudioPage({
           }),
         );
         setActiveSession(session.id);
-        titleJobRef.current = { id: session.id, prompt };
-        void applyImmediateFallbackTitle({
-          sessionId: session.id,
-          prompt,
-          currentTitle: DEFAULT_SESSION_TITLE,
-          rename: (id, title) => studioClient.renameSession(id, title),
-        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+        scheduleTitle(session.id, DEFAULT_SESSION_TITLE, 0);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {

@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phase 1 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-2 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+
+> **v2.4.3 FIELD DENSITY PHASE 2 (2026-08-31)** -- [history chrome, new-chat select, first-send titles, centered delete](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T007-T012 complete. Next: Phase 3 thinking pill.
 
 > **v2.4.3 FIELD DENSITY PHASE 1 (2026-08-31)** -- [installer two-column layout and Unsloth lock](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T001-T006 complete. Configuration is Components | Features. Review is facts | models. Unsloth Incompatible cannot be ticked and refreshes after GPU detection. Next: Phase 2 history chrome.
 

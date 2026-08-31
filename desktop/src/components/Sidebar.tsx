@@ -207,6 +207,21 @@ export function Sidebar({
 
       {showHistorySlot ? (
         <div
+          data-testid="sidebar-history-hairline"
+          role="separator"
+          aria-hidden
+          style={{
+            height: 1,
+            margin: compact ? "var(--space-1) var(--space-2)" : "var(--space-1) 0",
+            background:
+              "color-mix(in srgb, var(--border-1, var(--fg-muted)) 55%, transparent)",
+            flexShrink: 0,
+          }}
+        />
+      ) : null}
+
+      {showHistorySlot ? (
+        <div
           ref={historyHost ? historyHost.setHostEl : undefined}
           data-testid="sidebar-history-host"
           data-compact={compact ? "true" : "false"}

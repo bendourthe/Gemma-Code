@@ -27,7 +27,9 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   Archive,
   ChevronDown,
@@ -626,15 +628,15 @@ export function FolderTree({
           }),
         (chat) => {
           refresh();
-          setRenamingId(chat.id);
-          setRenameValue(chat.title);
+          selectNode({ kind: "chat", id: chat.id });
+          onOpenChat?.(chat);
           if (folderId !== null) setExpanded((prev) => new Set(prev).add(folderId));
         },
         (err) => setLoadError(errorMessage(err)),
       );
       closeContextMenu();
     },
-    [client, closeContextMenu, copy.newItem, defaultModelId, refresh],
+    [client, closeContextMenu, copy.newItem, defaultModelId, onOpenChat, refresh, selectNode],
   );
 
   const onChangeColor = useCallback(
@@ -1114,7 +1116,7 @@ export function FolderTree({
         </ul>
       )}
 
-      {confirmDelete && (
+      {confirmDelete && portalToBody(
         <div
           role="dialog"
           aria-modal="true"
@@ -1171,10 +1173,10 @@ export function FolderTree({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
       )}
 
-      {confirmArchive && (
+      {confirmArchive && portalToBody(
         <div
           role="dialog"
           aria-modal="true"
@@ -1195,10 +1197,15 @@ export function FolderTree({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
       )}
     </div>
   );
+}
+
+function portalToBody(node: ReactNode): ReactNode {
+  if (typeof document === "undefined" || document.body == null) return node;
+  return createPortal(node, document.body);
 }
 
 const iconButtonStyle: CSSProperties = {
@@ -1295,7 +1302,7 @@ const modalBackdropStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  zIndex: 1100,
+  zIndex: 2000,
 };
 
 const modalCardStyle: CSSProperties = {

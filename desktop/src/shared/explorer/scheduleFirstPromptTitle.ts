@@ -18,6 +18,17 @@ export function isUntitledSession(
   return userRenamed !== true && (title ?? DEFAULT_SESSION_TITLE) === DEFAULT_SESSION_TITLE;
 }
 
+export function shouldTitleOnFirstSend(opts: {
+  readonly title?: string | null;
+  readonly userRenamed?: boolean;
+  readonly turnCount?: number;
+  readonly prompt: string;
+}): boolean {
+  if (opts.prompt.trim().length === 0) return false;
+  if ((opts.turnCount ?? 0) > 0) return false;
+  return isUntitledSession(opts.title, opts.userRenamed);
+}
+
 export async function applyImmediateFallbackTitle(opts: {
   readonly sessionId: string;
   readonly prompt: string;

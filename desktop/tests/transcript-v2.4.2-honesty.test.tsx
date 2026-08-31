@@ -15,6 +15,7 @@ import {
   applyImmediateFallbackTitle,
   DEFAULT_SESSION_TITLE,
   refineGeneratedTitle,
+  shouldTitleOnFirstSend,
 } from "../src/shared/explorer/scheduleFirstPromptTitle";
 import { deleteConfirmCopy, rangeSelectKeys } from "../src/modules/chat/folderTreeDeleteCopy";
 
@@ -132,6 +133,45 @@ describe("concise session titles", () => {
     });
     expect(title).toBe("a fox in snow please make");
     expect(renamed).toEqual(["a fox in snow please make"]);
+  });
+
+  it("titles only the first send of an untitled empty session", () => {
+    expect(
+      shouldTitleOnFirstSend({
+        title: DEFAULT_SESSION_TITLE,
+        turnCount: 0,
+        prompt: "Generate image of a puppy",
+      }),
+    ).toBe(true);
+    expect(
+      shouldTitleOnFirstSend({
+        title: DEFAULT_SESSION_TITLE,
+        turnCount: 0,
+        prompt: "   ",
+      }),
+    ).toBe(false);
+    expect(
+      shouldTitleOnFirstSend({
+        title: "Puppy generation",
+        turnCount: 0,
+        prompt: "Generate image of a puppy",
+      }),
+    ).toBe(false);
+    expect(
+      shouldTitleOnFirstSend({
+        title: DEFAULT_SESSION_TITLE,
+        turnCount: 2,
+        prompt: "Generate image of a puppy",
+      }),
+    ).toBe(false);
+    expect(
+      shouldTitleOnFirstSend({
+        title: DEFAULT_SESSION_TITLE,
+        userRenamed: true,
+        turnCount: 0,
+        prompt: "Generate image of a puppy",
+      }),
+    ).toBe(false);
   });
 
   it("generated title overwrites fallback unless the user renamed", async () => {

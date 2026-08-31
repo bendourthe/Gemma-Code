@@ -2,8 +2,8 @@
  * v2.2.6 Phase 1 -- Image/Video history pane reuses FolderTree.
  */
 
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { StudioHistoryPane } from "../src/shared/explorer/StudioHistoryPane";
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
@@ -129,5 +129,21 @@ describe("StudioHistoryPane", () => {
       <FolderTree client={new InMemoryChatExplorerClient()} storageAdapter={storageAdapter} />,
     );
     expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(/start a new chat/i);
+  });
+
+  it("opens a newly created chat as the selected session", () => {
+    const client = new InMemoryStudioExplorerClient("image");
+    const onSelectSession = vi.fn();
+    render(
+      <StudioHistoryPane
+        pillar="image"
+        client={client}
+        defaultModelId="sana-1.6b-1024"
+        onSelectSession={onSelectSession}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("folder-tree-new-chat"));
+    expect(onSelectSession).toHaveBeenCalledTimes(1);
+    expect(onSelectSession.mock.calls[0]?.[0]).toEqual(expect.any(String));
   });
 });
