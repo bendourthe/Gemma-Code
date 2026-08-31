@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.2 - field UI Phase 4 video fail-closed output
+
+Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-4-video-fail-closed.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Completing a video job without a usable mp4 path, or with a path the player cannot resolve, writes "completed without a playable clip" instead of an empty success bubble.
+- Assistant persist refuses empty content unless a `mediaRef` exists. Missing weights append "Install the video model from Settings > Models."
+- SANA-Video `ok: false` with weights-not-installed rejects in one tick instead of completing empty.
+
+### Why It Changed
+
+Packaged 2.4.1 could finish a first puppy-in-grass turn as `pending: false` plus empty content and no media.
+
+### Decisions Made
+
+- Keep `requireUsableVideoPath` as the dispatcher contract; the UI persist helper is the extra honesty gate.
+- Decode failure rewrites the live bubble but does not append a second explorer turn.
+
+---
+
 ## [2026-08-31] v2.4.2 - field UI Phase 3 image follow-up identity
 
 Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-3-image-followup.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

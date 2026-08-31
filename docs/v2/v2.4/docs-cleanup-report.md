@@ -1,4 +1,4 @@
-# Docs cleanup report - v2.4.2 Phase 3
+# Docs cleanup report - v2.4.2 Phase 4
 
 **Mode**: audit (no files moved)
 **Date**: 2026-08-31
@@ -8,14 +8,14 @@
 
 | Path | Category | Disposition |
 |---|---|---|
-| `docs/v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md` | Cat 4 active | Keep in the version plan tree; T016-T019 and Phase 3 exit marked complete |
-| `docs/v2/v2.4/development/history/2026-08-30_v2.4.2-phase-3-image-followup.md` | Cat 4 active | Session history for this phase (filename keeps the plan date) |
-| `docs/v2/v2.4/known-gaps.md` | Cat 4 active | Appended MT-3; kept MT-1 and MT-2 |
-| `docs/DEVLOG.md` | Cat 4 living | Phase 3 entry |
-| `ARCHITECTURE.md` | Cat 4 living | Follow-up img2img and SAM2 recovery |
+| `docs/v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md` | Cat 4 active | Keep in the version plan tree; T020-T023 and Phase 4 exit marked complete |
+| `docs/v2/v2.4/development/history/2026-08-30_v2.4.2-phase-4-video-fail-closed.md` | Cat 4 active | Session history for this phase (filename keeps the plan date) |
+| `docs/v2/v2.4/known-gaps.md` | Cat 4 active | Appended MT-4; kept MT-1 through MT-3 |
+| `docs/DEVLOG.md` | Cat 4 living | Phase 4 entry |
+| `ARCHITECTURE.md` | Cat 4 living | Video Lab fail-closed empty clip |
 
 No Cat 1 deletes. No Cat 2 archive moves. Scratch docs were not created. Default: leave living files in place.
 
-## CI impact (Phase 3)
+## CI impact (Phase 4)
 
-New test path `desktop/tests/followUpSource.test.ts`. Existing `ImageStudioPage.test.tsx`, `imageIntent.test.ts`, `GenerationCanvas.test.tsx`, `tests/unit/core/image/replaceIntent.test.ts`, and `tests/python/diffusion/test_real_execute.py` already run under `npm run test:shell` / pytest. No new command, dependency, environment variable, or artifact. No workflow file changed.
+New test path `desktop/tests/videoFailClosed.test.ts`. Existing `VideoLabPage.test.tsx` and `videoDispatcher.test.ts` already run under `npm run test:shell`. No new command, dependency, environment variable, or artifact. No workflow file changed.

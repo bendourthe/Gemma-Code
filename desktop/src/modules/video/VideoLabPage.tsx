@@ -32,6 +32,11 @@ import {
 
 import { ComposerContextRow, MediaComposer, MessageList, chatComposerAccept, composerSessionUsage, useStickToBottom, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableVideoPath } from "../../shared/studio/usablePayload";
+import {
+  EMPTY_VIDEO_CLIP,
+  formatVideoFailure,
+  persistableAssistant,
+} from "./videoFailClosed";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   SETTINGS_MODELS_PATH,
@@ -363,8 +368,9 @@ export function VideoLabPage({
           studioClient.appendTurn({
             sessionId,
             role: input.role,
-            content: input.content,
-            mediaRef: input.mediaRef ?? null,
+            ...(input.role === "assistant"
+              ? persistableAssistant({ content: input.content, mediaRef: input.mediaRef })
+              : { content: input.content, mediaRef: input.mediaRef ?? null }),
             ...studioPersistUsage(input),
           }),
         ).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
@@ -558,11 +564,11 @@ export function VideoLabPage({
               pending: false,
               progress: undefined,
               media: undefined,
-              content: "Generation failed: video generation completed without a playable clip.",
+              content: EMPTY_VIDEO_CLIP,
             });
             persistTurn({
               role: "assistant",
-              content: "Generation failed: video generation completed without a playable clip.",
+              content: EMPTY_VIDEO_CLIP,
             });
             return { done: true };
           }
@@ -595,18 +601,30 @@ export function VideoLabPage({
               return copy;
             });
           }
-          const firstSrc = playlist[0]?.src ?? (mp4Path ? resolveMp4Url(mp4Path) : undefined);
+          const firstSrc =
+            playlist[0]?.src || (mp4Path ? resolveMp4Url(mp4Path) : "") || "";
+          if (!firstSrc) {
+            patchMessage(messageId, {
+              pending: false,
+              progress: undefined,
+              media: undefined,
+              content: EMPTY_VIDEO_CLIP,
+            });
+            persistTurn({ role: "assistant", content: EMPTY_VIDEO_CLIP });
+            chainRef.current = null;
+            return { done: true };
+          }
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
-            media: firstSrc ? { kind: "video", src: firstSrc } : undefined,
+            media: { kind: "video", src: firstSrc },
           });
           if (isUsablePathRef(mp4Path)) {
             lastOutputRef.current = mp4Path;
             lastJobIdRef.current = event.jobId;
             persistTurn({ role: "assistant", content: "", mediaRef: mp4Path });
           } else {
-            persistTurn({ role: "assistant", content: "" });
+            persistTurn({ role: "assistant", content: "Generated video." });
           }
           if (mp4Path) {
             void client.extractWorkflow(mp4Path).then((wf) => {
@@ -662,25 +680,31 @@ export function VideoLabPage({
           const runtimeMessage = event.message ?? "unknown error";
           if (isMediaRuntimeFailure(runtimeMessage)) {
             void mediaRuntimeClient.status().then((state) => {
+              const recovery = videoRecoveryState(state);
               patchMessage(messageId, {
                 pending: false,
                 progress: undefined,
                 media: undefined,
-                content: "",
-                mediaRecovery: videoRecoveryState(state),
+                content: recovery ? "" : formatVideoFailure(runtimeMessage),
+                mediaRecovery: recovery,
+              });
+              persistTurn({
+                role: "assistant",
+                content: recovery?.message ?? formatVideoFailure(runtimeMessage),
               });
             });
             return { done: true };
           }
+          const failed = formatVideoFailure(runtimeMessage);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
             media: undefined,
-            content: `Generation failed: ${event.message ?? "unknown error"}`,
+            content: failed,
           });
           persistTurn({
             role: "assistant",
-            content: `Generation failed: ${event.message ?? "unknown error"}`,
+            content: failed,
           });
           return { done: true };
         }
@@ -714,9 +738,10 @@ export function VideoLabPage({
         delete next[message.id];
         return next;
       });
+      const failed = formatVideoFailure("generated video could not be displayed.");
       patchMessage(message.id, {
         media: undefined,
-        content: "Generation failed: generated video could not be displayed.",
+        content: failed,
       });
     },
     [patchMessage],
@@ -747,7 +772,11 @@ export function VideoLabPage({
           chainRef.current = null;
           patchMessage(activeJob.messageId, {
             pending: false,
-            content: `Generation failed: ${formatInferenceError(err)}`,
+            content: formatVideoFailure(formatInferenceError(err)),
+          });
+          persistTurn({
+            role: "assistant",
+            content: formatVideoFailure(formatInferenceError(err)),
           });
           setActiveJob(null);
         }
@@ -757,7 +786,7 @@ export function VideoLabPage({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage]);
+  }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage, persistTurn]);
 
   useEffect(() => {
     let cancelled = false;
@@ -778,15 +807,24 @@ export function VideoLabPage({
       if (!isMediaRuntimeFailure(message)) return false;
       try {
         const state = await mediaRuntimeClient.status();
+        const recovery = videoRecoveryState(state);
         patchMessage(assistantId, {
           pending: false,
-          content: "",
-          mediaRecovery: videoRecoveryState(state),
+          content: recovery ? "" : formatVideoFailure(message),
+          mediaRecovery: recovery,
+        });
+        persistTurn({
+          role: "assistant",
+          content: recovery?.message ?? formatVideoFailure(message),
         });
       } catch {
         patchMessage(assistantId, {
           pending: false,
-          content: `Generation failed: ${message}`,
+          content: formatVideoFailure(message),
+        });
+        persistTurn({
+          role: "assistant",
+          content: formatVideoFailure(message),
         });
       }
       return true;
@@ -908,7 +946,9 @@ export function VideoLabPage({
       const segments = planVideoContinuation(values.durationSeconds, clipSeconds);
       const first = segments[0];
       if (!first) {
-        patchMessage(assistantId, { pending: false, content: "Generation failed: empty continuation plan" });
+        const failed = formatVideoFailure("empty continuation plan");
+        patchMessage(assistantId, { pending: false, content: failed });
+        persistTurn({ role: "assistant", content: failed });
         return;
       }
 
@@ -959,11 +999,11 @@ export function VideoLabPage({
         if (!(await markMediaRuntimeFailure(assistantId, err))) {
           patchMessage(assistantId, {
             pending: false,
-            content: `Generation failed: ${formatInferenceError(err)}`,
+            content: formatVideoFailure(formatInferenceError(err)),
           });
           persistTurn({
             role: "assistant",
-            content: `Generation failed: ${formatInferenceError(err)}`,
+            content: formatVideoFailure(formatInferenceError(err)),
           });
           mediaRetryRef.current = null;
         }

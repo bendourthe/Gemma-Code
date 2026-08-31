@@ -847,6 +847,77 @@ describe("VideoLabPage (chat)", () => {
     expect(item).toHaveTextContent("Enhance enhance-child");
     expect(screen.getByRole("button", { name: "Cancel enhancement enhance-child" })).toBeInTheDocument();
   });
+
+  it("persists an empty complete as error text, not an empty assistant turn", async () => {
+    const client = new InMemoryVideoClient();
+    const explorer = new InMemoryStudioExplorerClient("video");
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        explorerClient={explorer}
+        drainIntervalMs={20}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [{ kind: "complete", jobId: "mem-video-1" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox in grass" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByText(/playable clip/i)).toBeInTheDocument());
+    await waitFor(() => {
+      const session = explorer.listTree().sessions[0];
+      expect(session).toBeTruthy();
+      const assistant = explorer.listTurns(session!.id).find((t) => t.role === "assistant");
+      expect(assistant?.content).toMatch(/playable clip/i);
+      expect(assistant?.mediaRef).toBeFalsy();
+    });
+  });
+
+  it("maps a missing-weights error to Settings > Models", async () => {
+    const client = new InMemoryVideoClient();
+    render(<VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-video-1", [
+      {
+        kind: "error",
+        jobId: "mem-video-1",
+        message: "SANA-Video 2B 720p weights are not installed",
+      },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a puppy in grass" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    expect(await screen.findByText(/Settings > Models/i)).toBeInTheDocument();
+    expect(screen.queryByTestId(/^message-media-/)).toBeNull();
+  });
+
+  it("fails closed when complete has a path the player cannot resolve", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        resolveMp4Url={() => ""}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByText(/playable clip/i)).toBeInTheDocument());
+    expect(screen.queryByTestId(/^message-media-/)).toBeNull();
+  });
 });
 
 function succeedEnhancement(job: VideoEnhancementJobDto): VideoEnhancementJobDto {

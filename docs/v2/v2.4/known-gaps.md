@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 3 | 0 |
+| Missing tests / coverage gaps (MT) | 4 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-3 are implemented locally. jsdom cannot prove thinking-pill pixel containment or a live overflow pane jumping to the latest turn. Packaged img2img identity ("same puppy, now black") is not observed here. Human zoom, send-scroll, image follow-up screenshots, and SAM2 install wait for Phase 7.
+Phases 1-4 are implemented locally. jsdom cannot prove thinking-pill pixel containment or a live overflow pane jumping to the latest turn. Packaged img2img identity ("same puppy, now black") and a packaged empty-video fail-closed screenshot are not observed here. Human zoom, send-scroll, image follow-up, SAM2 install, and empty-video screenshots wait for Phase 7.
 
 ### Open Items
 
@@ -45,6 +45,13 @@ Phases 1-3 are implemented locally. jsdom cannot prove thinking-pill pixel conta
 - **Plan reference**: [v2.4.2-field-ui-history-and-generation.md](plans/v2.4.2-field-ui-history-and-generation.md) T016 / 3.1
 - **Reason**: Automated tests prove img2img against last PNG bytes, strength 0.45, and no SAM2 for that phrase. A packaged NVIDIA run that the same puppy is recolored rather than resampled is not recorded here.
 - **Suggested next step**: Phase 7 operator item: generate a puppy, send "Make that puppy black" with no attachment, capture before/after.
+
+##### MT-4 - Packaged empty-video fail-closed is not observed
+
+- **Source phase**: Phase 4 - Video Fail-Closed Output
+- **Plan reference**: [v2.4.2-field-ui-history-and-generation.md](plans/v2.4.2-field-ui-history-and-generation.md) T020 / 4.1
+- **Reason**: Automated tests prove persist of the playable-clip error, Settings > Models on missing weights, and fail-closed when `resolveMp4Url` is empty. A packaged NVIDIA run that a first puppy-in-grass turn never paints an empty success bubble is not recorded here.
+- **Suggested next step**: Phase 7 operator item: send a Video Lab prompt that cannot produce a clip (missing weights or empty path) and capture the written failure.
 
 ## v2.4.1
 
