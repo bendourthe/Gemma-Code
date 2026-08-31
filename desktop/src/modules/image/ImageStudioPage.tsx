@@ -43,8 +43,9 @@ import {
 } from "../../shared/models/installedFeed";
 import {
   ownedIdSet,
-  readFavorite,
+  recommendOrderForTask,
   resolveDefaultId,
+  writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -153,6 +154,8 @@ export interface ImageStudioPageProps {
    * value from the telemetry stream.
    */
   readonly hostVramFreeGB?: number | null;
+  /** Host VRAM total so the picker uses installer recommend order. */
+  readonly hostVramGB?: number | null;
   /** The scheduler's active job, so the policy knows what would be evicted. */
   readonly activeSchedulerJob?: SchedulerActiveJob | null;
   readonly residencyMemory?: ResidencySessionMemory;
@@ -192,6 +195,7 @@ export function ImageStudioPage({
   onGetMoreModels,
   diffusionTier = "diffusion-low",
   hostVramFreeGB,
+  hostVramGB = null,
   activeSchedulerJob,
   residencyMemory,
   queueClient: queueOverride,
@@ -208,6 +212,8 @@ export function ImageStudioPage({
     () => mediaRuntimeOverride ?? createIpcMediaRuntimeClient(),
   );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
+  const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
+  const userChangedModelRef = useRef(false);
   const [noneInstalled, setNoneInstalled] = useState(false);
   // v2.2.0 Phase 2 (2.2): distinguish "the backend is down" from "you have no
   // image models". The pre-v2.2.0 catch-all reported the latter for both.
@@ -289,14 +295,14 @@ export function ImageStudioPage({
           (m) => !m.tags?.includes("utility"),
         );
         if (cancelled) return;
+        setSelection(snap);
         const first = image[0];
         if (first) {
           setModels(image);
           const next = resolveDefaultId(image, {
-            favorite: readFavorite("image"),
             recommended: snap?.recommendedByTask.image ?? null,
           });
-          setSelectedModelId(next || first.id);
+          if (!userChangedModelRef.current) setSelectedModelId(next || first.id);
           setNoneInstalled(false);
           setListFailure(null);
         } else {
@@ -1271,7 +1277,14 @@ export function ImageStudioPage({
             models={models}
             taskType="image"
             value={selectedModelId}
-            onChange={setSelectedModelId}
+            hostVramGB={hostVramGB}
+            recommendOrder={recommendOrderForTask(selection, "image")}
+            ownedIds={ownedIdSet(selection)}
+            onChange={(nextModelId) => {
+              userChangedModelRef.current = true;
+              setSelectedModelId(nextModelId);
+              writeFavorite("image", nextModelId);
+            }}
             onGetMoreModels={onGetMoreModels}
             disabled={isGenerating}
           />

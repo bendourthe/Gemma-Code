@@ -44,8 +44,9 @@ import {
 } from "../../shared/models/installedFeed";
 import {
   ownedIdSet,
-  readFavorite,
+  recommendOrderForTask,
   resolveDefaultId,
+  writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -224,6 +225,8 @@ export function VideoLabPage({
     () => mediaRuntimeOverride ?? createIpcMediaRuntimeClient(),
   );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
+  const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
+  const userChangedModelRef = useRef(false);
   const [noneInstalled, setNoneInstalled] = useState(false);
   // v2.2.0 Phase 2 (2.2): "backend down" is not "no models installed".
   const [listFailure, setListFailure] = useState<string | null>(null);
@@ -319,14 +322,14 @@ export function VideoLabPage({
         const snap = source.lastSelection ?? null;
         const video = installedModelsForType(all, "video", ownedIdSet(snap));
         if (cancelled) return;
+        setSelection(snap);
         const first = video[0];
         if (first) {
           setModels(video);
           const next = resolveDefaultId(video, {
-            favorite: readFavorite("video"),
             recommended: snap?.recommendedByTask.video ?? null,
           });
-          setSelectedModelId(next || first.id);
+          if (!userChangedModelRef.current) setSelectedModelId(next || first.id);
           setNoneInstalled(false);
           setListFailure(null);
         } else {
@@ -1528,7 +1531,14 @@ export function VideoLabPage({
             models={models}
             taskType="video"
             value={selectedModelId}
-            onChange={setSelectedModelId}
+            hostVramGB={vramGB > 0 ? vramGB : null}
+            recommendOrder={recommendOrderForTask(selection, "video")}
+            ownedIds={ownedIdSet(selection)}
+            onChange={(nextModelId) => {
+              userChangedModelRef.current = true;
+              setSelectedModelId(nextModelId);
+              writeFavorite("video", nextModelId);
+            }}
             onGetMoreModels={onGetMoreModels}
             disabled={isGenerating}
           />

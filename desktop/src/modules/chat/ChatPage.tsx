@@ -91,8 +91,9 @@ import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
 import {
   installedForTask,
   ownedIdSet,
-  readFavorite,
+  recommendOrderForTask,
   resolveDefaultId,
+  writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -168,6 +169,8 @@ export interface ChatPageProps {
   sidecarStatus?: UseSidecarStatusOptions;
   /** v2.2.3 Phase 5 -- submit-time GPU occupancy inputs. */
   hostVramFreeGB?: number | null;
+  /** Host VRAM total so the picker uses installer recommend order. */
+  hostVramGB?: number | null;
   activeSchedulerJob?: SchedulerActiveJob | null;
   residencyMemory?: ResidencySessionMemory;
 }
@@ -186,6 +189,7 @@ export function ChatPage({
   memoryHub,
   sidecarStatus: sidecarStatusOptions,
   hostVramFreeGB = null,
+  hostVramGB = null,
   activeSchedulerJob = null,
   residencyMemory,
 }: ChatPageProps = {}): JSX.Element {
@@ -249,6 +253,7 @@ export function ChatPage({
   // projection when `models.list` is unavailable (tests, sidecar down).
   const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
+  const userChangedModelRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -276,11 +281,10 @@ export function ChatPage({
           setSelection(snap);
           const ready = installedForTask(all, "chat", snap);
           const next = resolveDefaultId(ready, {
-            favorite: readFavorite("chat"),
             recommended: snap?.recommendedByTask.chat ?? null,
           });
-          if (next) {
-            setModelId((current) => (ready.some((m) => m.id === current) ? current : next));
+          if (next && !userChangedModelRef.current) {
+            setModelId(next);
           }
         }
       },
@@ -1234,8 +1238,14 @@ export function ChatPage({
                 models={listedModels}
                 taskType="llm"
                 ownedIds={ownedIdSet(selection)}
+                hostVramGB={hostVramGB}
+                recommendOrder={recommendOrderForTask(selection, "chat")}
                 value={modelId}
-                onChange={setModelId}
+                onChange={(nextModelId) => {
+                  userChangedModelRef.current = true;
+                  setModelId(nextModelId);
+                  writeFavorite("chat", nextModelId);
+                }}
                 onGetMoreModels={onGetMoreModels}
                 disabled={Boolean(activeChat)}
               />

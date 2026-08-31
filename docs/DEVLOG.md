@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 5 picker rank and default
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-5-picker-order.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Chat, Agents, Image, and Video pickers sort with host VRAM and installer recommend order.
+- Empty sessions default to `snapshot.recommendedByTask` (16 GB agentic: `gemma-4-12b-it-gguf`). Leftover favorites apply only after a user change in that session.
+
+### Why It Changed
+
+Screenshot 9 listed Agents models out of recommend order and selected gpt-oss 20B on an empty workspace.
+
+### Decisions Made
+
+- Null or zero Video VRAM is not treated as CPU-none for picker sort.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 4 Settings compact cards
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-4-settings-cards.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

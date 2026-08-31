@@ -37,7 +37,7 @@ import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   installedForTask,
   ownedIdSet,
-  readFavorite,
+  recommendOrderForTask,
   resolveDefaultId,
   writeFavorite,
   type SelectionSnapshot,
@@ -206,6 +206,8 @@ export interface CodingPageProps {
   sidecarStatus?: UseSidecarStatusOptions;
   /** v2.2.3 Phase 5 -- submit-time GPU occupancy inputs. */
   hostVramFreeGB?: number | null;
+  /** Host VRAM total so the picker uses installer recommend order. */
+  hostVramGB?: number | null;
   activeSchedulerJob?: SchedulerActiveJob | null;
   residencyMemory?: ResidencySessionMemory;
   /** v2.2.3 Phase 6 -- test/bootstrap seam for the persisted workspace field. */
@@ -220,6 +222,7 @@ export function CodingPage({
   documentClient: documentClientOverride,
   sidecarStatus: sidecarStatusOptions,
   hostVramFreeGB = null,
+  hostVramGB = null,
   activeSchedulerJob = null,
   residencyMemory,
   initialWorkspacePath,
@@ -326,7 +329,6 @@ export function CodingPage({
           ? initialModelId
           : null;
         const next = explicit ?? resolveDefaultId(ready, {
-          favorite: readFavorite("agentic"),
           recommended: snap?.recommendedByTask.agentic ?? null,
         });
         if (!userChangedModelRef.current) setModelId(next);
@@ -977,6 +979,8 @@ export function CodingPage({
                 taskType="llm"
                 catalogTab="agentic"
                 ownedIds={ownedIdSet(selection)}
+                hostVramGB={hostVramGB}
+                recommendOrder={recommendOrderForTask(selection, "agentic")}
                 value={modelId}
                 onChange={(nextModelId) => {
                   userChangedModelRef.current = true;

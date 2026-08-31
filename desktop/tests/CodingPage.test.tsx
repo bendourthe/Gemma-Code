@@ -511,7 +511,7 @@ describe("CodingPage", () => {
     expect(await screen.findByTestId("coding-model-select")).toHaveValue("qwen2.5-coder:7b");
   });
 
-  it("prefers a ready favorite and protects a manual choice from a later catalog refresh", async () => {
+  it("ignores leftover favorite on an empty session and protects a manual choice from a later catalog refresh", async () => {
     window.localStorage.setItem("nexus.ui.favoriteModel.agentic", "gemma4:e4b");
     const models = [
       { id: "qwen2.5-coder:7b", displayName: "Qwen 2.5 Coder 7B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
@@ -526,12 +526,12 @@ describe("CodingPage", () => {
     const firstClient = { lastSelection: selection, async list() { return models; } };
     const { rerender } = render(<CodingPage modelsClient={firstClient} />);
     const select = await screen.findByTestId("coding-model-select") as HTMLSelectElement;
-    expect(select).toHaveValue("gemma4:e4b");
-    await userEvent.selectOptions(select, "qwen2.5-coder:7b");
-    const refreshedClient = { lastSelection: { ...selection, recommendedByTask: { agentic: "gemma4:e4b" } }, async list() { return models; } };
+    expect(select).toHaveValue("qwen2.5-coder:7b");
+    await userEvent.selectOptions(select, "gemma4:e4b");
+    const refreshedClient = { lastSelection: { ...selection, recommendedByTask: { agentic: "qwen2.5-coder:7b" } }, async list() { return models; } };
     rerender(<CodingPage modelsClient={refreshedClient} />);
-    expect(await screen.findByTestId("coding-model-select")).toHaveValue("qwen2.5-coder:7b");
-    expect(window.localStorage.getItem("nexus.ui.favoriteModel.agentic")).toBe("qwen2.5-coder:7b");
+    expect(await screen.findByTestId("coding-model-select")).toHaveValue("gemma4:e4b");
+    expect(window.localStorage.getItem("nexus.ui.favoriteModel.agentic")).toBe("gemma4:e4b");
   });
 
   it("shows an error banner when the IPC layer is unavailable", async () => {

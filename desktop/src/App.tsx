@@ -229,6 +229,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   memoryHub={chatMemoryHub}
                   sampleVideoFrames={sampleChatVideoFrames}
                   hostVramFreeGB={hostVramFreeGB}
+                  hostVramGB={hostVramGB}
                   activeSchedulerJob={activeSchedulerJob}
                   residencyMemory={residencyMemory}
                 />
@@ -240,6 +241,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                 <CodingPage
                   onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
                   hostVramFreeGB={hostVramFreeGB}
+                  hostVramGB={hostVramGB}
                   activeSchedulerJob={activeSchedulerJob}
                   residencyMemory={residencyMemory}
                 />
@@ -252,6 +254,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
                   diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
                   hostVramFreeGB={hostVramFreeGB}
+                  hostVramGB={hostVramGB}
                   activeSchedulerJob={activeSchedulerJob}
                   residencyMemory={residencyMemory}
                 />

@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 4 | 0 |
+| Missing tests / coverage gaps (MT) | 5 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-4 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom. Packaged Settings nowrap facts and icon colors are not observed here.
+Phases 1-5 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom. Packaged Settings nowrap facts and icon colors are not observed here. Packaged Agents picker order on this 16 GB install is not observed here.
 
 ### Open Items
 
@@ -52,6 +52,13 @@ Phases 1-4 are implemented locally. A packaged wizard screenshot of the two-colu
 - **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T016 / 4.1
 - **Reason**: Tests pin a nowrap facts row without Company/License pills, pills inside Details, and green / red / blue action colors via inline style. A packaged Settings screenshot is not recorded here.
 - **Suggested next step**: Last-phase operator item (Settings one facts line and icon colors).
+
+##### MT-5 - Packaged Agents picker order and empty-session default are not observed
+
+- **Source phase**: Phase 5 - Shared Picker Rank and Default
+- **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T020 / 5.1
+- **Reason**: Tests prove `resolveDefaultId` prefers `gemma-4-12b-it-gguf` over a gpt-oss favorite, and QuickModelSwitcher lists Gemma before gpt-oss at 16 GB with recommendOrder. A packaged Agents screenshot on this host is not recorded here.
+- **Suggested next step**: Last-phase operator item (Agents empty session defaults to Gemma 4 12B on this install).
 
 ## v2.4.2
 

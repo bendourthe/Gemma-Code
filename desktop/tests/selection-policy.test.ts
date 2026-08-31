@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 import {
   installedForTask,
+  recommendOrderForTask,
   resolveDefaultId,
   ownedIdSet,
 } from "../src/shared/models/selectionPolicy";
@@ -57,12 +58,50 @@ describe("selectionPolicy", () => {
     ]);
   });
 
-  it("resolves favorite, then recommended, then first", () => {
+  it("prefers recommended over leftover favorite unless applyFavorite is set", () => {
     const ready = [model({ id: "a" }), model({ id: "b" }), model({ id: "c" })];
-    expect(resolveDefaultId(ready, { favorite: "c", recommended: "b" })).toBe("c");
+    expect(resolveDefaultId(ready, { favorite: "c", recommended: "b" })).toBe("b");
+    expect(resolveDefaultId(ready, { favorite: "c", recommended: "b", applyFavorite: true })).toBe("c");
     expect(resolveDefaultId(ready, { favorite: "missing", recommended: "b" })).toBe("b");
     expect(resolveDefaultId(ready, {})).toBe("a");
     expect(resolveDefaultId([], {})).toBe("");
+  });
+
+  it("defaults a 16 GB agentic empty session to gemma-4-12b-it-gguf not gpt-oss", () => {
+    const ready = [
+      model({ id: "gpt-oss:20b", task: "agentic" }),
+      model({ id: "lfm2.5:2.6b", task: "agentic" }),
+      model({ id: "gemma-4-12b-it-gguf", task: "agentic" }),
+    ];
+    const snap: SelectionSnapshot = {
+      schemaVersion: 1,
+      orderedIds: ["gpt-oss:20b", "lfm2.5:2.6b", "gemma-4-12b-it-gguf"],
+      recommendedByTask: { agentic: "gemma-4-12b-it-gguf" },
+      downloadedSinceInstall: [],
+    };
+    expect(
+      resolveDefaultId(ready, {
+        favorite: "gpt-oss:20b",
+        recommended: snap.recommendedByTask.agentic,
+      }),
+    ).toBe("gemma-4-12b-it-gguf");
+    expect(recommendOrderForTask(snap, "agentic")[0]).toBe("gemma-4-12b-it-gguf");
+  });
+
+  it("orders chat, image, and video recommend ids first", () => {
+    const snap: SelectionSnapshot = {
+      schemaVersion: 1,
+      orderedIds: ["other-chat", "other-image", "other-video"],
+      recommendedByTask: {
+        chat: "gemma-4-12b-it-gguf",
+        image: "realvisxl-v5",
+        video: "wan2.1-t2v-1.3b",
+      },
+      downloadedSinceInstall: [],
+    };
+    expect(recommendOrderForTask(snap, "chat")[0]).toBe("gemma-4-12b-it-gguf");
+    expect(recommendOrderForTask(snap, "image")[0]).toBe("realvisxl-v5");
+    expect(recommendOrderForTask(snap, "video")[0]).toBe("wan2.1-t2v-1.3b");
   });
 
   it("ownedIdSet is null when no snapshot so callers can skip the intersect", () => {

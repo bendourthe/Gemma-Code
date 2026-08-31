@@ -61,12 +61,28 @@ export function installedForTask(
 
 export function resolveDefaultId(
   ready: readonly ListedModelDto[],
-  opts: { favorite?: string | null; recommended?: string | null } = {},
+  opts: { favorite?: string | null; recommended?: string | null; applyFavorite?: boolean } = {},
 ): string {
   if (ready.length === 0) return "";
-  if (opts.favorite && ready.some((m) => m.id === opts.favorite)) return opts.favorite;
+  if (opts.applyFavorite === true && opts.favorite && ready.some((m) => m.id === opts.favorite)) {
+    return opts.favorite;
+  }
   if (opts.recommended && ready.some((m) => m.id === opts.recommended)) return opts.recommended;
   return ready[0]?.id ?? "";
+}
+
+/** Installer recommend order for a task: required/recommended id first, then snapshot ids. */
+export function recommendOrderForTask(
+  snapshot: SelectionSnapshot | null | undefined,
+  task: TaskKey,
+): string[] {
+  const recommended = snapshot?.recommendedByTask[task];
+  const ids: string[] = [];
+  if (recommended) ids.push(recommended);
+  for (const id of snapshot?.orderedIds ?? []) {
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
 }
 
 export function readFavorite(task: TaskKey, storage: Pick<Storage, "getItem"> | null = defaultStorage()): string | null {
