@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-7 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-8 local complete; T040 waits on explicit push approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+
+> **v2.4.3 FIELD DENSITY PHASE 8 LOCAL (2026-08-31)** -- [field density last-phase evidence](v2/v2.4/development/last-phase-evidence-v2.4.3-field-density.md) T032-T039 complete. T040 is one push that updates PR 58; merge, tag, and `/update release` wait on green integration. MT-1 through MT-7 remain Not observed.
 
 > **v2.4.3 FIELD DENSITY PHASE 7 (2026-08-31)** -- [SANA-Video layout and executor](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T028-T031 complete. Complete Diffusers tree plus SanaVideoPipeline. Next: Phase 8 last-phase evidence.
 

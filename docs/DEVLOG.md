@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 8 last-phase evidence
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-8-last-phase.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.3-field-density.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Last-phase evidence quotes architecture scan, known-gaps disposition, living docs, git-tree hygiene, CI comparison, Goal-vs-codebase review, operator items, and the local suite.
+- QG-5 (`develop` on merge-result PR workflows) is proposed and not applied.
+
+### Why It Changed
+
+The plan's final phase must prove the Goal landed in code and stop at explicit publication approval.
+
+### Decisions Made
+
+- v2.4.2 MT-1 through MT-6 stay open. v2.4.3 MT-1 through MT-7 stay Not observed. No pipeline file changed.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 7 SANA-Video layout and executor
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-7-sana-video.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
