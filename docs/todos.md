@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.2** field UI Phases 1-7 local complete; T043 push/PR waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phase 1 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+
+> **v2.4.3 FIELD DENSITY PHASE 1 (2026-08-31)** -- [installer two-column layout and Unsloth lock](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T001-T006 complete. Configuration is Components | Features. Review is facts | models. Unsloth Incompatible cannot be ticked and refreshes after GPU detection. Next: Phase 2 history chrome.
 
 > **v2.4.2 FIELD UI LAST PHASE LOCAL (2026-08-31)** -- [field UI, sidebar history, and generation follow-through](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md) T001-T042 complete. Evidence: [last-phase-evidence-v2.4.2-field-ui.md](v2/v2.4/development/last-phase-evidence-v2.4.2-field-ui.md). Phases 1-6 committed locally (`dcb201f` through `bbe0f6d`). T043 is one push that updates PR 58; merge, tag, and `/update release` wait on green integration. MT-1 through MT-6 remain Not observed.
 

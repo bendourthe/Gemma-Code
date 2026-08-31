@@ -132,7 +132,7 @@ class TestReviewPageRebuild:
         )
         page = ReviewPage(state)
         page._rebuild_summary()
-        text = page._summary_label.text()
+        text = page._summary_text()
         assert "/opt/gemma" in text
         assert "gemma4:e4b" in text
 

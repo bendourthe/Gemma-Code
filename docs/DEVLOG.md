@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 1 installer layout and Unsloth lock
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-1-installer-layout.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Configuration puts Components left and Features right; a narrow window stacks them.
+- Review puts install facts left and the model list right. GPU is whole GB. The time line is Estimated installation time.
+- Unsloth Incompatible disables and clears the checkbox. The badge refreshes on showEvent after GPU detection. The v2.4.2 opt-in warning is gone.
+
+### Why It Changed
+
+Screenshot 1 still allowed ticking Unsloth under Incompatible because the badge ran at construct with empty VRAM. Screenshots 1-2 wasted a column of installer space.
+
+### Decisions Made
+
+- Host-ok uses `display_vram_gb >= 16` (15 GiB-class still counts as 16).
+- Restack uses the resize event width, not a stale `self.width()`.
+
+---
+
 ## [2026-08-31] v2.4.2 - field UI Phase 7 last-phase evidence
 
 Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.2-field-ui.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-7-last-phase.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
