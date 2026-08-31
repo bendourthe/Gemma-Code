@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 3 thinking pill
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-3-thinking-pill.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Rotating pending pills use a constant min-width from the longest caption (`Searching...`) plus orb and padding.
+- A 12 px left inset keeps the glow off the transcript edge. Overflow stays visible.
+
+### Why It Changed
+
+Screenshot 5 cropped the Searching glow and jumped width versus Thinking.
+
+### Decisions Made
+
+- Caption column also uses the longest caption in `ch` so the word itself does not shrink the pill.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 2 history chrome
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-2-history-chrome.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
@@ -7842,7 +7861,7 @@ Close the v0.6.0 cycle: capture release-gate baselines, write five ADRs for the 
 
 #### 8.2: Five new ADRs accepted (0006..0010)
 
-ADR-0006 (unified path-guard) and ADR-0007 (permission-tier floor) jointly close Attack Path A from the v0.5.0 review — the symlink leg via realpath-aware `resolveInsideWorkspace` for every filesystem tool, and the auto-approve leg via a clamp on `permissionOverrides` so CONFIRM/DANGEROUS-baseline tools cannot drop below tier 1. ADR-0008 documents the panel decomposition (1,724 -> 935 lines, four focused modules) and explicitly accepts the < 400-line target as a partial deviation deferred to v0.7.0; full ownership hoist would require re-architecting `OllamaClient` injection. ADR-0009 records the `PredictiveCache` deletion (Option B) — the layer was never wired and wiring it would have violated the cycle's "no new product surface" constraint. ADR-0010 records the per-provenance threshold elevation (Option A) — heuristic rows clear 0.95, ollama rows clear 0.85, exposed via two new settings.
+ADR-0006 (unified path-guard) and ADR-0007 (permission-tier floor) jointly close Attack Path A from the v0.5.0 review - the symlink leg via realpath-aware `resolveInsideWorkspace` for every filesystem tool, and the auto-approve leg via a clamp on `permissionOverrides` so CONFIRM/DANGEROUS-baseline tools cannot drop below tier 1. ADR-0008 documents the panel decomposition (1,724 -> 935 lines, four focused modules) and explicitly accepts the < 400-line target as a partial deviation deferred to v0.7.0; full ownership hoist would require re-architecting `OllamaClient` injection. ADR-0009 records the `PredictiveCache` deletion (Option B) - the layer was never wired and wiring it would have violated the cycle's "no new product surface" constraint. ADR-0010 records the per-provenance threshold elevation (Option A) - heuristic rows clear 0.95, ollama rows clear 0.85, exposed via two new settings.
 
 #### 8.4: v0.5.0 `>=40%` claim resolved by retrospective note, not deletion
 
@@ -7850,7 +7869,7 @@ The plan's instruction was to "edit the existing `## [0.5.0]` entry to either co
 
 #### 8.1: v0.4.0 golden baseline cannot be recovered from the v0.4.0 tag
 
-The plan implied checking out the v0.4.0 tag to capture its golden baseline. `git show v0.4.0:tests/golden/baselines/` confirms only `v0.3.0-{e2b,e4b}.json` existed at that tag — there is no historical v0.4.0 capture to copy. The Phase 8 history doc gives the procedure: `git worktree add ../Gemma-Code-v0.4.0 v0.4.0`, copy the *current* framework into it (so the comparison is apples-to-apples), `npm ci`, run the suite against live Ollama with `gemma4:e4b`, copy the output back. Operator-action item.
+The plan implied checking out the v0.4.0 tag to capture its golden baseline. `git show v0.4.0:tests/golden/baselines/` confirms only `v0.3.0-{e2b,e4b}.json` existed at that tag - there is no historical v0.4.0 capture to copy. The Phase 8 history doc gives the procedure: `git worktree add ../Gemma-Code-v0.4.0 v0.4.0`, copy the *current* framework into it (so the comparison is apples-to-apples), `npm ci`, run the suite against live Ollama with `gemma4:e4b`, copy the output back. Operator-action item.
 
 #### 7.7 carryover: bench `EventEmitter` mock added
 
@@ -7858,7 +7877,7 @@ The `createConversationManager` import fix was straightforward (the factory func
 
 #### 7.7 carryover: GpuDetector lint warning fixed at one line
 
-The pre-existing `@typescript-eslint/explicit-function-return-type` warning at [src/config/GpuDetector.ts:18](../src/config/GpuDetector.ts#L18) closed by adding `: void` to the inner `cb` callback. `npm run lint` is now zero errors, zero warnings — the first time since v0.5.0.
+The pre-existing `@typescript-eslint/explicit-function-return-type` warning at [src/config/GpuDetector.ts:18](../src/config/GpuDetector.ts#L18) closed by adding `: void` to the inner `cb` callback. `npm run lint` is now zero errors, zero warnings - the first time since v0.5.0.
 
 #### 8.5: Version bump applied to both `package.json` and `package-lock.json`
 
@@ -8856,7 +8875,7 @@ Third phase of the v0.4.0 remediation release. Closed the 24 correctness / code-
 - `src/chat/ConversationManager.ts` drops the `ConversationSync` optional parameter and all four fire-and-forget try/catch blocks. Persistence flows only through `ChatHistoryStore`.
 
 **Shared utility extractions (3.7-3.8)**
-- `src/storage/embeddingUtils.ts` consolidates `cosineSimilarity` (raw `[-1, 1]`), `cosineSimilarityNormalized` (`[0, 1]` with 0.5 neutral for empty/zero-norm vectors — preserves `RelevanceScorer` behavior exactly), `serializeEmbedding`, `deserializeEmbedding`, `deserializeEmbeddingF32`, and `sanitizeFtsQuery`. Retired duplicates in `MemoryStore`, `EpisodicMemory`, `RelevanceScorer`, `ChatHistoryStore`.
+- `src/storage/embeddingUtils.ts` consolidates `cosineSimilarity` (raw `[-1, 1]`), `cosineSimilarityNormalized` (`[0, 1]` with 0.5 neutral for empty/zero-norm vectors - preserves `RelevanceScorer` behavior exactly), `serializeEmbedding`, `deserializeEmbedding`, `deserializeEmbeddingF32`, and `sanitizeFtsQuery`. Retired duplicates in `MemoryStore`, `EpisodicMemory`, `RelevanceScorer`, `ChatHistoryStore`.
 - `src/storage/sqliteFts.ts` exports `createFtsTableAndTriggers(db, {ftsTable, contentTable, columns, triggerPrefix?})`. Applied to all three FTS stores, homogenizing INSERT/UPDATE/DELETE triggers (review finding #3's AFTER UPDATE fix is now built in for every FTS table by default).
 
 **Refactors and targeted fixes (3.9-3.16)**
@@ -9718,7 +9737,7 @@ v0.2.0 implementation complete. All 6 phases done. Ready for commit and release 
 
 ---
 
-## [2026-04-09] v0.2.0 Phase 5 — Sub-Agent Orchestration
+## [2026-04-09] v0.2.0 Phase 5 - Sub-Agent Orchestration
 
 ### Summary
 
@@ -9780,7 +9799,7 @@ Verified. 449 tests passing, 0 failures, 88.57% line coverage, 0 lint errors. Ne
 
 ---
 
-## [2026-04-09] v0.2.0 Phase 4 — Conditional Tool Activation and MCP Support
+## [2026-04-09] v0.2.0 Phase 4 - Conditional Tool Activation and MCP Support
 
 ### Summary
 
@@ -9898,7 +9917,7 @@ Verified. Build clean, 416 tests passing, 0 lint errors. Phase 4 complete.
 
 ---
 
-## [2026-04-09] v0.2.0 Phase 3 — Persistent Memory System
+## [2026-04-09] v0.2.0 Phase 3 - Persistent Memory System
 
 ### Summary
 
@@ -9949,7 +9968,7 @@ None. Implementation follows the plan exactly.
 
 ---
 
-## [2026-04-08] v0.2.0 Phase 2 — Multi-Strategy Context Compaction
+## [2026-04-08] v0.2.0 Phase 2 - Multi-Strategy Context Compaction
 
 ### Summary
 
@@ -10037,7 +10056,7 @@ Verified. 327 tests passing, 0 lint errors, clean build. Ready for Phase 3 (Pers
 
 ---
 
-## [2026-04-08] v0.2.0 Phase 0+1 — Gemma 4 Native Protocol & Dynamic PromptBuilder
+## [2026-04-08] v0.2.0 Phase 0+1 - Gemma 4 Native Protocol & Dynamic PromptBuilder
 
 ### Summary
 
@@ -10080,7 +10099,7 @@ Implemented the first two phases of the v0.2.0 plan: migrated from the custom XM
 
 ---
 
-## [2026-04-07] v0.1.0 Release — Gemma 4 Migration & Cleanup
+## [2026-04-07] v0.1.0 Release - Gemma 4 Migration & Cleanup
 
 ### Summary
 
@@ -10139,7 +10158,7 @@ Chose `gemma4` (which maps to `gemma4:e4b`, 9.6 GB) as the default model because
 
 ---
 
-## [2026-04-05 23:00] Phase 8 — Hardening, CI/CD & Release
+## [2026-04-05 23:00] Phase 8 - Hardening, CI/CD & Release
 
 ### Summary
 
@@ -10152,16 +10171,16 @@ Bring Gemma Code to a stable v0.1.0 release candidate: no high/critical security
 ### Architecture Changes
 
 **Security layer additions:**
-- `FetchPageTool` (`src/tools/handlers/webSearch.ts`) — new `isSsrfBlocked(url)` guard rejects localhost, loopback, link-local, RFC-1918 ranges, and non-HTTP(S) schemes before any outbound fetch
-- `RunTerminalTool` (`src/tools/handlers/terminal.ts`) — new `shellSegments(command)` splits on `;`, `&&`, `||`, `|`, `\n` so the blocklist check applies to every sub-command, not just the raw string
+- `FetchPageTool` (`src/tools/handlers/webSearch.ts`) - new `isSsrfBlocked(url)` guard rejects localhost, loopback, link-local, RFC-1918 ranges, and non-HTTP(S) schemes before any outbound fetch
+- `RunTerminalTool` (`src/tools/handlers/terminal.ts`) - new `shellSegments(command)` splits on `;`, `&&`, `||`, `|`, `\n` so the blocklist check applies to every sub-command, not just the raw string
 
 **Extension lifecycle additions:**
-- `src/extension.ts` — global `process.on('unhandledRejection')` handler logs to the Output channel instead of crashing the extension host
-- `src/extension.ts` — `startOllamaPoller()` polls every 5 s; posts a recovery message when Ollama comes back online; posts an error banner when it goes offline
-- `src/extension.ts` — startup health check with actionable messaging and a "Pull model" quick action via VS Code terminal
-- `src/panels/GemmaCodePanel.ts` — new public `postStatus()` and `postError()` methods for external signalling from the extension activation code
+- `src/extension.ts` - global `process.on('unhandledRejection')` handler logs to the Output channel instead of crashing the extension host
+- `src/extension.ts` - `startOllamaPoller()` polls every 5 s; posts a recovery message when Ollama comes back online; posts an error banner when it goes offline
+- `src/extension.ts` - startup health check with actionable messaging and a "Pull model" quick action via VS Code terminal
+- `src/panels/GemmaCodePanel.ts` - new public `postStatus()` and `postError()` methods for external signalling from the extension activation code
 
-### Sub-task 8.1 — Security Audit
+### Sub-task 8.1 - Security Audit
 
 **SSRF in FetchPageTool (fixed):**
 
@@ -10196,7 +10215,7 @@ function isBlocked(command: string): boolean {
 
 Additional blocklist entries added: `mkfs`, `dd if=/dev/zero`, `> /dev/sda`, `rm -rf ~`.
 
-### Sub-task 8.2 — Performance Benchmarks
+### Sub-task 8.2 - Performance Benchmarks
 
 Five benchmark files created in `tests/benchmarks/`:
 
@@ -10212,27 +10231,27 @@ All latency gates are asserted via standard `it()` blocks so they run in the nor
 
 `docs/archive/versions/v0/v0.1.0/performance-benchmarks.md` documents all thresholds and how to run each suite.
 
-### Sub-task 8.3 — Error Handling Hardening
+### Sub-task 8.3 - Error Handling Hardening
 
 Seven error scenarios addressed:
 
-1. **Global unhandled rejection** — `process.on('unhandledRejection')` registered at module load time in `extension.ts`; logs stack trace to the Output channel.
-2. **Ollama unavailable at startup** — initial `checkHealth()` on `activate()`; posts an error banner with `ollama serve` instructions.
-3. **Ollama goes offline mid-session** — 5-second poller; when Ollama transitions from reachable → unreachable, posts an error banner; when it transitions back, posts a recovery status.
-4. **Model not found** — ping command catches errors containing "not found" and offers a "Pull model" quick action that opens an integrated terminal running `ollama pull <model>`.
-5. **Python backend crash** — `BackendManager.start()` promise rejection caught; shows a VS Code warning notification and logs the stderr.
-6. **`GemmaCodePanel` external signalling** — new `postStatus(state)` and `postError(message)` public methods called from `extension.ts` for Ollama state changes without requiring access to the panel's internal postMessage closure.
-7. **`ContextCompactor.shouldCompact()` regression** — confirmed by test: does not trigger at low token counts, does trigger when `chars / 4 > 0.8 × maxTokens`.
+1. **Global unhandled rejection** - `process.on('unhandledRejection')` registered at module load time in `extension.ts`; logs stack trace to the Output channel.
+2. **Ollama unavailable at startup** - initial `checkHealth()` on `activate()`; posts an error banner with `ollama serve` instructions.
+3. **Ollama goes offline mid-session** - 5-second poller; when Ollama transitions from reachable → unreachable, posts an error banner; when it transitions back, posts a recovery status.
+4. **Model not found** - ping command catches errors containing "not found" and offers a "Pull model" quick action that opens an integrated terminal running `ollama pull <model>`.
+5. **Python backend crash** - `BackendManager.start()` promise rejection caught; shows a VS Code warning notification and logs the stderr.
+6. **`GemmaCodePanel` external signalling** - new `postStatus(state)` and `postError(message)` public methods called from `extension.ts` for Ollama state changes without requiring access to the panel's internal postMessage closure.
+7. **`ContextCompactor.shouldCompact()` regression** - confirmed by test: does not trigger at low token counts, does trigger when `chars / 4 > 0.8 × maxTokens`.
 
 Regression tests written in `tests/unit/errors/error-handling.test.ts` covering all above scenarios with mocked dependencies.
 
-### Sub-task 8.4 — Documentation & Release
+### Sub-task 8.4 - Documentation & Release
 
-**`README.md`** — full rewrite: installation (installer + VSIX + source), quick start with example prompts, complete configuration reference table, slash command table, custom skills instructions, troubleshooting section, and contributing guide.
+**`README.md`** - full rewrite: installation (installer + VSIX + source), quick start with example prompts, complete configuration reference table, slash command table, custom skills instructions, troubleshooting section, and contributing guide.
 
-**`CHANGELOG.md`** — complete v0.1.0 entry documenting all features added across Phases 1–8 in Keep a Changelog format, plus a Known Limitations section and an Unreleased section for future work.
+**`CHANGELOG.md`** - complete v0.1.0 entry documenting all features added across Phases 1-8 in Keep a Changelog format, plus a Known Limitations section and an Unreleased section for future work.
 
-**`docs/archive/versions/v0/v0.1.0/architecture.md`** — new document with ASCII system architecture diagram, component descriptions table, data-flow diagrams for the streaming pipeline and tool execution loop, and the extension activation/deactivation lifecycle.
+**`docs/archive/versions/v0/v0.1.0/architecture.md`** - new document with ASCII system architecture diagram, component descriptions table, data-flow diagrams for the streaming pipeline and tool execution loop, and the extension activation/deactivation lifecycle.
 
 ### .gitignore Audit (Phase 8)
 
@@ -10259,15 +10278,15 @@ Zero files removed from the index. Zero LFS candidates.
 | `src/tools/handlers/terminal.ts` | Added `shellSegments()` and extended blocklist; `isBlocked()` now checks all shell sub-commands |
 | `src/extension.ts` | Added `unhandledRejection` handler, `startOllamaPoller()`, startup health check, model-not-found quick action, backend crash notification |
 | `src/panels/GemmaCodePanel.ts` | Added `postStatus()` and `postError()` public methods |
-| `tests/benchmarks/time-to-first-token.bench.ts` | New — live Ollama TTFT benchmark and latency gate |
-| `tests/benchmarks/context-compaction.bench.ts` | New — `estimateTokens()` throughput and latency gate |
-| `tests/benchmarks/tool-execution.bench.ts` | New — `ReadFileTool` benchmark and latency gate |
-| `tests/benchmarks/skill-loading.bench.ts` | New — `SkillLoader` throughput and latency gate |
-| `tests/unit/errors/error-handling.test.ts` | New — regression tests for all 7 error scenarios |
-| `docs/archive/versions/v0/v0.1.0/security-audit.md` | New — findings and remediations |
-| `docs/archive/versions/v0/v0.1.0/performance-benchmarks.md` | New — benchmark targets and usage |
-| `docs/archive/versions/v0/v0.1.0/architecture.md` | New — full system architecture documentation |
-| `docs/git/gitignore-audit-2026-04-05-phase8.md` | New — .gitignore audit report |
+| `tests/benchmarks/time-to-first-token.bench.ts` | New - live Ollama TTFT benchmark and latency gate |
+| `tests/benchmarks/context-compaction.bench.ts` | New - `estimateTokens()` throughput and latency gate |
+| `tests/benchmarks/tool-execution.bench.ts` | New - `ReadFileTool` benchmark and latency gate |
+| `tests/benchmarks/skill-loading.bench.ts` | New - `SkillLoader` throughput and latency gate |
+| `tests/unit/errors/error-handling.test.ts` | New - regression tests for all 7 error scenarios |
+| `docs/archive/versions/v0/v0.1.0/security-audit.md` | New - findings and remediations |
+| `docs/archive/versions/v0/v0.1.0/performance-benchmarks.md` | New - benchmark targets and usage |
+| `docs/archive/versions/v0/v0.1.0/architecture.md` | New - full system architecture documentation |
+| `docs/git/gitignore-audit-2026-04-05-phase8.md` | New - .gitignore audit report |
 | `README.md` | Full rewrite with complete v0.1.0 documentation |
 | `CHANGELOG.md` | Complete v0.1.0 entry across all phases |
 | `.gitignore` | Added `desktop.ini`, `*.userosscache`, `*.sln.docstates` |
@@ -10276,7 +10295,7 @@ Zero files removed from the index. Zero LFS candidates.
 
 - **SSRF is a real risk for tool-calling agents.** Any tool that makes outbound HTTP requests based on model output must validate URLs against private IP ranges before fetching. A single unvalidated `fetch(url)` can exfiltrate cloud metadata or probe internal services.
 - **Shell blocklists must account for metacharacter chaining.** Checking the raw command string for a blocked substring is insufficient when `shell: true` is used. Always split on `;`, `&&`, `||`, `|`, and newlines before checking each segment.
-- **`GemmaCodePanel` needs a public error surface.** The extension's activation code runs before the webview is open, but it still needs to surface errors (Ollama unreachable, backend crash) to the user. Adding `postStatus()` and `postError()` public methods was the correct design — they no-op gracefully when the webview is not yet open.
+- **`GemmaCodePanel` needs a public error surface.** The extension's activation code runs before the webview is open, but it still needs to surface errors (Ollama unreachable, backend crash) to the user. Adding `postStatus()` and `postError()` public methods was the correct design - they no-op gracefully when the webview is not yet open.
 - **Benchmark `bench()` and latency-gate `it()` blocks can coexist in the same file.** This pattern keeps threshold documentation collocated with the measurement code, and lets the latency gates run on every CI push while the full benchmark profiles run only nightly.
 
 ### Current Status
@@ -10290,7 +10309,7 @@ Zero files removed from the index. Zero LFS candidates.
 
 ---
 
-## [2026-04-05 21:00] Phase 5 — Persistent History, Auto-Compact, Edit Modes & UI Polish
+## [2026-04-05 21:00] Phase 5 - Persistent History, Auto-Compact, Edit Modes & UI Polish
 
 ### Summary
 
@@ -10366,9 +10385,9 @@ src/skills/SkillLoader.ts(62,26): error TS2345: Argument of type 'string | undef
 is not assignable to parameter of type 'string'.
 ```
 
-**Fix:** Changed to `(match[1] ?? "")` and `(match[2] ?? "")`. The `??` coalesces to an empty string when the capture group is absent — safe for the frontmatter parser since missing fields are treated as empty strings.
+**Fix:** Changed to `(match[1] ?? "")` and `(match[2] ?? "")`. The `??` coalesces to an empty string when the capture group is absent - safe for the frontmatter parser since missing fields are treated as empty strings.
 
-#### 3. `marked` v17 is ESM-only — incompatible with the project's CommonJS output
+#### 3. `marked` v17 is ESM-only - incompatible with the project's CommonJS output
 
 **Problem:** `npm install marked` resolved v17 (the latest). `import { marked } from "marked"` compiled but failed at runtime with:
 
@@ -10405,7 +10424,7 @@ TypeError: bench is not a function
     at tests/benchmarks/rendering.bench.ts:39:3
 ```
 
-**Fix:** Removed `.bench.ts` from the `include` array in `vitest.config.ts` and added a dedicated `benchmark.include` section. Added a `"bench": "vitest bench --config configs/vitest.config.ts"` npm script. The `.bench.ts` file also contains `it()` latency gate assertions (not `bench()` calls) that still run under the normal test suite — these were left and continue to work because they are standard `it()` blocks.
+**Fix:** Removed `.bench.ts` from the `include` array in `vitest.config.ts` and added a dedicated `benchmark.include` section. Added a `"bench": "vitest bench --config configs/vitest.config.ts"` npm script. The `.bench.ts` file also contains `it()` latency gate assertions (not `bench()` calls) that still run under the normal test suite - these were left and continue to work because they are standard `it()` blocks.
 
 #### 6. Dynamic `require()` inside `beforeEach` resolved before module system was ready
 
@@ -10477,17 +10496,17 @@ Used optional chaining (`this._confirmationGate?.request(...)`) throughout so th
 |--------|---------|---------|-------|
 | Test files | 17 | 20 | +3 |
 | Total tests | 174 | 205 | +31 |
-| Benchmark file | — | 1 (3 bench + 3 latency gates) | +1 |
-| Build errors | 0 | 0 | — |
-| Lint errors | 0 | 0 | — |
+| Benchmark file | - | 1 (3 bench + 3 latency gates) | +1 |
+| Build errors | 0 | 0 | - |
+| Lint errors | 0 | 0 | - |
 
-All 205 tests pass (2 skipped — Ollama-server-dependent health check tests that require a live `ollama serve`).
+All 205 tests pass (2 skipped - Ollama-server-dependent health check tests that require a live `ollama serve`).
 
 ### Lessons Learned
 
 - **Check a package's CJS/ESM status before installing.** `marked` v5+ is ESM-only. Always check the `"type"` field in `package.json` and the `exports` map before adding a dependency to a CJS project. The safest search: look for `"main"` (CJS entry) alongside `"module"` (ESM entry). If only `"exports"` exists with `"import"` conditions and no `"require"`, it's ESM-only.
 - **`highlight.js` main entry is the safest import target.** Subpath imports (e.g., `highlight.js/lib/common.js`) often lack `.d.ts` files in their export conditions. The main entry always has types. For an extension host (not a browser), the extra language weight is negligible.
-- **Vitest `bench()` is mode-gated — never include `.bench.ts` in the regular test glob.** Add a dedicated `benchmark.include` in `vitest.config.ts` and a separate `bench` npm script. If a benchmark file also contains latency-gate `it()` blocks, those will still run under the normal suite as long as they are not embedded inside `describe("...", () => bench(...))` — keep them in a separate `describe` block.
+- **Vitest `bench()` is mode-gated - never include `.bench.ts` in the regular test glob.** Add a dedicated `benchmark.include` in `vitest.config.ts` and a separate `bench` npm script. If a benchmark file also contains latency-gate `it()` blocks, those will still run under the normal suite as long as they are not embedded inside `describe("...", () => bench(...))` - keep them in a separate `describe` block.
 - **Static imports always beat dynamic `require()` in test files.** Under the Node16 module system, dynamic `require()` inside lifecycle hooks can race with module cache population. Use top-level static `import` statements everywhere.
 - **Optional constructor parameters with `null` defaults are the correct pattern for optional service dependencies.** `new FileTool(null, "auto")` and `new FileTool(gate, "ask")` are both valid; `this._gate?.request()` handles the null case safely. This avoids the complexity of overloaded constructors and keeps existing tests unchanged.
 - **`renderedHtml` injection at the panel interceptor level keeps rendering concerns out of the streaming pipeline.** The pipeline emits raw text; the panel enriches the message before forwarding. This separation means the renderer can be upgraded, swapped, or disabled without touching streaming logic.
@@ -10499,7 +10518,7 @@ All 205 tests pass (2 skipped — Ollama-server-dependent health check tests tha
 
 ---
 
-## [2026-04-05 21:30] Phase 6 — Python Backend & Inference Optimisation
+## [2026-04-05 21:30] Phase 6 - Python Backend & Inference Optimisation
 
 ### Summary
 
@@ -10528,8 +10547,8 @@ Python FastAPI Backend (src/backend/)
     │
     ├── POST /chat/stream  → StreamingResponse (SSE)
     │   ├── assemble_prompt()
-    │   │   ├── trim_history() — remove oldest msgs to fit max_tokens
-    │   │   └── apply_gemma_template() — format for Gemma chat template
+    │   │   ├── trim_history() - remove oldest msgs to fit max_tokens
+    │   │   └── apply_gemma_template() - format for Gemma chat template
     │   └── OllamaService.stream_chat() → httpx AsyncClient
     │
     ├── GET /health  → { status, ollama_reachable, model }
@@ -10544,13 +10563,13 @@ Python FastAPI Backend (src/backend/)
 | `main.py` | `src/backend/src/backend/main.py` | FastAPI app; lifespan (injects `OllamaService` + `Settings` into `app.state`) |
 | `config.py` | `src/backend/src/backend/config.py` | `pydantic-settings` settings; env prefix `GEMMA_`; singleton `get_settings()` |
 | `prompt.py` | `src/backend/src/backend/services/prompt.py` | `is_gemma_model()`, `apply_gemma_template()`, `trim_history()`, `assemble_prompt()` |
-| `ollama.py` | `src/backend/src/backend/services/ollama.py` | `OllamaService` — async httpx wrapper; `check_health()`, `list_models()`, `stream_chat()` async generator |
+| `ollama.py` | `src/backend/src/backend/services/ollama.py` | `OllamaService` - async httpx wrapper; `check_health()`, `list_models()`, `stream_chat()` async generator |
 | `chat.py` | `src/backend/src/backend/routers/chat.py` | `POST /chat/stream` → `StreamingResponse` with SSE events |
 | `schemas.py` | `src/backend/src/backend/models/schemas.py` | Pydantic v2 request/response models |
 
 ### Attempted Solutions & Key Decisions
 
-#### 1. ASGI lifespan not triggered by `httpx.ASGITransport` — integration tests saw `AttributeError: 'State' object has no attribute 'ollama'`
+#### 1. ASGI lifespan not triggered by `httpx.ASGITransport` - integration tests saw `AttributeError: 'State' object has no attribute 'ollama'`
 
 **Problem:** The integration tests used `AsyncClient(transport=ASGITransport(app=app), base_url="http://test")`. The FastAPI app initialises `app.state.ollama` and `app.state.settings` inside the `lifespan` async context manager. `ASGITransport` calls the ASGI app directly with HTTP-scope messages but never sends a `lifespan` scope. As a result, the lifespan never ran, `app.state` was empty, and every request raised:
 
@@ -10576,7 +10595,7 @@ All mock patches are then applied to the already-created `OllamaService` instanc
 
 **Lesson:** `httpx.ASGITransport` does not trigger ASGI lifespan. For FastAPI apps that use `lifespan` to populate `app.state`, integration tests must either (a) manually seed `app.state` in the fixture, or (b) use `starlette.testclient.TestClient` (which does handle lifespan). Approach (a) is preferred for async tests because `TestClient` wraps a synchronous interface.
 
-#### 2. Shell CWD drift blocked all Bash hooks — the `uv` discovery command changed the working directory
+#### 2. Shell CWD drift blocked all Bash hooks - the `uv` discovery command changed the working directory
 
 **Problem:** The first attempt to run the Python tests used `cd src/backend && uv run ...`. The `cd` succeeded, but `uv` was not installed (exit code 127). The Bash tool's shell persists the working directory between invocations. All subsequent Bash calls were sent from `src/backend/` instead of the project root. Claude Code's `PreToolUse` hooks are configured with relative paths (`python3 .claude/hooks/format-bash-description.py`). From `src/backend/`, this path did not exist:
 
@@ -10586,7 +10605,7 @@ C:\Users\bdour\...\Gemma-Code\src\backend\.claude\hooks\format-bash-description.
 [Errno 2] No such file or directory
 ```
 
-The hook error BLOCKED all subsequent Bash tool invocations — there was no way to `cd` back because the hook runs before the command.
+The hook error BLOCKED all subsequent Bash tool invocations - there was no way to `cd` back because the hook runs before the command.
 
 **Fix:** Updated `C:/Users/bdour/.claude/settings.json` to replace every relative hook path with the absolute user-level path (`C:/Users/bdour/.claude/hooks/...`). The hook scripts already exist there. Subsequent Bash commands then ran successfully from any working directory.
 
@@ -10598,9 +10617,9 @@ The hook error BLOCKED all subsequent Bash tool invocations — there was no way
 
 **Fix:** Changed the call to pass `8192` (the sensible default matching the TypeScript extension's default). In a later phase, this will be driven by a dedicated `max_context_tokens` setting. The mismatch had no user-visible impact during this phase because the test messages were very short, but would have caused incorrect trimming in production.
 
-#### 4. Async generator patching — `side_effect` on a `MagicMock` replaces an async generator method
+#### 4. Async generator patching - `side_effect` on a `MagicMock` replaces an async generator method
 
-**Context:** `OllamaService.stream_chat` is an `async def` generator method (it uses `yield`). Patching it via `patch.object(OllamaService, "stream_chat", side_effect=fake_fn)` places a synchronous `MagicMock` in the class. When called, the mock invokes `fake_fn` and returns its return value. Since `fake_fn` is itself an `async def` generator function, calling it returns an async generator object — exactly what `async for token in ollama.stream_chat(...)` expects.
+**Context:** `OllamaService.stream_chat` is an `async def` generator method (it uses `yield`). Patching it via `patch.object(OllamaService, "stream_chat", side_effect=fake_fn)` places a synchronous `MagicMock` in the class. When called, the mock invokes `fake_fn` and returns its return value. Since `fake_fn` is itself an `async def` generator function, calling it returns an async generator object - exactly what `async for token in ollama.stream_chat(...)` expects.
 
 **Subtlety:** The fake function must accept `self` as its first positional parameter because `patch.object` patches the unbound class method. The signature used:
 
@@ -10614,7 +10633,7 @@ This approach is clean and avoids the overhead of `AsyncMock` for generator scen
 
 ### Changes
 
-**New files — Python backend (23):**
+**New files - Python backend (23):**
 
 | File | Purpose |
 |------|---------|
@@ -10635,13 +10654,13 @@ This approach is clean and avoids the overhead of `AsyncMock` for generator scen
 | `src/backend/tests/benchmarks/bench_prompt.py` | 4 benchmarks: trim + assemble at 10/50/100-message history sizes |
 | `src/backend/tests/__init__.py` + subdirectory `__init__.py` × 4 | Package markers for test discovery |
 
-**New files — TypeScript (1):**
+**New files - TypeScript (1):**
 
 | File | Purpose |
 |------|---------|
 | `src/backend/BackendManager.ts` | Spawn/stop Python backend; health polling (200ms interval, 15s timeout); graceful SIGTERM + SIGKILL fallback |
 
-**Modified files — TypeScript (3):**
+**Modified files - TypeScript (3):**
 
 | File | Change |
 |------|--------|
@@ -10661,20 +10680,20 @@ This approach is clean and avoids the overhead of `AsyncMock` for generator scen
 
 | Metric | Phase 5 | Phase 6 | Delta |
 |--------|---------|---------|-------|
-| TS test files | 20 | 20 | — |
-| TS total tests | 205 | 205 | — |
-| Python test files | — | 5 | +5 |
-| Python total tests | — | 28 | +28 |
-| Build errors | 0 | 0 | — |
-| Lint errors | 0 | 0 | — |
+| TS test files | 20 | 20 | - |
+| TS total tests | 205 | 205 | - |
+| Python test files | - | 5 | +5 |
+| Python total tests | - | 28 | +28 |
+| Build errors | 0 | 0 | - |
+| Lint errors | 0 | 0 | - |
 
-All 205 TypeScript tests pass (2 skipped — live Ollama health checks). All 28 Python tests pass (unit + integration; benchmarks excluded from the default `pytest` run and available via `pytest --benchmark-enable`).
+All 205 TypeScript tests pass (2 skipped - live Ollama health checks). All 28 Python tests pass (unit + integration; benchmarks excluded from the default `pytest` run and available via `pytest --benchmark-enable`).
 
 ### Lessons Learned
 
 - **`httpx.ASGITransport` never triggers the ASGI lifespan.** Any FastAPI app using a `lifespan` context manager to populate `app.state` must have its state manually seeded in integration test fixtures. The pattern `app.state.X = ...` in a `_make_app()` helper is the correct approach. Do not rely on `TestClient` or `ASGITransport` to run the lifespan unless explicitly documented.
-- **Never `cd` to a subdirectory in a Bash tool command.** The Bash tool's shell persists the working directory. Once changed to a subdirectory, all subsequent invocations run from that directory — including the PreToolUse hook resolution. If a hook uses a relative path, it will fail to resolve and block all further Bash calls. Use absolute paths in commands or always prefix with `cd $PROJECT_ROOT &&`. The global `settings.json` now uses absolute paths for hooks to prevent recurrence.
-- **Async generator patching with `patch.object` and a `side_effect` function works cleanly.** The side-effect function must accept `self` as its first positional argument (unbound method convention). Returning an async generator from the side-effect is the correct replacement for an `async def` generator method — `async for` in the calling code will iterate the returned generator transparently.
+- **Never `cd` to a subdirectory in a Bash tool command.** The Bash tool's shell persists the working directory. Once changed to a subdirectory, all subsequent invocations run from that directory - including the PreToolUse hook resolution. If a hook uses a relative path, it will fail to resolve and block all further Bash calls. Use absolute paths in commands or always prefix with `cd $PROJECT_ROOT &&`. The global `settings.json` now uses absolute paths for hooks to prevent recurrence.
+- **Async generator patching with `patch.object` and a `side_effect` function works cleanly.** The side-effect function must accept `self` as its first positional argument (unbound method convention). Returning an async generator from the side-effect is the correct replacement for an `async def` generator method - `async for` in the calling code will iterate the returned generator transparently.
 - **`pydantic-settings` with an env prefix is the right tool for backend configuration.** `Settings()` reads `GEMMA_OLLAMA_URL`, `GEMMA_MODEL_NAME`, etc. from the environment. The extension can control the backend by setting these env vars in the `child_process.spawn` env object without any config file.
 - **FastAPI's `request.app.state` is the correct injection point for shared services.** The `lifespan` context manager populates `app.state.ollama` and `app.state.settings` once at startup. Routers access them via `request.app.state`. This avoids global singletons and makes the dependency chain explicit and testable.
 
@@ -10684,7 +10703,7 @@ All 205 TypeScript tests pass (2 skipped — live Ollama health checks). All 28 
 
 ---
 
-## [2026-04-05 22:00] Phase 7 — Installer & Distribution
+## [2026-04-05 22:00] Phase 7 - Installer & Distribution
 
 ### Summary
 
@@ -10782,7 +10801,7 @@ scripts/installer/setup.nsi (NSIS)
 
 ### Changes
 
-**New files — Scripts (3):**
+**New files - Scripts (3):**
 
 | File | Purpose |
 |---|---|
@@ -10790,7 +10809,7 @@ scripts/installer/setup.nsi (NSIS)
 | `scripts/installer/setup.nsi` | NSIS installer: Ollama, VSIX, Python venv, optional model download, shortcuts |
 | `scripts/installer/build-installer.ps1` | Orchestrates VSIX build, requirements export, NSIS compile, self-signed signing |
 
-**New files — CI/CD (3):**
+**New files - CI/CD (3):**
 
 | File | Purpose |
 |---|---|
@@ -10798,7 +10817,7 @@ scripts/installer/setup.nsi (NSIS)
 | `.github/workflows/release.yml` | Version-tag release: VSIX + installer + GitHub Release with CHANGELOG notes |
 | `.github/workflows/nightly.yml` | Daily: live Ollama integration tests (gemma3:2b), benchmarks, Slack on failure |
 
-**New files — Tests (3):**
+**New files - Tests (3):**
 
 | File | Purpose |
 |---|---|
@@ -10806,7 +10825,7 @@ scripts/installer/setup.nsi (NSIS)
 | `tests/integration/installer/test-install-sequence.ps1` | Install/uninstall sequence: extension install, venv creation, dep install, clean removal |
 | `tests/e2e/extension-load.test.ts` | Playwright E2E: activity bar icon, chat panel render, `/help` in Ollama-absent mode |
 
-**New files — Documentation (3):**
+**New files - Documentation (3):**
 
 | File | Purpose |
 |---|---|
@@ -10826,22 +10845,22 @@ scripts/installer/setup.nsi (NSIS)
 
 | Metric | Phase 6 | Phase 7 | Delta |
 |---|---|---|---|
-| TS test files | 20 | 20 | — |
-| TS total tests | 205 | 205 | — |
-| Python test files | 5 | 5 | — |
-| Python total tests | 28 | 28 | — |
-| PowerShell test files | — | 2 | +2 |
-| E2E test files | — | 1 | +1 |
-| Build errors | 0 | 0 | — |
-| Lint errors | 0 | 0 | — |
+| TS test files | 20 | 20 | - |
+| TS total tests | 205 | 205 | - |
+| Python test files | 5 | 5 | - |
+| Python total tests | 28 | 28 | - |
+| PowerShell test files | - | 2 | +2 |
+| E2E test files | - | 1 | +1 |
+| Build errors | 0 | 0 | - |
+| Lint errors | 0 | 0 | - |
 
 No regressions. TypeScript and Python test suites are unaffected by Phase 7. The PowerShell tests run via `pwsh` directly (not Vitest). The E2E test requires `@vscode/test-electron` and `playwright` to be installed separately (`npm install --save-dev @vscode/test-electron playwright`) per `docs/archive/versions/v0/v0.1.0/testing.md`.
 
 ### Lessons Learned
 
 - **NSIS `RequestExecutionLevel admin` is required for Ollama installation but the Python venv should still be user-local.** `%LOCALAPPDATA%` resolves correctly under an admin-elevated installer because the token is inherited from the invoking user's session. Creating the venv at `%LOCALAPPDATA%\GemmaCode\venv` avoids requiring admin rights for future backend operations.
-- **`NSISdl::download` pops two values — always pop both or the stack will be corrupted.** The pattern is: `NSISdl::download ... url dest; Pop $0` (result code) then read `$0`. If you forget to pop the second value (the downloaded file size that some NSIS versions push), subsequent `Pop` calls will retrieve garbage. Test every download step on a clean NSIS install.
-- **`@vscode/test-electron` does not expose a `--remote-debugging-port` flag directly.** The flag must be passed via `launchArgs` in the `runTests()` call and Playwright must `connectOverCDP` to the port. The Electron process must be started before Playwright tries to connect — adding a `waitForLoadState('domcontentloaded')` call is the practical way to block until VS Code is ready.
+- **`NSISdl::download` pops two values - always pop both or the stack will be corrupted.** The pattern is: `NSISdl::download ... url dest; Pop $0` (result code) then read `$0`. If you forget to pop the second value (the downloaded file size that some NSIS versions push), subsequent `Pop` calls will retrieve garbage. Test every download step on a clean NSIS install.
+- **`@vscode/test-electron` does not expose a `--remote-debugging-port` flag directly.** The flag must be passed via `launchArgs` in the `runTests()` call and Playwright must `connectOverCDP` to the port. The Electron process must be started before Playwright tries to connect - adding a `waitForLoadState('domcontentloaded')` call is the practical way to block until VS Code is ready.
 - **Nightly CI should always use the smallest viable model, not the production model.** The production model (`gemma3:27b`) is 15 GB and would make every nightly run 20+ minutes just on the download. Use `gemma3:2b` (1.6 GB) in CI and rely on human testing for production model quality.
 - **`uv export --no-dev --format requirements-txt` produces a pip-compatible requirements file.** This is the correct way to export dependencies from a `uv`-managed project for use in a plain `pip install -r` context (e.g., the installer's venv creation step). The `--no-dev` flag correctly excludes pytest and ruff from the runtime dependency set.
 - **PowerShell's `$LASTEXITCODE` only reflects the last external command.** Inside a `Invoke-Step` wrapper that calls an `& $Action` scriptblock, `$LASTEXITCODE` is set by the external process inside the block. Returning a non-zero explicitly from the scriptblock (e.g., `exit 1`) will propagate correctly, but PowerShell cmdlets that throw exceptions do not set `$LASTEXITCODE`. Use `$ErrorActionPreference = 'Stop'` to convert all errors to terminating exceptions.
@@ -10852,11 +10871,11 @@ No regressions. TypeScript and Python test suites are unaffected by Phase 7. The
 
 ---
 
-## [2026-04-05 18:00] Phase 4 — Skills, Commands & Plan Mode
+## [2026-04-05 18:00] Phase 4 - Skills, Commands & Plan Mode
 
 ### Summary
 
-Implemented the full Phase 4 feature set: a `SkillLoader` that hot-reloads DevAI-Hub–compatible skill files from disk, a `CommandRouter` that parses `/command` slash inputs and dispatches to built-in handlers or skill prompts, a `PlanMode` that gates the agent loop behind per-step user approval, and all supporting webview UI (autocomplete dropdown, plan panel, PLAN badge). 7 built-in skills were bundled as a catalog. 42 new tests were added (174 total passing).
+Implemented the full Phase 4 feature set: a `SkillLoader` that hot-reloads DevAI-Hub-compatible skill files from disk, a `CommandRouter` that parses `/command` slash inputs and dispatches to built-in handlers or skill prompts, a `PlanMode` that gates the agent loop behind per-step user approval, and all supporting webview UI (autocomplete dropdown, plan panel, PLAN badge). 7 built-in skills were bundled as a catalog. 42 new tests were added (174 total passing).
 
 ### Goal
 
@@ -10901,7 +10920,7 @@ User types "/commit fix login bug"
 
 #### 1. Skill catalog path resolution in tests
 
-**Problem:** `GemmaCodePanel` constructs the catalog path via `path.join(this._extensionUri.fsPath, "src", "skills", "catalog")`. The unit test mock supplies `extensionUri: {} as vscode.Uri` — `fsPath` is `undefined`, causing `path.join` to throw `TypeError: The "path" argument must be of type string. Received undefined`.
+**Problem:** `GemmaCodePanel` constructs the catalog path via `path.join(this._extensionUri.fsPath, "src", "skills", "catalog")`. The unit test mock supplies `extensionUri: {} as vscode.Uri` - `fsPath` is `undefined`, causing `path.join` to throw `TypeError: The "path" argument must be of type string. Received undefined`.
 
 **Error:**
 ```
@@ -10916,11 +10935,11 @@ TypeError: The "path" argument must be of type string. Received undefined
 const extensionFsPath = this._extensionUri.fsPath ?? "";
 const catalogDir = path.join(extensionFsPath, "src", "skills", "catalog");
 ```
-When `fsPath` is undefined in tests, `catalogDir` becomes `"src/skills/catalog"` — a relative path that produces no skills when loaded (safe for tests).
+When `fsPath` is undefined in tests, `catalogDir` becomes `"src/skills/catalog"` - a relative path that produces no skills when loaded (safe for tests).
 
 #### 2. `PlanMode.state` snapshot not truly independent
 
-**Problem:** The `state` getter did `[...this._state.currentPlan]` — a shallow array copy. The test `"state getter returns a snapshot, not a live reference"` failed because modifying a step object mutated the snapshot's copy too (same object references).
+**Problem:** The `state` getter did `[...this._state.currentPlan]` - a shallow array copy. The test `"state getter returns a snapshot, not a live reference"` failed because modifying a step object mutated the snapshot's copy too (same object references).
 
 **Error:**
 ```
@@ -10941,9 +10960,9 @@ CACError: Unknown option `--include`
 
 **Fix:** Two-part fix:
 1. Updated `configs/vitest.config.ts` to add `"tests/integration/**/*.test.ts"` to the `include` array so both suites are covered by the default config.
-2. Changed `test:integration` script to `vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration` — using the positional path filter instead of `--include`.
+2. Changed `test:integration` script to `vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration` - using the positional path filter instead of `--include`.
 
-#### 4. Skill SKILL.md frontmatter parser — missing `argument-hint` field
+#### 4. Skill SKILL.md frontmatter parser - missing `argument-hint` field
 
 The `argument-hint` field is optional (not all skills need it). The parser correctly defaults to `""` when absent. Noted during test authoring: tests must not assert `argumentHint` is defined for skills that don't declare it, as the field may be an empty string.
 
@@ -10977,7 +10996,7 @@ The `argument-hint` field is optional (not all skills need it). The parser corre
 | `src/panels/webview/index.ts` | Added plan badge, autocomplete dropdown (CSS + JS), plan panel with approve buttons; message handlers for `commandList`, `planReady`, `planModeToggled`; input event triggers `requestCommandList` on first `/` |
 | `configs/vitest.config.ts` | Added `tests/integration/**/*.test.ts` to `include` array |
 | `package.json` | Fixed `test:integration` script to use positional path filter |
-| `docs/git/gitignore-audit-2026-04-05.md` | Updated for Phase 4 — 0 findings, 14 new untracked files documented |
+| `docs/git/gitignore-audit-2026-04-05.md` | Updated for Phase 4 - 0 findings, 14 new untracked files documented |
 
 ### Test Results
 
@@ -10986,17 +11005,17 @@ The `argument-hint` field is optional (not all skills need it). The parser corre
 | Test files | 13 | 17 | +4 |
 | Total tests | 132 | 174 | +42 |
 | Integration tests | 2 (skipped) | 6 (4 new pass + 2 skipped) | +4 |
-| Build errors | 0 | 0 | — |
-| Lint errors | 0 | 0 | — |
+| Build errors | 0 | 0 | - |
+| Lint errors | 0 | 0 | - |
 
-All 174 tests pass (2 skipped — the Ollama-server-dependent health check tests that require a live `ollama serve`).
+All 174 tests pass (2 skipped - the Ollama-server-dependent health check tests that require a live `ollama serve`).
 
 ### Lessons Learned
 
 - **Mock `extensionUri.fsPath` explicitly in extension tests.** The `{} as vscode.Uri` stub is fine for tests that don't exercise path construction, but any code that does `path.join(extensionUri.fsPath, ...)` will throw. Guard with `?? ""` in production code and add `fsPath: "/mock"` to the mock in tests if needed.
 - **Shallow array copies don't protect against object mutation.** A `state` getter that is intended to return a snapshot must deep-clone objects inside the array, not just the array wrapper. `map((s) => ({ ...s }))` is the correct idiom for a flat struct like `PlanStep`.
 - **Vitest v1.x does not support `--include` as a CLI flag.** Use the positional path argument to filter tests, and add both `unit/` and `integration/` patterns to the `include` array in `vitest.config.ts` so the default `npm run test` command covers both suites.
-- **SKILL.md frontmatter parsing is trivially implementable** without a full YAML library by splitting on `:` after the `---` delimiters. This avoids adding `js-yaml` as a dependency and keeps the parser transparent. The trade-off is that multi-line values are not supported — acceptable for the current skill format.
+- **SKILL.md frontmatter parsing is trivially implementable** without a full YAML library by splitting on `:` after the `---` delimiters. This avoids adding `js-yaml` as a dependency and keeps the parser transparent. The trade-off is that multi-line values are not supported - acceptable for the current skill format.
 - **Hot-reload via `fs.watch` is non-deterministic in timing.** The SkillLoader hot-reload test uses a 200 ms `setTimeout` buffer. On slow CI machines this may flake; the test is intentionally lenient about timing but the production behavior is best-effort (not guaranteed delivery).
 
 ### Current Status
@@ -11005,7 +11024,7 @@ All 174 tests pass (2 skipped — the Ollama-server-dependent health check tests
 
 ---
 
-## [2026-04-05 15:30] Phase 3 — Agentic Tool Layer
+## [2026-04-05 15:30] Phase 3 - Agentic Tool Layer
 
 ### Summary
 
@@ -11013,7 +11032,7 @@ Implemented the full agentic tool layer for Gemma Code. The model can now invoke
 
 ### Goal
 
-Enable the Gemma 4 model to take real actions in the workspace: read and edit files, execute terminal commands, search the codebase, and query the web — all without any external API. The entire tool loop runs locally.
+Enable the Gemma 4 model to take real actions in the workspace: read and edit files, execute terminal commands, search the codebase, and query the web - all without any external API. The entire tool loop runs locally.
 
 ### Architecture
 
@@ -11031,7 +11050,7 @@ User message
     │      │
     │      ▼ ToolCallParser.parseToolCalls()
     │      ▼ ToolRegistry.execute()   ← dispatches to handler
-    │      │   ├─ filesystem.ts  (ReadFileTool, WriteFileTool, EditFileTool, …)
+    │      │   ├─ filesystem.ts  (ReadFileTool, WriteFileTool, EditFileTool, ...)
     │      │   ├─ terminal.ts    (RunTerminalTool + ConfirmationGate)
     │      │   └─ webSearch.ts   (WebSearchTool, FetchPageTool)
     │      ▼ inject <tool_result> as user message → loop
@@ -11067,7 +11086,7 @@ The pattern honours a pre-run cancel and resets state so a future `run()` can pr
 
 #### 3. `vscode.workspace.findTextInFiles` not in type definitions
 
-**Problem:** The `GrepCodebaseTool` used `vscode.workspace.findTextInFiles` as a fallback when ripgrep is unavailable. TypeScript build failed with `Property 'findTextInFiles' does not exist on type 'typeof workspace'` — this is a proposed/unstable API not exported in `@types/vscode@1.90`.
+**Problem:** The `GrepCodebaseTool` used `vscode.workspace.findTextInFiles` as a fallback when ripgrep is unavailable. TypeScript build failed with `Property 'findTextInFiles' does not exist on type 'typeof workspace'` - this is a proposed/unstable API not exported in `@types/vscode@1.90`.
 
 **Error:** `src/tools/handlers/filesystem.ts(428,30): error TS2339: Property 'findTextInFiles' does not exist`
 
@@ -11132,9 +11151,9 @@ The pattern honours a pre-run cancel and resets state so a future `run()` can pr
 |--------|---------|---------|-------|
 | Test files | 6 | 13 | +7 |
 | Total tests | 53 | 132 | +79 |
-| Statement coverage | 95.59% | — | maintained |
-| Build errors | 0 | 0 | — |
-| Lint errors | 0 | 0 | — |
+| Statement coverage | 95.59% | - | maintained |
+| Build errors | 0 | 0 | - |
+| Lint errors | 0 | 0 | - |
 
 All 132 tests pass. Build and lint are clean.
 

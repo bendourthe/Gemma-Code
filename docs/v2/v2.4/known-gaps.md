@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 2 | 0 |
+| Missing tests / coverage gaps (MT) | 3 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 1 is implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Phase 2 is implemented locally. Hairline pixels and dialog centering in a packaged window are not observed here.
+Phases 1-3 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom.
 
 ### Open Items
 
@@ -38,6 +38,13 @@ Phase 1 is implemented locally. A packaged wizard screenshot of the two-column C
 - **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T007 / 2.1
 - **Reason**: Tests assert the hairline node on `/images` (absent on Settings), New chat `onSelect`/`onOpenChat`, a pre-created Image title change, and `folder-tree-confirm-delete` as a child of `document.body`. jsdom does not layout a packaged window so the hairline's appearance and the dialog's visual center are not observed here.
 - **Suggested next step**: Last-phase operator items (hairline under tabs; New chat selects empty; Image first prompt titles the row; delete dialog centered).
+
+##### MT-3 - Thinking-pill glow pixel containment is not proven in jsdom
+
+- **Source phase**: Phase 3 - Thinking Pill Geometry
+- **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T013 / 3.1
+- **Reason**: Tests pin min-width to `Searching...`, a 12 px left inset, and overflow visible on the pill host and chat pending row. jsdom does not layout a packaged transcript, so glow pixels vs the pane edge are not observed here. v2.4.2 MT-1 remains the prior-cycle statement of the same limit.
+- **Suggested next step**: Last-phase operator item (thinking pill glow at 100% and 150% zoom).
 
 ## v2.4.2
 

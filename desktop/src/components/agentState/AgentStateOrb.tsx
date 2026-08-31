@@ -8,7 +8,13 @@ import { useEffect, useRef, useState } from "react";
 import { useActiveMotionSurface, useAllowsMotion, useReducedMotion } from "../../motion";
 import type { AgentActivity } from "./mapping";
 import { resolveAgentState } from "./mapping";
-import { pendingCaptionState, usePendingCaptionRotator } from "./captionRotator";
+import {
+  longestPendingCaption,
+  PENDING_PILL_INSET_PX,
+  pendingCaptionState,
+  pendingPillMinWidthExpr,
+  usePendingCaptionRotator,
+} from "./captionRotator";
 import {
   clampOrbDpr,
   createOrbDots,
@@ -19,6 +25,12 @@ import {
   type OrbDot,
   type OrbSizePreset,
 } from "./orbEngine";
+
+export {
+  longestPendingCaption,
+  PENDING_PILL_INSET_PX,
+  pendingPillMinWidthExpr,
+} from "./captionRotator";
 
 export interface AgentStateOrbProps {
   activity: AgentActivity;
@@ -199,6 +211,8 @@ export function AgentStateOrb({
         // canvas. A 999px capsule clips the 48px bubble orb's left dots.
         // Pill chrome is a sibling layer; the canvas stays unclipped.
         overflow: "visible",
+        minWidth: rotateCaptions ? pendingPillMinWidthExpr(cssSize) : undefined,
+        marginLeft: rotateCaptions ? PENDING_PILL_INSET_PX : undefined,
         borderRadius: rotateCaptions ? undefined : captionShown ? undefined : "50%",
         padding: rotateCaptions ? "var(--space-2) var(--space-3)" : undefined,
         boxSizing: "border-box",
@@ -255,6 +269,7 @@ export function AgentStateOrb({
             color: "var(--fg-muted)",
             fontSize: "var(--text-sm)",
             whiteSpace: "nowrap",
+            minWidth: rotateCaptions ? `${longestPendingCaption().length}ch` : undefined,
           }}
         >
           {captionText}

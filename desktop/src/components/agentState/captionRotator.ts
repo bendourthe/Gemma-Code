@@ -21,6 +21,19 @@ export const PENDING_CAPTIONS = [
 
 export type PendingCaption = (typeof PENDING_CAPTIONS)[number];
 
+/** Longest rotating caption; drives a constant pill min-width. */
+export function longestPendingCaption(): PendingCaption {
+  return PENDING_CAPTIONS.reduce((a, b) => (a.length >= b.length ? a : b));
+}
+
+/** Left inset so pill box-shadow / drop-shadow is not cropped by the pane. */
+export const PENDING_PILL_INSET_PX = 12;
+
+export function pendingPillMinWidthExpr(orbPx: number): string {
+  const captionCh = longestPendingCaption().length;
+  return `calc(${orbPx}px + var(--space-2) + ${captionCh}ch + (2 * var(--space-3)))`;
+}
+
 /** ~2-3s per caption; slow enough not to read as a flicker. */
 export const CAPTION_ROTATE_INTERVAL_MS = 2400;
 

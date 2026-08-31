@@ -9,6 +9,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/App";
 import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
+import {
+  longestPendingCaption,
+  PENDING_PILL_INSET_PX,
+  pendingPillMinWidthExpr,
+} from "../src/components/agentState/captionRotator";
 import { ORB_SIZE_BUBBLE, rectFullyInside } from "../src/components/agentState/orbEngine";
 import { isSidebarHistoryRoute } from "../src/components/SidebarHistoryHost";
 
@@ -149,6 +154,19 @@ describe("thinking pill crop", () => {
     vi.spyOn(pill, "getBoundingClientRect").mockReturnValue(pillBox as DOMRect);
     vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(canvasBox as DOMRect);
     expect(rectFullyInside(canvas.getBoundingClientRect(), pill.getBoundingClientRect())).toBe(true);
+  });
+
+  it("keeps a fixed min-width and left inset for rotating captions", () => {
+    expect(longestPendingCaption()).toBe("Searching...");
+    expect(PENDING_PILL_INSET_PX).toBeGreaterThan(0);
+    render(<AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />);
+    const pill = screen.getByTestId("agent-state-orb");
+    expect(pill.style.minWidth).toBe(pendingPillMinWidthExpr(ORB_SIZE_BUBBLE));
+    expect(pill.style.minWidth).toContain(`${longestPendingCaption().length}ch`);
+    expect(pill.style.marginLeft).toBe(`${PENDING_PILL_INSET_PX}px`);
+    expect(pill.style.overflow).toBe("visible");
+    const caption = screen.getByTestId("agent-state-orb-caption");
+    expect(caption.style.minWidth).toBe(`${longestPendingCaption().length}ch`);
   });
 });
 

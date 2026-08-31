@@ -9,6 +9,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
+import { PENDING_PILL_INSET_PX } from "../../components/agentState/captionRotator";
 import {
   bubbleTokenMetadata,
   formatBubbleTime,
@@ -154,10 +155,14 @@ export function MessageBubble({
             color: "var(--fg-muted)",
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
+            alignItems: studioPending ? "center" : "flex-start",
             justifyContent: "center",
             gap: "var(--space-2)",
-            width: "100%",
+            width: studioPending ? "100%" : "fit-content",
+            overflow: "visible",
+            paddingLeft: studioPending
+              ? 0
+              : `calc(var(--space-2) + ${PENDING_PILL_INSET_PX}px)`,
             minHeight: studioPending ? "12rem" : "5.5rem",
           }}
         >
@@ -262,6 +267,9 @@ function PendingMessage({
         width: studioPending ? "100%" : "fit-content",
         maxWidth: studioPending ? "100%" : "min(100%, 24rem)",
         paddingInline: studioPending ? 0 : "var(--space-2)",
+        paddingLeft: studioPending
+          ? 0
+          : `calc(var(--space-2) + ${PENDING_PILL_INSET_PX}px)`,
         boxSizing: "border-box",
         overflow: "visible",
         minHeight: studioPending ? "12rem" : undefined,

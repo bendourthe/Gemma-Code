@@ -16,7 +16,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
 import {
   CAPTION_ROTATE_INTERVAL_MS,
+  longestPendingCaption,
   PENDING_CAPTIONS,
+  PENDING_PILL_INSET_PX,
   pendingCaptionState,
   shufflePendingCaptions,
 } from "../src/components/agentState/captionRotator";
@@ -47,6 +49,13 @@ describe("shufflePendingCaptions", () => {
     const a = shufflePendingCaptions(() => 0.5);
     const b = shufflePendingCaptions(() => 0.5);
     expect(a).toEqual(b);
+  });
+
+  it("treats Searching... as the longest caption for a constant pill min-width", () => {
+    expect(longestPendingCaption()).toBe("Searching...");
+    expect(PENDING_CAPTIONS.every((caption) => caption.length <= longestPendingCaption().length)).toBe(
+      true,
+    );
   });
 });
 
@@ -144,6 +153,11 @@ describe("MessageBubble pending pill", () => {
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(orb).toHaveAttribute("data-orb-pill", "true");
     expect(PENDING_CAPTIONS).toContain(captionText());
+    expect(orb.style.marginLeft).toBe(`${PENDING_PILL_INSET_PX}px`);
+    expect(orb.style.minWidth).toContain(`${longestPendingCaption().length}ch`);
+    const pending = screen.getByTestId("message-pending-p1");
+    expect(pending.style.overflow).toBe("visible");
+    expect(pending.style.paddingLeft).toContain(String(PENDING_PILL_INSET_PX));
   });
 
   it("keeps Image/Video pending on the hero preset without the pill", () => {
