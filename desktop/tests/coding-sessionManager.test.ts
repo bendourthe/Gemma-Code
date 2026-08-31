@@ -35,7 +35,7 @@ describe("CodingSessionManager", () => {
     expect(list.find((s) => s.sessionId === a.sessionId)?.title).toBe(
       "Refactor PromptBuilder",
     );
-    expect(list.find((s) => s.sessionId === b.sessionId)?.title).toMatch(/^Session /);
+    expect(list.find((s) => s.sessionId === b.sessionId)?.title).toBe("New chat");
   });
 
   it("sendMessage emits the full event union and increments messageCount", async () => {

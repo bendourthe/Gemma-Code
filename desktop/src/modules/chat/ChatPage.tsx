@@ -44,6 +44,7 @@ import {
   MessageList,
   composerSessionUsage,
   isoTimestampFromMillis,
+  useStickToBottom,
   withLiveTimestamp,
   type ChatMessage,
 } from "../../shared/chat";
@@ -307,6 +308,11 @@ export function ChatPage({
       },
     ];
   }, [activeChat, messagesByChat, voiceLoop.captureVisible]);
+
+  const lastMessage = messages[messages.length - 1];
+  const { scrollRef, onScroll, stickNow } = useStickToBottom(
+    `${messages.length}:${lastMessage?.id ?? ""}:${lastMessage?.content?.length ?? 0}:${lastMessage?.pending ? 1 : 0}`,
+  );
 
   const selectedListedModel = useMemo(() => {
     const id = activeChat?.modelId ?? modelId;
@@ -635,6 +641,7 @@ export function ChatPage({
       attachments: readonly string[] = [],
       residencyApproved = false,
     ) => {
+      stickNow();
       let chat = activeChat;
       if (!chat) {
         const created = client.createChat({
@@ -890,6 +897,7 @@ export function ChatPage({
       sampleVideoFrames,
       selectedListedModel,
       sendChatTurn,
+      stickNow,
       voiceEnabled,
     ],
   );
@@ -1092,7 +1100,12 @@ export function ChatPage({
         ) : null}
 
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+          <div
+            data-testid="transcript-scroll"
+            ref={scrollRef}
+            onScroll={onScroll}
+            style={{ flex: 1, overflowY: "auto", minWidth: 0 }}
+          >
             {activeChat ? (
               <MessageList
                 messages={messages}

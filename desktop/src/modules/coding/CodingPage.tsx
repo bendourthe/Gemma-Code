@@ -25,7 +25,7 @@ import {
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
 import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
-import { ComposerContextRow, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MessageList, composerSessionUsage, useStickToBottom, type ChatMessage } from "../../shared/chat";
 import { FolderTree, type FolderTreeCopy, type SelectedNode } from "../chat/FolderTree";
 import type { Chat } from "../chat/types";
 import { SidebarHistorySlot, useSidebarCompact } from "../../components/SidebarHistoryHost";
@@ -68,6 +68,11 @@ import {
 } from "../../lib/persistence";
 import { getDefaultWorkspaceRoot } from "../../lib/workspacePicker";
 import { WorkspaceSelector } from "./WorkspaceSelector";
+import {
+  applyImmediateFallbackTitle,
+  DEFAULT_SESSION_TITLE,
+  refineGeneratedTitle,
+} from "../../shared/explorer/scheduleFirstPromptTitle";
 
 type Tab = "chat" | "memory" | "activity";
 
@@ -238,6 +243,10 @@ export function CodingPage({
   const workspaceHydrationRequest = useRef(0);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
+  const lastTurn = turns[turns.length - 1];
+  const { scrollRef, onScroll, stickNow } = useStickToBottom(
+    `${turns.length}:${lastTurn?.id ?? ""}:${lastTurn?.rendered.text.length ?? 0}:${lastTurn?.pending ? 1 : 0}:${busy ? 1 : 0}`,
+  );
   const [error, setError] = useState<string | null>(null);
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshotT | null>(null);
   const [traceEvents, setTraceEvents] = useState<readonly TraceEventT[]>([]);
@@ -349,6 +358,7 @@ export function CodingPage({
     }
     const reply = await ipc.call<CodingSessionStartResponseT>("coding.session.start", {
       modelId: foldModelId(modelId),
+      title: DEFAULT_SESSION_TITLE,
       workspacePath: selectedWorkspace.primaryRoot,
       workspaceRoots: selectedWorkspace.roots,
       primaryRoot: selectedWorkspace.primaryRoot,
@@ -434,6 +444,7 @@ export function CodingPage({
       attachments: readonly string[] = [],
       residencyApproved = false,
     ): Promise<void> => {
+      stickNow();
       setError(null);
       if (!residencyApproved) {
         const selectedModel = listedModels.find((candidate) => candidate.id === modelId);
@@ -478,9 +489,18 @@ export function CodingPage({
         return;
       }
       setBusy(true);
+      const createdNew = !sessionId;
       try {
         const id = await ensureSession();
         if (!id) return;
+        if (createdNew && text.trim().length > 0) {
+          void applyImmediateFallbackTitle({
+            sessionId: id,
+            prompt: text,
+            currentTitle: DEFAULT_SESSION_TITLE,
+            rename: (session, title) => explorer.renameChat(session, title, false),
+          }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+        }
         const reply = await ipc.call<{
           sessionId: string;
           events: CodingSessionEventT[];
@@ -527,6 +547,17 @@ export function CodingPage({
             assistantMessageUsage: estimatedMessageUsage("assistant", rendered.text, reasoningText),
           },
         ]);
+        if (createdNew) {
+          void refineGeneratedTitle({
+            sessionId: id,
+            prompt: text,
+            rename: (session, title) => explorer.renameChat(session, title, false),
+            isStillAutoTitle: async () => {
+              const chat = await Promise.resolve(explorer.getChat(id));
+              return chat?.userRenamed !== true;
+            },
+          }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+        }
       } finally {
         setBusy(false);
       }
@@ -534,11 +565,14 @@ export function CodingPage({
     [
       activeSchedulerJob,
       ensureSession,
+      explorer,
       handleParseDocument,
       hostVramFreeGB,
       listedModels,
       modelId,
       residency,
+      sessionId,
+      stickNow,
     ],
   );
 
@@ -894,7 +928,7 @@ export function CodingPage({
         />
       )}
 
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div data-testid="transcript-scroll" ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: "auto" }}>
         {tab === "chat" && (
           <div data-testid="coding-chat">
             <MessageList

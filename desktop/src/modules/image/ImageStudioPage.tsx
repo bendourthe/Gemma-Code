@@ -34,7 +34,7 @@ import {
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
 
-import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, useStickToBottom, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
@@ -78,13 +78,18 @@ import {
 } from "../../shared/explorer/studioExplorerClient";
 import { createIpcStudioExplorerClient } from "../../shared/explorer/ipcStudioExplorerClient";
 import { tauriAvailable } from "../chat/ipcChatExplorerClient";
+import { ipc } from "../../lib/ipc";
 import {
   isUsablePathRef,
   lastAssistantMediaRef,
-  sessionTitleFromPrompt,
   studioTurnsToChatMessages,
   UNREADABLE_OUTPUT_TEXT,
 } from "../../shared/explorer/studioSessionMemory";
+import {
+  applyImmediateFallbackTitle,
+  DEFAULT_SESSION_TITLE,
+  refineGeneratedTitle,
+} from "../../shared/explorer/scheduleFirstPromptTitle";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
 import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
 import {
@@ -218,7 +223,12 @@ export function ImageStudioPage({
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const lastStudioMessage = messages[messages.length - 1];
+  const { scrollRef, onScroll, stickNow } = useStickToBottom(
+    `${messages.length}:${lastStudioMessage?.id ?? ""}:${lastStudioMessage?.content?.length ?? 0}:${lastStudioMessage?.pending ? 1 : 0}`,
+  );
   const activeSessionIdRef = useRef<string | null>(null);
+  const titleJobRef = useRef<{ id: string; prompt: string } | null>(null);
   // v2.2.9 Phase 1.4 (T004): state mirror of the ref so the history pane can
   // bind its highlighted row to the session that is actually open.
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -329,18 +339,25 @@ export function ImageStudioPage({
   );
 
   const ensureSession = useCallback(
-    async (title: string): Promise<string | null> => {
+    async (prompt: string): Promise<string | null> => {
       if (backendDown) return null;
       if (activeSessionIdRef.current) return activeSessionIdRef.current;
       try {
         const session = await Promise.resolve(
           studioClient.createSession({
             folderId: null,
-            title: sessionTitleFromPrompt(title),
+            title: DEFAULT_SESSION_TITLE,
             modelId: selectedModelId,
           }),
         );
         setActiveSession(session.id);
+        titleJobRef.current = { id: session.id, prompt };
+        void applyImmediateFallbackTitle({
+          sessionId: session.id,
+          prompt,
+          currentTitle: DEFAULT_SESSION_TITLE,
+          rename: (id, title) => studioClient.renameSession(id, title),
+        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {
@@ -581,6 +598,7 @@ export function ImageStudioPage({
       residencyApproved = false,
       retryAssistantId?: string,
     ): Promise<void> => {
+      stickNow();
       if (isGenerating) return;
       // v2.2.0 Phase 4: ask the policy before doing GPU work. A `confirm`
       // verdict opens the dialog and returns; the user's answer re-enters
@@ -751,8 +769,24 @@ export function ImageStudioPage({
           mediaRetryRef.current = null;
         }
       }
+      const titleJob = titleJobRef.current;
+      titleJobRef.current = null;
+      if (titleJob) {
+        void refineGeneratedTitle({
+          sessionId: titleJob.id,
+          prompt: titleJob.prompt,
+          rename: (id, title) => studioClient.renameSession(id, title),
+          generateTitle: async (id, prompt) => {
+            const reply = await ipc.call<{ title: string }>("chat.generateTitle", {
+              chatId: id,
+              firstMessage: prompt,
+            });
+            return reply.ok ? reply.value : null;
+          },
+        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+      }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists, markMediaRuntimeFailure],
+    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists, markMediaRuntimeFailure, stickNow, studioClient],
   );
 
   const repairMediaRuntime = useCallback(
@@ -941,6 +975,8 @@ export function ImageStudioPage({
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="image-history"
+        ref={scrollRef}
+        onScroll={onScroll}
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
       >
         {messages.length === 0 ? (

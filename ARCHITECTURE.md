@@ -234,7 +234,7 @@ Nexus is a single native desktop application with a permanent left-hand sidebar 
 
 The shell routes each module workspace through `ModuleErrorBoundary`, keyed by pathname, so a renderer exception becomes an in-pane recovery surface and switching modules remounts a clean boundary. `/` redirects to `/chatbot`; Local Chatbot is the first-launch module, while Dashboard remains available explicitly at `/dashboard`.
 
-v2.4.2: history for Chatbot, Agents, Images, and Videos is a segment of that left sidebar, directly under the four module tabs. It swaps with the active module. Settings and Approvals do not host a history slot. The main pane is transcript or workspace only (this supersedes the v2.4.1 second-column / Agents History-band layout).
+v2.4.2: history for Chatbot, Agents, Images, and Videos is a segment of that left sidebar, directly under the four module tabs. It swaps with the active module. Settings and Approvals do not host a history slot. The main pane is transcript or workspace only (this supersedes the v2.4.1 second-column / Agents History-band layout). Composer send sticks the transcript to the latest turn unless the user has scrolled up. Studio footer percent uses a session visual cap of 8, not catalog `maxImages`. New sessions start as "New chat" and take a short generated title (or a 6-word fallback), never the raw first prompt.
 
 ```
 +--------------------------------------------------------------------------+

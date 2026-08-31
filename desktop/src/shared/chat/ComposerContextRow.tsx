@@ -55,7 +55,7 @@ export function ComposerContextRow({
           role="status"
           style={{ fontSize: "var(--text-xs)", color: "var(--status-warn)" }}
         >
-          This session is at 80% of context. Starting a new session keeps this transcript.
+          This session is at {Math.floor(Math.max(0, usage.percent ?? 0) + 1e-9)}% of context. Starting a new session keeps this transcript.
           <button
             type="button"
             data-testid="context-usage-new-session"

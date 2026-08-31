@@ -391,8 +391,44 @@ describe("<FolderTree>", () => {
     const chat = client.createChat({ folderId: null, title: "Risky", modelId: "m" });
     render(<FolderTree client={client} storageAdapter={storageAdapter} />);
     fireEvent.click(screen.getByTestId(`tree-delete-${chat.id}`));
-    expect(screen.getByTestId("folder-tree-confirm-delete")).toHaveTextContent(/cannot be undone/i);
+    const dialog = screen.getByTestId("folder-tree-confirm-delete");
+    expect(dialog).toHaveTextContent(/cannot be undone/i);
+    expect(screen.getByTestId("folder-tree-confirm-delete-question")).toHaveTextContent(
+      "Delete the selected chat?",
+    );
+    expect(dialog.textContent).not.toContain("Risky");
     expect(screen.getByTestId("confirm-delete-archive-instead")).toBeInTheDocument();
+  });
+
+  it("ctrl-click selects several chats and bulk-delete uses generic copy", async () => {
+    const client = setupClient();
+    const a = client.createChat({ folderId: null, title: "Alpha prompt title here", modelId: "m" });
+    const b = client.createChat({ folderId: null, title: "Beta prompt title here", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId(`tree-row-chat-${a.id}`));
+    fireEvent.click(screen.getByTestId(`tree-row-chat-${b.id}`), { ctrlKey: true });
+    expect(screen.getByTestId(`tree-row-chat-${a.id}`)).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId(`tree-row-chat-${b.id}`)).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(screen.getByTestId(`tree-row-chat-${b.id}`), { key: "Delete" });
+    const question = await screen.findByTestId("folder-tree-confirm-delete-question");
+    expect(question).toHaveTextContent("Delete the selected chats?");
+    expect(screen.getByTestId("folder-tree-confirm-delete").textContent).not.toContain("Alpha prompt");
+    fireEvent.click(screen.getByTestId("confirm-delete-ok"));
+    await waitFor(() => {
+      expect(client.getChat(a.id)).toBeNull();
+      expect(client.getChat(b.id)).toBeNull();
+    });
+  });
+
+  it("Escape clears the multi-selection", () => {
+    const client = setupClient();
+    const a = client.createChat({ folderId: null, title: "A", modelId: "m" });
+    const b = client.createChat({ folderId: null, title: "B", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId(`tree-row-chat-${a.id}`));
+    fireEvent.click(screen.getByTestId(`tree-row-chat-${b.id}`), { ctrlKey: true });
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId(`tree-row-chat-${b.id}`)).toHaveAttribute("aria-selected", "false");
   });
 
   it("confirm-delete uses a rounded quiet destructive, not a square flash-red fill", () => {

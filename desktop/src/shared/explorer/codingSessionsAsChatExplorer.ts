@@ -46,10 +46,11 @@ export interface CodingExplorerBackend {
 interface FolderOverlay {
   folders: Folder[];
   sessionFolders: Record<string, string | null>;
+  userRenamed: Record<string, boolean>;
 }
 
 function emptyOverlay(): FolderOverlay {
-  return { folders: [], sessionFolders: {} };
+  return { folders: [], sessionFolders: {}, userRenamed: {} };
 }
 
 function makeId(): string {
@@ -156,6 +157,12 @@ function readOverlay(key: string): FolderOverlay {
         parsed.sessionFolders && typeof parsed.sessionFolders === "object"
           ? parsed.sessionFolders
           : {},
+      userRenamed:
+        parsed.userRenamed && typeof parsed.userRenamed === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.userRenamed).filter((entry) => entry[1] === true),
+            )
+          : {},
     };
   } catch {
     return emptyOverlay();
@@ -174,6 +181,7 @@ function writeOverlay(key: string, overlay: FolderOverlay): void {
 function sessionToChat(
   session: CodingSessionSummaryT,
   folderId: string | null,
+  userRenamed = false,
 ): Chat {
   const createdAt = Date.parse(session.createdAt);
   const ts = Number.isFinite(createdAt) ? createdAt : Date.now();
@@ -187,7 +195,7 @@ function sessionToChat(
     updatedAt: ts,
     messageCount: session.messageCount,
     persona: null,
-    userRenamed: true,
+    userRenamed,
   };
 }
 
@@ -282,7 +290,11 @@ function workspaceTreeState(
         : legacyFolder && overlayIds.has(legacyFolder)
           ? legacyFolder
           : LEGACY_UNSORTED_ID;
-    return sessionToChat(session, folderId);
+    return sessionToChat(
+      session,
+      folderId,
+      overlay.userRenamed[session.sessionId] === true,
+    );
   });
   return { folders, chats };
 }
@@ -356,6 +368,7 @@ export function createCodingSessionsAsChatExplorer(
     ? {
         folders: [...opts.initialOverlay.folders],
         sessionFolders: { ...opts.initialOverlay.sessionFolders },
+        userRenamed: { ...(opts.initialOverlay.userRenamed ?? {}) },
       }
     : persist
       ? readOverlay(overlayKey)
@@ -451,7 +464,11 @@ export function createCodingSessionsAsChatExplorer(
       for (const [sessionId, folderId] of Object.entries(nextSessionFolders)) {
         if (folderId === id) nextSessionFolders[sessionId] = folder.parentId;
       }
-      overlay = { folders: nextFolders, sessionFolders: nextSessionFolders };
+      overlay = {
+        folders: nextFolders,
+        sessionFolders: nextSessionFolders,
+        userRenamed: overlay.userRenamed,
+      };
       save();
     },
     async createChat(input) {
@@ -461,7 +478,7 @@ export function createCodingSessionsAsChatExplorer(
           "Choose a workspace folder before starting a coding session.",
         );
       }
-      const title = input.title.trim() || "New session";
+      const title = input.title.trim() || "New chat";
       const started = await opts.backend.startSession({
         title,
         modelId: input.modelId || opts.getModelId(),
@@ -475,17 +492,26 @@ export function createCodingSessionsAsChatExplorer(
         started.workspaceId
           ? workspaceFolderId(started.workspaceId)
           : LEGACY_UNSORTED_ID,
+        overlay.userRenamed[started.sessionId] === true,
       );
     },
-    async renameChat(id, title) {
+    async renameChat(id, title, byUser) {
       const trimmed = title.trim();
       if (!trimmed) throw new Error("session title is required");
+      if (byUser === true) {
+        overlay = {
+          ...overlay,
+          userRenamed: { ...overlay.userRenamed, [id]: true },
+        };
+        save();
+      }
       const renamed = await opts.backend.renameSession(id, trimmed);
       return sessionToChat(
         renamed,
         renamed.workspaceId
           ? workspaceFolderId(renamed.workspaceId)
           : (overlay.sessionFolders[id] ?? LEGACY_UNSORTED_ID),
+        overlay.userRenamed[id] === true,
       );
     },
     async moveChat(id, newFolderId) {

@@ -63,7 +63,7 @@ describe("composerSessionUsage (visual budget)", () => {
     });
     expect(usage.denominatorKind).toBe("visual");
     expect(usage.usedTokens).toBe(1);
-    expect(usage.percent).toBe(25);
+    expect(usage.percent).toBe(12.5);
     expect(usage.atOrAbove80).toBe(false);
   });
 
@@ -92,7 +92,7 @@ describe("composerSessionUsage (visual budget)", () => {
       visualTokenBudget: { maxImages: 2 },
     });
     expect(usage.usedTokens).toBe(1);
-    expect(usage.percent).toBe(50);
+    expect(usage.percent).toBe(12.5);
   });
 
   it("has no denominator without a budget or window (never invents 128k)", () => {

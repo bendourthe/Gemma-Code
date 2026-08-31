@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.2 - field UI Phase 2 transcript honesty
+
+Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-2-transcript-honesty.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Composer send on Chat, Agents, Images, and Videos always jumps the transcript to the latest turn. Incoming tokens follow only when the viewport is already pinned near the bottom.
+- Studio footer percent uses a session visual cap of 8, not catalog `maxImages`. The 80% warning quotes the live percent.
+- Delete confirm copy is generic ("Delete the selected chat?" and siblings) with "This action cannot be undone." on its own line. FolderTree supports Ctrl/Cmd, Shift range, Escape, and multi-delete.
+- New sessions start as "New chat". The first prompt gets a short generated title or a 6-word fallback, never the 45-character prompt slice.
+
+### Why It Changed
+
+Packaged 2.4.1 hid follow-up turns under the composer, jumped Image context to 100% after one PNG, interpolated chat titles into delete questions, and named rails after the raw first prompt.
+
+### Decisions Made
+
+- Visual cap is a constant 8 whenever a visual budget exists, not `max(8, maxImages)`.
+- Studio `userRenamed` is an in-adapter Map. Auto-title only runs on the first send of a New chat.
+- Title refine runs after the image/video job is accepted, not after media lands, so it does not contend with diffusion.
+- No workflow file changed. Commit-only; no push.
+
+---
+
 ## [2026-08-30] v2.4.2 - field UI Phase 1 sidebar history host
 
 Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-1-sidebar-chrome.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

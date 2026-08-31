@@ -273,7 +273,7 @@ export class CodingSessionManager {
     const model = requireModel(req.modelId);
     const id = this._idFactory();
     const createdAt = this._now().toISOString();
-    const title = req.title?.trim() || `Session ${id.slice(0, 8)}`;
+    const title = req.title?.trim() || "New chat";
     const rec: SessionRecord = {
       id,
       model,
