@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   FOLLOWUP_IMG2IMG_STRENGTH,
+  RESTYLE_IMG2IMG_STRENGTH,
   pngToDataUrl,
   resolveFollowUpSourceImage,
   stripToRawImageBytes,
@@ -15,7 +16,8 @@ describe("followUpSource", () => {
         lastOutputRef: "/tmp/fox.png",
       }),
     ).toBe("data:image/png;base64,PNGB64==");
-    expect(FOLLOWUP_IMG2IMG_STRENGTH).toBeLessThan(0.75);
+    expect(FOLLOWUP_IMG2IMG_STRENGTH).toBe(0.45);
+    expect(RESTYLE_IMG2IMG_STRENGTH).toBe(0.7);
   });
 
   it("keeps a user attachment ahead of the last output", () => {

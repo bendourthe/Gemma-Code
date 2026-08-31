@@ -716,7 +716,26 @@ describe("ImageStudioPage (chat)", () => {
     expect((client.lastRequest?.request as { sourceImage: string }).sourceImage).toBe(
       "data:image/png;base64,PNGB64==",
     );
-    expect((client.lastRequest?.request as { strength?: number }).strength).toBe(0.45);
+    expect((client.lastRequest?.request as { strength?: number }).strength).toBe(0.7);
+    expect((client.lastRequest?.request as { prompt?: string }).prompt).toMatch(
+      /Keep the same composition/,
+    );
+    expect((client.lastRequest?.request as { prompt?: string }).prompt).toMatch(/fur and color to black/);
+  });
+
+  it("fails closed on an unattached restyle when last output is missing", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "Make the puppy black" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/No previous image in this session to restyle/)).toBeInTheDocument();
+    });
+    expect(client.lastRequest).toBeNull();
   });
 
   it("replace the sky with sunset without an attachment segments the last PNG", async () => {

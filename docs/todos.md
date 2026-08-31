@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-5 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-6 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+
+> **v2.4.3 FIELD DENSITY PHASE 6 (2026-08-31)** -- [image restyle identity](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T024-T027 complete. Restyle strength 0.7 plus fail-closed without last PNG. Next: Phase 7 SANA-Video.
 
 > **v2.4.3 FIELD DENSITY PHASE 5 (2026-08-31)** -- [picker rank and default](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T020-T023 complete. Empty agentic session defaults to Gemma 4 12B. Next: Phase 6 image restyle.
 

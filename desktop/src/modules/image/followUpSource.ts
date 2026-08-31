@@ -5,7 +5,10 @@
  */
 
 export const FOLLOWUP_IMG2IMG_STRENGTH = 0.45;
+export const RESTYLE_IMG2IMG_STRENGTH = 0.7;
 export const SAM2_MODEL_ID = "sam2:hiera-tiny";
+export const MISSING_RESTYLE_SOURCE_TEXT =
+  "No previous image in this session to restyle. Generate or attach an image first.";
 
 export function pngToDataUrl(pngBase64: string): string {
   const trimmed = pngBase64.trim();

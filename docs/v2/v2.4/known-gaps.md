@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 5 | 0 |
+| Missing tests / coverage gaps (MT) | 6 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-5 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom. Packaged Settings nowrap facts and icon colors are not observed here. Packaged Agents picker order on this 16 GB install is not observed here.
+Phases 1-6 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom. Packaged Settings nowrap facts and icon colors are not observed here. Packaged Agents picker order on this 16 GB install is not observed here. Packaged NVIDIA restyle before/after is not observed here.
 
 ### Open Items
 
@@ -59,6 +59,13 @@ Phases 1-5 are implemented locally. A packaged wizard screenshot of the two-colu
 - **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T020 / 5.1
 - **Reason**: Tests prove `resolveDefaultId` prefers `gemma-4-12b-it-gguf` over a gpt-oss favorite, and QuickModelSwitcher lists Gemma before gpt-oss at 16 GB with recommendOrder. A packaged Agents screenshot on this host is not recorded here.
 - **Suggested next step**: Last-phase operator item (Agents empty session defaults to Gemma 4 12B on this install).
+
+##### MT-6 - Packaged NVIDIA restyle identity is not observed
+
+- **Source phase**: Phase 6 - Image Restyle Identity
+- **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T024 / 6.1
+- **Reason**: Tests prove restyle strength 0.7, identity prompt, no SAM2, and fail-closed without last output. A packaged NVIDIA before/after of "Make the puppy black" is not recorded here. v2.4.2 MT-3 remains the prior-cycle statement of the same limit.
+- **Suggested next step**: Last-phase operator item (Make the puppy black restyles fur).
 
 ## v2.4.2
 

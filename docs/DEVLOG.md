@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 6 image restyle identity
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-6-image-restyle.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Whole-image restyle img2img strength is 0.7 with a keep-composition / change-fur prompt.
+- Unattached restyle without last PNG fails closed. Object inpaint stays 0.45.
+
+### Why It Changed
+
+Screenshot 4 reprinted the tan puppy at strength 0.45.
+
+### Decisions Made
+
+- Generic follow-up ("make it snow") stays 0.45.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 5 picker rank and default
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-5-picker-order.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

@@ -60,9 +60,11 @@ import {
 } from "./ImagePromptForm";
 import { inferImageIntent } from "./intent";
 import { MaskEditor } from "./MaskEditor";
-import { parseReplaceIntent, inpaintPromptFor, usesSegment } from "../../../../core/image/replaceIntent";
+import { parseReplaceIntent, inpaintPromptFor, restylePromptFor, usesSegment } from "../../../../core/image/replaceIntent";
 import {
   FOLLOWUP_IMG2IMG_STRENGTH,
+  MISSING_RESTYLE_SOURCE_TEXT,
+  RESTYLE_IMG2IMG_STRENGTH,
   SAM2_MODEL_ID,
   pngToDataUrl,
   resolveFollowUpSourceImage,
@@ -684,6 +686,24 @@ export function ImageStudioPage({
       });
       const replace = parseReplaceIntent(text);
       const objectEdit = Boolean(replace && usesSegment(replace));
+      const restyle = replace?.scope === "image";
+      if (restyle && attachments.length === 0 && !implicitSource) {
+        const userMsg: ChatMessage = {
+          id: nextId("user"),
+          role: "user",
+          content: text,
+        };
+        const assistantMsg: ChatMessage = {
+          id: nextId("assistant"),
+          role: "assistant",
+          content: MISSING_RESTYLE_SOURCE_TEXT,
+        };
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+        persistTurn({ role: "assistant", content: MISSING_RESTYLE_SOURCE_TEXT });
+        return;
+      }
       if (
         attachments.length === 0 &&
         lastOutputRef.current &&
@@ -743,12 +763,15 @@ export function ImageStudioPage({
       mediaRetryRef.current = { assistantId, text, attachments: [...attachments] };
 
       const base = valuesToBaseRequest(values, {
-        prompt: objectEdit && replace ? inpaintPromptFor(replace) : intent.prompt,
+        prompt: restyle && replace
+          ? restylePromptFor(replace)
+          : objectEdit && replace
+            ? inpaintPromptFor(replace)
+            : intent.prompt,
         modelId: selectedModelId,
       }) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
       const segmentSource = attachments[0] ?? implicitSource;
       const followUpImg2img = Boolean(implicitSource) && attachments.length === 0;
-      const restyle = replace?.scope === "image";
 
       try {
         if (objectEdit && replace && segmentSource) {
@@ -808,7 +831,9 @@ export function ImageStudioPage({
           accepted = await client.img2img({
             ...base,
             sourceImage: intent.sourceImage ?? implicitSource ?? "",
-            ...((followUpImg2img || restyle) ? { strength: FOLLOWUP_IMG2IMG_STRENGTH } : {}),
+            ...((followUpImg2img || restyle)
+              ? { strength: restyle ? RESTYLE_IMG2IMG_STRENGTH : FOLLOWUP_IMG2IMG_STRENGTH }
+              : {}),
           });
         } else if (intent.mode === "inpaint") {
           accepted = await client.inpaint({

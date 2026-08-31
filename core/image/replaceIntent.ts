@@ -79,3 +79,9 @@ export function inpaintPromptFor(intent: ReplaceIntent): string {
   }
   return `Replace the ${intent.object} with ${intent.replacement ?? "the requested object"}`;
 }
+
+/** Whole-image restyle: keep composition, change color/fur. Never a new subject. */
+export function restylePromptFor(intent: ReplaceIntent): string {
+  const color = intent.replacement ?? "the requested color";
+  return `Keep the same composition, pose, and background. Change the ${intent.object}'s fur and color to ${color}. Do not generate a different ${intent.object}.`;
+}

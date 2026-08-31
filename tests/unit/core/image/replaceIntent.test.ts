@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   inpaintPromptFor,
   parseReplaceIntent,
+  restylePromptFor,
   usesSegment,
 } from "../../../../core/image/replaceIntent.js";
 
@@ -55,5 +56,15 @@ describe("inpaintPromptFor", () => {
     expect(inpaintPromptFor(intent!)).toBe("Replace the car with truck");
     expect(inpaintPromptFor(parseReplaceIntent("remove the watermark")!)).toMatch(/Remove the watermark/);
     expect(inpaintPromptFor(parseReplaceIntent("recolor the sky to orange")!)).toMatch(/orange/);
+  });
+});
+
+describe("restylePromptFor", () => {
+  it("asks to keep composition and change fur color", () => {
+    const intent = parseReplaceIntent("Make the puppy black");
+    expect(intent?.scope).toBe("image");
+    expect(restylePromptFor(intent!)).toMatch(/Keep the same composition/);
+    expect(restylePromptFor(intent!)).toMatch(/fur and color to black/);
+    expect(usesSegment(intent!)).toBe(false);
   });
 });
