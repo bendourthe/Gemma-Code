@@ -25,6 +25,7 @@ from nexus_installer.constants import (
 )
 from nexus_installer.engine.host_detect import detect_total_ram_gb
 from nexus_installer.engine.platform_utils import no_window_kwargs
+from nexus_installer.vram_display import display_vram_gb
 from nexus_installer.widgets.callout_box import CalloutBox
 
 if TYPE_CHECKING:
@@ -296,15 +297,29 @@ class _GpuDetectionWorker(QThread):
 class GpuDetectionPage(QWidget):
     """GPU detection page with detection results and model recommendation."""
 
-    def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        state: InstallerState,
+        parent: QWidget | None = None,
+        *,
+        compact: bool = False,
+    ) -> None:
         super().__init__(parent)
         self._state = state
+        self._compact = compact
+        self._detection_done = False
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8 if compact else 16)
 
         title = QLabel("GPU Detection")
-        title.setObjectName("pageTitle")
+        if compact:
+            title.setStyleSheet(
+                f"font-size: {FS_H3}px; font-weight: 600; background: transparent;"
+            )
+        else:
+            title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         self._status_label = QLabel("Detecting GPU...")
@@ -322,8 +337,9 @@ class GpuDetectionPage(QWidget):
         gpu_card_layout = QVBoxLayout(self._gpu_card)
 
         self._gpu_name_label = QLabel("")
+        name_px = FS_H3 if compact else FS_H2
         self._gpu_name_label.setStyleSheet(
-            f"font-size: {FS_H2}px; font-weight: bold; background: transparent;"
+            f"font-size: {name_px}px; font-weight: bold; background: transparent;"
         )
         gpu_card_layout.addWidget(self._gpu_name_label)
 
@@ -356,7 +372,8 @@ class GpuDetectionPage(QWidget):
         self._rec_callout.setVisible(False)
         layout.addWidget(self._rec_callout)
 
-        layout.addStretch()
+        if not compact:
+            layout.addStretch()
 
         # Start detection
         self._worker = _GpuDetectionWorker()
@@ -364,6 +381,7 @@ class GpuDetectionPage(QWidget):
         self._worker.start()
 
     def _on_detection_complete(self, name: str, vendor: str, vram_mb: int) -> None:
+        self._detection_done = True
         self._state.gpu_vendor = vendor
         self._state.gpu_name = name
         self._state.vram_mb = vram_mb
@@ -376,7 +394,8 @@ class GpuDetectionPage(QWidget):
             )
 
             self._gpu_name_label.setText(name)
-            vram_text = f"{vram_mb} MB VRAM" if vram_mb > 0 else "VRAM not available"
+            shown_gb = display_vram_gb(vram_mb)
+            vram_text = f"{shown_gb} GB VRAM" if vram_mb > 0 else "VRAM not available"
             self._gpu_detail_label.setText(
                 f"Vendor: {vendor.capitalize()}  |  {vram_text}"
             )
@@ -396,4 +415,11 @@ class GpuDetectionPage(QWidget):
 
         self._rec_model_label.setText(f"{model_name}  ({model_label})")
         self._rec_desc_label.setText(model_desc)
-        self._rec_callout.setVisible(True)
+        if not self._compact:
+            self._rec_callout.setVisible(True)
+
+    def validate(self) -> tuple[bool, str]:
+        """Block Next until the GPU probe has finished (CPU-only is a result)."""
+        if not self._detection_done:
+            return False, "Still detecting GPU..."
+        return True, ""

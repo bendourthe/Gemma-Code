@@ -87,6 +87,7 @@ from nexus_installer.tier_defaults import (
     load_tier_matrix,
     resolve_tier,
 )
+from nexus_installer.vram_display import display_vram_gb
 from nexus_installer.widgets.model_checkbox import ModelCheckBox
 
 if TYPE_CHECKING:
@@ -530,10 +531,19 @@ def _release_ordinal(value: str) -> int:
     return release_ordinal(value)
 
 
-def _catalog_model_sort_row(model: CatalogModel) -> dict[str, object]:
+def _catalog_model_sort_row(
+    model: CatalogModel,
+    *,
+    defaults: set[str] | None = None,
+    recommend_order: Sequence[str] | None = None,
+) -> dict[str, object]:
     tags: list[str] = []
+    default_ids = defaults or set()
+    del recommend_order
     if model.is_required:
         tags.append("required")
+    elif model.id in default_ids:
+        tags.append("recommended")
     return {
         "id": model.id,
         "displayName": model.display_name,
@@ -734,6 +744,31 @@ class _FlowLayout(QLayout):
         return y + line_height - rect.y()
 
 
+class _FillScrollArea(QScrollArea):
+    """Inner card list that does not inflate the outer wizard scroll.
+
+    QScrollArea's default sizeHint is the full inner-widget height. Nested
+    inside the window content scroll, that grows the Models page until the
+    tab bar (and Reset) sit below the fold. Report a compact hint so the
+    category list scrolls in place.
+    """
+
+    def sizeHint(self) -> QSize:
+        return QSize(400, 280)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(200, 160)
+
+
+def _section_label(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setStyleSheet(
+        f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+        f"font-weight: 600; background: transparent; padding-top: 4px;"
+    )
+    return label
+
+
 class _ModelCard(QWidget):
     """One model card with metadata, Phase 4 copy, and checkbox."""
 
@@ -910,6 +945,30 @@ class _ModelCard(QWidget):
             why.setWordWrap(True)
             layout.addWidget(why)
 
+        for label in self.findChildren(QLabel):
+            if label.objectName() != "licenseNote":
+                label.setAttribute(
+                    Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+                )
+        if fits:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event: object) -> None:  # noqa: N802
+        """Toggle from anywhere on a compatible card, not just the 20px box."""
+        button = getattr(event, "button", None)
+        pos = getattr(event, "pos", None)
+        child = self.childAt(pos()) if callable(pos) else None
+        if child is self.checkbox:
+            super().mouseReleaseEvent(event)  # type: ignore[arg-type]
+            return
+        if (
+            callable(button)
+            and button() == Qt.MouseButton.LeftButton
+            and self.checkbox.isEnabled()
+        ):
+            self.checkbox.toggle()
+        super().mouseReleaseEvent(event)  # type: ignore[arg-type]
+
 
 class TypedCatalogPage(QWidget):
     """Sectioned catalog page (Chat / Agentic Coding / Image / Video / Audio)."""
@@ -933,6 +992,7 @@ class TypedCatalogPage(QWidget):
         super().__init__(parent)
         self._state = state
         self._on_selection_changed = on_selection_changed
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         catalog_path = catalog_path or _default_catalog_path()
         recommended_path = recommended_path or _default_recommended_path()
@@ -991,26 +1051,28 @@ class TypedCatalogPage(QWidget):
         layout.addWidget(self._legend)
 
         self._tabs = QTabWidget()
-        layout.addWidget(self._tabs, stretch=1)
-
-        self._totals_label = QLabel("")
-        self._totals_label.setStyleSheet(
-            f"color: {ACCENT}; font-weight: bold; background: transparent;"
+        self._tabs.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
-        layout.addWidget(self._totals_label)
-
-        # v1.9.0 Phase 4 (T403) footer: a Reset-to-recommended control that resets
-        # the picks to the recommended set for the detected hardware, plus a
-        # reassurance note. The wizard's global Next button is the Continue.
-        footer_row = QHBoxLayout()
-        footer_row.setSpacing(12)
+        self._tabs.tabBar().setExpanding(False)
         self._refresh_button = QPushButton("Reset to recommended")
         self._refresh_button.setObjectName("secondaryButton")
         self._refresh_button.setToolTip(
             "Reset the selection to the recommended models for your hardware."
         )
         self._refresh_button.clicked.connect(self._on_refresh_clicked)
-        footer_row.addWidget(self._refresh_button)
+        self._tabs.setCornerWidget(self._refresh_button, Qt.Corner.TopRightCorner)
+        layout.addWidget(self._tabs, stretch=1)
+
+        self._totals_label = QLabel("")
+        self._totals_label.setStyleSheet(
+            f"color: {ACCENT}; font-weight: bold; background: transparent;"
+        )
+        self._totals_label.setWordWrap(True)
+        layout.addWidget(self._totals_label)
+
+        # v1.9.0 Phase 4 (T403): Reset lives on the category tab row so it stays
+        # on screen. The note below is the only footer chrome on this page.
         reassurance = QLabel(
             "You can add or remove models anytime after install from the Nexus "
             "model manager."
@@ -1020,8 +1082,7 @@ class TypedCatalogPage(QWidget):
             f"background: transparent;"
         )
         reassurance.setWordWrap(True)
-        footer_row.addWidget(reassurance, stretch=1)
-        layout.addLayout(footer_row)
+        layout.addWidget(reassurance)
 
         # Ids not in the catalog are kept: the model router sends unknown
         # ids to `ollama pull` verbatim (the --model override contract).
@@ -1034,6 +1095,13 @@ class TypedCatalogPage(QWidget):
 
         self._rebuild_tabs()
         self._update_selection_state()
+
+    def sizeHint(self) -> QSize:
+        """Stay viewport-sized so the window scroll does not hide the tab row."""
+        return QSize(720, 560)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(480, 400)
 
     # -----------------------------------------------------------------
     # Hardware-tier defaults
@@ -1107,8 +1175,9 @@ class TypedCatalogPage(QWidget):
                 page.deleteLater()
 
         vram_gb = max(0, int(self._state.vram_mb / 1024))
+        shown_gb = display_vram_gb(self._state.vram_mb)
         self._subtitle.setText(
-            f"Detected {self._state.gpu_name or 'no GPU'} ({vram_gb} GB VRAM). "
+            f"Detected {self._state.gpu_name or 'no GPU'} ({shown_gb} GB VRAM). "
             "We've pre-selected the best fit for your hardware -- tick more to "
             "add them, or untick any you don't want. Each card is colored by its "
             "maker."
@@ -1120,6 +1189,9 @@ class TypedCatalogPage(QWidget):
                 self._build_tab(key, icon, vram_gb, self._state, defaults), label
             )
         self._tabs.setCurrentIndex(min(current, self._tabs.count() - 1))
+        # Removing tabs can drop the corner widget on some Qt builds; pin it
+        # back onto the category row after every rebuild.
+        self._tabs.setCornerWidget(self._refresh_button, Qt.Corner.TopRightCorner)
 
     def _models_for_section(self, section_key: str) -> list[CatalogModel]:
         """Models shown under a tab.
@@ -1143,17 +1215,11 @@ class TypedCatalogPage(QWidget):
         defaults: set[str] | None = None,
         recommend_order: Sequence[str] | None = None,
     ) -> list[CatalogModel]:
-        """Collapse a tab to one best-fitting model per family.
+        """Order a tab: required, then pre-selected defaults, then the rest.
 
-        v1.14.0 Phase 3 (supersedes the v1.13 flat VRAM-ascending sort): for
-        each model family show the single best variant that fits the detected
-        GPU -- the family's tier default when it fits, else the most capable
-        (highest-VRAM) fitting variant. Other fitting variants are hidden; every
-        variant that needs more VRAM than the GPU has is shown disabled/grayed;
-        a family with no fitting variant shows its smallest one, grayed. Enabled
-        rows come first: required, then pre-ticked defaults, then the rest of
-        this tier's recommended.json list (recommendation order), then newest
-        release, then most-capable. Over-budget rows follow.
+        v2.4.1 field correction: pre-ticked hardware defaults lead the tab so
+        the operator sees the required set first. Compatible opt-in rows
+        follow (newest first). Over-budget rows stay at the bottom.
 
         v2.2.8 Phase 4: the comparison and order live in
         ``nexus_installer.catalog_tab_sort`` so Settings can dual-assert the
@@ -1161,10 +1227,14 @@ class TypedCatalogPage(QWidget):
         """
         section = list(self._models_for_section(section_key))
         by_id = {m.id: m for m in section}
-        del defaults, recommend_order
         ordered = canonical_display_order(
             [
-                _catalog_model_sort_row(model) | {"task": model.task}
+                _catalog_model_sort_row(
+                    model,
+                    defaults=defaults,
+                    recommend_order=recommend_order,
+                )
+                | {"task": model.task}
                 for model in section
             ],
             host_vram_gb=host_vram_gb,
@@ -1195,8 +1265,9 @@ class TypedCatalogPage(QWidget):
         accent_rule.setStyleSheet(f"background-color: {ACCENT}; border: none;")
         outer.addWidget(accent_rule)
 
-        scroll = QScrollArea()
+        scroll = _FillScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         inner = QWidget()
         layout = QVBoxLayout(inner)
         layout.setSpacing(8)
@@ -1228,10 +1299,11 @@ class TypedCatalogPage(QWidget):
             layout.addWidget(empty)
         else:
             host_ram_gb = state.total_ram_gb
-            # v1.14.0 Phase 3: a labeled divider separates the compatible best-
-            # of-family picks from the grayed, over-budget tiers below.
-            divider_added = False
+            required_header_added = False
+            optional_header_added = False
+            vram_divider_added = False
             for model in models:
+                is_required_pick = model.is_required or model.id in defaults
                 card = _ModelCard(
                     model,
                     recommended=model.id in defaults,
@@ -1241,14 +1313,20 @@ class TypedCatalogPage(QWidget):
                     gpu_vendor=gpu_vendor,
                     accent=provider_color(model.family),
                 )
-                if not card.fits and not divider_added:
+                if card.fits and is_required_pick and not required_header_added:
+                    layout.addWidget(_section_label("Required for this GPU"))
+                    required_header_added = True
+                elif card.fits and not is_required_pick and not optional_header_added:
+                    layout.addWidget(_section_label("More compatible models"))
+                    optional_header_added = True
+                elif not card.fits and not vram_divider_added:
                     divider = QLabel("Needs more VRAM than this GPU")
                     divider.setStyleSheet(
                         f"color: {TEXT_MUTED}; font-size: {FS_CAPTION}px; "
                         f"background: transparent; padding-top: 6px;"
                     )
                     layout.addWidget(divider)
-                    divider_added = True
+                    vram_divider_added = True
                 card.setSizePolicy(
                     QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
                 )
@@ -1269,7 +1347,7 @@ class TypedCatalogPage(QWidget):
 
         layout.addStretch()
         scroll.setWidget(inner)
-        outer.addWidget(scroll)
+        outer.addWidget(scroll, stretch=1)
 
         # v1.11.0 Phase 6 (T603): an explicit "Skip this category" control. The
         # category flow requires every category to be decided (a selection or a
@@ -1395,19 +1473,34 @@ class TypedCatalogPage(QWidget):
                 card.disabled_for_disk = False
                 continue
             remaining = free - total - card.model.size_gb
+            # Compatible cards stay selectable even when the current basket
+            # would dip below the OS reserve. The totals line warns, and the
+            # Review install guard still blocks a too-large download. Operators
+            # can tick SANA (or any other fit) and untick a heavier default.
+            card.checkbox.setEnabled(True)
             if remaining < reserve:
-                card.checkbox.setEnabled(False)
                 card.checkbox.setToolTip(self.DISK_TOOLTIP)
                 card.disabled_for_disk = True
             else:
-                card.checkbox.setEnabled(True)
                 card.checkbox.setToolTip("")
                 card.disabled_for_disk = False
 
         count = len(self._selection.selected)
+        remaining_after = (free - total) if free > 0 else None
+        disk_short = remaining_after is not None and remaining_after < reserve
+        suffix = (
+            f"  --  leaves less than {int(reserve)} GB free; "
+            "untick models to keep the OS reserve"
+            if disk_short
+            else ""
+        )
         self._totals_label.setText(
             f"{count} model{'s' if count != 1 else ''} selected  --  "
-            f"{total:.1f} GB total download"
+            f"{total:.1f} GB total download{suffix}"
+        )
+        self._totals_label.setStyleSheet(
+            f"color: {ERROR if disk_short else ACCENT}; font-weight: bold; "
+            "background: transparent;"
         )
         if self._on_selection_changed:
             with contextlib.suppress(Exception):

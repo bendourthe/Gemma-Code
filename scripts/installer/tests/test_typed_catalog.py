@@ -546,6 +546,12 @@ class TestTypedCatalogPage:
         }
         assert "qwen2.5-coder:7b" not in selected
 
+    def test_subtitle_ceils_15360_mib_to_16_gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=15360))
+        page.refresh_from_state()
+        assert "(16 GB VRAM)" in page._subtitle.text()
+        assert max(0, int(15360 / 1024)) == 15
+
     def test_license_note_renders_on_card(self, qt_app, tmp_path: Path) -> None:
         from PyQt5.QtWidgets import QLabel
 
@@ -669,6 +675,7 @@ class TestTypedCatalogPage:
             "chat", 8, "nvidia", {"gemma4:e4b", "embeddinggemma"}
         )
         enabled = [m.id for m in models if m.required_vram_gb <= 8]
+        assert enabled[0] == "gemma4:e4b"
         # v2.2.9 Phase 5: embed rows live on the Embeddings tab, not Chat.
         assert "nomic-embed-text" not in enabled
         assert "gemma4:e4b" in enabled
@@ -719,6 +726,40 @@ class TestTypedCatalogPage:
         assert "juggernaut-xl-v9" not in page.selection().selected
         page._on_refresh_clicked()
         assert "juggernaut-xl-v9" in page.selection().selected
+
+    def test_reset_button_sits_on_the_category_tab_row(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        from PyQt5.QtCore import Qt
+
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        assert page._refresh_button.text() == "Reset to recommended"
+        assert page._tabs.cornerWidget(Qt.Corner.TopRightCorner) is page._refresh_button
+
+    def test_disk_pressure_keeps_compatible_cards_selectable(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        state = _gpu_state(vram_mb=8192, free_disk_gb=15)
+        state.disk_reserve_gb = 10
+        page = self._page(state, tmp_path)
+        compatible = [
+            c
+            for c in page._cards
+            if not c.over_budget
+            and not (c.model.is_required and c.checkbox.isChecked())
+        ]
+        assert compatible
+        assert all(c.checkbox.isEnabled() for c in compatible)
+
+    def test_required_group_header_precedes_optional_models(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        texts = [lbl.text() for lbl in page.findChildren(QLabel)]
+        assert "Required for this GPU" in texts
+        assert "More compatible models" in texts
 
 
 class TestRealCatalogPage:
@@ -784,8 +825,8 @@ class TestRealCatalogPage:
             list(page._matrix["16"]["agentic"]),
         )
         ordered = [m.id for m in models]
-        assert ordered[0] == "lfm2.5:2.6b"
-        assert "gemma-4-12b-it-gguf" in ordered
+        assert ordered[0] == "gemma-4-12b-it-gguf"
+        assert "lfm2.5:2.6b" in ordered
         assert "gpt-oss:20b" in ordered
 
     def test_8gb_agentic_order_follows_recommended_list(self, qt_app) -> None:
@@ -798,8 +839,8 @@ class TestRealCatalogPage:
             list(page._matrix["8"]["agentic"]),
         )
         ordered = [m.id for m in models]
-        assert ordered[0] == "lfm2.5:2.6b"
-        assert {"gemma4:e4b", "qwen3.5:9b"} <= set(ordered)
+        assert ordered[0] == "gemma4:e4b"
+        assert {"lfm2.5:2.6b", "qwen3.5:9b"} <= set(ordered)
 
     def test_new_specialists_listed_retired_coders_absent(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=24576))
@@ -1021,6 +1062,16 @@ class TestPhase3Collapse:
         page.refresh_from_state()
         texts = [lbl.text() for lbl in page.findChildren(QLabel)]
         assert any("Needs more VRAM than this GPU" in t for t in texts)
+
+    def test_preselected_image_default_leads_the_tab(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=16 * 1024))
+        defaults = set(page._current_defaults())
+        models = page._sorted_section_models("image", 16, "nvidia", defaults)
+        fitting = [m.id for m in models if m.required_vram_gb <= 16]
+        default_ids = [mid for mid in fitting if mid in defaults]
+        assert "realvisxl-v5" in default_ids
+        assert fitting[: len(default_ids)] == default_ids
+        assert fitting[0] == "realvisxl-v5"
 
     def test_vae_excluded(self) -> None:
         assert "vae" not in CATALOG_TYPE_TO_TAB

@@ -325,6 +325,13 @@ class TestVsCodeExtensionPage:
         page = VsCodeExtensionPage(InstallerState(), detect_fn=_status)
         assert not hasattr(page, "_unsloth")
 
+    def test_configuration_hosts_vscode_and_unsloth(self, qt_app) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState(), detect_fn=_status)
+        assert hasattr(page, "_unsloth")
+        assert page._vscode._checkbox.isChecked() is True
+
     def test_candidates_include_known_clis(self) -> None:
         assert "code" in VSCODE_CLI_CANDIDATES
         assert "code-insiders" in VSCODE_CLI_CANDIDATES

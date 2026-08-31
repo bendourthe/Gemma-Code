@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import (
     QCheckBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QVBoxLayout,
@@ -16,8 +17,11 @@ from nexus_installer.constants import (
     BG_CARD,
     BORDER,
     FS_CAPTION,
+    SUCCESS,
     TEXT_SECONDARY,
+    WARNING,
 )
+from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
 from nexus_installer.video_enhancement_support import INSTALLER_NOTE
 
 if TYPE_CHECKING:
@@ -27,7 +31,15 @@ if TYPE_CHECKING:
 class ConfigurationPage(QWidget):
     """Page for configuring installation components and options."""
 
-    def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        state: InstallerState,
+        parent: QWidget | None = None,
+        *,
+        detect_fn=None,
+        inspect_fn=None,
+        list_fn=None,
+    ) -> None:
         super().__init__(parent)
         self._state = state
 
@@ -96,6 +108,12 @@ class ConfigurationPage(QWidget):
         )
         layout.addWidget(self._memory_toggle)
 
+        unsloth_row = QWidget()
+        unsloth_row.setStyleSheet("background: transparent;")
+        unsloth_layout = QHBoxLayout(unsloth_row)
+        unsloth_layout.setContentsMargins(0, 0, 0, 0)
+        unsloth_layout.setSpacing(8)
+
         self._unsloth = QCheckBox(
             "Install Unsloth Core (optional local QLoRA fine-tuning runtime "
             "for Nexus, not the VS Code extension)"
@@ -103,7 +121,12 @@ class ConfigurationPage(QWidget):
         self._unsloth.setChecked(bool(state.install_unsloth))
         self._unsloth.setStyleSheet("background: transparent;")
         self._unsloth.stateChanged.connect(self._on_unsloth)
-        layout.addWidget(self._unsloth)
+        unsloth_layout.addWidget(self._unsloth, 1)
+
+        self._unsloth_badge = QLabel("")
+        self._unsloth_badge.setObjectName("unsloth-compat-badge")
+        unsloth_layout.addWidget(self._unsloth_badge)
+        layout.addWidget(unsloth_row)
 
         self._unsloth_help = QLabel(
             "For NVIDIA GPUs with 16 GB or more VRAM. unsloth is Apache-2.0; "
@@ -125,6 +148,7 @@ class ConfigurationPage(QWidget):
         )
         self._unsloth_warning.setVisible(False)
         layout.addWidget(self._unsloth_warning)
+        self._refresh_unsloth_badge()
         self._refresh_unsloth_warning()
 
         # Ollama URL
@@ -140,6 +164,15 @@ class ConfigurationPage(QWidget):
         settings_label = QLabel("VS Code Extension Settings")
         settings_label.setObjectName("sectionHead")
         layout.addWidget(settings_label)
+
+        self._vscode = VsCodeExtensionPage(
+            state,
+            detect_fn=detect_fn,
+            inspect_fn=inspect_fn,
+            list_fn=list_fn,
+            compact=True,
+        )
+        layout.addWidget(self._vscode)
 
         model_name = state.selected_model or state.recommended_model or "gemma4:e4b"
         settings_preview = QLabel(
@@ -171,6 +204,28 @@ class ConfigurationPage(QWidget):
 
         layout.addStretch()
 
+    def set_interactive(self, enabled: bool) -> None:
+        self._vscode.set_interactive(enabled)
+
+    def _unsloth_host_ok(self) -> bool:
+        vendor = (self._state.gpu_vendor or "").lower()
+        vram_gb = max(0, int(self._state.vram_mb or 0) // 1024)
+        return vendor == "nvidia" and vram_gb >= 16
+
+    def _refresh_unsloth_badge(self) -> None:
+        if self._unsloth_host_ok():
+            self._unsloth_badge.setText("Compatible")
+            self._unsloth_badge.setStyleSheet(
+                f"color: {SUCCESS}; font-size: {FS_CAPTION}px; font-weight: 600; "
+                "background: transparent;"
+            )
+            return
+        self._unsloth_badge.setText("Incompatible")
+        self._unsloth_badge.setStyleSheet(
+            f"color: {WARNING}; font-size: {FS_CAPTION}px; font-weight: 600; "
+            "background: transparent;"
+        )
+
     def _on_unsloth(self, state_value: int) -> None:
         self._state.install_unsloth = self._unsloth.isChecked()
         self._refresh_unsloth_warning()
@@ -180,9 +235,7 @@ class ConfigurationPage(QWidget):
             self._unsloth_warning.clear()
             self._unsloth_warning.setVisible(False)
             return
-        vendor = (self._state.gpu_vendor or "").lower()
-        vram_gb = max(0, int(self._state.vram_mb or 0) // 1024)
-        if vendor != "nvidia" or vram_gb < 16:
+        if not self._unsloth_host_ok():
             self._unsloth_warning.setText(
                 "This host does not look like NVIDIA with 16 GB or more VRAM. "
                 "You can still tick this; the provisioner will record a skip "

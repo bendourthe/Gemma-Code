@@ -175,6 +175,6 @@ class TestConstants:
         assert len(constants.FONT_MONO) > 0
 
     def test_step_names_count(self) -> None:
-        assert len(constants.STEP_NAMES) == 10
+        assert len(constants.STEP_NAMES) == 7
         assert constants.STEP_NAMES[0] == "Welcome"
         assert constants.STEP_NAMES[-1] == "Complete"

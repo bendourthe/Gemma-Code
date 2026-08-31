@@ -292,12 +292,9 @@ DOCS_URL = "https://github.com/bendourthe/Nexus-AI"
 # ---------------------------------------------------------------------------
 STEP_NAMES: list[str] = [
     "Welcome",
-    "Prerequisites",
-    "GPU Detection",
-    "Install Path",
+    "Setup",
     "Models",
     "Configuration",
-    "VS Code",
     "Review",
     "Installing",
     "Complete",

@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.2 - field UI Phase 6 installer VRAM, Unsloth, and VS Code
+
+Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-6-installer-display.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Installer GPU totals display as whole GB via ceil (16384 and 15360 both read 16 GB). Tier math is unchanged.
+- Unsloth shows Compatible or Incompatible before the optional checkbox. Incompatible hosts can still opt in.
+- Wizard steps are Welcome, Setup, Models, Configuration, Review, Installing, Complete. The VS Code extension checkbox lives on Configuration.
+- Held Setup-step, Reset-on-tab-row, and SANA catalog work is included.
+
+### Why It Changed
+
+Packaged 2.4.1 truncated VRAM, hid Unsloth fit behind a post-check warning, and spent a whole wizard step on VS Code.
+
+### Decisions Made
+
+- 15 GiB-class reports (15360 MiB) display 16 GB so the line matches model badges.
+- Keep `--skip-extension` as the smoke flag; no `--skip-vscode` alias.
+
+---
+
 ## [2026-08-31] v2.4.2 - field UI Phase 5 Settings Models density
 
 Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-5-settings-density.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

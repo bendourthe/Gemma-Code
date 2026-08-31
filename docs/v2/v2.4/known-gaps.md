@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 5 | 0 |
+| Missing tests / coverage gaps (MT) | 6 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-5 are implemented locally. jsdom cannot prove thinking-pill pixel containment, a live overflow pane jumping to the latest turn, or two Settings cards filling a real viewport. Packaged img2img identity and empty-video fail-closed screenshots are not observed here. Human zoom, send-scroll, image follow-up, SAM2 install, empty-video, Settings density, and installer screenshots wait for Phase 7.
+Phases 1-6 are implemented locally. jsdom cannot prove thinking-pill pixel containment, a live overflow pane jumping to the latest turn, or two Settings cards filling a real viewport. Packaged img2img identity, empty-video fail-closed, and a live installer GPU/Unsloth/VS Code screenshot are not observed here. Human zoom, send-scroll, image follow-up, SAM2 install, empty-video, Settings density, and installer screenshots wait for Phase 7.
 
 ### Open Items
 
@@ -59,6 +59,13 @@ Phases 1-5 are implemented locally. jsdom cannot prove thinking-pill pixel conta
 - **Plan reference**: [v2.4.2-field-ui-history-and-generation.md](plans/v2.4.2-field-ui-history-and-generation.md) T024 / 5.1
 - **Reason**: Tests assert the catalog fingerprint is absent, chrome gap is `--space-1`, and card padding is `--space-2`. jsdom does not layout two downloaded cards against a packaged window height.
 - **Suggested next step**: Phase 7 operator item 8 (Settings Models density).
+
+##### MT-6 - Live installer VRAM / Unsloth / VS Code merge is not observed
+
+- **Source phase**: Phase 6 - Installer VRAM, Unsloth, and VS Code Merge
+- **Plan reference**: [v2.4.2-field-ui-history-and-generation.md](plans/v2.4.2-field-ui-history-and-generation.md) T028 / 6.1
+- **Reason**: Pytest pins 16384 and 15360 display as 16 GB, Unsloth Compatible/Incompatible before opt-in, and a 7-step route with the VS Code checkbox on Configuration. A packaged wizard run on this NVIDIA host is not recorded here.
+- **Suggested next step**: Phase 7 operator item 9 (installer GPU line shows whole GB and Unsloth badge on the same page as VS Code).
 
 ## v2.4.1
 

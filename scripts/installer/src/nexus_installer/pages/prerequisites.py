@@ -17,6 +17,7 @@ from nexus_installer.constants import (
     ERROR,
     FS_BODY,
     FS_CAPTION,
+    FS_H3,
     SUCCESS,
     TEXT_SECONDARY,
     WARNING,
@@ -255,17 +256,29 @@ class _PrereqRow(QWidget):
 class PrerequisitesPage(QWidget):
     """Prerequisite check page with live status rows."""
 
-    def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        state: InstallerState,
+        parent: QWidget | None = None,
+        *,
+        compact: bool = False,
+    ) -> None:
         super().__init__(parent)
         self._state = state
         self._vscode_found = False
         self._disk_ok = False
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8 if compact else 16)
 
-        title = QLabel("Prerequisites Check")
-        title.setObjectName("pageTitle")
+        title = QLabel("Prerequisites" if compact else "Prerequisites Check")
+        if compact:
+            title.setStyleSheet(
+                f"font-size: {FS_H3}px; font-weight: 600; background: transparent;"
+            )
+        else:
+            title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         # Card container
@@ -295,7 +308,8 @@ class PrerequisitesPage(QWidget):
         recheck_btn.clicked.connect(self._run_detection)
         layout.addWidget(recheck_btn)
 
-        layout.addStretch()
+        if not compact:
+            layout.addStretch()
 
         # Run initial detection
         self._worker: _DetectionWorker | None = None
