@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 4 Settings compact cards
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-4-settings-cards.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Settings model facts are one nowrap row (size, VRAM, recommendation, Installed). Origin and license pills moved to Details.
+- Description sits in `minmax(0,1fr)` beside icon actions. Downloaded is muted green, Remove is a red trash icon, Download is a blue download icon.
+
+### Why It Changed
+
+Screenshot 8 wrapped Company/Country/Context pills and used gray text buttons.
+
+### Decisions Made
+
+- Color tokens are rgb() so jsdom style assertions match the inline style.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 3 thinking pill
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-3-thinking-pill.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

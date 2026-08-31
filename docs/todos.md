@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-3 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-4 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+
+> **v2.4.3 FIELD DENSITY PHASE 4 (2026-08-31)** -- [Settings compact cards](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T016-T019 complete. Nowrap facts, Details pills, colored icon actions. Next: Phase 5 picker rank and default.
 
 > **v2.4.3 FIELD DENSITY PHASE 3 (2026-08-31)** -- [thinking pill geometry](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T013-T015 complete. Fixed min-width from Searching... plus 12 px left inset. Next: Phase 4 Settings compact cards.
 

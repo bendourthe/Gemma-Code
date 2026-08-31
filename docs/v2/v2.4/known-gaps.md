@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 3 | 0 |
+| Missing tests / coverage gaps (MT) | 4 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-3 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom.
+Phases 1-4 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom. Packaged Settings nowrap facts and icon colors are not observed here.
 
 ### Open Items
 
@@ -45,6 +45,13 @@ Phases 1-3 are implemented locally. A packaged wizard screenshot of the two-colu
 - **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T013 / 3.1
 - **Reason**: Tests pin min-width to `Searching...`, a 12 px left inset, and overflow visible on the pill host and chat pending row. jsdom does not layout a packaged transcript, so glow pixels vs the pane edge are not observed here. v2.4.2 MT-1 remains the prior-cycle statement of the same limit.
 - **Suggested next step**: Last-phase operator item (thinking pill glow at 100% and 150% zoom).
+
+##### MT-4 - Packaged Settings compact-card nowrap and icon colors are not observed
+
+- **Source phase**: Phase 4 - Settings Models Compact Cards
+- **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T016 / 4.1
+- **Reason**: Tests pin a nowrap facts row without Company/License pills, pills inside Details, and green / red / blue action colors via inline style. A packaged Settings screenshot is not recorded here.
+- **Suggested next step**: Last-phase operator item (Settings one facts line and icon colors).
 
 ## v2.4.2
 

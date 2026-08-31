@@ -13,6 +13,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { CircleCheck, Download, Trash2 } from "lucide-react";
 import { modelAvailabilityBucket } from "../../../../core/registry/modelDisplayPolicy";
 import { Button, SearchInput } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
@@ -434,24 +435,40 @@ function ModelCard({
     >
       <div style={{ display: "flex", gap: MODELS_CARD_INNER_GAP, alignItems: "flex-start" }}>
         <ModelIcon type={item.type} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* v2.2.9 Phase 5 (T010): one header row -- display name first, then
-              the locked fact pills (wrapping is fine); never under the
-              description. Badge and Also-agentic remain install affordances. */}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) auto",
+            columnGap: MODELS_CARD_INNER_GAP,
+            rowGap: 4,
+            alignItems: "start",
+          }}
+        >
           <div
             data-testid={`models-header-${item.id}`}
-            style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)", flexWrap: "wrap" }}
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-2, 8px)",
+              minWidth: 0,
+            }}
           >
-            <span style={{ fontWeight: 600 }}>{item.displayName}</span>
-            {pills.length > 0 ? (
-              <span data-testid={`models-pills-${item.id}`} style={pillRowStyle}>
-                {pills.map((pill) => (
-                  <span key={pill} style={chipStyle}>
-                    {pill}
-                  </span>
-                ))}
-              </span>
-            ) : null}
+            <span
+              style={{
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                minWidth: 0,
+              }}
+            >
+              {item.displayName}
+            </span>
+          </div>
+          <div data-testid={`models-facts-${item.id}`} style={factsRowStyle}>
             {typeof item.sizeBytes === "number" ? <span style={chipStyle}>{formatBytes(item.sizeBytes)}</span> : null}
             {compatibilityLabel ? (
               <span data-testid={`models-compatibility-${item.id}`} style={badgeStyle(overBudget ? "Incompatible" : "Compatible")}>
@@ -463,15 +480,72 @@ function ModelCard({
                 {kindLabel}
               </span>
             ) : null}
-            {catalogTabsFor(item).includes("agentic") && item.task === "chat" ? (
-              <span style={{ fontSize: "0.75em", color: "var(--fg-muted)" }}>Also agentic</span>
+            {downloaded ? (
+              <span data-testid={`models-facts-installed-${item.id}`} style={chipStyle}>
+                Installed
+              </span>
             ) : null}
           </div>
-          <p data-testid={`models-row-${item.id}-description`} style={copyStyle}>{description}</p>
-          {item.task || item.strengths?.length || item.whyRecommended || item.license || item.family || item.tag || components.length > 0 ? (
-            <details data-testid={`models-row-${item.id}-details`} style={{ marginTop: 4 }}>
+          <p
+            data-testid={`models-row-${item.id}-description`}
+            style={{ ...copyStyle, minWidth: 0, gridColumn: 1 }}
+          >
+            {description}
+          </p>
+          <div
+            data-testid={`models-actions-${item.id}`}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "var(--space-2, 8px)",
+              gridColumn: 2,
+            }}
+          >
+            <Button
+              type="button"
+              testId={`models-favorite-${item.id}`}
+              aria-pressed={favorite}
+              aria-label={favorite ? "Unfavorite" : "Favorite"}
+              onClick={onFavorite}
+              variant="ghost"
+              style={starStyle(favorite)}
+            >
+              {favorite ? "★" : "☆"}
+            </Button>
+            <RowActions
+              item={item}
+              progress={progress}
+              installing={installing}
+              downloaded={downloaded}
+              overBudget={overBudget}
+              selectedMissing={selectedMissing}
+              hostVramGB={hostVramGB}
+              onInstall={onInstall}
+              onCancel={onCancel}
+              onRemove={onRemove}
+              onReveal={onReveal}
+            />
+          </div>
+          {item.task || item.strengths?.length || item.whyRecommended || item.license || item.family || item.tag || components.length > 0 || pills.length > 0 ? (
+            <details
+              data-testid={`models-row-${item.id}-details`}
+              style={{ marginTop: 4, gridColumn: "1 / -1" }}
+            >
               <summary style={{ cursor: "pointer", fontSize: "0.8em", color: "var(--fg-muted)" }}>Details</summary>
+              {pills.length > 0 ? (
+                <span data-testid={`models-pills-${item.id}`} style={pillRowStyle}>
+                  {pills.map((pill) => (
+                    <span key={pill} style={chipStyle}>
+                      {pill}
+                    </span>
+                  ))}
+                </span>
+              ) : null}
               <p style={copyStyle}>ID: {item.id}{item.task ? `; task: ${item.task}` : ""}</p>
+              {catalogTabsFor(item).includes("agentic") && item.task === "chat" ? (
+                <p style={copyStyle}>Also agentic</p>
+              ) : null}
               {item.strengths && item.strengths.length > 0 ? (
                 <p data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
                   Best for: {item.strengths.join(", ")}
@@ -500,12 +574,12 @@ function ModelCard({
             </details>
           ) : null}
           {selectedMissing ? (
-            <p data-testid={`models-row-${item.id}-selected-missing`} style={copyStyle}>
+            <p data-testid={`models-row-${item.id}-selected-missing`} style={{ ...copyStyle, gridColumn: "1 / -1" }}>
               Selected during setup but not found in Ollama. Retry the download, or ignore if the installer skipped this sibling.
             </p>
           ) : null}
           {item.licenseNote ? (
-            <div data-testid={`models-row-${item.id}-license-note`} style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2 }}>
+            <div data-testid={`models-row-${item.id}-license-note`} style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2, gridColumn: "1 / -1" }}>
               Use restriction: {item.licenseNote}
               {item.licenseUrl ? (
                 <>
@@ -518,36 +592,10 @@ function ModelCard({
             </div>
           ) : null}
           {rowError ? (
-            <p data-testid={`models-row-error-${item.id}`} role="alert" style={{ color: "var(--status-err, #dc2626)", fontSize: "0.85em" }}>
+            <p data-testid={`models-row-error-${item.id}`} role="alert" style={{ color: "var(--status-err, #dc2626)", fontSize: "0.85em", gridColumn: "1 / -1" }}>
               {rowError}
             </p>
           ) : null}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--space-2, 8px)" }}>
-          <Button
-            type="button"
-            testId={`models-favorite-${item.id}`}
-            aria-pressed={favorite}
-            aria-label={favorite ? "Unfavorite" : "Favorite"}
-            onClick={onFavorite}
-            variant="ghost"
-            style={starStyle(favorite)}
-          >
-            {favorite ? "★" : "☆"}
-          </Button>
-          <RowActions
-            item={item}
-            progress={progress}
-            installing={installing}
-            downloaded={downloaded}
-            overBudget={overBudget}
-            selectedMissing={selectedMissing}
-            hostVramGB={hostVramGB}
-            onInstall={onInstall}
-            onCancel={onCancel}
-            onRemove={onRemove}
-            onReveal={onReveal}
-          />
         </div>
       </div>
     </li>
@@ -607,20 +655,30 @@ function RowActions({
       <div style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}>
         <span
           data-testid={`models-downloaded-${item.id}`}
+          aria-label="Downloaded"
           style={{
-            fontSize: "0.8em",
-            fontWeight: 600,
-            padding: "2px 8px",
-            borderRadius: "999px",
-            background: "color-mix(in srgb, var(--fg-muted) 12%, transparent)",
-            color: "var(--fg-muted)",
+            display: "inline-flex",
+            color: MODELS_DOWNLOADED_COLOR,
           }}
         >
-          Downloaded
+          <CircleCheck size={16} aria-hidden="true" />
+          <span style={visuallyHiddenStyle}>Downloaded</span>
         </span>
         {onRemove ? (
-          <Button type="button" testId={`models-remove-${item.id}`} onClick={onRemove}>
-            Remove
+          <Button
+            type="button"
+            testId={`models-remove-${item.id}`}
+            aria-label="Remove"
+            variant="ghost"
+            onClick={onRemove}
+            style={{
+              color: MODELS_REMOVE_COLOR,
+              padding: 4,
+              minWidth: 0,
+            }}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            <span style={visuallyHiddenStyle}>Remove</span>
           </Button>
         ) : null}
       </div>
@@ -637,9 +695,22 @@ function RowActions({
       </span>
     );
   }
+  const installLabel = selectedMissing ? "Retry" : "Download";
   return (
-    <Button type="button" testId={`models-install-${item.id}`} onClick={onInstall}>
-      {selectedMissing ? "Retry" : "Download"}
+    <Button
+      type="button"
+      testId={`models-install-${item.id}`}
+      aria-label={installLabel}
+      onClick={onInstall}
+      variant="ghost"
+      style={{
+        color: MODELS_DOWNLOAD_COLOR,
+        padding: 4,
+        minWidth: 0,
+      }}
+    >
+      <Download size={16} aria-hidden="true" />
+      <span style={visuallyHiddenStyle}>{installLabel}</span>
     </Button>
   );
 }
@@ -812,6 +883,9 @@ export const MODELS_PAGE_GAP = "var(--space-3, 12px)";
 export const MODELS_HEADER_TO_TABS_GAP = "var(--space-1, 4px)";
 export const MODELS_CARD_PADDING = "var(--space-2, 8px)";
 export const MODELS_CARD_INNER_GAP = "var(--space-2, 8px)";
+export const MODELS_DOWNLOADED_COLOR = "rgb(74, 222, 128)";
+export const MODELS_REMOVE_COLOR = "rgb(248, 113, 113)";
+export const MODELS_DOWNLOAD_COLOR = "rgb(96, 165, 250)";
 
 const pageStyle: CSSProperties = {
   flex: 1,
@@ -907,6 +981,16 @@ const pillRowStyle: CSSProperties = {
   flexWrap: "wrap",
   alignItems: "center",
   gap: "6px",
+};
+
+const factsRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "nowrap",
+  alignItems: "center",
+  gap: "6px",
+  overflow: "hidden",
+  minWidth: 0,
+  gridColumn: "1 / -1",
 };
 
 const chipStyle: CSSProperties = {

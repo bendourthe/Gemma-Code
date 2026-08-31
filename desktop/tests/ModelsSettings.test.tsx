@@ -602,7 +602,7 @@ describe("ModelsSettings", () => {
     render(<ModelsSettings client={lfmClient} />);
     await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    // v2.2.9 Phase 5 (T010): golden pill row (dual-asserted with the installer).
+    // Origin / license / context pills live in Details so the dense facts row stays nowrap.
     const pillRow = screen.getByTestId("models-pills-lfm2.5:2.6b");
     expect(Array.from(pillRow.children).map((c) => c.textContent)).toEqual([
       "Company: Liquid AI",
@@ -613,9 +613,10 @@ describe("ModelsSettings", () => {
       "License: LFM Open License v1.0",
       "Released: August 2026",
     ]);
-    // Pills sit inside the header (name) row, not under the description.
     const header = screen.getByTestId("models-header-lfm2.5:2.6b");
-    expect(header.contains(pillRow)).toBe(true);
+    const details = screen.getByTestId("models-row-lfm2.5:2.6b-details");
+    expect(header.contains(pillRow)).toBe(false);
+    expect(details.contains(pillRow)).toBe(true);
     expect(header.firstChild?.textContent).toBe("LFM2.5 2.6B");
     // The split-window row derives its pill from the in-window.
     expect(screen.getByTestId("models-pills-split-ctx").textContent).toContain(
