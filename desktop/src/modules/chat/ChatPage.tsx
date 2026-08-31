@@ -2,8 +2,8 @@
  * v1.0.0 Phase 4.4 -- Local Chatbot Explorer page.
  *
  * The Chat module's top-level page. Hosts:
- *   - left rail: `<FolderTree>` (drag-drop, context menu, keyboard nav)
- *   - right pane: shared chat shell (`<MessageList>`, `<MediaComposer>`)
+ *   - sidebar-hosted `<FolderTree>` (drag-drop, context menu, keyboard nav)
+ *   - main pane: shared chat shell (`<MessageList>`, `<MediaComposer>`)
  *   - compact model switcher under the composer (installed-and-ready LLMs + Get more models)
  *   - tools always on (confirmation and sandbox still gate execution)
  *
@@ -17,10 +17,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
 import {
-  CollapsibleHistoryAside,
-  usePersistentCollapsed,
-} from "../../shared/explorer/CollapsibleHistoryAside";
-import { CHAT_HISTORY_COLLAPSE_KEY } from "../../shared/explorer/historyPaneLayout";
+  SidebarHistorySlot,
+  SIDEBAR_COMPACT_STORAGE_KEY,
+  useSidebarCompact,
+} from "../../components/SidebarHistoryHost";
 import { InMemoryChatExplorerClient } from "./chatExplorerClient";
 import {
   createIpcChatExplorerAdapter,
@@ -118,8 +118,8 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   modalities: ["text"] as const,
 }));
 
-/** v2.2.5 Phase 4 / v2.2.8 Phase 2 -- chats aside collapse, namespaced away from the main rail. */
-export const CHATS_PANE_STORAGE_KEY = CHAT_HISTORY_COLLAPSE_KEY;
+/** @deprecated v2.4.2: chat collapse is the sidebar compact toggle. */
+export const CHATS_PANE_STORAGE_KEY = SIDEBAR_COMPACT_STORAGE_KEY;
 
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
@@ -215,9 +215,7 @@ export function ChatPage({
   const hydrationVersionRef = useRef<Map<string, number>>(new Map());
 
   const [selected, setSelected] = useState<SelectedNode | null>(null);
-  const { collapsed: chatsCollapsed, toggle: toggleChatsPane } = usePersistentCollapsed(
-    CHATS_PANE_STORAGE_KEY,
-  );
+  const chatsCollapsed = useSidebarCompact();
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   // Bumped when something outside the rail renames a chat (auto-titling).
   const [treeVersion, setTreeVersion] = useState(0);
@@ -1026,36 +1024,35 @@ export function ChatPage({
         color: "var(--fg-0)",
       }}
     >
-      <CollapsibleHistoryAside
-        testId="chats-pane"
-        ariaLabel="Chats"
-        collapsed={chatsCollapsed}
-        onToggle={toggleChatsPane}
-        toggleTestId="chats-pane-collapse-toggle"
-        expandLabel="Expand chats"
-        collapseLabel="Collapse chats"
-      >
-        <FolderTree
-          client={client}
-          selected={selected}
-          onSelect={handleSelect}
-          onOpenChat={handleOpenChat}
-          refreshToken={treeVersion}
-          defaultModelId={modelId}
-          collapsed={chatsCollapsed}
-          onSessionDisposition={(id) => {
-            if (activeChat?.id !== id) return;
-            const next = new Map(messagesByChatRef.current);
-            next.delete(id);
-            messagesByChatRef.current = next;
-            setMessagesByChat(next);
-            pendingPromptRef.current = { text: "", attachments: [] };
-            setActiveChat(null);
-            setSelected(null);
-            setPersonaOpen(false);
-          }}
-        />
-      </CollapsibleHistoryAside>
+      <SidebarHistorySlot>
+        <div
+          data-testid="chats-pane"
+          aria-label="Chats"
+          data-history-collapsed={chatsCollapsed ? "true" : "false"}
+          style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+        >
+          <FolderTree
+            client={client}
+            selected={selected}
+            onSelect={handleSelect}
+            onOpenChat={handleOpenChat}
+            refreshToken={treeVersion}
+            defaultModelId={modelId}
+            collapsed={chatsCollapsed}
+            onSessionDisposition={(id) => {
+              if (activeChat?.id !== id) return;
+              const next = new Map(messagesByChatRef.current);
+              next.delete(id);
+              messagesByChatRef.current = next;
+              setMessagesByChat(next);
+              pendingPromptRef.current = { text: "", attachments: [] };
+              setActiveChat(null);
+              setSelected(null);
+              setPersonaOpen(false);
+            }}
+          />
+        </div>
+      </SidebarHistorySlot>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, padding: "var(--space-4)", gap: "var(--space-3)" }}>
         {sidecar.isDown && (
           <SidecarDownBanner

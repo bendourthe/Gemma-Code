@@ -28,8 +28,7 @@ import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
 import { ComposerContextRow, MessageList, composerSessionUsage, type ChatMessage } from "../../shared/chat";
 import { FolderTree, type FolderTreeCopy, type SelectedNode } from "../chat/FolderTree";
 import type { Chat } from "../chat/types";
-import { usePersistentCollapsed } from "../../shared/explorer/CollapsibleHistoryAside";
-import { CODING_HISTORY_COLLAPSE_KEY } from "../../shared/explorer/historyPaneLayout";
+import { SidebarHistorySlot, useSidebarCompact } from "../../components/SidebarHistoryHost";
 import {
   createCodingSessionsAsChatExplorer,
   createIpcCodingExplorerBackend,
@@ -245,9 +244,7 @@ export function CodingPage({
   const [sessions, setSessions] = useState<readonly CodingSessionSummaryT[]>([]);
   const [historyEpoch, setHistoryEpoch] = useState(0);
   const [historySelected, setHistorySelected] = useState<SelectedNode | null>(null);
-  const { collapsed: historyCollapsed, toggle: toggleHistory } = usePersistentCollapsed(
-    CODING_HISTORY_COLLAPSE_KEY,
-  );
+  const historyCollapsed = useSidebarCompact();
   // v1.16.0 Phase 2.2 -- per-model inference analytics for the Trace tab.
   const [modelMetrics, setModelMetrics] = useState<readonly PerModelMetricSummaryT[]>([]);
   // v1.1.0 Phase 7 -- session-replay state: the active session selected from
@@ -775,6 +772,53 @@ export function CodingPage({
         color: "var(--fg-0)",
       }}
     >
+      <SidebarHistorySlot>
+        <div
+          data-testid="coding-history-pane"
+          aria-label="Agent sessions"
+          data-history-collapsed={historyCollapsed ? "true" : "false"}
+          style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+        >
+          {sidecar.isDown ? (
+            <p data-testid="coding-history-empty" style={{ margin: 0, padding: "var(--space-3)", color: "var(--fg-muted)" }}>
+              {CODING_FOLDER_TREE_COPY.emptyHint}
+            </p>
+          ) : (
+            <FolderTree
+              client={explorer}
+              selected={historySelected}
+              onSelect={setHistorySelected}
+              onOpenChat={(chat: Chat) => void handleResume(chat.id)}
+              onChange={() => void reloadSessions()}
+              defaultModelId={modelId}
+              copy={CODING_FOLDER_TREE_COPY}
+              storageKey="nexus.coding.expanded"
+              refreshToken={historyEpoch}
+              collapsed={historyCollapsed}
+              readOnlyFolders={true}
+              expandTopLevelOnLoad={true}
+              retryLoadError={true}
+              getFolderTitle={(folder) => folder.icon?.trim() || folder.name}
+              onBeforeSessionDisposition={async (id) => {
+                if (sessionIdRef.current === id && busy) {
+                  const reply = await ipc.call("coding.session.cancel", { sessionId: id });
+                  if (!reply.ok) throw new Error(reply.message);
+                }
+              }}
+              onSessionDisposition={(id) => {
+                if (sessionIdRef.current !== id) return;
+                sessionIdRef.current = null;
+                setSessionId(null);
+                setTurns([]);
+                setHistorySelected(null);
+                setBusy(false);
+                setError(null);
+                pendingPromptRef.current = { text: "", attachments: [] };
+              }}
+            />
+          )}
+        </div>
+      </SidebarHistorySlot>
       <div
         style={{
           flex: 1,
@@ -816,66 +860,6 @@ export function CodingPage({
           ))}
         </nav>
       </header>
-
-      <section
-        data-testid="coding-history-pane"
-        aria-label="Agent sessions"
-        style={{ flexShrink: 0, border: "1px solid var(--border-1)", borderRadius: "var(--radius-md)", background: "color-mix(in srgb, var(--bg-1) 72%, transparent)", overflow: "hidden" }}
-      >
-        <button
-          type="button"
-          data-testid="coding-history-collapse-toggle"
-          aria-expanded={!historyCollapsed}
-          aria-controls="coding-history-content"
-          onClick={toggleHistory}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-2) var(--space-3)", color: "var(--fg-muted)", background: "transparent", border: 0, cursor: "pointer", textAlign: "left" }}
-        >
-          <span>History</span>
-          <span aria-hidden="true">{historyCollapsed ? "▸" : "▾"}</span>
-        </button>
-        {!historyCollapsed && (
-          <div id="coding-history-content" data-testid="coding-history-content" style={{ maxHeight: "12rem", overflow: "auto", borderTop: "1px solid var(--border-1)" }}>
-            {sidecar.isDown ? (
-              <p data-testid="coding-history-empty" style={{ margin: 0, padding: "var(--space-3)", color: "var(--fg-muted)" }}>
-                {CODING_FOLDER_TREE_COPY.emptyHint}
-              </p>
-            ) : (
-              <FolderTree
-                client={explorer}
-                selected={historySelected}
-                onSelect={setHistorySelected}
-                onOpenChat={(chat: Chat) => void handleResume(chat.id)}
-                onChange={() => void reloadSessions()}
-                defaultModelId={modelId}
-                copy={CODING_FOLDER_TREE_COPY}
-                storageKey="nexus.coding.expanded"
-                refreshToken={historyEpoch}
-                collapsed={false}
-                readOnlyFolders={true}
-                expandTopLevelOnLoad={true}
-                retryLoadError={true}
-                getFolderTitle={(folder) => folder.icon?.trim() || folder.name}
-                onBeforeSessionDisposition={async (id) => {
-                  if (sessionIdRef.current === id && busy) {
-                    const reply = await ipc.call("coding.session.cancel", { sessionId: id });
-                    if (!reply.ok) throw new Error(reply.message);
-                  }
-                }}
-                onSessionDisposition={(id) => {
-                  if (sessionIdRef.current !== id) return;
-                  sessionIdRef.current = null;
-                  setSessionId(null);
-                  setTurns([]);
-                  setHistorySelected(null);
-                  setBusy(false);
-                  setError(null);
-                  pendingPromptRef.current = { text: "", attachments: [] };
-                }}
-              />
-            )}
-          </div>
-        )}
-      </section>
 
       {error && (
         <p data-testid="coding-error" role="alert" style={{ color: "var(--accent-danger, #f55)" }}>

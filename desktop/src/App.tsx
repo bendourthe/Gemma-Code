@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { SidebarHistoryProvider } from "./components/SidebarHistoryHost";
 import { ModuleErrorBoundary } from "./components/ModuleErrorBoundary";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
@@ -77,7 +78,9 @@ async function sampleChatVideoFrames(dataUrl: string): Promise<{ frames: string[
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   return (
     <MotionActivityProvider>
-      <AppLayout telemetryStream={telemetryStream} />
+      <SidebarHistoryProvider>
+        <AppLayout telemetryStream={telemetryStream} />
+      </SidebarHistoryProvider>
     </MotionActivityProvider>
   );
 }

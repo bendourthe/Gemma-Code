@@ -185,6 +185,7 @@ export function AgentStateOrb({
       data-orb-paused={paused ? "true" : "false"}
       className={className}
       style={{
+        position: "relative",
         width: captionShown ? "auto" : cssSize,
         height: captionShown ? "auto" : cssSize,
         flex: "none",
@@ -194,29 +195,47 @@ export function AgentStateOrb({
         alignItems: "center",
         justifyContent: "center",
         gap: captionShown ? "var(--space-2)" : undefined,
-        borderRadius: rotateCaptions ? "999px" : captionShown ? undefined : "50%",
-        // Dark pill chrome (thinking-orbs reference grammar, Nexus tokens only).
-        padding: rotateCaptions ? "var(--space-1) var(--space-3) var(--space-1) var(--space-2)" : undefined,
-        border: rotateCaptions ? "1px solid var(--border-1)" : undefined,
-        backgroundColor: rotateCaptions
-          ? "color-mix(in srgb, var(--bg-0, #101014) 88%, transparent)"
-          : undefined,
-        boxShadow: rotateCaptions
-          ? `0 0 14px color-mix(in srgb, ${mapping.accentFallback} 18%, transparent)`
-          : !captionShown && size !== "inline" && activity !== "idle"
+        // v2.4.2 Phase 1: do not put border-radius on the host that owns the
+        // canvas. A 999px capsule clips the 48px bubble orb's left dots.
+        // Pill chrome is a sibling layer; the canvas stays unclipped.
+        overflow: "visible",
+        borderRadius: rotateCaptions ? undefined : captionShown ? undefined : "50%",
+        padding: rotateCaptions ? "var(--space-2) var(--space-3)" : undefined,
+        boxSizing: "border-box",
+        boxShadow:
+          !rotateCaptions && !captionShown && size !== "inline" && activity !== "idle"
             ? `0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent)`
             : undefined,
       }}
     >
+      {rotateCaptions ? (
+        <span
+          data-testid={`${rest["data-testid"] ?? "agent-state-orb"}-pill-chrome`}
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "999px",
+            border: "1px solid var(--border-1)",
+            backgroundColor: "color-mix(in srgb, var(--bg-0, #101014) 88%, transparent)",
+            boxShadow: `0 0 14px color-mix(in srgb, ${mapping.accentFallback} 18%, transparent)`,
+            pointerEvents: "none",
+          }}
+        />
+      ) : null}
       <canvas
         ref={canvasRef}
+        data-testid={`${rest["data-testid"] ?? "agent-state-orb"}-canvas`}
         aria-hidden="true"
         width={cssSize}
         height={cssSize}
         style={{
+          position: "relative",
+          zIndex: 1,
           display: "block",
           width: cssSize,
           height: cssSize,
+          flex: "none",
           filter:
             captionShown && size !== "inline" && activity !== "idle"
               ? `drop-shadow(0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent))`
@@ -230,7 +249,13 @@ export function AgentStateOrb({
           data-testid={`${rest["data-testid"] ?? "agent-state-orb"}-caption`}
           aria-hidden="true"
           aria-live="off"
-          style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)", whiteSpace: "nowrap" }}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            color: "var(--fg-muted)",
+            fontSize: "var(--text-sm)",
+            whiteSpace: "nowrap",
+          }}
         >
           {captionText}
         </span>

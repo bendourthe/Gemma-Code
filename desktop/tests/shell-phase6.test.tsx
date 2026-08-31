@@ -50,23 +50,22 @@ function renderSidebar(props: Parameters<typeof Sidebar>[0] = {}) {
 }
 
 describe("sidebar compact mode", () => {
-  it("starts compact on a wide window", () => {
+  it("starts expanded so session titles fit in the history slot", () => {
     localStorage.clear();
     renderSidebar({ initialWidth: 1600 });
-    expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
+    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Chatbot");
     expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Chatbot");
   });
 
-  it("auto-compacts on a narrow window without a stored preference", () => {
-    localStorage.clear();
+  it("hides labels when the stored compact preference is true", () => {
+    localStorage.setItem("nexus.sidebar.compact", "true");
     renderSidebar({ initialWidth: 900 });
-    // Labels are hidden; the icon and its aria-label remain.
     expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
     expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Chatbot");
+    localStorage.clear();
   });
 
-  it("lets an explicit preference beat the width heuristic", () => {
-    // A user who expanded the rail on a narrow window keeps it expanded.
+  it("lets an explicit expand preference keep titles visible", () => {
     localStorage.setItem("nexus.sidebar.compact", "false");
     renderSidebar({ initialWidth: 900 });
     expect(screen.getByTestId("nav-chatbot").textContent).toContain("Chatbot");
@@ -78,8 +77,8 @@ describe("sidebar compact mode", () => {
     const user = userEvent.setup();
     renderSidebar({ initialWidth: 1600 });
     await user.click(screen.getByTestId("sidebar-collapse-toggle"));
-    expect(localStorage.getItem("nexus.sidebar.compact")).toBe("false");
-    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Chatbot");
+    expect(localStorage.getItem("nexus.sidebar.compact")).toBe("true");
+    expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
     localStorage.clear();
   });
 

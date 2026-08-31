@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
-import { ORB_SIZE_HERO, ORB_SIZE_INLINE, ORB_SIZE_BUBBLE } from "../src/components/agentState/orbEngine";
+import { ORB_SIZE_HERO, ORB_SIZE_INLINE, ORB_SIZE_BUBBLE, rectFullyInside } from "../src/components/agentState/orbEngine";
 
 afterEach(() => {
   cleanup();
@@ -111,5 +111,19 @@ describe("AgentStateOrb", () => {
       getContext.mockRestore();
       raf.mockRestore();
     }
+  });
+
+  it("does not clip the rotating-caption canvas with the pill radius", () => {
+    render(<AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />);
+    const pill = screen.getByTestId("agent-state-orb");
+    const canvas = screen.getByTestId("agent-state-orb-canvas");
+    expect(pill).toHaveAttribute("data-orb-pill", "true");
+    expect(pill.style.overflow).toBe("visible");
+    expect(screen.getByTestId("agent-state-orb-pill-chrome")).toBeInTheDocument();
+    expect(rectFullyInside(
+      { left: 8, right: 8 + ORB_SIZE_BUBBLE, top: 8, bottom: 8 + ORB_SIZE_BUBBLE },
+      { left: 0, right: 160, top: 0, bottom: 8 + ORB_SIZE_BUBBLE + 8 },
+    )).toBe(true);
+    expect(canvas.parentElement).toBe(pill);
   });
 });

@@ -1,12 +1,13 @@
 /**
  * v2.2.8 Phase 2 -- shared history-pane geometry.
  *
- * Chatbot, Agents, Image Studio, and Video Lab use one width contract so the
- * four tabs read as the same chrome. Collapsed width matches the module
- * sidebar rail (56px), not the empty 24px gutter from v2.2.5.
+ * v2.4.2 Phase 1: Chatbot, Agents, Image Studio, and Video Lab no longer
+ * use a second aside. The left sidebar is the host; `HISTORY_PANE_WIDTH`
+ * is the expanded sidebar width so session titles fit. Compact width
+ * matches the module icon rail (56px).
  */
 
-/** Expanded FolderTree aside. */
+/** Expanded FolderTree / sidebar host. */
 export const HISTORY_PANE_WIDTH = 280;
 
 /**

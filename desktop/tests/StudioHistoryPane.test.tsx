@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 import { StudioHistoryPane } from "../src/shared/explorer/StudioHistoryPane";
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
@@ -22,15 +22,13 @@ describe("StudioHistoryPane", () => {
       <StudioHistoryPane pillar="image" client={client} defaultModelId="sana-1.6b-1024" />,
     );
     expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
-    expect(screen.getByTestId("image-history-pane").style.width).toBe("280px");
     expect(screen.getByText("Fox portrait")).toBeInTheDocument();
     // v2.2.9 Phase 3.1 (T007): Chatbot copy, not "New session".
     expect(screen.getByTestId("folder-tree-new-chat")).toHaveAttribute("title", "New chat");
     expect(screen.getByText("Chats")).toBeInTheDocument();
   });
 
-  it("collapses to an icon rail and keeps new/folder actions", () => {
-    window.localStorage.removeItem("nexus.image.historyCollapsed");
+  it("keeps new/folder actions without a second-column collapse pill", () => {
     const client = new InMemoryStudioExplorerClient("image");
     const session = client.createSession({
       folderId: null,
@@ -40,11 +38,10 @@ describe("StudioHistoryPane", () => {
     render(
       <StudioHistoryPane pillar="image" client={client} defaultModelId="sana-1.6b-1024" />,
     );
-    fireEvent.click(screen.getByTestId("image-history-collapse-toggle"));
-    expect(screen.getByTestId("image-history-pane").style.width).toBe("56px");
+    expect(screen.queryByTestId("image-history-collapse-toggle")).toBeNull();
     expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
-    expect(screen.getByTestId(`history-rail-mark-${session.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`tree-row-chat-${session.id}`)).toBeInTheDocument();
   });
 
   // v2.2.9 Phase 1.4 (T004): the highlighted row is bound to the session the
@@ -84,11 +81,10 @@ describe("StudioHistoryPane", () => {
     render(
       <StudioHistoryPane pillar="video" client={client} defaultModelId="wan2.1" />,
     );
-    expect(screen.getByTestId("video-history-pane").style.width).toBe("280px");
     expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(/start a new chat/i);
     expect(screen.getByText("No chats yet.")).toBeInTheDocument();
     expect(screen.queryByText(/start a new session/i)).toBeNull();
-    expect(screen.getByTestId("video-history-collapse-toggle")).toBeInTheDocument();
+    expect(screen.queryByTestId("video-history-collapse-toggle")).toBeNull();
   });
 
   it("image pane empty state also uses the Chatbot strings", () => {

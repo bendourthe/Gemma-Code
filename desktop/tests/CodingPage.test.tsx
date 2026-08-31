@@ -556,18 +556,15 @@ describe("CodingPage", () => {
     expect(screen.queryByTestId("coding-tab-sessions")).toBeNull();
   });
 
-  it("keeps workspace controls and tabs on one header row with compact collapsible history below", async () => {
+  it("keeps workspace controls and tabs on one header row without an in-pane History band", async () => {
     render(<CodingPage />);
     const header = screen.getByTestId("coding-workspace-header");
     expect(header).toContainElement(screen.getByTestId("coding-workspace-controls"));
     expect(header).toContainElement(screen.getByTestId("coding-tabs"));
-    const history = screen.getByTestId("coding-history-pane");
-    expect(history.tagName).toBe("SECTION");
-    expect(history.parentElement).toBe(header.parentElement);
-    expect(await screen.findByTestId("coding-history-content")).toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("coding-history-collapse-toggle"));
+    expect(screen.getByTestId("coding-history-pane")).toBeInTheDocument();
+    expect(screen.queryByTestId("coding-history-collapse-toggle")).toBeNull();
     expect(screen.queryByTestId("coding-history-content")).toBeNull();
-    expect(screen.getByTestId("coding-history-collapse-toggle")).toHaveAttribute("aria-expanded", "false");
+    expect(await screen.findByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
   });
 
   it("does not show a pink Agentic AI Coding heading or harness badges", async () => {

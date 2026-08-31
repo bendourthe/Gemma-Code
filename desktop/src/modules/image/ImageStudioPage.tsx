@@ -915,31 +915,30 @@ export function ImageStudioPage({
         />
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
-        <StudioHistoryPane
-          pillar="image"
-          client={studioClient}
-          defaultModelId={selectedModelId}
-          sidecarDown={backendDown}
-          refreshToken={historyEpoch}
-          onSelectSession={hydrateSession}
-          activeSessionId={activeSessionId}
-          onBeforeSessionDisposition={async (id) => {
-            if (activeSessionId !== id || !activeJob) return;
-            await queueClient.cancel(activeJob.jobId);
-          }}
-          onSessionDisposition={(id) => {
-            if (activeSessionId !== id) return;
-            setActiveJob(null);
-            setActiveSession(null);
-            setMessages([]);
-            setSeededAttachment(null);
-            lastOutputRef.current = null;
-            pendingPromptRef.current = { text: "", attachments: [] };
-            setFormEpoch((value) => value + 1);
-          }}
-        />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <StudioHistoryPane
+        pillar="image"
+        client={studioClient}
+        defaultModelId={selectedModelId}
+        sidecarDown={backendDown}
+        refreshToken={historyEpoch}
+        onSelectSession={hydrateSession}
+        activeSessionId={activeSessionId}
+        onBeforeSessionDisposition={async (id) => {
+          if (activeSessionId !== id || !activeJob) return;
+          await queueClient.cancel(activeJob.jobId);
+        }}
+        onSessionDisposition={(id) => {
+          if (activeSessionId !== id) return;
+          setActiveJob(null);
+          setActiveSession(null);
+          setMessages([]);
+          setSeededAttachment(null);
+          lastOutputRef.current = null;
+          pendingPromptRef.current = { text: "", attachments: [] };
+          setFormEpoch((value) => value + 1);
+        }}
+      />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="image-history"
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
@@ -1125,7 +1124,6 @@ export function ImageStudioPage({
           />
         </ComposerContextRow>
       </div>
-        </div>
       </div>
     </section>
   );

@@ -1201,30 +1201,29 @@ export function VideoLabPage({
         />
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
-        <StudioHistoryPane
-          pillar="video"
-          client={studioClient}
-          defaultModelId={selectedModelId}
-          sidecarDown={backendDown}
-          refreshToken={historyEpoch}
-          onSelectSession={hydrateSession}
-          activeSessionId={activeSessionId}
-          onBeforeSessionDisposition={async (id) => {
-            if (activeSessionId !== id || !activeJob) return;
-            await queueClient.cancel(activeJob.jobId);
-          }}
-          onSessionDisposition={(id) => {
-            if (activeSessionId !== id) return;
-            setActiveJob(null);
-            setActiveSession(null);
-            setMessages([]);
-            setSeededAttachment(null);
-            lastOutputRef.current = null;
-            pendingPromptRef.current = { text: "", attachments: [] };
-          }}
-        />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <StudioHistoryPane
+        pillar="video"
+        client={studioClient}
+        defaultModelId={selectedModelId}
+        sidecarDown={backendDown}
+        refreshToken={historyEpoch}
+        onSelectSession={hydrateSession}
+        activeSessionId={activeSessionId}
+        onBeforeSessionDisposition={async (id) => {
+          if (activeSessionId !== id || !activeJob) return;
+          await queueClient.cancel(activeJob.jobId);
+        }}
+        onSessionDisposition={(id) => {
+          if (activeSessionId !== id) return;
+          setActiveJob(null);
+          setActiveSession(null);
+          setMessages([]);
+          setSeededAttachment(null);
+          lastOutputRef.current = null;
+          pendingPromptRef.current = { text: "", attachments: [] };
+        }}
+      />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="video-history"
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
@@ -1439,7 +1438,6 @@ export function VideoLabPage({
           />
         </ComposerContextRow>
       </div>
-        </div>
       </div>
     </section>
   );

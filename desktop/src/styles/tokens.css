@@ -192,6 +192,44 @@ body {
   box-sizing: border-box;
 }
 
+/* v2.4.2 Phase 1 -- one scrollbar grammar for transcripts, Settings, and
+ * other overflow panes. Transparent track; thumb mixes muted foreground
+ * onto the dark surface so it stays visible without opaque OS chrome. */
+:root {
+  --scrollbar-size: 10px;
+  --scrollbar-thumb: color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--fg-muted) 70%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* v2.2.1: shared focus ring for Select / SearchInput / TextField / Button. */
 .nx-control:focus {
   outline: none;

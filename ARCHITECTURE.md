@@ -234,6 +234,8 @@ Nexus is a single native desktop application with a permanent left-hand sidebar 
 
 The shell routes each module workspace through `ModuleErrorBoundary`, keyed by pathname, so a renderer exception becomes an in-pane recovery surface and switching modules remounts a clean boundary. `/` redirects to `/chatbot`; Local Chatbot is the first-launch module, while Dashboard remains available explicitly at `/dashboard`.
 
+v2.4.2: history for Chatbot, Agents, Images, and Videos is a segment of that left sidebar, directly under the four module tabs. It swaps with the active module. Settings and Approvals do not host a history slot. The main pane is transcript or workspace only (this supersedes the v2.4.1 second-column / Agents History-band layout).
+
 ```
 +--------------------------------------------------------------------------+
 |  Nexus Desktop Shell  (Electron / Tauri - decision pending)              |

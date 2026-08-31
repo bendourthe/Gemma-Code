@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-30] v2.4.2 - field UI Phase 1 sidebar history host
+
+Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-1-sidebar-chrome.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Chat, Agents, Images, and Videos history now fills a slot under the four module tabs in the left sidebar. The main pane is transcript or workspace only.
+- The thinking pill paints capsule chrome on a sibling layer so the 48px orb is not clipped by `border-radius: 999px`.
+- App overflow uses a transparent scrollbar track and a muted-foreground thumb.
+
+### Why It Changed
+
+Packaged 2.4.1 still spent a second history column (or an Agents History band) and cropped the pending orb.
+
+### Decisions Made
+
+- Portal into the sidebar host (not a second rail). Unit tests without App keep an in-place fallback.
+- Module routes default expanded (280px) so session titles fit. Stored compact preference still wins.
+- No workflow file changed. Commit-only; no push.
+
+---
+
 ## [2026-08-30] v2.4.1 - generation recovery Phase 7 local gates
 
 Index: [plan](v2/v2.4/plans/v2.4.1-generation-recovery-and-ui-corrections.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.1-correction-phase-7-release.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-generation-recovery.md). Package remains **2.4.1**.
