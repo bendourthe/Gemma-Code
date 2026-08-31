@@ -38,6 +38,8 @@ __all__ = [
     "resolve_weights_dir",
     "image_execute",
     "video_execute",
+    "sana_video_execute",
+    "is_sana_video_model",
     "gpu_ready",
     "allow_cpu",
 ]
@@ -240,14 +242,83 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
         ) from exc
 
 
+_SANA_VIDEO_LAYOUT_FILES = (
+    "model_index.json",
+    "scheduler/scheduler_config.json",
+    "text_encoder/config.json",
+    "tokenizer/tokenizer_config.json",
+    "transformer/config.json",
+    "vae/config.json",
+)
+
+
+def is_sana_video_model(model_id: str) -> bool:
+    """True for SANA-Video catalog ids (not image SANA)."""
+    return model_id.lower().startswith("sana-video")
+
+
 def _require_video_accelerator() -> None:
     if gpu_ready() or allow_cpu():
         return
     raise base.accelerator_not_ready("video")
 
 
+def _missing_video_layout_file(weights: Path, model_id: str) -> Path | None:
+    if is_sana_video_model(model_id):
+        for relative in _SANA_VIDEO_LAYOUT_FILES:
+            candidate = weights / relative
+            if not candidate.is_file():
+                return candidate
+        return None
+    index = weights / "model_index.json"
+    if not index.is_file():
+        return index
+    return None
+
+
+def _require_video_layout(weights: Path, model_id: str) -> None:
+    missing = _missing_video_layout_file(weights, model_id)
+    if missing is None:
+        return
+    raise RuntimeNotReady(
+        f"video runtime is not ready: model-layout-invalid: {model_id} is "
+        f"missing {missing.name} at {missing}",
+        kind="model-layout-invalid",
+    )
+
+
+def _load_video_pipeline(kind: str, weights: Path):
+    kwargs: dict[str, object] = {
+        "torch_dtype": _torch_dtype(),
+        "local_files_only": True,
+    }
+    if kind == "sana":
+        try:
+            from diffusers import SanaVideoPipeline  # type: ignore[import-not-found]
+        except Exception as exc:  # noqa: BLE001 - typed not-ready, not a complete event
+            raise RuntimeNotReady(
+                f"video runtime is not ready: {type(exc).__name__}: {exc}",
+                kind="diffusers-missing",
+            ) from exc
+        return SanaVideoPipeline.from_pretrained(str(weights), **kwargs)
+    from diffusers import WanPipeline  # type: ignore[import-not-found]
+
+    return WanPipeline.from_pretrained(str(weights), **kwargs)
+
+
 def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
     """Run a real text/image-to-video job or raise RuntimeNotReady."""
+    if is_sana_video_model(ctx.params.model_id):
+        return sana_video_execute(ctx)
+    return _run_real_video(ctx, "wan")
+
+
+def sana_video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
+    """Load SanaVideoPipeline for sana-video* ids. Never uses WanPipeline."""
+    return _run_real_video(ctx, "sana")
+
+
+def _run_real_video(ctx: VideoExecutionContext, kind: str) -> VideoPipelineOutput:
     _require_video_accelerator()
     model_id = ctx.params.model_id
     weights = resolve_weights_dir(model_id)
@@ -255,12 +326,7 @@ def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
         raise RuntimeNotReady(
             base.weights_missing_message("video", model_id), kind="weights-missing"
         )
-    if not (weights / "model_index.json").is_file():
-        raise RuntimeNotReady(
-            f"video runtime is not ready: model-layout-invalid: {model_id} is "
-            "missing model_index.json and complete Diffusers components",
-            kind="model-layout-invalid",
-        )
+    _require_video_layout(weights, model_id)
     if ctx.params.mode != "text2video":
         raise RuntimeNotReady(
             "video runtime is not ready: mode-unsupported: "
@@ -272,13 +338,9 @@ def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
     )
     try:
         import torch  # type: ignore[import-not-found]
-        from diffusers import WanPipeline  # type: ignore[import-not-found]
         from diffusers.utils import export_to_video  # type: ignore[import-not-found]
 
-        dtype = _torch_dtype()
-        pipe = WanPipeline.from_pretrained(
-            str(weights), torch_dtype=dtype, local_files_only=True
-        )
+        pipe = _load_video_pipeline(kind, weights)
         _move_pipe(pipe, ctx.offload_strategy)
         requested_frames = max(1, ctx.params.duration_seconds * ctx.params.fps)
         num_frames = ((requested_frames - 1 + 3) // 4) * 4 + 1
@@ -334,6 +396,7 @@ def video_execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
                 "requestedHeight": ctx.params.height,
                 "width": width,
                 "height": height,
+                "pipeline": kind,
             },
         )
     except RuntimeNotReady:

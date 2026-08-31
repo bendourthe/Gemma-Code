@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 6 | 0 |
+| Missing tests / coverage gaps (MT) | 7 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-6 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom. Packaged Settings nowrap facts and icon colors are not observed here. Packaged Agents picker order on this 16 GB install is not observed here. Packaged NVIDIA restyle before/after is not observed here.
+Phases 1-7 are implemented locally. A packaged wizard screenshot of the two-column Configuration/Review pages and Unsloth lock on this 16 GB NVIDIA host is not observed here. Hairline pixels and dialog centering in a packaged window are not observed here. Thinking-pill glow containment in a packaged transcript is not proven in jsdom. Packaged Settings nowrap facts and icon colors are not observed here. Packaged Agents picker order on this 16 GB install is not observed here. Packaged NVIDIA restyle before/after is not observed here. A packaged NVIDIA SANA-Video clip (or a live missing-file string from that install) is not observed here.
 
 ### Open Items
 
@@ -66,6 +66,13 @@ Phases 1-6 are implemented locally. A packaged wizard screenshot of the two-colu
 - **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T024 / 6.1
 - **Reason**: Tests prove restyle strength 0.7, identity prompt, no SAM2, and fail-closed without last output. A packaged NVIDIA before/after of "Make the puppy black" is not recorded here. v2.4.2 MT-3 remains the prior-cycle statement of the same limit.
 - **Suggested next step**: Last-phase operator item (Make the puppy black restyles fur).
+
+##### MT-7 - Packaged NVIDIA SANA-Video clip is not observed
+
+- **Source phase**: Phase 7 - SANA-Video Layout and Executor
+- **Plan reference**: [v2.4.3-field-density-identity-and-runtime.md](plans/v2.4.3-field-density-identity-and-runtime.md) T028 / 7.1
+- **Reason**: Tests prove a complete SANA fixture loads SanaVideoPipeline with local_files_only and never WanPipeline, an incomplete tree names the missing path, catalog files include model_index.json plus scheduler/tokenizer/VAE, and 16 GB default video stays wan2.1-t2v-1.3b. A packaged NVIDIA generate of sana-video-2b-720p is not recorded here.
+- **Suggested next step**: Last-phase operator item (opt-in SANA-Video either plays a clip or names a real missing file).
 
 ## v2.4.2
 

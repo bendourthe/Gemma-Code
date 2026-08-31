@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.3 - field density Phase 7 SANA-Video layout and executor
+
+Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-7-sana-video.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- `sana-video-2b-720p` catalog files are a complete Diffusers tree (index, scheduler, text encoder, tokenizer, transformer, VAE) with sha256 pins.
+- Real generate loads SanaVideoPipeline, never WanPipeline. Incomplete trees name the missing path.
+
+### Why It Changed
+
+Screenshot 7 reported `sana-video-2b-720p is missing model_index.json and complete Diffusers components` because the catalog listed only two transformer shards and the executor always used WanPipeline.
+
+### Decisions Made
+
+- 16 GB default video stays `wan2.1-t2v-1.3b`. sizeGB is 18.4 for the complete SANA-Video tree.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 6 image restyle identity
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-6-image-restyle.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

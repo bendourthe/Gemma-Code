@@ -997,6 +997,21 @@ describe("catalog", () => {
     expect(findSpec(file, "sana-1.6b-1024")?.visualTokenBudget?.maxImages).toBe(1);
   });
 
+  it("pins a complete SANA-Video Diffusers tree (v2.4.3 Phase 7)", async () => {
+    const file = await loadCatalog();
+    const sanaVideo = findSpec(file, "sana-video-2b-720p");
+    expect(sanaVideo?.weights?.layoutVersion).toBe(2);
+    const paths = new Set((sanaVideo?.weights?.files ?? []).map((item) => item.path));
+    expect(paths.has("model_index.json")).toBe(true);
+    expect(paths.has("scheduler/scheduler_config.json")).toBe(true);
+    expect(paths.has("text_encoder/config.json")).toBe(true);
+    expect(paths.has("tokenizer/tokenizer_config.json")).toBe(true);
+    expect(paths.has("transformer/config.json")).toBe(true);
+    expect(paths.has("vae/config.json")).toBe(true);
+    expect(paths.has("vae/diffusion_pytorch_model.safetensors")).toBe(true);
+    expect(sanaVideo?.source.url).toContain("model_index.json");
+  });
+
   it("ships SAM2 as an Apache-2.0 utility, not a generator (v2.1.0 Phase 4)", async () => {
     const file = await loadCatalog();
     const sam2 = findSpec(file, "sam2:hiera-tiny");

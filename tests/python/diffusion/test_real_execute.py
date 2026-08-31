@@ -491,6 +491,7 @@ def test_wan_video_uses_complete_pipeline_and_atomically_finalizes_mp4(
     assert calls["kwargs"]["height"] == 480
     assert calls["fps"] == 12
     assert not list(tmp_path.glob("*.partial.mp4"))
+    assert result.extra["pipeline"] == "wan"
 
 
 def test_wan_video_rejects_partial_raw_layout(
@@ -505,6 +506,179 @@ def test_wan_video_rejects_partial_raw_layout(
     with pytest.raises(base.RuntimeNotReady) as excinfo:
         real_execute.video_execute(_video_ctx("wan2.1-t2v-1.3b"))
     assert excinfo.value.kind == "model-layout-invalid"
+    assert "model_index.json" in str(excinfo.value)
+
+
+def test_is_sana_video_model_does_not_match_image_sana():
+    assert real_execute.is_sana_video_model("sana-video-2b-720p") is True
+    assert real_execute.is_sana_video_model("sana-video") is True
+    assert real_execute.is_sana_video_model("sana-1.6b-1024") is False
+    assert real_execute.is_sana_video_model("wan2.1-t2v-1.3b") is False
+
+
+def _write_sana_video_layout(weights: Path) -> None:
+    for relative in (
+        "model_index.json",
+        "scheduler/scheduler_config.json",
+        "text_encoder/config.json",
+        "tokenizer/tokenizer_config.json",
+        "transformer/config.json",
+        "vae/config.json",
+    ):
+        target = weights / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("{}", encoding="utf-8")
+
+
+def test_sana_video_incomplete_tree_names_model_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    models = tmp_path / "models"
+    weights = models / "weights" / "sana-video-2b-720p"
+    weights.mkdir(parents=True)
+    transformer = weights / "transformer"
+    transformer.mkdir()
+    (transformer / "diffusion_pytorch_model-00001-of-00002.safetensors").write_bytes(
+        b"partial"
+    )
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(models))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: True)
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute.video_execute(_video_ctx("sana-video-2b-720p"))
+    message = str(excinfo.value)
+    assert excinfo.value.kind == "model-layout-invalid"
+    assert "model_index.json" in message
+    assert "sana-video-2b-720p" in message
+    assert "WanPipeline" not in message
+
+
+def test_sana_video_names_later_missing_layout_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    models = tmp_path / "models"
+    weights = models / "weights" / "sana-video-2b-720p"
+    weights.mkdir(parents=True)
+    for relative in (
+        "model_index.json",
+        "scheduler/scheduler_config.json",
+        "text_encoder/config.json",
+        "tokenizer/tokenizer_config.json",
+        "transformer/config.json",
+    ):
+        target = weights / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(models))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: True)
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute.video_execute(_video_ctx("sana-video-2b-720p"))
+    message = str(excinfo.value)
+    assert excinfo.value.kind == "model-layout-invalid"
+    assert "config.json" in message
+    assert "vae" in message.replace("\\", "/")
+
+
+def test_sana_video_complete_fixture_does_not_call_wan_pipeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    models = tmp_path / "models"
+    weights = models / "weights" / "sana-video-2b-720p"
+    weights.mkdir(parents=True)
+    _write_sana_video_layout(weights)
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(models))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: True)
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: "bf16")
+
+    calls: dict[str, object] = {}
+
+    class FakeGenerator:
+        def __init__(self, device: str):
+            calls["generator_device"] = device
+
+        def manual_seed(self, seed: int):
+            calls["seed"] = seed
+            return self
+
+    torch = types.ModuleType("torch")
+    torch.Generator = FakeGenerator
+    torch.cuda = types.SimpleNamespace(is_available=lambda: True)
+
+    class FakePipe:
+        def to(self, device: str):
+            calls["device"] = device
+
+        def __call__(self, **kwargs):
+            calls["kwargs"] = kwargs
+            return types.SimpleNamespace(frames=[[object(), object()]])
+
+    class FakeSanaVideoPipeline:
+        @staticmethod
+        def from_pretrained(path: str, **kwargs):
+            calls["load"] = (path, kwargs)
+            return FakePipe()
+
+    class FakeWanPipeline:
+        @staticmethod
+        def from_pretrained(path: str, **kwargs):
+            raise AssertionError("WanPipeline must not load SANA-Video")
+
+    diffusers = types.ModuleType("diffusers")
+    diffusers.SanaVideoPipeline = FakeSanaVideoPipeline
+    diffusers.WanPipeline = FakeWanPipeline
+    utils = types.ModuleType("diffusers.utils")
+
+    def export_to_video(_frames, path: str, fps: int):
+        calls["fps"] = fps
+        Path(path).write_bytes(b"\x00\x00\x00\x18ftypisomdata")
+
+    utils.export_to_video = export_to_video
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "diffusers", diffusers)
+    monkeypatch.setitem(sys.modules, "diffusers.utils", utils)
+
+    output = tmp_path / "sana.mp4"
+    ctx = _video_ctx("sana-video-2b-720p")
+    ctx = video_base.VideoExecutionContext(
+        job_id=ctx.job_id,
+        params=ctx.params,
+        offload_strategy=ctx.offload_strategy,
+        output_path=str(output),
+    )
+    result = real_execute.video_execute(ctx)
+
+    assert result.mp4_path == str(output)
+    assert output.read_bytes()[4:8] == b"ftyp"
+    assert calls["load"][0] == str(weights)
+    assert calls["load"][1]["local_files_only"] is True
+    assert result.extra["pipeline"] == "sana"
+    assert not list(tmp_path.glob("*.partial.mp4"))
+
+
+def test_sana_video_missing_class_is_runtime_not_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    models = tmp_path / "models"
+    weights = models / "weights" / "sana-video-2b-720p"
+    weights.mkdir(parents=True)
+    _write_sana_video_layout(weights)
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(models))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: True)
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: "bf16")
+
+    torch = types.ModuleType("torch")
+    torch.Generator = object
+    torch.cuda = types.SimpleNamespace(is_available=lambda: True)
+    diffusers = types.ModuleType("diffusers")
+    utils = types.ModuleType("diffusers.utils")
+    utils.export_to_video = lambda *_args, **_kwargs: None
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "diffusers", diffusers)
+    monkeypatch.setitem(sys.modules, "diffusers.utils", utils)
+
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute.sana_video_execute(_video_ctx("sana-video-2b-720p"))
+    assert "SanaVideoPipeline" in str(excinfo.value)
+    assert excinfo.value.kind == "diffusers-missing"
 
 
 def test_decode_source_image_opens_an_existing_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

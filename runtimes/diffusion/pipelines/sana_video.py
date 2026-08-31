@@ -19,11 +19,9 @@ from typing import Callable, Dict
 from . import video_base, real_execute
 
 
-# SANA-Video 2B occupies ~4 GB on disk; in CUDA the transformer + VAE
-# at bf16 is ~6-7 GB. Use 8 GB as the planning size so the offload
-# decision stays conservative; `video_base._upgrade_for_video` will
-# then step the strategy to `model_cpu_offload` on a 12 GB host as is
-# done for LTX-Video / SVD / CogVideoX.
+# Catalog disk size is ~18 GB (transformer + Gemma2 text encoder + VAE).
+# CUDA planning stays 8 GB so offload still steps to model_cpu_offload
+# on a 12 GB host the same way LTX-Video / SVD / CogVideoX do.
 _MODEL_SIZE_GB = 8.0
 
 
@@ -37,14 +35,14 @@ def register(handlers: Dict[str, Callable]) -> None:
     txt_runner = video_base.VideoPipelineRunner(
         method="diffusion.video.sana.text2video",
         execute=video_base.select_executor(
-            "sana_video.text2video", real=real_execute.video_execute
+            "sana_video.text2video", real=real_execute.sana_video_execute
         ),
         model_size_gb=_MODEL_SIZE_GB,
     )
     img_runner = video_base.VideoPipelineRunner(
         method="diffusion.video.sana.image2video",
         execute=video_base.select_executor(
-            "sana_video.image2video", real=real_execute.video_execute
+            "sana_video.image2video", real=real_execute.sana_video_execute
         ),
         model_size_gb=_MODEL_SIZE_GB,
     )

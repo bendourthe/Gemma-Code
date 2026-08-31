@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-6 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-7 local complete; continuing in-full. **v2.4.2** T043 push/PR still waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+
+> **v2.4.3 FIELD DENSITY PHASE 7 (2026-08-31)** -- [SANA-Video layout and executor](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T028-T031 complete. Complete Diffusers tree plus SanaVideoPipeline. Next: Phase 8 last-phase evidence.
 
 > **v2.4.3 FIELD DENSITY PHASE 6 (2026-08-31)** -- [image restyle identity](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T024-T027 complete. Restyle strength 0.7 plus fail-closed without last PNG. Next: Phase 7 SANA-Video.
 
@@ -131,7 +133,7 @@
 
 ---
 
-## Sprint 1 — Completed Work [DONE]
+## Sprint 1 - Completed Work [DONE]
 
 - [x] Bootstrap VS Code extension scaffold with TypeScript, tsconfig, ESLint, and Vitest (Phase 1)
 - [x] Implement OllamaClient with streaming chat, health check, and model listing (Phase 1)
@@ -147,7 +149,7 @@
 - [x] Add performance benchmark suite and error handling hardening (Phase 8)
 - [x] Write comprehensive README, CHANGELOG, and architecture documentation (Phase 8)
 
-## Sprint 2 — v0.1.x maintenance [SUPERSEDED]
+## Sprint 2 - v0.1.x maintenance [SUPERSEDED]
 
 *Pre-rename (Gemma Code) maintenance backlog, superseded by the v1.0.0 four-pillar Nexus rebuild. Retained as history; not active work. The unchecked items below were never shipped under the v0.1.x line.*
 
@@ -157,11 +159,11 @@
 - [ ] Implement Rust performance components for file indexing and grep (CHANGELOG Unreleased)
 - [ ] Implement Go CLI tooling for project scaffolding (CHANGELOG Unreleased)
 
-## v0.2.0 — Planned (local Claude Code equivalent)
+## v0.2.0 - Planned (local Claude Code equivalent)
 
 Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 
-### Phase 0 — Gemma 4 Native Protocol Migration
+### Phase 0 - Gemma 4 Native Protocol Migration
 - [x] Create `src/tools/Gemma4ToolFormat.ts` (tool declaration serializer, tool call parser, result formatter)
 - [x] Migrate `ToolCallParser.ts` from XML `<tool_call>` regex to Gemma 4 native `<|tool_call>` tokens
 - [x] Update `AgentLoop.ts` tool result injection to use `<|tool_result>` format
@@ -171,7 +173,7 @@ Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 - [x] Update `client.ts` to pass `tools` parameter in Ollama API requests
 - [x] Add thinking mode support (`<|think|>` token in system prompt)
 
-### Phase 1 — Dynamic PromptBuilder with Token Budgeting
+### Phase 1 - Dynamic PromptBuilder with Token Budgeting
 - [x] Create `src/chat/PromptBuilder.ts` with section-based assembly and greedy packing
 - [x] Create `src/chat/PromptBuilder.types.ts` (PromptContext, PromptSection, PromptStyle)
 - [x] Create `src/config/PromptBudget.ts` (centralized budget calculator)
@@ -179,7 +181,7 @@ Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 - [x] Wire PromptBuilder into `GemmaCodePanel.ts`
 - [x] Add `promptStyle` and `systemPromptBudgetPercent` settings
 
-### Phase 2 — Multi-Strategy Context Compaction
+### Phase 2 - Multi-Strategy Context Compaction
 - [x] Create `src/chat/CompactionStrategy.ts` with interface and 5 strategy implementations
 - [x] Implement ToolResultClearing strategy (regex-based, zero LLM cost)
 - [x] Implement SlidingWindow strategy (keep anchors + recent messages)
@@ -187,7 +189,7 @@ Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 - [x] Refactor `ContextCompactor.ts` to use CompactionPipeline
 - [x] Add pre-compaction save hook (wires to MemoryStore in Phase 3)
 
-### Phase 3 — Persistent Memory System
+### Phase 3 - Persistent Memory System
 - [x] Create `src/storage/MemoryStore.ts` with SQLite FTS5 schema
 - [x] Create `src/storage/EmbeddingClient.ts` wrapping Ollama `/api/embed`
 - [x] Add FTS5 virtual table and sync triggers to `ChatHistoryStore.ts`
@@ -196,7 +198,7 @@ Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 - [x] Implement pre-compaction memory extraction (`extractAndSave`)
 - [x] Add `/memory` slash command (search, save, clear, status)
 
-### Phase 4 — Conditional Tool Activation and MCP Support
+### Phase 4 - Conditional Tool Activation and MCP Support
 - [x] Add enabled/disabled state to `ToolRegistry.ts`
 - [x] Update PromptBuilder to only declare enabled tools
 - [x] Create `src/mcp/McpServer.ts` (expose tools via MCP stdio)
@@ -204,7 +206,7 @@ Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 - [x] Create `src/mcp/McpManager.ts` (lifecycle, config from mcp.json)
 - [x] Add `/mcp` slash command (status, connect, disconnect)
 
-### Phase 5 — Sub-Agent Orchestration [COMPLETED]
+### Phase 5 - Sub-Agent Orchestration [COMPLETED]
 - [x] Create `src/agents/SubAgentManager.ts` (isolated ConversationManager + AgentLoop)
 - [x] Create `src/agents/SubAgentPrompts.ts` (verification, research, planning templates)
 - [x] Add file-edit counter and auto-verification trigger to AgentLoop
@@ -212,44 +214,44 @@ Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 - [x] Wire sub-agent status to webview
 - [x] Add `/verify` and `/research` slash commands
 
-### Phase 6 — Integration, Polish, and Backend Alignment [COMPLETED]
+### Phase 6 - Integration, Polish, and Backend Alignment [COMPLETED]
 - [x] Align Python backend prompt.py with multi-strategy compaction
 - [x] Update webview UI (memory status, sub-agent spinner, MCP badge)
 - [x] Create root-level `SECURITY.md` and `ARCHITECTURE.md`
 - [x] Run end-to-end verification checklist (11 items in plan)
 - [x] Bump version to 0.2.0, update CHANGELOG
 
-## v0.3.0 — Harness Engineering Infrastructure
+## v0.3.0 - Harness Engineering Infrastructure
 
 Full plan: `docs/archive/versions/v0/v0.3.0/implementation-plan.md`
 
-### Phase 1 — GPU Detection & Hardware-Aware Foundation [COMPLETED]
+### Phase 1 - GPU Detection & Hardware-Aware Foundation [COMPLETED]
 - [x] GPU/VRAM detection service (nvidia-smi, rocm-smi, system_profiler, WMI fallbacks)
 - [x] Hardware tier classification (3 tiers: constrained/balanced/full)
 - [x] Tier-aware context budget calculator (expanded BudgetOverrides, calculateTierBudget)
 - [x] Token and iteration budget middleware (BudgetMiddleware in AgentLoop)
 - [x] Wire GPU detection into extension lifecycle (status bar, detectGpu command, panel integration)
 
-### Phase 2 — Advanced Context Engineering [COMPLETED]
+### Phase 2 - Advanced Context Engineering [COMPLETED]
 - [x] Lazy tool loading with progressive disclosure
 - [x] Output redirection for large tool results
 - [x] Enhanced compaction with regenerate-from-source
 - [x] Context budget middleware chain
 - [x] Token estimation accuracy improvements
 
-### Phase 3 — Graph-Vector Hybrid Memory [COMPLETED]
+### Phase 3 - Graph-Vector Hybrid Memory [COMPLETED]
 - [x] 4-layer memory stack (working/episodic/semantic/graph)
 - [x] Entity extraction and provenance tracking
 - [x] Memory-aware context assembly
 - [x] Memory pruning and consolidation
 
-### Phase 4 — Safety, Budgeting & Runaway Prevention [COMPLETED]
+### Phase 4 - Safety, Budgeting & Runaway Prevention [COMPLETED]
 - [x] Hash-based loop detection
 - [x] Irreversible action classification
 - [x] Git safety net
 - [x] Permission escalation system
 
-### Phase 5 — Plan-and-Execute Orchestration [COMPLETED]
+### Phase 5 - Plan-and-Execute Orchestration [COMPLETED]
 - [x] Task DAG data model and PlannerAgent (LLM-based request decomposition)
 - [x] DAG executor with GPU-aware semaphore scheduling
 - [x] Reflexion pattern for error recovery (analyze, constrain, retry)
@@ -257,14 +259,14 @@ Full plan: `docs/archive/versions/v0/v0.3.0/implementation-plan.md`
 - [x] Orchestrator integration with GemmaCodePanel (plan mode + complexity heuristic)
 - [x] Dynamic replanning on divergence (>30% failure threshold)
 
-### Phase 6 — Local Observability & Trace Dashboard [COMPLETED]
+### Phase 6 - Local Observability & Trace Dashboard [COMPLETED]
 - [x] SQLite trace store (TraceStore with spans, traces, events)
 - [x] Tracer singleton with no-op mode and core component instrumentation
 - [x] Metrics collector and golden task evaluation framework
 - [x] Webview-based trace dashboard with waterfall visualization
 - [x] Optional OTLP export (off by default, minimal fetch-based exporter)
 
-### Phase 7 — Cross-Platform PyQt5 Installer [COMPLETED]
+### Phase 7 - Cross-Platform PyQt5 Installer [COMPLETED]
 - [x] PyQt5 project scaffold with dark theme engine and custom widgets (7.1)
 - [x] Welcome, Prerequisites, GPU Detection wizard pages with background detection (7.2)
 - [x] Install Path, Model Selection, Configuration, Review wizard pages (7.3)
@@ -274,7 +276,7 @@ Full plan: `docs/archive/versions/v0/v0.3.0/implementation-plan.md`
 - [x] Comprehensive test suite (184 tests, 83% coverage) and NSIS migration to legacy (7.7)
 - [x] Testing stabilization to 80%+ coverage (7.T)
 
-### Phase 8 — Golden Task Suite & Integration Stabilization [COMPLETED]
+### Phase 8 - Golden Task Suite & Integration Stabilization [COMPLETED]
 - [x] Golden task framework: types, loader, runner, evaluator, reporter, snapshot (8.1)
 - [x] 24 golden task YAMLs + snapshots across 5 categories (8.2)
 - [x] Per-tier model-matrix, memory-recall, and golden-task-perf benchmarks (8.3)
@@ -334,11 +336,11 @@ Full plan: `docs/archive/versions/v0/v0.3.0/implementation-plan.md`
 
 ---
 
-## v0.4.0 — Code Review Remediation
+## v0.4.0 - Code Review Remediation
 
 Driven by [docs/archive/versions/v0/v0.3.0/review.md](archive/v0/v0.3/review.md) (129 findings: 14 P0, 46 P1, 42 P2, 27 P3). Plan: [docs/archive/versions/v0/v0.4.0/implementation-plan.md](archive/v0/v0.4/implementation-plan.md).
 
-### Phase 1 — Critical Hotfix (P0 Unblock) [COMPLETED 2026-04-18]
+### Phase 1 - Critical Hotfix (P0 Unblock) [COMPLETED 2026-04-18]
 
 All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and [docs/adr/0001-python-backend-disposition.md](adr/0001-python-backend-disposition.md) for detail.
 
@@ -359,23 +361,23 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 - [x] 1.15 Version bump to 0.4.0 + CHANGELOG seed
 - [x] 1.16 Testing & stabilization (build + lint + test green on touched files)
 
-### Phase 2 — Security Hardening [COMPLETED 2026-04-19]
+### Phase 2 - Security Hardening [COMPLETED 2026-04-19]
 
 20 non-P0 security findings closed (6 P1 + 9 P2 + 5 P3). 2.2 and 2.13 closed N/A per ADR-0001. See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-2-security-hardening.md](archive/v0/v0.4/development/history/2026-04_phase-2-security-hardening.md).
 
-### Phase 3 — Correctness & Code Quality [COMPLETED 2026-04-19]
+### Phase 3 - Correctness & Code Quality [COMPLETED 2026-04-19]
 
 24 findings closed (8 P1 + 10 P2 + 6 P3). See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-3-correctness.md](archive/v0/v0.4/development/history/2026-04_phase-3-correctness.md).
 
-### Phase 4 — Performance Optimization [COMPLETED 2026-04-19]
+### Phase 4 - Performance Optimization [COMPLETED 2026-04-19]
 
 20 findings closed across seven waves; 5 closed N/A. See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-4-performance.md](archive/v0/v0.4/development/history/2026-04_phase-4-performance.md).
 
-### Phase 5 — Testing Pipeline Completeness [COMPLETED 2026-04-19]
+### Phase 5 - Testing Pipeline Completeness [COMPLETED 2026-04-19]
 
 22 findings closed; 2 closed N/A. 1166 Vitest cases at 89.07% line / 82.78% branch coverage. See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md](archive/v0/v0.4/development/history/2026-04_phase-5-testing-pipeline.md).
 
-### Phase 6 — Restructuring (Architecture) [COMPLETED 2026-04-24]
+### Phase 6 - Restructuring (Architecture) [COMPLETED 2026-04-24]
 
 14 of 17 sub-tasks landed; 3 scoped down with documented v0.5 deferrals (panel split, full settings injection, full Zod boundary coverage). See the [DEVLOG entry](DEVLOG.md) for the full breakdown.
 
@@ -397,7 +399,7 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 - [x] 6.16 marked v12 deferred with NOTE(v0.5) (renderer API break; DOMPurify already provides sanitization)
 - [x] 6.17 Lint + test + build stabilization (1165 pass / 0 fail; 0 lint errors)
 
-### Phase 7 — Simplification & Release [SUPERSEDED]
+### Phase 7 - Simplification & Release [SUPERSEDED]
 
 *Never shipped under v0.4.0: the release + simplification work rolled into the v0.5.0 Unified Adoption Release (tag `v0.5.4`). Retained as history; not active work.*
 
@@ -405,32 +407,32 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 
 ---
 
-## v0.5.0 — Unified Adoption Release [SHIPPED 2026-04-26]
+## v0.5.0 - Unified Adoption Release [SHIPPED 2026-04-26]
 
 12-phase consolidation cycle adopting five external comparisons (Claude Code, Routa, Foundry Vault, Token Optimizer MCP, agent-friendly CLI rubric). All phases landed; tag `v0.5.4` cut. Plan: [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](archive/v0/v0.5/plans/implementation-plan.md). Architecture: [docs/archive/versions/v0/v0.5.0/architecture.md](archive/v0/v0.5/architecture.md).
 
-- [x] Phase 1 — Identity & Naming (AGENTS.md canonical; CLAUDE.md removed)
-- [x] Phase 2 — Tool Surface Hardening (max_bytes, range_start/end, next_offset)
-- [x] Phase 3 — Compression Foundation
-- [x] Phase 4 — Persistent Cache + Diff-Based Reads
-- [x] Phase 5 — Semantic Recall + Budgeting
-- [x] Phase 6 — Mutation Safety + Structured Outputs (dry_run, format=json)
-- [x] Phase 7 — Memory Hygiene + Corroboration
-- [x] Phase 8 — Generic Harness + Specialist Externalization
-- [x] Phase 9 — Coverage + Observability
-- [x] Phase 10 — Local-Dev Hygiene + CI Hardening
-- [x] Phase 11 — Documentation Discipline (ADRs, catalog, governance)
-- [x] Phase 12 — Advanced Fallbacks (PredictiveCache, eviction strategies, HeuristicEmbedder, semantic-release)
+- [x] Phase 1 - Identity & Naming (AGENTS.md canonical; CLAUDE.md removed)
+- [x] Phase 2 - Tool Surface Hardening (max_bytes, range_start/end, next_offset)
+- [x] Phase 3 - Compression Foundation
+- [x] Phase 4 - Persistent Cache + Diff-Based Reads
+- [x] Phase 5 - Semantic Recall + Budgeting
+- [x] Phase 6 - Mutation Safety + Structured Outputs (dry_run, format=json)
+- [x] Phase 7 - Memory Hygiene + Corroboration
+- [x] Phase 8 - Generic Harness + Specialist Externalization
+- [x] Phase 9 - Coverage + Observability
+- [x] Phase 10 - Local-Dev Hygiene + CI Hardening
+- [x] Phase 11 - Documentation Discipline (ADRs, catalog, governance)
+- [x] Phase 12 - Advanced Fallbacks (PredictiveCache, eviction strategies, HeuristicEmbedder, semantic-release)
 
 ---
 
-## v0.6.0 — Review-Driven Cycle [SUPERSEDED]
+## v0.6.0 - Review-Driven Cycle [SUPERSEDED]
 
 *Closed out by the v1.0.0 four-pillar Nexus rebuild, which superseded the remaining v0.x roadmap. Phases 1, 5, and 6 landed (below); Phases 2, 3, 4, 7, and 8 were never shipped under v0.6.0. Retained as history; not active work.*
 
 Hygiene/ratchet cycle closing the v0.6.0 review pass (1 P0, 6 P1, 9 P2, 11 P3). No new product surface; pays down v0.5.0 technical debt. Plan: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](archive/v0/v0.6/plans/v0.6.0-cycle.md).
 
-### Phase 1 — Security chain closure [COMPLETED 2026-04-26]
+### Phase 1 - Security chain closure [COMPLETED 2026-04-26]
 
 Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the operation. See [docs/archive/versions/v0/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md](archive/v0/v0.6/development/history/2026-04_phase-1-security-chain-closure.md).
 
@@ -439,11 +441,11 @@ Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the opera
 - [x] 1.3 Tag MCP-originated tool calls with `source: "mcp"` peer attribution in ConfirmationGate; add `gemma-code.mcpExposedTools` allowlist (read-only by default)
 - [x] 1.4 Phase 1 testing and stabilization (17 new tests + lint + deps:check + catalog:check green)
 
-### Phase 2 — Test pipeline reliability + release-gate baselines [SUPERSEDED]
-### Phase 3 — Defense-in-depth ratchets [SUPERSEDED]
-### Phase 4 — Module-boundary ratchet [SUPERSEDED]
+### Phase 2 - Test pipeline reliability + release-gate baselines [SUPERSEDED]
+### Phase 3 - Defense-in-depth ratchets [SUPERSEDED]
+### Phase 4 - Module-boundary ratchet [SUPERSEDED]
 
-### Phase 5 — Doc/code drift + dead-code cleanup [COMPLETED 2026-05-03]
+### Phase 5 - Doc/code drift + dead-code cleanup [COMPLETED 2026-05-03]
 
 Closes pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, sections 8 + 9.7; codebase-review #4, #7, #13, #20. See [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](archive/v0/v0.6/development/history/2026-05_phase-5-doc-code-drift.md).
 
@@ -455,7 +457,7 @@ Closes pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, section
 - [x] 5.6 Migration-ordering regression test (4 cases) seeds v0.4.0 schema, asserts all four migrations land cleanly + are idempotent.
 - [x] 5.7 Lint + test + build + deps stabilization (1579 pass / 0 fail; 0 lint errors).
 
-### Phase 6 — Panel decomposition [COMPLETED 2026-05-03]
+### Phase 6 - Panel decomposition [COMPLETED 2026-05-03]
 
 Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](archive/v0/v0.6/development/history/2026-05_phase-6-panel-decomposition.md).
 
@@ -468,22 +470,22 @@ Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/archive/versions/v
 
 **Partial deviation**: `GemmaCodePanel.ts` is 935 lines (down from 1,724); the plan's < 400 target requires further factory work (PanelComposition + post-helper move) tracked as v0.7.0 follow-up. See history file section 3.1.
 
-### Phase 7 — Polish + simplification [SUPERSEDED]
-### Phase 8 — Release gate + ADRs + CHANGELOG [SUPERSEDED]
+### Phase 7 - Polish + simplification [SUPERSEDED]
+### Phase 8 - Release gate + ADRs + CHANGELOG [SUPERSEDED]
 
 ---
 
-## v0.7.0 — Multi-Source Adoption Cycle [SUPERSEDED]
+## v0.7.0 - Multi-Source Adoption Cycle [SUPERSEDED]
 
 *Closed out by the v1.0.0 four-pillar Nexus rebuild, which superseded the remaining v0.x roadmap. Phases 0-5 landed (below); Phases 6, 7, and 8 were never shipped under v0.7.0. Retained as history; not active work.*
 
 Phased adoption of comparison-multi-source findings across skills, memory architecture, compaction, render protocol, and per-model context overrides. Plan: [docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](archive/v0/v0.7/plans/v0.7.0-cycle.md).
 
-### Phase 0 — Close-out + carryovers [COMPLETED 2026-05-05]
-### Phase 1 — Skill expansion (zero-code first) [COMPLETED 2026-05-05]
-### Phase 2 — Memory file architecture [COMPLETED 2026-05-05]
+### Phase 0 - Close-out + carryovers [COMPLETED 2026-05-05]
+### Phase 1 - Skill expansion (zero-code first) [COMPLETED 2026-05-05]
+### Phase 2 - Memory file architecture [COMPLETED 2026-05-05]
 
-### Phase 3 — Compaction stack expansion [COMPLETED 2026-05-05]
+### Phase 3 - Compaction stack expansion [COMPLETED 2026-05-05]
 
 Adopts C12 / C13 / C14 / C15 / C16. Adds two deterministic strategies (deduplication, purgeErrors), a model-callable compress tool with two modes (range, message-experimental), per-session CompressionState, six `/compact` verbs, per-model context overrides, and ADR-0012. See [docs/DEVLOG.md](DEVLOG.md) for details.
 
@@ -496,7 +498,7 @@ Adopts C12 / C13 / C14 / C15 / C16. Adds two deterministic strategies (deduplica
 - [x] 3.7 Per-model context-limit overrides (`gemma-code.contextLimitsPerModel` + `resolveModelContextLimit` + 6 tests)
 - [x] 3.8 ADR-0012 model-callable compress tool design (renumbered from plan's ADR-0006 because 0006 is taken)
 
-### Phase 4 — Webview render protocol expansion [COMPLETED 2026-05-06]
+### Phase 4 - Webview render protocol expansion [COMPLETED 2026-05-06]
 
 Adopt the seven Claude-Code-style chat-UI primitives (S7 / C21-C27): inline diff cards, action-type tags, numbered permission prompts, structured todo blocks, "Thought for Ns" meta-rows, queued-message fields, and end-of-task completion reports. History: [docs/archive/versions/v0/v0.7.0/development/history/2026-05_phase-4-webview-render-protocol.md](archive/v0/v0.7/development/history/2026-05_phase-4-webview-render-protocol.md).
 
@@ -511,7 +513,7 @@ Adopt the seven Claude-Code-style chat-UI primitives (S7 / C21-C27): inline diff
 
 **Follow-ups (deferred to v0.8.0 Phase 1)**: panel-host adoption of the new render protocol -- (a) replace input row with queued-message field during streaming, (b) route `permissionPromptResponse` through `ChatMessageRouter` to `gate.resolvePrompt`, (c) wire `ToolRegistryBuilder.todos` in the panel bootstrap. All three share the same surface; bundling is intentional.
 
-### Phase 5 — Memory commands + manual memory page UI + per-model context limits [COMPLETED 2026-05-07]
+### Phase 5 - Memory commands + manual memory page UI + per-model context limits [COMPLETED 2026-05-07]
 
 Polish the memory experience: complete `/memory` slash-command surface, ship a sidebar `MemoryPanel` webview, and confirm the per-model context-limit override is wired. Plan: [docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](archive/v0/v0.7/plans/v0.7.0-cycle.md) Phase 5.
 
@@ -522,9 +524,9 @@ Polish the memory experience: complete `/memory` slash-command surface, ship a s
 
 **Follow-ups carried into v0.8.0**: same three Phase 4 panel-host items (queued-field swap, permissionPromptResponse routing, todos opt-in wiring); no new follow-ups from Phase 5.
 
-### Phase 6 — Multi-harness skill packaging [SUPERSEDED]
-### Phase 7 — HNSW vector index (optional) [SUPERSEDED]
-### Phase 8 — Release gate + ADRs + CHANGELOG [SUPERSEDED]
+### Phase 6 - Multi-harness skill packaging [SUPERSEDED]
+### Phase 7 - HNSW vector index (optional) [SUPERSEDED]
+### Phase 8 - Release gate + ADRs + CHANGELOG [SUPERSEDED]
 
 ---
 

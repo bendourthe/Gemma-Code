@@ -1471,7 +1471,7 @@
         "Apache-2.0: fully permissive license"
       ],
       "differentiators": "The efficiency pick for 720p: faster than the Wan family, higher fidelity than LTX-Video.",
-      "sizeGB": 4.0,
+      "sizeGB": 18.4,
       "vramGB": 12,
       "requiredVramGB": 12,
       "releaseDate": "2025-10-15",
@@ -1482,20 +1482,29 @@
       "source": {
         "protocol": "huggingface",
         "repo": "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video_2B_720p_diffusers/resolve/main/transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video_2B_720p_diffusers/resolve/main/model_index.json",
+        "sha256": "2f3858741befc03ca24bca27c5357100e71cffe79bdf0f323f1c51abd6e9a198"
       },
       "weights": {
-        "layoutVersion": 1,
+        "layoutVersion": 2,
         "files": [
-          {
-            "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
-            "sha256": "c7c58e08418fc09a240bf936d46b629304002053c5ea9860ee156fd3c9de2546"
-          },
-          {
-            "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
-            "sha256": "9d083c8419daa52591a969462f93f3d693128e7e57a69fa6ee2b89f942e887fa"
-          }
+          { "path": "model_index.json", "sha256": "2f3858741befc03ca24bca27c5357100e71cffe79bdf0f323f1c51abd6e9a198" },
+          { "path": "scheduler/scheduler_config.json", "sha256": "e096b2a4c0381355a1994ef2ee4084edf678ceeedebd8751cdc7d6ba30198093" },
+          { "path": "text_encoder/config.json", "sha256": "96f080062373153486e5bf58452902fe105fa09815ed51239a1fbd3c892376db" },
+          { "path": "text_encoder/model-00001-of-00002.safetensors", "sha256": "e909230aabafad02d097c7dc02f2ae062b4e6b0593477c1f07679d277e09ce71" },
+          { "path": "text_encoder/model-00002-of-00002.safetensors", "sha256": "48e14f6b7a917e54cabc4ff2047ac2bfe0dae663e771eed3a8acf4ea27dcac18" },
+          { "path": "text_encoder/model.safetensors.index.json", "sha256": "a3d95b2242186a4acd96d0a1c38dc294d8c580c0fb37cc07ce7fa6cf0ff60d63" },
+          { "path": "tokenizer/chat_template.jinja", "sha256": "ecd6ae513fe103f0eb62e8ab5bfa8d0fe45c1074fa398b089c93a7e70c15cfd6" },
+          { "path": "tokenizer/special_tokens_map.json", "sha256": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351" },
+          { "path": "tokenizer/tokenizer.json", "sha256": "5f7eee611703c5ce5d1eee32d9cdcfe465647b8aff0c1dfb3bed7ad7dbb05060" },
+          { "path": "tokenizer/tokenizer.model", "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2" },
+          { "path": "tokenizer/tokenizer_config.json", "sha256": "5db39e7ccbeceb1dc1136ff54d717f6f84f3556893e6cc30ee4972c408ed4dc2" },
+          { "path": "transformer/config.json", "sha256": "0171e8231ad6a6adbe9a7e2be9983387fa411eec9bc9b14833f43551e8b12547" },
+          { "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors", "sha256": "c7c58e08418fc09a240bf936d46b629304002053c5ea9860ee156fd3c9de2546" },
+          { "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors", "sha256": "9d083c8419daa52591a969462f93f3d693128e7e57a69fa6ee2b89f942e887fa" },
+          { "path": "transformer/diffusion_pytorch_model.safetensors.index.json", "sha256": "87579c1658e6575cbf1a238f5eef70ca8cf8b71de1b721aa0aa4bd2bfaf1cf34" },
+          { "path": "vae/config.json", "sha256": "a594f4cc4f9cf7d1a09821fea1cddaaba3a604645ad6d0f9137e303c40688386" },
+          { "path": "vae/diffusion_pytorch_model.safetensors", "sha256": "77fcc42599bd396e7e5dcb7918c2caeb1688c497d0a6f06fccc91f34e792b74c" }
         ]
       },
       "tags": [

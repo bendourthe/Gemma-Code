@@ -59,6 +59,35 @@ def test_wan_uses_complete_pinned_diffusers_pipeline() -> None:
     assert all(len(digest) == 64 for digest in files.values())
 
 
+def test_sana_video_uses_complete_pinned_diffusers_pipeline() -> None:
+    catalog = _json(REPO_ROOT / "core" / "registry" / "catalog.json")
+    sana = next(
+        model for model in catalog["models"] if model["id"] == "sana-video-2b-720p"
+    )
+    assert (
+        sana["source"]["repo"]
+        == "Efficient-Large-Model/SANA-Video_2B_720p_diffusers"
+    )
+    assert sana["weights"]["layoutVersion"] == 2
+    files = {item["path"]: item["sha256"] for item in sana["weights"]["files"]}
+    required = {
+        "model_index.json",
+        "scheduler/scheduler_config.json",
+        "text_encoder/config.json",
+        "text_encoder/model.safetensors.index.json",
+        "tokenizer/tokenizer.json",
+        "transformer/config.json",
+        "transformer/diffusion_pytorch_model.safetensors.index.json",
+        "vae/config.json",
+        "vae/diffusion_pytorch_model.safetensors",
+    }
+    assert required.issubset(files)
+    assert all(len(digest) == 64 for digest in files.values())
+    assert all(digest != "0" * 64 for digest in files.values())
+    wan = next(model for model in catalog["models"] if model["id"] == "wan2.1-t2v-1.3b")
+    assert sana["source"]["repo"] != wan["source"]["repo"]
+
+
 def test_default_images_use_complete_pinned_fp16_pipelines() -> None:
     catalog = _json(REPO_ROOT / "core" / "registry" / "catalog.json")
     by_id = {model["id"]: model for model in catalog["models"]}
