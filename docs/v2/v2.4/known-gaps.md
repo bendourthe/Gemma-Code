@@ -21,7 +21,7 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Missing tests / coverage gaps (MT) | 6 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-6 are implemented locally. jsdom cannot prove thinking-pill pixel containment, a live overflow pane jumping to the latest turn, or two Settings cards filling a real viewport. Packaged img2img identity, empty-video fail-closed, and a live installer GPU/Unsloth/VS Code screenshot are not observed here. Human zoom, send-scroll, image follow-up, SAM2 install, empty-video, Settings density, and installer screenshots wait for Phase 7.
+Phases 1-7 are implemented locally. Phase 7 recorded last-phase evidence and is waiting on T043 push/PR approval against `develop` ([PR 58](https://github.com/bendourthe/Nexus-AI/pull/58)). jsdom cannot prove thinking-pill pixel containment, a live overflow pane jumping to the latest turn, or two Settings cards filling a real viewport. Packaged img2img identity, empty-video fail-closed, and a live installer GPU/Unsloth/VS Code screenshot are not observed here. Operator items 1-9 remain Not observed (`not_observed != absent`).
 
 ### Open Items
 

@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.2 - field UI Phase 7 last-phase evidence
+
+Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.2-field-ui.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-7-last-phase.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Last-phase evidence quotes architecture scan, known-gaps glob, living docs, git-tree hygiene, CI comparison, Goal-vs-codebase review, operator suggestions, and the local gate.
+- No source file was moved. No workflow file was changed. T043 push waits on explicit approval and updates existing PR 58 against `develop`.
+
+### Why It Changed
+
+The plan's final phase is fail-closed: a missing evidence section or an unresolved Goal miss without a recorded gap would block `/update release`.
+
+### Decisions Made
+
+- Treat Windows desktop coverage-load timeouts as ENV when isolation passes (same posture as v2.4.1 last-phase).
+- Re-propose QG-5 (add `develop` to merge-result PR workflows) without applying it.
+- Keep MT-1 through MT-6 open; do not infer packaged proof from tests.
+
+---
+
 ## [2026-08-31] v2.4.2 - field UI Phase 6 installer VRAM, Unsloth, and VS Code
 
 Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-6-installer-display.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

@@ -1,6 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.1** approved corrective implementation locally complete through Phase 7 gates; T097 push/PR waits on explicit approval).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.2** field UI Phases 1-7 local complete; T043 push/PR waits on explicit approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
+
+> **v2.4.2 FIELD UI LAST PHASE LOCAL (2026-08-31)** -- [field UI, sidebar history, and generation follow-through](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md) T001-T042 complete. Evidence: [last-phase-evidence-v2.4.2-field-ui.md](v2/v2.4/development/last-phase-evidence-v2.4.2-field-ui.md). Phases 1-6 committed locally (`dcb201f` through `bbe0f6d`). T043 is one push that updates PR 58; merge, tag, and `/update release` wait on green integration. MT-1 through MT-6 remain Not observed.
 
 > **v2.4.1 GENERATION RECOVERY IMPLEMENTATION ACTIVE (2026-08-30)** -- The approved [generation recovery and UI corrections plan](v2/v2.4/plans/v2.4.1-generation-recovery-and-ui-corrections.md) finished Phase 7 local gates. Phases 1-6 are committed locally (`d51b14e` through `b11cec7`) and have not been pushed. Exact installer SHA-256 `E29725ADE5671271962CE9FB6DE66DCAA38BA182DC257802DFA835C78120490D` produced a validated 512x512 PNG and an H.264 848x480 MP4. T089-T096 are recorded; T097 waits on explicit push/PR approval against `develop`. Remaining visual/account/reboot checklist items stay Not observed.
 
