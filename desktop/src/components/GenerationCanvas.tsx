@@ -101,6 +101,73 @@ export function MediaRuntimeRecoveryCard({
   );
 }
 
+export interface Sam2RecoveryCardProps {
+  readonly modelId: string;
+  readonly message: string;
+  readonly installing?: boolean;
+  readonly installed?: boolean;
+  readonly installDisabled?: boolean;
+  readonly onInstall?: () => void;
+  readonly onPaintMask?: () => void;
+  readonly onOpenSettings?: () => void;
+  readonly onRetry?: () => void;
+}
+
+/** Inline recovery when SAM2 weights are missing. Same card grammar as media runtime. */
+export function Sam2RecoveryCard({
+  modelId,
+  message,
+  installing = false,
+  installed = false,
+  installDisabled = false,
+  onInstall,
+  onPaintMask,
+  onOpenSettings,
+  onRetry,
+}: Sam2RecoveryCardProps): JSX.Element {
+  return (
+    <section
+      data-testid="sam2-recovery"
+      role="alert"
+      style={{
+        width: "min(100%, 42rem)",
+        border: "1px solid color-mix(in srgb, var(--warning, #f59e0b) 55%, var(--border-1))",
+        borderRadius: "var(--radius-lg)",
+        background: "color-mix(in srgb, var(--warning, #f59e0b) 8%, var(--bg-1))",
+        padding: "var(--space-3)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-2)",
+        marginTop: "var(--space-2)",
+      }}
+    >
+      <strong>SAM2 weights are not installed</strong>
+      <span>{message}</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+        <button
+          type="button"
+          data-testid="sam2-install"
+          disabled={installDisabled || installing || installed}
+          onClick={onInstall}
+        >
+          {installing ? "Installing..." : `Install ${modelId}`}
+        </button>
+        <button type="button" data-testid="sam2-paint-mask" onClick={onPaintMask}>
+          Paint a mask
+        </button>
+        <button type="button" data-testid="sam2-open-settings" onClick={onOpenSettings}>
+          Open Settings &gt; Models
+        </button>
+        {installed ? (
+          <button type="button" data-testid="sam2-retry" onClick={onRetry}>
+            Retry
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export interface GenerationCanvasProps {
   /** Job progress 0-1; drives how far the live preview has "materialized". */
   progress?: number;

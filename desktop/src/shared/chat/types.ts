@@ -64,6 +64,8 @@ export interface ChatMessage {
   reasoningText?: string | null;
   /** v2.4.1 -- shared Image/Video runtime recovery state. */
   mediaRecovery?: MediaRuntimeRecovery;
+  /** v2.4.2 Phase 3 -- SAM2 missing-weights recovery (install or paint a mask). */
+  sam2Recovery?: Sam2Recovery;
 }
 
 export interface MediaRuntimeRecovery {
@@ -74,6 +76,13 @@ export interface MediaRuntimeRecovery {
   readonly progress: number;
   readonly details?: string;
   readonly logPath?: string;
+}
+
+export interface Sam2Recovery {
+  readonly modelId: string;
+  readonly message: string;
+  readonly installing?: boolean;
+  readonly installed?: boolean;
 }
 
 export interface ChatMedia {

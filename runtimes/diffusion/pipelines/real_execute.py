@@ -63,14 +63,22 @@ def _require_accelerator() -> None:
     raise base.accelerator_not_ready("image")
 
 
-def _decode_pil(raw: str):
+def decode_source_image(raw: str):
+    """Decode a data URL, raw base64 PNG, or an existing filesystem path."""
     from PIL import Image  # type: ignore[import-not-found]
 
     payload = raw.strip()
+    path = Path(payload)
+    if len(payload) < 4096 and path.is_file():
+        return Image.open(path).convert("RGB")
     if payload.startswith("data:") and "," in payload:
         payload = payload.split(",", 1)[1]
     data = base64.b64decode(payload)
     return Image.open(io.BytesIO(data)).convert("RGB")
+
+
+def _decode_pil(raw: str):
+    return decode_source_image(raw)
 
 
 def _png_bytes(image) -> bytes:

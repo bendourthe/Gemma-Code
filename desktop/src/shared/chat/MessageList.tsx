@@ -31,6 +31,11 @@ export interface MessageListProps {
   onRepairMediaRuntime?: (message: ChatMessage) => void;
   onCancelMediaRepair?: (message: ChatMessage) => void;
   onOpenMediaRepairLog?: (message: ChatMessage) => void;
+  onInstallSam2?: (message: ChatMessage) => void;
+  onPaintSam2Mask?: (message: ChatMessage) => void;
+  onOpenSam2Settings?: (message: ChatMessage) => void;
+  onRetrySam2?: (message: ChatMessage) => void;
+  sam2InstallDisabled?: boolean;
 }
 
 export function messageRowAlign(role: ChatMessage["role"]): "flex-end" | "flex-start" {
@@ -49,6 +54,11 @@ export function MessageList({
   onRepairMediaRuntime,
   onCancelMediaRepair,
   onOpenMediaRepairLog,
+  onInstallSam2,
+  onPaintSam2Mask,
+  onOpenSam2Settings,
+  onRetrySam2,
+  sam2InstallDisabled,
 }: MessageListProps): JSX.Element {
   if (messages.length === 0) {
     return (
@@ -103,6 +113,11 @@ export function MessageList({
           {...(onRepairMediaRuntime ? { onRepairMediaRuntime } : {})}
           {...(onCancelMediaRepair ? { onCancelMediaRepair } : {})}
           {...(onOpenMediaRepairLog ? { onOpenMediaRepairLog } : {})}
+          {...(onInstallSam2 ? { onInstallSam2 } : {})}
+          {...(onPaintSam2Mask ? { onPaintSam2Mask } : {})}
+          {...(onOpenSam2Settings ? { onOpenSam2Settings } : {})}
+          {...(onRetrySam2 ? { onRetrySam2 } : {})}
+          {...(sam2InstallDisabled ? { sam2InstallDisabled } : {})}
         />
         {renderAfter?.(msg)}
       </li>,

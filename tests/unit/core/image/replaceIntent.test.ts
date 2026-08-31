@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { inpaintPromptFor, parseReplaceIntent } from "../../../../core/image/replaceIntent.js";
+import {
+  inpaintPromptFor,
+  parseReplaceIntent,
+  usesSegment,
+} from "../../../../core/image/replaceIntent.js";
 
 describe("parseReplaceIntent", () => {
   it("parses replace / remove / recolor phrases", () => {
@@ -9,12 +13,33 @@ describe("parseReplaceIntent", () => {
       object: "car",
       replacement: "truck",
       ambiguous: false,
+      scope: "object",
     });
     expect(parseReplaceIntent("remove the watermark")).toMatchObject({
       action: "remove",
       object: "watermark",
+      scope: "object",
     });
     expect(parseReplaceIntent("recolor the sky to orange")?.action).toBe("recolor");
+    expect(parseReplaceIntent("replace the sky with sunset")).toMatchObject({
+      action: "replace",
+      object: "sky",
+      replacement: "sunset",
+      scope: "object",
+    });
+  });
+
+  it("parses make-that-color as a whole-image restyle", () => {
+    const intent = parseReplaceIntent("Make that puppy black");
+    expect(intent).toEqual({
+      action: "recolor",
+      object: "puppy",
+      replacement: "black",
+      ambiguous: false,
+      scope: "image",
+    });
+    expect(usesSegment(intent!)).toBe(false);
+    expect(usesSegment(parseReplaceIntent("replace the sky with sunset")!)).toBe(true);
   });
 
   it("flags ambiguous object phrases", () => {

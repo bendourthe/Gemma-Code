@@ -15,7 +15,7 @@ import {
   parseMessageTime,
 } from "./transcriptChrome";
 import { ReasoningDisclosure } from "./ReasoningDisclosure";
-import { MediaRuntimeRecoveryCard } from "../../components/GenerationCanvas";
+import { MediaRuntimeRecoveryCard, Sam2RecoveryCard } from "../../components/GenerationCanvas";
 
 const COMPACT_MEDIA_STYLE: CSSProperties = {
   display: "block",
@@ -43,6 +43,11 @@ export interface MessageBubbleProps {
   onRepairMediaRuntime?: (message: ChatMessage) => void;
   onCancelMediaRepair?: (message: ChatMessage) => void;
   onOpenMediaRepairLog?: (message: ChatMessage) => void;
+  onInstallSam2?: (message: ChatMessage) => void;
+  onPaintSam2Mask?: (message: ChatMessage) => void;
+  onOpenSam2Settings?: (message: ChatMessage) => void;
+  onRetrySam2?: (message: ChatMessage) => void;
+  sam2InstallDisabled?: boolean;
 }
 
 export function MessageBubble({
@@ -54,6 +59,11 @@ export function MessageBubble({
   onRepairMediaRuntime,
   onCancelMediaRepair,
   onOpenMediaRepairLog,
+  onInstallSam2,
+  onPaintSam2Mask,
+  onOpenSam2Settings,
+  onRetrySam2,
+  sam2InstallDisabled = false,
 }: MessageBubbleProps): JSX.Element {
   const [mediaFailed, setMediaFailed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -106,6 +116,16 @@ export function MessageBubble({
           onRepair={() => onRepairMediaRuntime?.(message)}
           onCancel={() => onCancelMediaRepair?.(message)}
           onOpenLog={() => onOpenMediaRepairLog?.(message)}
+        />
+      ) : null}
+      {message.sam2Recovery ? (
+        <Sam2RecoveryCard
+          {...message.sam2Recovery}
+          installDisabled={sam2InstallDisabled}
+          onInstall={() => onInstallSam2?.(message)}
+          onPaintMask={() => onPaintSam2Mask?.(message)}
+          onOpenSettings={() => onOpenSam2Settings?.(message)}
+          onRetry={() => onRetrySam2?.(message)}
         />
       ) : null}
       {caption}

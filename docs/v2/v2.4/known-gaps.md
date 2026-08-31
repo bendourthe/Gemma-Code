@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 2 | 0 |
+| Missing tests / coverage gaps (MT) | 3 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phases 1-2 are implemented locally. jsdom cannot prove thinking-pill pixel containment or a live overflow pane jumping to the latest turn. Human zoom, send-scroll, and packaged screenshots wait for Phase 7.
+Phases 1-3 are implemented locally. jsdom cannot prove thinking-pill pixel containment or a live overflow pane jumping to the latest turn. Packaged img2img identity ("same puppy, now black") is not observed here. Human zoom, send-scroll, image follow-up screenshots, and SAM2 install wait for Phase 7.
 
 ### Open Items
 
@@ -38,6 +38,13 @@ Phases 1-2 are implemented locally. jsdom cannot prove thinking-pill pixel conta
 - **Plan reference**: [v2.4.2-field-ui-history-and-generation.md](plans/v2.4.2-field-ui-history-and-generation.md) T009 / 2.1
 - **Reason**: `useStickToBottom` tests assign `scrollHeight` / `clientHeight` and assert `stickNow` sets `scrollTop`. They do not layout Chat, Agents, Image, or Video overflow panes with real content height after send.
 - **Suggested next step**: Phase 7 operator send on each of the four tabs and confirm the new user turn is in view unless the user scrolled up.
+
+##### MT-3 - Packaged img2img identity for "Make that puppy black" is not observed
+
+- **Source phase**: Phase 3 - Image Follow-up Identity
+- **Plan reference**: [v2.4.2-field-ui-history-and-generation.md](plans/v2.4.2-field-ui-history-and-generation.md) T016 / 3.1
+- **Reason**: Automated tests prove img2img against last PNG bytes, strength 0.45, and no SAM2 for that phrase. A packaged NVIDIA run that the same puppy is recolored rather than resampled is not recorded here.
+- **Suggested next step**: Phase 7 operator item: generate a puppy, send "Make that puppy black" with no attachment, capture before/after.
 
 ## v2.4.1
 

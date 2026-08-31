@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.2 - field UI Phase 3 image follow-up identity
+
+Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-3-image-followup.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Unattached follow-ups img2img the last PNG as data-URL bytes (strength 0.45) instead of txt2img. "Make that puppy black" is a whole-image restyle and does not call SAM2.
+- "Replace the sky with sunset" still segments when SAM2 weights exist, including when the source is the last output rather than a new attachment.
+- Missing SAM2 weights render Install `sam2:hiera-tiny`, Paint a mask, and Open Settings > Models. Retry after install replays the parked prompt. The Python decoder also opens existing filesystem paths.
+
+### Why It Changed
+
+Packaged 2.4.1 treated "Make that puppy black" as a new txt2img identity and dead-ended object replace when SAM2 weights were missing.
+
+### Decisions Made
+
+- Prefer in-session PNG bytes over `outputPath` because `_decode_pil` previously only accepted base64.
+- `scope: image` restyles skip SAM2; `scope: object` still segments.
+- Auto-install is forbidden. Retry is a second click after install completes.
+- No workflow file changed. Commit-only; no push.
+
+---
+
 ## [2026-08-31] v2.4.2 - field UI Phase 2 transcript honesty
 
 Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-2-transcript-honesty.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.

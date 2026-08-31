@@ -48,7 +48,8 @@ import {
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
-import type { ListedModelDto } from "../../pages/settings/modelsTypes";
+import type { ListedModelDto, InstallProgressDto } from "../../pages/settings/modelsTypes";
+import type { InstallHandle } from "../../pages/settings/ModelsSettings";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import {
   DEFAULT_FORM_VALUES,
@@ -58,7 +59,14 @@ import {
 } from "./ImagePromptForm";
 import { inferImageIntent } from "./intent";
 import { MaskEditor } from "./MaskEditor";
-import { parseReplaceIntent, inpaintPromptFor } from "../../../../core/image/replaceIntent";
+import { parseReplaceIntent, inpaintPromptFor, usesSegment } from "../../../../core/image/replaceIntent";
+import {
+  FOLLOWUP_IMG2IMG_STRENGTH,
+  SAM2_MODEL_ID,
+  pngToDataUrl,
+  resolveFollowUpSourceImage,
+  stripToRawImageBytes,
+} from "./followUpSource";
 import {
   type DiffusionClient,
   type ProgressEvent,
@@ -122,6 +130,10 @@ export interface ImageStudioPageProps {
   readonly modelsClient?: {
     list(): Promise<readonly ListedModelDto[]>;
     lastSelection?: SelectionSnapshot | null;
+    install?(
+      id: string,
+      onProgress: (p: InstallProgressDto) => void,
+    ): InstallHandle & { done: Promise<void> };
   };
   /** Test seam: drain interval (ms). Defaults to 100ms. */
   readonly drainIntervalMs?: number;
@@ -237,6 +249,8 @@ export function ImageStudioPage({
     setActiveSessionId(id);
   }, []);
   const lastOutputRef = useRef<string | null>(null);
+  const lastPngB64Ref = useRef<string | null>(null);
+  const modelsSourceRef = useRef<ImageStudioPageProps["modelsClient"]>(modelsClient);
   const [historyEpoch, setHistoryEpoch] = useState(0);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
@@ -265,6 +279,7 @@ export function ImageStudioPage({
   useEffect(() => {
     let cancelled = false;
     const source = modelsClient ?? createIpcModelsClient();
+    modelsSourceRef.current = source;
     void (async () => {
       try {
         const all = await source.list();
@@ -372,6 +387,9 @@ export function ImageStudioPage({
       const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
         setActiveSession(sessionId);
         lastOutputRef.current = lastRef;
+        lastPngB64Ref.current = lastRef?.toLowerCase().startsWith("data:")
+          ? lastRef
+          : null;
         setMessages(studioTurnsToChatMessages(turns, { outputExists }));
       };
       const turnsMaybe = studioClient.listTurns?.(sessionId) ?? [];
@@ -399,6 +417,7 @@ export function ImageStudioPage({
   const startFreshStudioSession = useCallback(async (): Promise<void> => {
     setMessages([]);
     lastOutputRef.current = null;
+    lastPngB64Ref.current = null;
     setActiveSession(null);
     if (backendDown) return;
     try {
@@ -452,6 +471,7 @@ export function ImageStudioPage({
             continue;
           }
           outputs.current.set(messageId, png);
+          lastPngB64Ref.current = png;
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
@@ -462,6 +482,7 @@ export function ImageStudioPage({
             lastOutputRef.current = pathRef;
             persistTurn({ role: "assistant", content: "", mediaRef: pathRef });
           } else {
+            lastOutputRef.current = `data:image/png;base64,${png}`;
             persistTurn({ role: "assistant", content: "" });
           }
           void client.extractWorkflow(png).then((wf) => {
@@ -633,10 +654,17 @@ export function ImageStudioPage({
           return;
         }
       }
-      const replace = attachments.length > 0 ? parseReplaceIntent(text) : null;
+      const implicitSource = resolveFollowUpSourceImage({
+        lastPngBase64: lastPngB64Ref.current,
+        lastOutputRef: lastOutputRef.current,
+      });
+      const replace = parseReplaceIntent(text);
+      const objectEdit = Boolean(replace && usesSegment(replace));
       if (
         attachments.length === 0 &&
         lastOutputRef.current &&
+        !lastPngB64Ref.current &&
+        !implicitSource?.toLowerCase().startsWith("data:") &&
         !isUsablePathRef(lastOutputRef.current, outputExists)
       ) {
         const userMsg: ChatMessage = {
@@ -659,7 +687,7 @@ export function ImageStudioPage({
         text,
         attachments,
         mask: paintedMask,
-        lastOutputRef: lastOutputRef.current,
+        lastOutputRef: implicitSource,
       });
       const userMsg: ChatMessage = {
         id: nextId("user"),
@@ -680,6 +708,7 @@ export function ImageStudioPage({
           pending: true,
           content: "",
           mediaRecovery: undefined,
+          sam2Recovery: undefined,
           activity: "image-generation",
         });
       } else {
@@ -690,27 +719,39 @@ export function ImageStudioPage({
       mediaRetryRef.current = { assistantId, text, attachments: [...attachments] };
 
       const base = valuesToBaseRequest(values, {
-        prompt: replace ? inpaintPromptFor(replace) : intent.prompt,
+        prompt: objectEdit && replace ? inpaintPromptFor(replace) : intent.prompt,
         modelId: selectedModelId,
       }) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
+      const segmentSource = attachments[0] ?? implicitSource;
+      const followUpImg2img = Boolean(implicitSource) && attachments.length === 0;
+      const restyle = replace?.scope === "image";
 
       try {
-        if (replace && attachments[0]) {
-          const sourceImage = attachments[0].includes(",")
-            ? attachments[0].slice(attachments[0].indexOf(",") + 1)
-            : attachments[0];
+        if (objectEdit && replace && segmentSource) {
+          const sourceImage = stripToRawImageBytes(segmentSource);
           const seg = await client.segment({
             sourceImage,
             phrase: replace.object,
             hint: { text: replace.object },
           });
           if (!seg.ok || !seg.candidates || seg.candidates.length === 0) {
+            const fallback =
+              seg.message ??
+              "Could not find a mask for that object. Paint a mask to continue, or install sam2:hiera-tiny.";
+            const missing = seg.code === "weights_missing";
             patchMessage(assistantId, {
               pending: false,
-              content:
-                seg.message ??
-                "Could not find a mask for that object. Paint a mask to continue, or install sam2:hiera-tiny.",
+              content: fallback,
+              ...(missing
+                ? {
+                    sam2Recovery: {
+                      modelId: SAM2_MODEL_ID,
+                      message: fallback,
+                    },
+                  }
+                : {}),
             });
+            persistTurn({ role: "assistant", content: fallback });
             return;
           }
           if (seg.candidates.length > 1) {
@@ -740,7 +781,11 @@ export function ImageStudioPage({
         if (intent.mode === "txt2img") {
           accepted = await client.txt2img(base);
         } else if (intent.mode === "img2img") {
-          accepted = await client.img2img({ ...base, sourceImage: intent.sourceImage ?? "" });
+          accepted = await client.img2img({
+            ...base,
+            sourceImage: intent.sourceImage ?? implicitSource ?? "",
+            ...((followUpImg2img || restyle) ? { strength: FOLLOWUP_IMG2IMG_STRENGTH } : {}),
+          });
         } else if (intent.mode === "inpaint") {
           accepted = await client.inpaint({
             ...base,
@@ -814,6 +859,54 @@ export function ImageStudioPage({
       patchMessage(message.id, { mediaRecovery: imageRecoveryState(state) });
     },
     [mediaRuntimeClient, patchMessage],
+  );
+
+  const installSam2 = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const source = modelsSourceRef.current;
+      const recovery = message.sam2Recovery;
+      if (!source?.install || backendDown || !recovery) return;
+      patchMessage(message.id, {
+        sam2Recovery: { ...recovery, installing: true, installed: false },
+      });
+      try {
+        await source.install(SAM2_MODEL_ID, () => undefined).done;
+        patchMessage(message.id, {
+          sam2Recovery: { ...recovery, installing: false, installed: true },
+        });
+      } catch (err) {
+        patchMessage(message.id, {
+          sam2Recovery: {
+            ...recovery,
+            installing: false,
+            message: `Install failed: ${formatInferenceError(err)}`,
+          },
+        });
+      }
+    },
+    [backendDown, patchMessage],
+  );
+
+  const paintSam2Mask = useCallback((message: ChatMessage): void => {
+    const parked = mediaRetryRef.current;
+    const src = resolveFollowUpSourceImage({
+      attachment: parked?.attachments[0] ?? message.attachments?.[0],
+      lastPngBase64: lastPngB64Ref.current,
+      lastOutputRef: lastOutputRef.current,
+    });
+    if (src) {
+      setSeededAttachment(src.toLowerCase().startsWith("data:") ? src : pngToDataUrl(src));
+    }
+    setAdvancedOpen(true);
+  }, []);
+
+  const retrySam2 = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const parked = mediaRetryRef.current;
+      if (!parked || parked.assistantId !== message.id) return;
+      await handleSubmit(parked.text, parked.attachments, true, parked.assistantId);
+    },
+    [handleSubmit],
   );
 
   const pickCandidate = useCallback(
@@ -968,6 +1061,7 @@ export function ImageStudioPage({
           setMessages([]);
           setSeededAttachment(null);
           lastOutputRef.current = null;
+          lastPngB64Ref.current = null;
           pendingPromptRef.current = { text: "", attachments: [] };
           setFormEpoch((value) => value + 1);
         }}
@@ -1052,6 +1146,11 @@ export function ImageStudioPage({
             onRepairMediaRuntime={(message) => void repairMediaRuntime(message)}
             onCancelMediaRepair={(message) => void cancelMediaRepair(message)}
             onOpenMediaRepairLog={() => void mediaRuntimeClient.openLogLocation()}
+            onInstallSam2={(message) => void installSam2(message)}
+            onPaintSam2Mask={paintSam2Mask}
+            onOpenSam2Settings={onGetMoreModels ? () => onGetMoreModels() : undefined}
+            onRetrySam2={(message) => void retrySam2(message)}
+            sam2InstallDisabled={backendDown}
           />
         )}
       </div>

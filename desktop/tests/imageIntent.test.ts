@@ -58,6 +58,17 @@ describe("inferImageIntent", () => {
     expect(i.sourceImage).toBe("/tmp/fox.png");
   });
 
+  it("Make that puppy black with last output is img2img, not txt2img", () => {
+    const i = inferImageIntent({
+      text: "Make that puppy black",
+      attachments: [],
+      lastOutputRef: "data:image/png;base64,AAA",
+    });
+    expect(i.mode).toBe("img2img");
+    expect(i.sourceImage).toBe("data:image/png;base64,AAA");
+    expect(i.prompt).toBe("Make that puppy black");
+  });
+
   it("user attachment wins over lastOutputRef", () => {
     const i = inferImageIntent({
       text: "make it night",

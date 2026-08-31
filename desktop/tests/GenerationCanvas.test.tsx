@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GenerationCanvas,
   MediaRuntimeRecoveryCard,
+  Sam2RecoveryCard,
 } from "../src/components/GenerationCanvas";
 
 afterEach(() => {
@@ -126,5 +127,49 @@ describe("GenerationCanvas", () => {
       "data-beam-accent",
       "--accent-video",
     );
+  });
+});
+
+describe("Sam2RecoveryCard", () => {
+  it("offers install, paint-mask, and settings without auto-installing", () => {
+    const onInstall = vi.fn();
+    const onPaint = vi.fn();
+    render(
+      <Sam2RecoveryCard
+        modelId="sam2:hiera-tiny"
+        message="SAM2 weights are not installed."
+        onInstall={onInstall}
+        onPaintMask={onPaint}
+      />,
+    );
+    expect(screen.getByTestId("sam2-recovery")).toBeInTheDocument();
+    expect(screen.getByTestId("sam2-install")).toHaveTextContent("Install sam2:hiera-tiny");
+    fireEvent.click(screen.getByTestId("sam2-paint-mask"));
+    expect(onPaint).toHaveBeenCalledTimes(1);
+    expect(onInstall).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("sam2-retry")).toBeNull();
+  });
+
+  it("disables install when the sidecar is down and shows Retry after install", () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(
+      <Sam2RecoveryCard
+        modelId="sam2:hiera-tiny"
+        message="missing"
+        installDisabled
+        onRetry={onRetry}
+      />,
+    );
+    expect(screen.getByTestId("sam2-install")).toBeDisabled();
+    rerender(
+      <Sam2RecoveryCard
+        modelId="sam2:hiera-tiny"
+        message="missing"
+        installed
+        onRetry={onRetry}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("sam2-retry"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

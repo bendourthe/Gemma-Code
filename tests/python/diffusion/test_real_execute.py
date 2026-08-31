@@ -505,3 +505,28 @@ def test_wan_video_rejects_partial_raw_layout(
     with pytest.raises(base.RuntimeNotReady) as excinfo:
         real_execute.video_execute(_video_ctx("wan2.1-t2v-1.3b"))
     assert excinfo.value.kind == "model-layout-invalid"
+
+
+def test_decode_source_image_opens_an_existing_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    png = tmp_path / "fox.png"
+    png.write_bytes(b"stub")
+    opened: dict[str, object] = {}
+
+    class FakeImg:
+        def convert(self, mode: str) -> str:
+            opened["mode"] = mode
+            return "rgb"
+
+    class FakeImage:
+        @staticmethod
+        def open(target: object) -> FakeImg:
+            opened["target"] = str(target)
+            return FakeImg()
+
+    pil = types.ModuleType("PIL")
+    pil.Image = FakeImage  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "PIL", pil)
+    monkeypatch.setitem(sys.modules, "PIL.Image", FakeImage)
+    assert real_execute.decode_source_image(str(png)) == "rgb"
+    assert opened["mode"] == "RGB"
+    assert opened["target"] == str(png)
