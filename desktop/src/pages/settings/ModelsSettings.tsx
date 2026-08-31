@@ -7,7 +7,8 @@
  * tab. Search stays as a secondary filter. Unknown tasks land in Other so a
  * row is never dropped. Long description copy lives behind a closed details
  * disclosure, matching installer density. The installer Qt wizard is not
- * iframed.
+ * iframed. v2.4.2 Phase 5 drops the catalog fingerprint from the header and
+ * tightens page and card spacing so more rows fit.
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -259,8 +260,11 @@ export function ModelsSettings({ client, hostVramGB = null, gpuVendor = null }: 
 
   return (
     <section data-testid="settings-models" style={pageStyle}>
+      <div data-testid="models-chrome" style={chromeStyle}>
       <header style={headerStyle}>
-        <div><h1 style={{ margin: 0 }}>Models</h1>{client.catalogHash ? <small style={{ color: "var(--fg-muted)" }}>Catalog {client.catalogHash.slice(0, 12)}</small> : null}</div>
+        <div>
+          <h1 style={{ margin: 0 }}>Models</h1>
+        </div>
         <DiskSummary disk={disk} />
       </header>
 
@@ -273,10 +277,12 @@ export function ModelsSettings({ client, hostVramGB = null, gpuVendor = null }: 
           context="Installed models cannot be listed."
           testId="models-sidecar-down"
         />
-      ) : (
-        <div role="alert" aria-live="polite" style={{ minHeight: "1.5em", color: "var(--accent-warning, #d97706)" }}>
-          {error ?? ""}
+      ) : error ? (
+        <div role="alert" aria-live="polite" style={{ color: "var(--accent-warning, #d97706)" }}>
+          {error}
         </div>
+      ) : (
+        <div role="status" aria-live="polite" data-testid="models-status" style={visuallyHiddenStyle} />
       )}
 
       <div role="tablist" aria-label="Model catalog" style={tabListStyle}>
@@ -294,6 +300,7 @@ export function ModelsSettings({ client, hostVramGB = null, gpuVendor = null }: 
             {def.label}
           </Button>
         ))}
+      </div>
       </div>
 
       <label>
@@ -425,7 +432,7 @@ function ModelCard({
       data-over-budget={overBudget ? "true" : "false"}
       style={card}
     >
-      <div style={{ display: "flex", gap: "var(--space-3, 12px)", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: MODELS_CARD_INNER_GAP, alignItems: "flex-start" }}>
         <ModelIcon type={item.type} />
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* v2.2.9 Phase 5 (T010): one header row -- display name first, then
@@ -801,27 +808,47 @@ function starStyle(on: boolean): CSSProperties {
   };
 }
 
+export const MODELS_PAGE_GAP = "var(--space-3, 12px)";
+export const MODELS_HEADER_TO_TABS_GAP = "var(--space-1, 4px)";
+export const MODELS_CARD_PADDING = "var(--space-2, 8px)";
+export const MODELS_CARD_INNER_GAP = "var(--space-2, 8px)";
+
 const pageStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
   display: "flex",
   flexDirection: "column",
-  gap: "var(--space-4, 16px)",
-  padding: "var(--space-6, 24px)",
+  gap: MODELS_PAGE_GAP,
+  padding: "var(--space-4, 16px)",
   color: "var(--fg-0)",
   overflow: "hidden",
+  position: "relative",
+};
+
+const chromeStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: MODELS_HEADER_TO_TABS_GAP,
+};
+
+const visuallyHiddenStyle: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
 };
 
 const headerStyle: CSSProperties = {
   display: "flex",
   alignItems: "baseline",
   justifyContent: "space-between",
-  gap: "var(--space-4, 16px)",
+  gap: "var(--space-3, 12px)",
 };
 
 const tabListStyle: CSSProperties = {
   display: "flex",
-  gap: "var(--space-2, 8px)",
+  gap: "var(--space-1, 4px)",
   flexWrap: "wrap",
 };
 
@@ -855,7 +882,7 @@ const groupHeadingStyle: CSSProperties = {
 };
 
 const cardStyle: CSSProperties = {
-  padding: "var(--space-3, 12px)",
+  padding: MODELS_CARD_PADDING,
   border: "1px solid var(--border-1, #2a2a2a)",
   borderRadius: "var(--radius-2, 6px)",
   background: "var(--bg-1, transparent)",
@@ -869,8 +896,9 @@ const labelStyle: CSSProperties = {
 };
 
 const copyStyle: CSSProperties = {
-  margin: "4px 0 0",
+  margin: "2px 0 0",
   fontSize: "0.85em",
+  lineHeight: 1.35,
   color: "var(--fg-1, var(--fg-0))",
 };
 

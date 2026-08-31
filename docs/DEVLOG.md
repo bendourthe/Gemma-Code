@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.2 - field UI Phase 5 Settings Models density
+
+Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-5-settings-density.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Settings > Models no longer prints `Catalog <hex>` under the title. Disk summary stays.
+- Category tabs sit one spacing token under the title (the idle 1.5em alert slot is gone).
+- Cards keep every field with `--space-2` padding and a tighter description line-height.
+
+### Why It Changed
+
+Packaged 2.4.1 spent a tall header and card stack on a fingerprint the operator does not need.
+
+### Decisions Made
+
+- Keep `catalogHash` on `ModelsClient` for diagnostics; never render it.
+- Collapse the empty live region instead of reserving 1.5em between title and tabs.
+
+---
+
 ## [2026-08-31] v2.4.2 - field UI Phase 4 video fail-closed output
 
 Index: [plan](v2/v2.4/plans/v2.4.2-field-ui-history-and-generation.md), [history](v2/v2.4/development/history/2026-08-30_v2.4.2-phase-4-video-fail-closed.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
