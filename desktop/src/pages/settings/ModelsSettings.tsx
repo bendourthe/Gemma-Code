@@ -21,7 +21,6 @@ import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus"
 
 import {
   CATALOG_TAB_DEFS,
-  catalogTabsFor,
   catalogSortGpuVendor,
   installedOutsideCatalogModels,
   isCatalogOverBudget,
@@ -30,7 +29,7 @@ import {
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
 import { filterCatalog } from "../../shared/models/modelLibrary";
-import { buildModelPills } from "../../shared/models/modelPills";
+import { buildModelPills, splitModelPill } from "../../shared/models/modelPills";
 import {
   FAVORITE_STORAGE_PREFIX,
   readFavorite,
@@ -286,34 +285,41 @@ export function ModelsSettings({ client, hostVramGB = null, gpuVendor = null }: 
         <div role="status" aria-live="polite" data-testid="models-status" style={visuallyHiddenStyle} />
       )}
 
-      <div role="tablist" aria-label="Model catalog" style={tabListStyle}>
-        {tabDefs.map((def) => (
-          <Button
-            key={def.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === def.id}
-            testId={`models-tab-${def.id}`}
-            onClick={() => setTab(def.id)}
-            variant="ghost"
-            style={tabButtonStyle(tab === def.id)}
-          >
-            {def.label}
-          </Button>
-        ))}
+      {/*
+        v2.4.4 Phase 6.1 (T023): tabs and search share one row. Search used to
+        be a sibling below the chrome, which spent a whole row on a single
+        field and pushed the first card off the fold.
+      */}
+      <div style={tabRowStyle}>
+        <div role="tablist" aria-label="Model catalog" style={tabListStyle}>
+          {tabDefs.map((def) => (
+            <Button
+              key={def.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === def.id}
+              testId={`models-tab-${def.id}`}
+              onClick={() => setTab(def.id)}
+              variant="ghost"
+              style={tabButtonStyle(tab === def.id)}
+            >
+              {def.label}
+            </Button>
+          ))}
+        </div>
+        <label style={searchLabelStyle}>
+          {/* Hidden, not removed: the field keeps its accessible name. */}
+          <span style={visuallyHiddenStyle}>Search</span>
+          <SearchInput
+            testId="models-search"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search by name, type, or id"
+            label="Search models"
+          />
+        </label>
       </div>
       </div>
-
-      <label>
-        <span style={labelStyle}>Search</span>
-        <SearchInput
-          testId="models-search"
-          value={query}
-          onChange={setQuery}
-          placeholder="Search by name, type, or id"
-          label="Search models"
-        />
-      </label>
 
       {loading ? (
         <p data-testid="models-loading">Loading installed models...</p>
@@ -375,6 +381,26 @@ interface ModelCardProps {
   onCancel: () => void;
   onRemove?: () => void;
   onReveal?: () => void;
+}
+
+/**
+ * v2.4.4 Phase 6.3 (T025): keep "Why this one" only when it says something the
+ * pills and the Best for list do not already say. Most catalog entries phrase
+ * it as a restatement of the strengths or the license, and printing it then
+ * just makes Details longer without making it more informative.
+ */
+function whyAddsSomething(item: {
+  whyRecommended?: string | undefined;
+  strengths?: readonly string[] | undefined;
+  license?: string | undefined;
+}): boolean {
+  const why = item.whyRecommended?.trim();
+  if (!why) return false;
+  const normalized = why.toLowerCase();
+  if (item.license && normalized.includes(item.license.toLowerCase())) return false;
+  return !(item.strengths ?? []).some((strength) =>
+    normalized.includes(strength.trim().toLowerCase()),
+  );
 }
 
 function ModelCard({
@@ -492,14 +518,22 @@ function ModelCard({
           >
             {description}
           </p>
+          {/*
+            v2.4.4 Phase 6.2 (T024): one horizontal row, not a column. As a
+            column the star sat above the download/delete control and stretched
+            the grid row taller than the copy beside it, which is where the
+            empty space under every description came from.
+          */}
           <div
             data-testid={`models-actions-${item.id}`}
             style={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
               gap: "var(--space-2, 8px)",
               gridColumn: 2,
+              alignSelf: "center",
             }}
           >
             <Button
@@ -533,31 +567,40 @@ function ModelCard({
               style={{ marginTop: 4, gridColumn: "1 / -1" }}
             >
               <summary style={{ cursor: "pointer", fontSize: "0.8em", color: "var(--fg-muted)" }}>Details</summary>
+              {/*
+                v2.4.4 Phase 6.3 (T025): pills, then Best for. The ID/task
+                line, "Also agentic", the License paragraph, and the backend
+                model line all restated a pill that is already shown two lines
+                above, so Details was mostly its own echo.
+              */}
               {pills.length > 0 ? (
                 <span data-testid={`models-pills-${item.id}`} style={pillRowStyle}>
-                  {pills.map((pill) => (
-                    <span key={pill} style={chipStyle}>
-                      {pill}
-                    </span>
-                  ))}
+                  {pills.map((pill) => {
+                    const { label, value } = splitModelPill(pill);
+                    return (
+                      <span key={pill} style={chipStyle}>
+                        {label ? <span style={pillLabelStyle}>{label} </span> : null}
+                        <span style={pillValueStyle}>{value}</span>
+                      </span>
+                    );
+                  })}
                 </span>
               ) : null}
-              <p style={copyStyle}>ID: {item.id}{item.task ? `; task: ${item.task}` : ""}</p>
-              {catalogTabsFor(item).includes("agentic") && item.task === "chat" ? (
-                <p style={copyStyle}>Also agentic</p>
-              ) : null}
               {item.strengths && item.strengths.length > 0 ? (
-                <p data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
-                  Best for: {item.strengths.join(", ")}
-                </p>
+                <div data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
+                  <span style={pillLabelStyle}>Best for</span>
+                  <ul style={{ margin: "4px 0 0", paddingInlineStart: 20 }}>
+                    {item.strengths.map((strength) => (
+                      <li key={strength}>{strength}</li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
-              {item.whyRecommended ? (
+              {whyAddsSomething(item) ? (
                 <p data-testid={`models-row-${item.id}-why`} style={copyStyle}>
                   Why this one: {item.whyRecommended}
                 </p>
               ) : null}
-              {item.license ? <p style={copyStyle}>License: {item.license}</p> : null}
-              {item.family || item.tag ? <p style={copyStyle}>Backend model: {item.family ?? item.id}{item.tag ? `:${item.tag}` : ""}</p> : null}
               {components.length > 0 ? (
                 <div data-testid={`models-row-${item.id}-components`} style={copyStyle}>
                   Components:
@@ -926,6 +969,26 @@ const tabListStyle: CSSProperties = {
   flexWrap: "wrap",
 };
 
+/**
+ * v2.4.4 Phase 6.1 (T023): tabs left, search right, on one line. Wrapping is
+ * allowed so a narrow Settings pane drops search below the tabs rather than
+ * forcing the page to scroll sideways.
+ */
+const tabRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "var(--space-2, 8px)",
+};
+
+const searchLabelStyle: CSSProperties = {
+  display: "block",
+  flex: "1 1 14rem",
+  minWidth: "10rem",
+  maxWidth: "22rem",
+};
+
 const sectionStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -962,11 +1025,19 @@ const cardStyle: CSSProperties = {
   background: "var(--bg-1, transparent)",
 };
 
-const labelStyle: CSSProperties = {
-  display: "block",
-  fontSize: "0.8em",
+/**
+ * v2.4.4 Phase 6.3 (T025): the label half of a pill is muted and lighter so
+ * the value it introduces is what the eye lands on. Rendering both halves in
+ * one weight is what made `Company: Google` read as an undifferentiated blob.
+ */
+const pillLabelStyle: CSSProperties = {
   color: "var(--fg-muted)",
-  marginBottom: "2px",
+  fontWeight: 400,
+};
+
+const pillValueStyle: CSSProperties = {
+  color: "var(--fg-0)",
+  fontWeight: 500,
 };
 
 const copyStyle: CSSProperties = {
