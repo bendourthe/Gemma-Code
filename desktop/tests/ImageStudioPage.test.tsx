@@ -287,7 +287,12 @@ describe("ImageStudioPage (chat)", () => {
     expect(
       STUDIO_PENDING_CAPTIONS.some((caption) => screen.queryByText(caption) !== null),
     ).toBe(true);
-    expect(screen.queryByText("Generating...")).toBeNull();
+    // The old assertion here was that "Generating..." is absent, meaning "no
+    // second status label beside the orb". "Generating..." is now one of the
+    // three studio captions, so as written it failed whenever the per-bubble
+    // shuffle happened to land on it -- a one-in-three flake. The intent moves
+    // to the composer: the pending signal must still be the orb alone.
+    expect(screen.queryByTestId("image-studio-status-label")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
   });
 
