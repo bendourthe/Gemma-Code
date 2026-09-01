@@ -68,3 +68,37 @@ describe("restylePromptFor", () => {
     expect(usesSegment(intent!)).toBe(false);
   });
 });
+
+/**
+ * v2.4.4 Phase 3 (T012) -- restyle identity.
+ *
+ * Field screenshot 3 showed "Make the puppy black" returning the tan puppy
+ * unchanged, across two cycles. The two contributors covered here are the
+ * parser refusing a trailing period (which dropped the request to a plain
+ * txt2img of the original prompt) and a restyle send that could resolve to
+ * anything other than img2img with real source bytes.
+ */
+describe("restyle identity (v2.4.4 Phase 3)", () => {
+  it("parses the restyle even with trailing sentence punctuation", () => {
+    for (const text of [
+      "Make the puppy black",
+      "Make the puppy black.",
+      "Make the puppy black!",
+      "Make the puppy black. ",
+    ]) {
+      const intent = parseReplaceIntent(text);
+      expect(intent, text).not.toBeNull();
+      expect(intent!.scope).toBe("image");
+      expect(intent!.object).toBe("puppy");
+      expect(intent!.replacement).toBe("black");
+      // A whole-image restyle must never reach SAM2.
+      expect(usesSegment(intent!)).toBe(false);
+    }
+  });
+
+  it("keeps the identity prompt so the model edits rather than reinvents", () => {
+    const prompt = restylePromptFor(parseReplaceIntent("Make the puppy black.")!);
+    expect(prompt).toMatch(/Keep the same composition/);
+    expect(prompt).toMatch(/Do not generate a different puppy/);
+  });
+});

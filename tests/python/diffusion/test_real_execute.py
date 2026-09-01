@@ -704,3 +704,176 @@ def test_decode_source_image_opens_an_existing_path(tmp_path: Path, monkeypatch:
     assert real_execute.decode_source_image(str(png)) == "rgb"
     assert opened["mode"] == "RGB"
     assert opened["target"] == str(png)
+
+
+# --- v2.4.4 Phase 3 (T012): restyle identity on the GPU path ----------------
+#
+# Field screenshot 3 showed "Make the puppy black" returning the tan puppy
+# unchanged, twice. Three defects in `image_execute` could each cause it: a
+# `strength or 0.75` that rewrote a caller's real value, a seed that was never
+# forwarded so the generator was unseeded, and no check at all that the output
+# differed from the input. These tests pin all three.
+
+
+def _img2img_ctx(strength, tmp_path: Path) -> base.ExecutionContext:
+    from PIL import Image  # type: ignore[import-not-found]
+    import base64 as _b64
+    import io as _io
+
+    buf = _io.BytesIO()
+    Image.new("RGB", (8, 8), (200, 170, 120)).save(buf, format="PNG")
+    source = _b64.b64encode(buf.getvalue()).decode("ascii")
+    request = {
+        "modelId": "sana-1.6b-1024",
+        "prompt": "Keep the same composition. Change the puppy's fur to black.",
+        "width": 8,
+        "height": 8,
+        "steps": 1,
+        "cfgScale": 1.0,
+        "sampler": "euler_a",
+        "seed": 4242,
+        "sourceImage": source,
+        "strength": strength,
+    }
+    return base.ExecutionContext(
+        job_id="job-restyle",
+        mode="img2img",
+        params=base.params.parse("img2img", request),
+        offload_strategy="cpu",
+    )
+
+
+class _RecordingPipe:
+    """Stub pipeline that records kwargs and returns a chosen image."""
+
+    def __init__(self, image):
+        self._image = image
+        self.kwargs = None
+
+    def __call__(self, **kwargs):
+        self.kwargs = kwargs
+        return types.SimpleNamespace(images=[self._image])
+
+
+class _FakeGenerator:
+    def __init__(self, device: str):
+        self.device = device
+        self._seed = None
+
+    def manual_seed(self, seed: int):
+        self._seed = seed
+        return self
+
+    def initial_seed(self) -> int:
+        return self._seed
+
+
+def _install_fake_torch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """torch is not installed in the unit environment; the seed contract is."""
+    fake = types.ModuleType("torch")
+    fake.Generator = lambda device="cpu": _FakeGenerator(device)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", fake)
+
+
+def _prepare(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, pipe) -> None:
+    _install_fake_torch(monkeypatch)
+    weights = tmp_path / "weights" / "sana-1.6b-1024"
+    weights.mkdir(parents=True)
+    (weights / "model_index.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(tmp_path))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: False)
+    monkeypatch.setattr(real_execute, "allow_cpu", lambda: True)
+    monkeypatch.setattr(real_execute, "_load_image_pipe", lambda *a, **k: pipe)
+    monkeypatch.setattr(real_execute, "_move_pipe", lambda *a, **k: None)
+
+
+def test_restyle_forwards_exact_strength_and_seeded_generator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from PIL import Image  # type: ignore[import-not-found]
+
+    pipe = _RecordingPipe(Image.new("RGB", (8, 8), (10, 10, 10)))
+    _prepare(monkeypatch, tmp_path, pipe)
+
+    out = real_execute.image_execute(_img2img_ctx(0.85, tmp_path))
+
+    assert pipe.kwargs is not None
+    assert pipe.kwargs["strength"] == 0.85
+    # The seed must actually reach the pipeline; an unseeded generator makes a
+    # restyle unreproducible and its failures undiagnosable.
+    assert pipe.kwargs["generator"] is not None
+    assert pipe.kwargs["generator"].initial_seed() == 4242
+    assert out.extra["mode"] == "img2img"
+    assert out.extra["strength"] == 0.85
+
+
+def test_restyle_does_not_rewrite_a_deliberate_zero_strength(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from PIL import Image  # type: ignore[import-not-found]
+
+    pipe = _RecordingPipe(Image.new("RGB", (8, 8), (10, 10, 10)))
+    _prepare(monkeypatch, tmp_path, pipe)
+
+    real_execute.image_execute(_img2img_ctx(0.0, tmp_path))
+
+    # `strength or 0.75` silently turned a real 0 into 0.75, so the value the
+    # UI chose was not the value the pipeline ran.
+    assert pipe.kwargs["strength"] == 0.0
+
+
+def test_restyle_fails_closed_when_the_pipeline_echoes_the_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from PIL import Image  # type: ignore[import-not-found]
+
+    # A pipeline that returns the source unchanged is exactly the observed
+    # field behavior. It must be an error, not a successful-looking turn.
+    echo = Image.new("RGB", (8, 8), (200, 170, 120))
+    pipe = _RecordingPipe(echo)
+    _prepare(monkeypatch, tmp_path, pipe)
+
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute.image_execute(_img2img_ctx(0.85, tmp_path))
+    assert excinfo.value.kind == "unchanged-output"
+    assert "unchanged" in str(excinfo.value)
+
+
+def test_restyle_reports_source_and_output_digests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from PIL import Image  # type: ignore[import-not-found]
+
+    pipe = _RecordingPipe(Image.new("RGB", (8, 8), (10, 10, 10)))
+    _prepare(monkeypatch, tmp_path, pipe)
+
+    out = real_execute.image_execute(_img2img_ctx(0.85, tmp_path))
+
+    assert out.extra["sourceDigest"]
+    assert out.extra["outputDigest"]
+    assert out.extra["outputDigest"] != out.extra["sourceDigest"]
+
+
+def test_txt2img_reports_no_source_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from PIL import Image  # type: ignore[import-not-found]
+
+    pipe = _RecordingPipe(Image.new("RGB", (8, 8), (10, 10, 10)))
+    weights = tmp_path / "weights" / "sana-1.6b-1024"
+    weights.mkdir(parents=True)
+    (weights / "model_index.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("NEXUS_MODELS_ROOT", str(tmp_path))
+    monkeypatch.setattr(real_execute, "gpu_ready", lambda: False)
+    monkeypatch.setattr(real_execute, "allow_cpu", lambda: True)
+    monkeypatch.setattr(real_execute, "_load_text_pipe", lambda *a, **k: pipe)
+    monkeypatch.setattr(real_execute, "_move_pipe", lambda *a, **k: None)
+    _install_fake_torch(monkeypatch)
+
+    out = real_execute.image_execute(_image_ctx())
+
+    assert out.extra["sourceDigest"] is None
+    assert out.extra["outputDigest"]
+    # A fresh generation has nothing to compare against, so the clone guard
+    # must not fire on it.
+    assert pipe.kwargs["generator"].initial_seed() == 1

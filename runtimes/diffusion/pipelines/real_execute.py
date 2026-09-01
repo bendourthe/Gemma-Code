@@ -17,6 +17,7 @@ this diffusion venv has a CUDA torch build.
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import os
 import traceback
@@ -87,6 +88,17 @@ def _png_bytes(image) -> bytes:
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _image_digest(raw: bytes) -> str:
+    """Short content digest used to prove a restyle actually changed pixels.
+
+    v2.4.4 Phase 3: two field cycles shipped a "restyle" that returned the
+    previous PNG. A digest on the decoded source and on the produced PNG makes
+    "the output is a clone of the input" an observable fact in `extra` and an
+    assertable one in tests, instead of something only a human eye catches.
+    """
+    return hashlib.sha256(raw).hexdigest()[:16]
 
 
 def _torch_dtype():
@@ -185,6 +197,28 @@ def _load_image_pipe(weights: Path, model_id: str):
     return AutoPipelineForImage2Image.from_pipe(_load_text_pipe(weights, model_id))
 
 
+#: Applied only when the caller sends no strength at all. Kept as a named
+#: constant so `strength=0` stays distinguishable from "unset" (v2.4.4 P3.2).
+DEFAULT_IMG2IMG_STRENGTH = 0.75
+
+
+def _seeded_generator(seed: int) -> dict:
+    """Pipeline kwargs carrying a seeded generator, or `{}` when torch is absent.
+
+    v2.4.4 Phase 3.2: `image_execute` never forwarded the seed, so an image
+    edit was unreproducible and a bad restyle could not be re-run and compared.
+    Returned as kwargs rather than a value so a torch-less environment (the
+    stub executor, and the unit tests) still runs the same code path instead
+    of failing on an import it does not need.
+    """
+    try:
+        import torch  # type: ignore[import-not-found]
+    except Exception:  # noqa: BLE001 - seeding is best-effort, never fatal
+        return {}
+    device = "cuda" if gpu_ready() else "cpu"
+    return {"generator": torch.Generator(device=device).manual_seed(seed)}
+
+
 def image_execute(ctx: ExecutionContext) -> PipelineOutput:
     """Run a real txt2img / img2img (and friends) or raise RuntimeNotReady."""
     _require_accelerator()
@@ -196,22 +230,35 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
         )
     if ctx.mode == "img2img" and model_id.lower().endswith("-int4"):
         raise RuntimeNotReady("img2img is not supported for INT4 SANA weights")
+    source_digest: str | None = None
+    strength: float | None = None
     try:
+        seeded = _seeded_generator(ctx.params.seed)
         if ctx.mode == "img2img":
             if not ctx.params.source_image:
                 raise RuntimeNotReady("img2img requires source image bytes")
             pipe = _load_image_pipe(weights, model_id)
             _move_pipe(pipe, ctx.offload_strategy)
             source = _decode_pil(ctx.params.source_image)
+            source_digest = _image_digest(_png_bytes(source))
+            # v2.4.4 Phase 3.2: an explicit None check, not `or`. A caller that
+            # deliberately sends strength 0 used to be silently rewritten to
+            # 0.75, so the number the UI chose never reached the pipeline.
+            strength = (
+                DEFAULT_IMG2IMG_STRENGTH
+                if ctx.params.strength is None
+                else ctx.params.strength
+            )
             result = pipe(
                 prompt=ctx.params.prompt,
                 negative_prompt=ctx.params.negative_prompt or None,
                 image=source,
-                strength=ctx.params.strength or 0.75,
+                strength=strength,
                 num_inference_steps=ctx.params.steps,
                 guidance_scale=ctx.params.cfg_scale,
                 width=ctx.params.width,
                 height=ctx.params.height,
+                **seeded,
             )
         elif ctx.mode in {"inpaint", "outpaint"}:
             raise RuntimeNotReady(
@@ -227,11 +274,30 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
                 guidance_scale=ctx.params.cfg_scale,
                 width=ctx.params.width,
                 height=ctx.params.height,
+                **seeded,
             )
         image = result.images[0]
+        png = _png_bytes(image)
+        output_digest = _image_digest(png)
+        if source_digest is not None and output_digest == source_digest:
+            # Fail closed rather than present the previous picture as a new
+            # one. Screenshots 3 across two cycles were exactly this: a turn
+            # that looked successful and had changed nothing.
+            raise RuntimeNotReady(
+                "image runtime is not ready: unchanged-output: the edit "
+                "returned the source image unchanged",
+                kind="unchanged-output",
+            )
         return PipelineOutput(
-            png_bytes=_png_bytes(image),
-            extra={"stubbed": False, "mode": ctx.mode, "jobId": ctx.job_id},
+            png_bytes=png,
+            extra={
+                "stubbed": False,
+                "mode": ctx.mode,
+                "jobId": ctx.job_id,
+                "sourceDigest": source_digest,
+                "outputDigest": output_digest,
+                "strength": strength,
+            },
         )
     except RuntimeNotReady:
         raise

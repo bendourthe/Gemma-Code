@@ -64,7 +64,7 @@ import { parseReplaceIntent, inpaintPromptFor, restylePromptFor, usesSegment } f
 import {
   FOLLOWUP_IMG2IMG_STRENGTH,
   MISSING_RESTYLE_SOURCE_TEXT,
-  RESTYLE_IMG2IMG_STRENGTH,
+  planRestyleRequest,
   SAM2_MODEL_ID,
   pngToDataUrl,
   resolveFollowUpSourceImage,
@@ -825,15 +825,39 @@ export function ImageStudioPage({
         }
 
         let accepted;
-        if (intent.mode === "txt2img") {
+        // v2.4.4 Phase 3.1 (T010): a restyle is decided here and only here.
+        // Previously it depended on `intent.mode`, which is inferred from the
+        // presence of a source and knows nothing about restyle; any path that
+        // produced "txt2img" silently reprinted the original prompt instead.
+        const restylePlan =
+          restyle && replace
+            ? planRestyleRequest({
+                restylePrompt: restylePromptFor(replace),
+                sourceImage: attachments[0] ?? implicitSource,
+              })
+            : null;
+        if (restyle && !restylePlan) {
+          patchMessage(assistantId, {
+            pending: false,
+            content: MISSING_RESTYLE_SOURCE_TEXT,
+          });
+          persistTurn({ role: "assistant", content: MISSING_RESTYLE_SOURCE_TEXT });
+          return;
+        }
+        if (restylePlan) {
+          accepted = await client.img2img({
+            ...base,
+            prompt: restylePlan.prompt,
+            sourceImage: restylePlan.sourceImage,
+            strength: restylePlan.strength,
+          });
+        } else if (intent.mode === "txt2img") {
           accepted = await client.txt2img(base);
         } else if (intent.mode === "img2img") {
           accepted = await client.img2img({
             ...base,
             sourceImage: intent.sourceImage ?? implicitSource ?? "",
-            ...((followUpImg2img || restyle)
-              ? { strength: restyle ? RESTYLE_IMG2IMG_STRENGTH : FOLLOWUP_IMG2IMG_STRENGTH }
-              : {}),
+            ...(followUpImg2img ? { strength: FOLLOWUP_IMG2IMG_STRENGTH } : {}),
           });
         } else if (intent.mode === "inpaint") {
           accepted = await client.inpaint({

@@ -19,8 +19,11 @@ const REPLACE_RE =
 const REMOVE_RE = /\b(remove|erase|delete)\s+(?:the\s+|a\s+|an\s+)?(.+)$/i;
 const RECOLOR_RE =
   /\b(recolor|re-colour|recolour|paint)\s+(?:the\s+|a\s+|an\s+)?(.+?)\s+(?:to|as)\s+(.+)$/i;
+// v2.4.4 Phase 3.2: allow trailing sentence punctuation. "Make the puppy
+// black." parsed as no intent at all, so the send fell through to a plain
+// txt2img of the ORIGINAL prompt -- the exact reprint in field screenshot 3.
 const MAKE_RESTYLE_RE =
-  /\bmake\s+(?:that|the|this)\s+(.+?)\s+(black|white|red|blue|green|yellow|orange|purple|pink|brown|grey|gray|gold|silver|navy|teal|cyan|beige|cream|darker|brighter|dark|bright|night|snowy|vintage|cinematic|warm|cool|golden|moody)\s*$/i;
+  /\bmake\s+(?:that|the|this)\s+(.+?)\s+(black|white|red|blue|green|yellow|orange|purple|pink|brown|grey|gray|gold|silver|navy|teal|cyan|beige|cream|darker|brighter|dark|bright|night|snowy|vintage|cinematic|warm|cool|golden|moody)\s*[.!?]*\s*$/i;
 
 const AMBIGUOUS = /\b(people|them|these|those|cars|dogs|cats|ones)\b/i;
 

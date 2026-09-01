@@ -17,7 +17,10 @@ describe("followUpSource", () => {
       }),
     ).toBe("data:image/png;base64,PNGB64==");
     expect(FOLLOWUP_IMG2IMG_STRENGTH).toBe(0.45);
-    expect(RESTYLE_IMG2IMG_STRENGTH).toBe(0.7);
+    // v2.4.4 Phase 3.2: raised from 0.7, which still returned a picture that
+    // read identical to the source in the packaged field build.
+    expect(RESTYLE_IMG2IMG_STRENGTH).toBe(0.85);
+    expect(RESTYLE_IMG2IMG_STRENGTH).toBeGreaterThan(FOLLOWUP_IMG2IMG_STRENGTH);
   });
 
   it("keeps a user attachment ahead of the last output", () => {

@@ -10,6 +10,7 @@ import { InMemoryDiffusionClient } from "../src/modules/image/diffusionClient";
 import { InMemoryGenerationQueueClient } from "../src/shared/studio/generationQueueClient";
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
+import { RESTYLE_IMG2IMG_STRENGTH } from "../src/modules/image/followUpSource";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
 
@@ -716,7 +717,11 @@ describe("ImageStudioPage (chat)", () => {
     expect((client.lastRequest?.request as { sourceImage: string }).sourceImage).toBe(
       "data:image/png;base64,PNGB64==",
     );
-    expect((client.lastRequest?.request as { strength?: number }).strength).toBe(0.7);
+    // v2.4.4 Phase 3.2: 0.7 shipped in v2.4.3 and still returned a picture
+    // indistinguishable from the source in the field.
+    expect((client.lastRequest?.request as { strength?: number }).strength).toBe(
+      RESTYLE_IMG2IMG_STRENGTH,
+    );
     expect((client.lastRequest?.request as { prompt?: string }).prompt).toMatch(
       /Keep the same composition/,
     );
