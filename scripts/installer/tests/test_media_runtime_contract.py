@@ -135,3 +135,72 @@ def test_installed_media_harness_uses_sidecar_and_strict_probes() -> None:
     ):
         assert contract in harness
     assert "mode = 'text2video'" not in harness
+
+
+# --- v2.4.4 Phase 4 (T016): the Diffusers pin must export the SANA classes ---
+#
+# Field screenshot 4 was an instant `ImportError: cannot import name
+# 'SanaVideoPipeline' from 'diffusers'` in the packaged venv. The catalog
+# layout and the executor were both correct; the pin was not. `diffusers`
+# 0.34.0 and 0.35.x ship `SanaPipeline` but no SANA video pipeline at all --
+# 0.36.0 is the first release that carries both.
+
+#: First Diffusers release whose distribution contains `diffusers/pipelines/
+#: sana_video/pipeline_sana_video.py` and exports both SANA classes. Verified
+#: against the published wheels on 2026-08-31.
+MIN_SANA_VIDEO_DIFFUSERS = (0, 36, 0)
+
+
+def _pinned_version(requirements: list[str], package: str) -> tuple[int, ...]:
+    for entry in requirements:
+        name, _, version = entry.partition("==")
+        if name.strip().lower() == package:
+            return tuple(int(part) for part in version.strip().split("."))
+    raise AssertionError(f"{package} is not pinned in {requirements}")
+
+
+def test_diffusers_pin_exports_both_sana_pipelines() -> None:
+    repair_lock = _json(REPO_ROOT / "runtimes" / "diffusion" / "runtime-lock.json")
+    installer_lock = _json(
+        REPO_ROOT / "scripts" / "installer" / "build" / "versions.lock.json"
+    )["diffusion"]
+    for requirements in (
+        repair_lock["runtimeRequirements"],
+        installer_lock["runtimeRequirements"],
+    ):
+        assert _pinned_version(requirements, "diffusers") >= MIN_SANA_VIDEO_DIFFUSERS
+
+
+def test_diffusers_stays_pinned_never_floating() -> None:
+    # An unpinned or range-pinned diffusers would let a future resolver pick a
+    # release that drops the class again, reproducing the field error silently.
+    for path, key in (
+        (REPO_ROOT / "runtimes" / "diffusion" / "runtime-lock.json", None),
+        (
+            REPO_ROOT / "scripts" / "installer" / "build" / "versions.lock.json",
+            "diffusion",
+        ),
+    ):
+        lock = _json(path)
+        if key:
+            lock = lock[key]
+        entries = [
+            entry
+            for entry in lock["runtimeRequirements"]
+            if entry.lower().startswith("diffusers")
+        ]
+        assert len(entries) == 1
+        assert entries[0].startswith("diffusers==")
+
+
+def test_torch_pin_is_unchanged_by_the_diffusers_bump() -> None:
+    # 0.36.0 declares no torch or transformers upper bound, so the existing
+    # cu121 stack stays valid. Pinning that fact keeps a later bump honest.
+    repair_lock = _json(REPO_ROOT / "runtimes" / "diffusion" / "runtime-lock.json")
+    assert _pinned_version(repair_lock["runtimeRequirements"], "transformers") == (
+        4,
+        53,
+        2,
+    )
+    for target in repair_lock["targets"].values():
+        assert "torch==2.3.0" in target["torchRequirements"]

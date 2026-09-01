@@ -877,3 +877,85 @@ def test_txt2img_reports_no_source_digest(
     # A fresh generation has nothing to compare against, so the clone guard
     # must not fire on it.
     assert pipe.kwargs["generator"].initial_seed() == 1
+
+
+
+# --- v2.4.4 Phase 4 (T016): honest missing-class errors -------------------
+#
+# Field screenshot 4 put a raw `ImportError: cannot import name
+# 'SanaVideoPipeline' from 'diffusers'` straight into the chat bubble. A
+# missing pipeline class means the media runtime was provisioned from a pin
+# that does not carry it, so it is a typed `diffusers-missing` not-ready with
+# a sentence naming the class and the installed version. Image SANA is probed
+# the same way; before this phase it had no guard at all and leaked the raw
+# error through the generic exception wrapper.
+
+
+def _diffusers_without(monkeypatch: pytest.MonkeyPatch, *missing: str) -> None:
+    fake = types.ModuleType("diffusers")
+    fake.__version__ = "0.34.0"
+    for name in ("SanaPipeline", "SanaVideoPipeline", "WanPipeline"):
+        if name not in missing:
+            setattr(fake, name, object())
+    monkeypatch.setitem(sys.modules, "diffusers", fake)
+
+
+def test_missing_sana_video_class_is_typed_not_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    _diffusers_without(monkeypatch, "SanaVideoPipeline")
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: None)
+
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute._load_video_pipeline("sana", tmp_path)
+
+    assert excinfo.value.kind == "diffusers-missing"
+    message = str(excinfo.value)
+    assert "SanaVideoPipeline" in message
+    # The installed version is the fact that separates a bad pin from a bad
+    # model directory, so the sentence must carry it.
+    assert "0.34.0" in message
+    # No raw import traceback text in a user-visible sentence.
+    assert "cannot import name" not in message
+
+
+def test_missing_image_sana_class_is_typed_too(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    _diffusers_without(monkeypatch, "SanaPipeline")
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: None)
+    (tmp_path / "model_index.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(base.RuntimeNotReady) as excinfo:
+        real_execute._load_text_pipe(tmp_path, "sana-1.6b-1024")
+
+    assert excinfo.value.kind == "diffusers-missing"
+    assert "SanaPipeline" in str(excinfo.value)
+
+
+def test_present_sana_video_class_is_used_and_never_wan(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    calls: list[str] = []
+
+    class _Sana:
+        @staticmethod
+        def from_pretrained(path, **kwargs):
+            calls.append("sana")
+            return "sana-pipe"
+
+    class _Wan:
+        @staticmethod
+        def from_pretrained(path, **kwargs):
+            calls.append("wan")
+            return "wan-pipe"
+
+    fake = types.ModuleType("diffusers")
+    fake.__version__ = "0.36.0"
+    fake.SanaVideoPipeline = _Sana
+    fake.WanPipeline = _Wan
+    monkeypatch.setitem(sys.modules, "diffusers", fake)
+    monkeypatch.setattr(real_execute, "_torch_dtype", lambda: None)
+
+    assert real_execute._load_video_pipeline("sana", tmp_path) == "sana-pipe"
+    assert calls == ["sana"]

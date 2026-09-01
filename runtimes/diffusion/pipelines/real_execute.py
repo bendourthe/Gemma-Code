@@ -162,13 +162,44 @@ def _pipeline_load_kwargs(weights: Path) -> dict[str, object]:
     return kwargs
 
 
+def _installed_diffusers_version() -> str:
+    """Best-effort version string for the missing-class sentence."""
+    try:
+        import diffusers  # type: ignore[import-not-found]
+
+        return str(getattr(diffusers, "__version__", "unknown"))
+    except Exception:  # noqa: BLE001 - the sentence must never itself raise
+        return "not installed"
+
+
+def _import_diffusers_class(surface: str, name: str):
+    """Import one Diffusers pipeline class or fail closed with a sentence.
+
+    v2.4.4 Phase 4.2: the packaged venv pinned a Diffusers release that has no
+    `SanaVideoPipeline`, and the raw `ImportError: cannot import name ...` was
+    what reached the chat bubble. A missing class is a runtime that was never
+    provisioned for this model, so it is reported as `diffusers-missing` with
+    a sentence naming both the class and the version actually installed -- the
+    two facts needed to tell a bad pin from a bad model directory.
+    """
+    try:
+        module = __import__("diffusers", fromlist=[name])
+        return getattr(module, name)
+    except Exception as exc:  # noqa: BLE001 - typed not-ready, not a traceback
+        raise RuntimeNotReady(
+            f"{surface} runtime is not ready: diffusers-missing: the installed "
+            f"diffusers ({_installed_diffusers_version()}) does not provide "
+            f"{name}. Reinstall the media runtime from Settings.",
+            kind="diffusers-missing",
+        ) from exc
+
+
 def _load_text_pipe(weights: Path, model_id: str):
     kwargs = _pipeline_load_kwargs(weights)
     if (weights / "model_index.json").is_file():
         if model_id.lower().startswith("sana"):
-            from diffusers import SanaPipeline  # type: ignore[import-not-found]
-
-            return SanaPipeline.from_pretrained(str(weights), **kwargs)
+            sana = _import_diffusers_class("image", "SanaPipeline")
+            return sana.from_pretrained(str(weights), **kwargs)
         from diffusers import (
             AutoPipelineForText2Image,  # type: ignore[import-not-found]
         )
@@ -359,14 +390,8 @@ def _load_video_pipeline(kind: str, weights: Path):
         "local_files_only": True,
     }
     if kind == "sana":
-        try:
-            from diffusers import SanaVideoPipeline  # type: ignore[import-not-found]
-        except Exception as exc:  # noqa: BLE001 - typed not-ready, not a complete event
-            raise RuntimeNotReady(
-                f"video runtime is not ready: {type(exc).__name__}: {exc}",
-                kind="diffusers-missing",
-            ) from exc
-        return SanaVideoPipeline.from_pretrained(str(weights), **kwargs)
+        sana_video = _import_diffusers_class("video", "SanaVideoPipeline")
+        return sana_video.from_pretrained(str(weights), **kwargs)
     from diffusers import WanPipeline  # type: ignore[import-not-found]
 
     return WanPipeline.from_pretrained(str(weights), **kwargs)

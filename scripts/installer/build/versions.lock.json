@@ -34,7 +34,7 @@
     },
     "runtimeIndexUrl": "https://pypi.org/simple",
     "runtimeRequirements": [
-      "diffusers==0.34.0",
+      "diffusers==0.36.0",
       "transformers==4.53.2",
       "accelerate==1.8.1",
       "safetensors==0.5.3",
