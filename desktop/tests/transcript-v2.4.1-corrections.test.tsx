@@ -70,15 +70,18 @@ describe("v2.4.1 transcript corrections", () => {
     expect(screen.getByLabelText("Model-provided reasoning").textContent).toBe(REASONING);
   });
 
-  it("keeps the unbubbled pending lane inset and uncropped", () => {
+  it("keeps the unbubbled pending lane uncropped and on the list gutter", () => {
     render(
       <MessageBubble
         message={{ id: "pending", role: "assistant", content: "", pending: true }}
       />,
     );
+    // v2.4.4 Phase 1 (T001): the lane's left offset moved to the single
+    // transcript gutter on MessageList. Keeping a `var(--space-2)` inline
+    // padding here as well is what stacked into the drifted-right pill.
     expect(screen.getByTestId("message-pending-pending")).toHaveStyle({
       maxWidth: "min(100%, 24rem)",
-      paddingInline: "var(--space-2)",
+      paddingInline: "0px",
       boxSizing: "border-box",
       overflow: "visible",
     });

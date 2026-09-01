@@ -18,7 +18,6 @@ import {
   CAPTION_ROTATE_INTERVAL_MS,
   longestPendingCaption,
   PENDING_CAPTIONS,
-  PENDING_PILL_INSET_PX,
   pendingCaptionState,
   shufflePendingCaptions,
 } from "../src/components/agentState/captionRotator";
@@ -153,11 +152,13 @@ describe("MessageBubble pending pill", () => {
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(orb).toHaveAttribute("data-orb-pill", "true");
     expect(PENDING_CAPTIONS).toContain(captionText());
-    expect(orb.style.marginLeft).toBe(`${PENDING_PILL_INSET_PX}px`);
+    // v2.4.4 Phase 1: the pill takes its left offset from the list gutter, so
+    // neither the orb nor the pending row may add a second inset.
+    expect(orb.style.marginLeft).toBe("");
     expect(orb.style.minWidth).toContain(`${longestPendingCaption().length}ch`);
     const pending = screen.getByTestId("message-pending-p1");
     expect(pending.style.overflow).toBe("visible");
-    expect(pending.style.paddingLeft).toContain(String(PENDING_PILL_INSET_PX));
+    expect(pending.style.paddingInline).toBe("0px");
   });
 
   it("keeps Image/Video pending on the hero preset without the pill", () => {

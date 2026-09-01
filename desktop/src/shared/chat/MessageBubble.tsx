@@ -9,7 +9,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
-import { PENDING_PILL_INSET_PX } from "../../components/agentState/captionRotator";
 import {
   bubbleTokenMetadata,
   formatBubbleTime,
@@ -160,9 +159,10 @@ export function MessageBubble({
             gap: "var(--space-2)",
             width: studioPending ? "100%" : "fit-content",
             overflow: "visible",
-            paddingLeft: studioPending
-              ? 0
-              : `calc(var(--space-2) + ${PENDING_PILL_INSET_PX}px)`,
+            // v2.4.4 Phase 1.1: the transcript gutter on MessageList is the
+            // only left offset. Adding one here again is what pushed the pill
+            // inches into the pane.
+            paddingLeft: 0,
             minHeight: studioPending ? "12rem" : "5.5rem",
           }}
         >
@@ -266,10 +266,10 @@ function PendingMessage({
         gap: "var(--space-2)",
         width: studioPending ? "100%" : "fit-content",
         maxWidth: studioPending ? "100%" : "min(100%, 24rem)",
-        paddingInline: studioPending ? 0 : "var(--space-2)",
-        paddingLeft: studioPending
-          ? 0
-          : `calc(var(--space-2) + ${PENDING_PILL_INSET_PX}px)`,
+        // v2.4.4 Phase 1.1 (T001): no inline padding here. The pending row is
+        // an assistant row and takes its left margin from the list gutter, the
+        // same one a completed assistant bubble sits on.
+        paddingInline: 0,
         boxSizing: "border-box",
         overflow: "visible",
         minHeight: studioPending ? "12rem" : undefined,

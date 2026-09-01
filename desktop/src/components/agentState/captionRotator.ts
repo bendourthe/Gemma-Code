@@ -26,8 +26,6 @@ export function longestPendingCaption(): PendingCaption {
   return PENDING_CAPTIONS.reduce((a, b) => (a.length >= b.length ? a : b));
 }
 
-/** Left inset so pill box-shadow / drop-shadow is not cropped by the pane. */
-export const PENDING_PILL_INSET_PX = 12;
 
 export function pendingPillMinWidthExpr(orbPx: number): string {
   const captionCh = longestPendingCaption().length;

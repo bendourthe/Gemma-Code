@@ -10,7 +10,6 @@ import type { AgentActivity } from "./mapping";
 import { resolveAgentState } from "./mapping";
 import {
   longestPendingCaption,
-  PENDING_PILL_INSET_PX,
   pendingCaptionState,
   pendingPillMinWidthExpr,
   usePendingCaptionRotator,
@@ -28,7 +27,6 @@ import {
 
 export {
   longestPendingCaption,
-  PENDING_PILL_INSET_PX,
   pendingPillMinWidthExpr,
 } from "./captionRotator";
 
@@ -212,7 +210,10 @@ export function AgentStateOrb({
         // Pill chrome is a sibling layer; the canvas stays unclipped.
         overflow: "visible",
         minWidth: rotateCaptions ? pendingPillMinWidthExpr(cssSize) : undefined,
-        marginLeft: rotateCaptions ? PENDING_PILL_INSET_PX : undefined,
+        // v2.4.4 Phase 1.2: no second pill inset. The transcript gutter on the
+        // message list is the only left offset, so the pending pill starts on
+        // the same gutter as a completed assistant bubble and its glow still
+        // has room inside that padding instead of being cropped by the pane.
         borderRadius: rotateCaptions ? undefined : captionShown ? undefined : "50%",
         padding: rotateCaptions ? "var(--space-2) var(--space-3)" : undefined,
         boxSizing: "border-box",

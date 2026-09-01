@@ -38,6 +38,17 @@ export interface MessageListProps {
   sam2InstallDisabled?: boolean;
 }
 
+/**
+ * v2.4.4 Phase 1.1 (T001) -- the single transcript gutter.
+ *
+ * One value on both inline edges of the list. An assistant bubble (and the
+ * pending pill, which is an assistant row) starts on the left gutter; a user
+ * bubble ends on the matching right gutter, so the two margins read equal.
+ * It is also the room the pending pill's glow spreads into, which is why no
+ * row may add a second inset on top of it.
+ */
+export const TRANSCRIPT_GUTTER_PX = 12;
+
 export function messageRowAlign(role: ChatMessage["role"]): "flex-end" | "flex-start" {
   return role === "user" ? "flex-end" : "flex-start";
 }
@@ -102,6 +113,9 @@ export function MessageList({
           flexDirection: "column",
           alignItems: messageRowAlign(msg.role),
           width: "100%",
+          // The pill glow spreads past the row box; the list gutter is where
+          // it lands, so nothing between here and the pane may clip it.
+          overflow: "visible",
         }}
       >
         <MessageBubble
@@ -129,11 +143,14 @@ export function MessageList({
       style={{
         listStyle: "none",
         padding: 0,
+        paddingInline: `${TRANSCRIPT_GUTTER_PX}px`,
         margin: 0,
         display: "flex",
         flexDirection: "column",
         gap: "var(--space-3)",
         width: "100%",
+        boxSizing: "border-box",
+        overflow: "visible",
       }}
     >
       {rows}
