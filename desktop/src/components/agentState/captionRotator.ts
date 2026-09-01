@@ -91,3 +91,62 @@ export function usePendingCaptionRotator(active: boolean): PendingCaption {
   if (!active) return PENDING_CAPTIONS[0];
   return order[index % order.length] ?? PENDING_CAPTIONS[0];
 }
+
+/**
+ * v2.4.4 Phase 5.3 (T020) -- Image and Video pending captions.
+ *
+ * Studio pending showed a single static "Shaping...", which reads as a stuck
+ * word during a job that can take minutes; a rotating caption is the second
+ * half (with the orb animation) of the signal that work is still happening.
+ * The chat pool stays separate because its words describe reasoning, not
+ * rendering. Order here is the reduced-motion "first caption".
+ */
+export const STUDIO_PENDING_CAPTIONS = [
+  "Creating...",
+  "Crafting...",
+  "Generating...",
+] as const;
+
+export type StudioPendingCaption = (typeof STUDIO_PENDING_CAPTIONS)[number];
+
+/** Longest studio caption; drives a constant width so the word cannot jitter. */
+export function longestStudioCaption(): StudioPendingCaption {
+  return STUDIO_PENDING_CAPTIONS.reduce((a, b) => (a.length >= b.length ? a : b));
+}
+
+export function shuffleStudioCaptions(
+  rand: () => number = Math.random,
+): StudioPendingCaption[] {
+  const order: StudioPendingCaption[] = [...STUDIO_PENDING_CAPTIONS];
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rand() * (i + 1));
+    const a = order[i];
+    const b = order[j];
+    if (a === undefined || b === undefined) continue;
+    order[i] = b;
+    order[j] = a;
+  }
+  return order;
+}
+
+/** Same contract as `usePendingCaptionRotator`, over the studio pool. */
+export function useStudioCaptionRotator(active: boolean): StudioPendingCaption {
+  const [order] = useState<StudioPendingCaption[]>(() => shuffleStudioCaptions());
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % order.length);
+    }, CAPTION_ROTATE_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [active, order.length]);
+
+  if (!active) return STUDIO_PENDING_CAPTIONS[0];
+  return order[index % order.length] ?? STUDIO_PENDING_CAPTIONS[0];
+}
+
+/** True for the two studio activities that render media rather than text. */
+export function isStudioActivity(activity: string): boolean {
+  return activity === "image-generation" || activity === "video-generation";
+}

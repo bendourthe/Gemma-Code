@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
 import { ORB_SIZE_HERO, ORB_SIZE_INLINE, ORB_SIZE_BUBBLE, rectFullyInside } from "../src/components/agentState/orbEngine";
 import { MessageList, TRANSCRIPT_GUTTER_PX } from "../src/shared/chat/MessageList";
-import { longestPendingCaption } from "../src/components/agentState/captionRotator";
+import {
+  PENDING_CAPTIONS,
+  STUDIO_PENDING_CAPTIONS,
+  longestPendingCaption,
+  longestStudioCaption,
+  shuffleStudioCaptions,
+} from "../src/components/agentState/captionRotator";
 
 afterEach(() => {
   cleanup();
@@ -46,7 +52,10 @@ describe("AgentStateOrb", () => {
 
   it("shows the mapped caption when requested", () => {
     render(<AgentStateOrb activity="video-generation" size="hero" showCaption />);
-    expect(screen.getByTestId("agent-state-orb-caption")).toHaveTextContent("Shaping...");
+    // v2.4.4 Phase 5.3: studio pending rotates its own pool; "Shaping" is gone.
+    expect(STUDIO_PENDING_CAPTIONS).toContain(
+      screen.getByTestId("agent-state-orb-caption").textContent,
+    );
   });
 
   it("treats a missing IntersectionObserver as visible", () => {
@@ -194,5 +203,63 @@ describe("transcript gutters (v2.4.4 Phase 1)", () => {
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     expect(orb).not.toHaveAttribute("data-orb-pill");
     expect(orb.style.minWidth).toBe("");
+  });
+});
+
+/**
+ * v2.4.4 Phase 5.3 (T021) -- studio pending captions.
+ *
+ * Image and Video pending showed one static "Shaping...", which reads as a
+ * stuck word during a job that runs for minutes. Together with the orb
+ * animation, a rotating caption is what tells the operator the runtime is
+ * still working rather than hung.
+ */
+describe("studio pending captions (v2.4.4 Phase 5)", () => {
+  it("offers exactly Creating, Crafting, and Generating", () => {
+    expect([...STUDIO_PENDING_CAPTIONS]).toEqual([
+      "Creating...",
+      "Crafting...",
+      "Generating...",
+    ]);
+    // "Shaping" was the static label and must not come back.
+    expect(STUDIO_PENDING_CAPTIONS).not.toContain("Shaping...");
+  });
+
+  it("uses the studio pool for image and video pending, not the chat pool", () => {
+    for (const activity of ["image-generation", "video-generation"] as const) {
+      const { unmount } = render(<AgentStateOrb activity={activity} size="hero" showCaption />);
+      const caption = screen.getByTestId("agent-state-orb-caption").textContent ?? "";
+      expect(STUDIO_PENDING_CAPTIONS, activity).toContain(caption);
+      expect(PENDING_CAPTIONS, activity).not.toContain(caption);
+      unmount();
+    }
+  });
+
+  it("leaves the chat pool alone", () => {
+    render(<AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />);
+    const caption = screen.getByTestId("agent-state-orb-caption").textContent ?? "";
+    expect(PENDING_CAPTIONS).toContain(caption);
+    expect(STUDIO_PENDING_CAPTIONS).not.toContain(caption);
+  });
+
+  it("shuffles per bubble but always yields a caption from the pool", () => {
+    // Injectable rand keeps this deterministic; the contract is that a
+    // shuffle is a permutation, never a drop or a duplicate.
+    const order = shuffleStudioCaptions(() => 0);
+    expect([...order].sort()).toEqual([...STUDIO_PENDING_CAPTIONS].sort());
+    expect(longestStudioCaption()).toBe("Generating...");
+  });
+
+  it("keeps a pending studio orb animating while a job is active", () => {
+    render(
+      <MessageList
+        messages={[
+          { id: "v1", role: "assistant", content: "", pending: true, activity: "video-generation" },
+        ]}
+      />,
+    );
+    // The pending orb is the liveness signal for a job that can run for
+    // minutes; a paused orb is indistinguishable from a frozen shell.
+    expect(screen.getByTestId("agent-state-orb")).toHaveAttribute("data-orb-paused", "false");
   });
 });

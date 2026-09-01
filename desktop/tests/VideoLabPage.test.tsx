@@ -14,6 +14,7 @@ import {
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
 import { InMemoryGenerationQueueClient } from "../src/shared/studio/generationQueueClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
+import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
 
@@ -336,8 +337,16 @@ describe("VideoLabPage (chat)", () => {
     const orb = await screen.findByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-agent-activity", "video-generation");
     expect(orb).toHaveAttribute("data-orb-size", "hero");
-    expect(screen.getByText("Shaping...")).toBeInTheDocument();
-    expect(screen.queryByText("Generating...")).toBeNull();
+    // v2.4.4 Phase 5.3: one of Creating / Crafting / Generating, never Shaping.
+    expect(screen.queryByText("Shaping...")).toBeNull();
+    expect(
+      STUDIO_PENDING_CAPTIONS.some((caption) => screen.queryByText(caption) !== null),
+    ).toBe(true);
+    // The old assertion here was `queryByText("Generating...")` is null, which
+    // meant "no separate status label besides the orb". "Generating..." is now
+    // one of the orb's own captions, so the check moves to the composer: the
+    // pending signal must still be the orb, not a second line of text.
+    expect(screen.queryByTestId("video-lab-status-label")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
   });
 

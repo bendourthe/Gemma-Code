@@ -23,6 +23,7 @@ import {
 } from "../src/components/agentState/captionRotator";
 import { MessageBubble } from "../src/shared/chat/MessageBubble";
 import type { ChatMessage } from "../src/shared/chat/types";
+import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
 
 afterEach(() => {
   cleanup();
@@ -173,7 +174,8 @@ describe("MessageBubble pending pill", () => {
     const orb = screen.getByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     expect(orb).not.toHaveAttribute("data-orb-pill");
-    expect(captionText()).toBe("Shaping...");
+    // v2.4.4 Phase 5.3: studio pending uses its own pool.
+    expect(STUDIO_PENDING_CAPTIONS).toContain(captionText());
   });
 });
 

@@ -9,10 +9,12 @@ import { useActiveMotionSurface, useAllowsMotion, useReducedMotion } from "../..
 import type { AgentActivity } from "./mapping";
 import { resolveAgentState } from "./mapping";
 import {
+  isStudioActivity,
   longestPendingCaption,
   pendingCaptionState,
   pendingPillMinWidthExpr,
   usePendingCaptionRotator,
+  useStudioCaptionRotator,
 } from "./captionRotator";
 import {
   clampOrbDpr,
@@ -89,8 +91,16 @@ export function AgentStateOrb({
   // Rotator hook is unconditional (hooks rule); it schedules an interval only
   // while rotation is requested and motion is allowed.
   const rotatingCaption = usePendingCaptionRotator(rotateCaptions && !reduce);
+  // v2.4.4 Phase 5.3 (T020): Image and Video pending rotate their own words.
+  // Both hooks are called unconditionally (hooks rule); only one is read.
+  const studio = isStudioActivity(activity);
+  const studioCaption = useStudioCaptionRotator(studio && showCaption && !reduce);
   const captionShown = showCaption || rotateCaptions;
-  const captionText = rotateCaptions ? rotatingCaption : `${mapping.label}...`;
+  const captionText = rotateCaptions
+    ? rotatingCaption
+    : studio
+      ? studioCaption
+      : `${mapping.label}...`;
   const engineState = rotateCaptions ? pendingCaptionState(rotatingCaption) : mapping.state;
   const hostLabel =
     accessibleName ?? (rotateCaptions ? "Generating reply" : `Agent ${mapping.label.toLowerCase()}`);

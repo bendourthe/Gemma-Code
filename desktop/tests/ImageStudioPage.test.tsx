@@ -11,6 +11,7 @@ import { InMemoryGenerationQueueClient } from "../src/shared/studio/generationQu
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 import { RESTYLE_IMG2IMG_STRENGTH } from "../src/modules/image/followUpSource";
+import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
 
@@ -281,7 +282,11 @@ describe("ImageStudioPage (chat)", () => {
     const orb = await screen.findByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
     expect(orb).toHaveAttribute("data-orb-size", "hero");
-    expect(screen.getByText("Shaping...")).toBeInTheDocument();
+    // v2.4.4 Phase 5.3: one of Creating / Crafting / Generating, never Shaping.
+    expect(screen.queryByText("Shaping...")).toBeNull();
+    expect(
+      STUDIO_PENDING_CAPTIONS.some((caption) => screen.queryByText(caption) !== null),
+    ).toBe(true);
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
   });

@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { MessageBubble } from "../src/shared/chat/MessageBubble";
 import type { ChatMessage } from "../src/shared/chat/types";
+import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
 
 afterEach(() => cleanup());
 
@@ -75,7 +76,12 @@ describe("MessageBubble media", () => {
     };
     render(<MessageBubble message={msg} />);
     expect(screen.getByRole("img", { name: /agent shaping/i })).toHaveAttribute("data-orb-size", "hero");
-    expect(screen.getByText("Shaping...")).toBeInTheDocument();
+    // v2.4.4 Phase 5.3: studio pending rotates Creating / Crafting /
+    // Generating; the single static "Shaping" read as a stuck word.
+    expect(screen.queryByText("Shaping...")).toBeNull();
+    expect(STUDIO_PENDING_CAPTIONS).toContain(
+      screen.getByTestId("agent-state-orb-caption").textContent,
+    );
     expect(screen.getByTestId("message-pending-studio-pending").getAttribute("style")).toContain(
       "min-height: 12rem",
     );
