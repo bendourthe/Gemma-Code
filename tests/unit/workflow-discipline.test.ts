@@ -68,9 +68,13 @@ describe('Long-running workflows cancel superseded runs', () => {
 describe('Shell build protects the integration branch without multiplying runner cost', () => {
   const text = readFileSync(join(WORKFLOWS_DIR, 'shell-build.yml'), 'utf8');
 
-  it('runs for main and develop pushes plus pull requests to main', () => {
+  it('runs for main and develop pushes plus pull requests to either', () => {
     expect(text).toMatch(/push:\s*\n\s+branches:\s*\[main, develop\]/);
-    expect(text).toMatch(/pull_request:\s*\n\s+branches:\s*\[main\]/);
+    // v2.4.4 Phase 7 (QG-5): `develop` joined the pull_request filter because
+    // the integration pull request targets it. While this was main-only, a
+    // develop-targeted PR ran only commitlint, so the push trigger tested the
+    // branch head but the MERGE RESULT -- what actually ships -- never was.
+    expect(text).toMatch(/pull_request:\s*\n(?:\s*#.*\n)*\s+branches:\s*\[main, develop\]/);
   });
 
   it('reserves the full OS matrix for main pushes and manual dispatch', () => {
