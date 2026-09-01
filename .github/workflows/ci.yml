@@ -10,7 +10,12 @@ on:
   push:
     branches-ignore: ["dependabot/**"]
   pull_request:
-    branches: ["main"]
+    # v2.4.4 Phase 7 (QG-5): `develop` joined this list because the
+    # integration pull request targets it. Without it a develop-targeted
+    # PR ran only commitlint, so the branch head was tested by the push
+    # trigger but the MERGE RESULT -- the thing that actually ships --
+    # never was. Path filters already keep the added cost bounded.
+    branches: ["main", "develop"]
 
 concurrency:
   # github.head_ref is set on pull_request events; falls back to

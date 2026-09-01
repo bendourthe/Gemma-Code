@@ -128,7 +128,7 @@ Provider **detected**: GitHub Actions, 19 workflow files.
 | Structured reports | `coverage-diff.yml`, `pr-quality.yml` | PASS |
 | Deployment boundaries | `release.yml` and `semantic-release.yml` are separate from CI | PASS |
 | Failure recovery | `if: always()` used on report steps | PASS |
-| **PR-target coverage** | **See below** | **FAIL** |
+| **PR-target coverage** | Was main-only; `develop` added this phase with approval (see below) | **FIXED** |
 
 ### The finding that matters for this plan
 
@@ -158,13 +158,21 @@ tuning-live.yml            -
 
 This is v2.4.3 QG-5, and it is directly load-bearing for this plan's own sub-task 7.9. PR 58 targets `develop`. On a `develop`-targeted pull request, `commitlint` is the only workflow that runs on the `pull_request` event: CI, CodeQL, coverage-diff, installer-tests, pr-quality, and shell-build all sit out. The push to the feature branch does trigger `ci.yml` (its push trigger is `branches-ignore: ["dependabot/**"]`), so the branch head is tested - but the **merge result** is not, and testing the merge result is the entire purpose of the integration gate the plan describes.
 
-Per the plan, QG-5 stays **proposed, not applied**, pending explicit approval. No workflow file was edited in this phase, and no workflow file was edited in phases 1 through 6.
+**QG-5 was proposed with its cost and risk, and the operator explicitly approved applying it before the push.** Applied 2026-08-31: `develop` added to the `pull_request.branches` list of `ci.yml`, `shell-build.yml`, `installer-tests.yml`, `coverage-diff.yml`, and `pr-quality.yml`. No job logic changed - only which events start each workflow. Each edit carries an inline comment naming QG-5 and the reason. All 19 workflow files still parse as YAML, and the five now read:
 
-**Proposed change (smallest that closes it)**: add `develop` to the `pull_request.branches` list of `ci.yml`, `shell-build.yml`, `installer-tests.yml`, `coverage-diff.yml`, and `pr-quality.yml`. Cost: one extra run per develop-targeted PR, on workflows that are already path-scoped. Risk: low; no job logic changes. Declining is also defensible, in which case the integration gate for this branch is honestly described as "the branch head was tested, the merge result was not", and that sentence belongs in the release notes rather than being left implied.
+```
+ci.yml                   ["main", "develop"]
+shell-build.yml          [main, develop]
+installer-tests.yml      ["main", "develop"]
+coverage-diff.yml        ["main", "develop"]
+pr-quality.yml           ["main", "develop"]
+```
+
+This is the only pipeline edit in the entire plan. Phases 1 through 6 changed no workflow file, and this phase changed one thing, with approval, because CI/CD reconciliation is this phase's stated deliverable. Cost is one extra run per develop-targeted pull request, on workflows that are already path-scoped. QG-5 can be closed once the integration run confirms these workflows actually start on PR 58.
 
 **Cross-installer parity**: the repository ships more than one installer (`installer-linux.yml`, `installer-macos.yml`, `installer-build.yml` for Windows, plus `installer-smoke.yml`). A declarative parity gate covering distributed artifacts, supported platforms, named capability counterparts, and external-tool fallbacks was **not** added, and the real installers were **not** executed on their target operating systems in this phase. This cycle changed the media-runtime Diffusers pin, which those installers provision, so that gap is material and is recorded as DF-1 in known-gaps rather than claimed as covered.
 
-**Comparison verdict: not PASS.** Three required fields lack observable evidence (aggregate required check, explicit permissions, develop-targeted PR coverage) and cross-installer parity was not executed. A green run would not change this: none of those three fields is exercised by a run.
+**Comparison verdict: not PASS.** One of the three failing fields (develop-targeted PR coverage) was closed with approval this phase. Two remain without observable evidence - `ci.yml` has no always-resolving aggregate required check and no top-level `permissions:` block - and cross-installer parity was not executed. A green run would not change that: neither remaining field is exercised by a run. Both are recorded as open rather than softened.
 
 ---
 
