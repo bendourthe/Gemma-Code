@@ -242,13 +242,42 @@ This gate is local by construction and passed before anything was published.
 
 ## Publication and integration
 
-**Not performed.** This section is deliberately incomplete.
+**Performed, with explicit approval, after the local gate passed.**
 
-Six local commits exist on `feat/v2.4.1-field-reliability` (`b10c1e32` through `887afe6d`), plus the Phase 7 commit carrying this file. No push, no pull request, and no remote CI run has occurred at any point in this plan.
+The operator was given a plain-language walkthrough of what a push would do and what QG-5 meant, then approved two things together: applying QG-5 first, and pushing v2.4.3 and v2.4.4 in one push. Resolved branching model: feature branch to `develop`, `develop` to `main`. Remote `origin` = `https://github.com/bendourthe/Nexus-AI.git`. Branch `feat/v2.4.1-field-reliability`, upstream already set. [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58) targets `develop` and was updated rather than superseded.
 
-The plan requires explicit approval before the first branch push, and two decisions are outstanding and were put to the operator together:
+### What the push exposed
 
-1. **The push itself.** Resolved branching model: feature branch to `develop`, `develop` to `main`. Remote `origin` = `https://github.com/bendourthe/Nexus-AI.git`. Branch `feat/v2.4.1-field-reliability`, upstream already set. PR target `develop`. [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58) is already open against `develop`, so an approved push updates it rather than opening a second. v2.4.3 T040 is unpushed on this same branch, so one push carries v2.4.3 and v2.4.4 together unless the operator splits them.
-2. **QG-5.** Whether to add `develop` to the `pull_request.branches` of the five substantive workflows before pushing. Without it, the integration pull request runs `commitlint` and nothing else, and the merge result is never tested - which would make the plan's own "wait for every required check" step vacuous.
+The first push was refused by the husky pre-push hook, which runs `eslint --fix` and then refuses if `git diff` is non-empty. Nothing had been auto-fixed: the only dirty file was the inherited benchmark-fixture timing rewrite, which the hook cannot distinguish from a lint fix. It was stashed before each push and restored immediately after, so the operator's uncommitted change was preserved rather than discarded. All six pre-push gates then passed.
 
-Required-check results will be quoted here once a push is approved and the checks reach a terminal state.
+Two rounds of red checks followed. Each was classified, reproduced locally, fixed narrowly, re-verified locally, and pushed again - never re-run without a local reproduction.
+
+**Round 1 - `Submission Checklist gate`, `Test TypeScript` (x4), `diff-cover`.**
+
+- The checklist gate failed because the PR body, written for v2.4.1, had no `## Submission Checklist` section. This gate had never run on this pull request before, because `pr-quality.yml` was main-only - so QG-5 did not cause this failure, it *revealed* an unmet requirement that had been invisible. Reproduced locally with `PR_BODY=... node scripts/check-pr-checklist.mjs`. The PR description was rewritten to cover all three versions with the checklist, and the three extra gates it claims (`deps:check`, `catalog:check`, `perm-tier:check`) were run locally before ticking those boxes rather than after.
+- `Test TypeScript` failed on `tests/unit/workflow-discipline.test.ts:73`, which asserted `shell-build.yml` filters `pull_request` to `[main]` - the exact contract QG-5 changed. `diff-cover` failed on the same test. **This was a process miss worth naming**: the QG-5 commit was verified with lint, `tsc`, and pytest, but not with the root vitest suite, which is the suite that owned the contract being changed. CI caught what the local gate was not re-run to catch. Fixed by updating the assertion to the develop-inclusive contract.
+
+**Round 2 - `Test TypeScript (Node 22.x)`, `Shell ubuntu-latest`.**
+
+Both failed on the same assertion in `ImageStudioPage.test.tsx`: `queryByText("Generating...")` expected null. Phase 5.3 had made "Generating..." one of the three studio captions, and the pool is shuffled once per bubble, so the line failed roughly one run in three. It passed on every local run and on the first CI round. The identical assertion in `VideoLabPage.test.tsx` had been caught and rewritten during Phase 5; this one was missed. Fixed the same way - the intent moved to the composer - and verified by running the file six times and the full desktop suite twice, all green. The equivalent assertions in `ChatPage`, `CodingPage`, and `mediaMessageBubble` were checked and left alone: those are chat pending, where the chat pool is used and "Generating..." is correctly never present.
+
+### Final result
+
+Head commit `4b1771da`. Every required check reached a terminal state:
+
+```
+$ gh pr checks 58
+     42 pass
+      1 skipping     (init.ps1 (Windows) -- path-gated, not applicable to this diff)
+      0 fail
+      0 pending
+
+$ gh pr view 58 --json mergeable,mergeStateStatus
+MERGEABLE / CLEAN
+```
+
+**QG-5 is confirmed closed by observation, not by assertion.** Before it, this pull request ran one workflow. It now runs 42 checks including the full CI matrix, CodeQL, coverage-diff, the installer suite, the shell build, and the submission-checklist gate - all against the merge result, which is what the integration gate exists to validate.
+
+### Merge
+
+Not performed. The plan requires the merge itself to be a separate explicit approval, and it has not been given. The pull request is green, mergeable, and waiting. Nothing has been tagged and no GitHub Release exists; the package version remains 2.4.1 until `/update release`.

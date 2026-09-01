@@ -19,7 +19,7 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 6 | 0 |
-| Quality-gate gaps (QG) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 1 |
 
 Phases 1-7 are implemented locally against packaged post-v2.4.3 screenshots 1-6. Every change is proven by automated tests; none of the six field symptoms has been re-observed on the packaged 16 GB NVIDIA host, because that requires a rebuilt installer this cycle did not produce. The Diffusers pin moved 0.34.0 to 0.36.0 on distribution evidence, and a live import plus a Wan and SDXL re-smoke on the new pin are the highest-value operator items.
 
@@ -73,6 +73,11 @@ Phases 1-7 are implemented locally against packaged post-v2.4.3 screenshots 1-6.
 - **Impact**: Tests pin search inside the tab row container, a centered horizontal action row, no card min-height, split pill label/value colours, and Best for as bullets. Real-viewport card height and wrap behaviour at the packaged Settings width are not observed here.
 - **Owner**: Operator, next packaged build
 - **Next step**: Operator item 6. Supersedes v2.4.3 MT-4.
+
+##### QG-1 - Develop-targeted pull requests now run the full merge-result gate (resolved)
+
+- **Resolved**: 2026-08-31 in Phase 7, with explicit operator approval.
+- **Evidence**: Carried from v2.4.3 QG-5. Every substantive workflow filtered `pull_request` to `main`, so PR 58 (which targets `develop`) ran only commitlint: the push trigger tested the branch head, but the merge result was never tested. `develop` was added to the `pull_request.branches` filter of `ci.yml`, `shell-build.yml`, `installer-tests.yml`, `coverage-diff.yml`, and `pr-quality.yml`; no job logic changed. Confirmed by observation, not assertion: `gh pr checks 58` now reports 42 pass, 1 skipping (path-gated `init.ps1`), 0 fail on head `4b1771da`, against a pull request that previously ran one check.
 
 ##### WN-1 - Two pre-existing ruff F401 findings remain
 
