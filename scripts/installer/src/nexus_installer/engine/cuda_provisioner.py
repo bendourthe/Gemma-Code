@@ -15,11 +15,14 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from nexus_installer.engine.platform_utils import is_linux, is_macos, is_windows, run_command
+from nexus_installer.engine.platform_utils import (
+    is_macos,
+    is_windows,
+    run_command,
+)
 
 # CUDA 12.1 minimum driver: 530.30.02 (Linux) / 531.14 (Windows). Both >= 530
 # major; we use the major version as the gate.
@@ -34,7 +37,14 @@ def _runtime_root() -> Path:
         base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
         return Path(base) / "Nexus" / "runtime" / "cuda"
     if is_macos():
-        return Path.home() / "Library" / "Application Support" / "Nexus" / "runtime" / "cuda"
+        return (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "Nexus"
+            / "runtime"
+            / "cuda"
+        )
     return Path.home() / ".local" / "share" / "nexus" / "runtime" / "cuda"
 
 

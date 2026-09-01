@@ -6,9 +6,9 @@ The PyInstaller spec bundles ``core/registry/catalog.json`` straight from the
 repo, so a *fresh* build always ships the current catalog. The failure the user
 hit was a *stale* catalog: an older build whose Gemma entry still pointed at the
 Unsloth ``hf.co`` GGUF pull target (Ollama manifest bug -> the blobs download
-fully, then the manifest commit errors HTTP 400) and whose access-gated SANA
-INT4 entry was not flagged ``gated`` (an unauthenticated fetch -> HTTP 401 retry
-loop). This module encodes those two fixes as invariants so CI and the build
+fully, then the manifest commit errors HTTP 400). The former access-gated SANA
+INT4 source was replaced in v2.4.1 by a public, pinned Nunchaku repository.
+This module keeps the remaining catalog fixes as invariants so CI and the build
 fail if the catalog ever regresses to a shippable-but-broken shape.
 
 Pure and Qt-free: :func:`validate_catalog` takes the parsed catalog dict and
@@ -28,7 +28,7 @@ KNOWN_BROKEN_OLLAMA_REFS: tuple[str, ...] = ("unsloth/gemma-4-12b-it-GGUF",)
 #: unauthenticated fetch returns HTTP 401). They MUST stay flagged ``gated`` so
 #: the installer offers the guided token step / clean skip instead of looping on
 #: a 401 it can never satisfy without credentials.
-KNOWN_GATED_IDS: frozenset[str] = frozenset({"sana-1.6b-int4"})
+KNOWN_GATED_IDS: frozenset[str] = frozenset()
 
 #: v1.19.0 Phase 1 -- low-VRAM Agentic entry. Present-or-valid: synthetic
 #: catalogs without this id are unchanged; when the id is present the
@@ -88,7 +88,7 @@ POST_2025_OLLAMA_TARGETS: dict[str, str] = {
     "qwen3-embedding:0.6b": "ollama://qwen3-embedding:0.6b",
 }
 
-#: Pre-2025 selectable models that stay because they are required (embed),
+#: Pre-2025 selectable models that stay as supported legacy alternatives,
 #: recommended.json image/audio defaults, RapidOCR (CPU document pillar), or
 #: SAM2 (Image Studio replace-the-X). 2024 coding specialists were replaced
 #: by Qwen 3.5 / gpt-oss / Qwen3-Coder. Everything else 2024-or-earlier is
@@ -105,8 +105,8 @@ PRE_2025_KEEP_IDS: frozenset[str] = frozenset(
 )
 
 
-REQUIRED_EMBEDDER_ID = "nomic-embed-text"
 EMBEDDINGGEMMA_ID = "embeddinggemma"
+REQUIRED_EMBEDDER_ID = EMBEDDINGGEMMA_ID
 
 
 def validate_catalog(catalog: dict[str, Any]) -> list[str]:
@@ -132,6 +132,14 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
             problems.append(f"{model_id}: duplicate id")
         else:
             seen_ids.add(str(model_id))
+
+        if model.get("task") is not None:
+            description = str(model.get("description") or "").strip()
+            if not description or description[-1:] not in {".", "!", "?"}:
+                problems.append(
+                    f"{where}: selectable entry requires a complete-sentence "
+                    "description"
+                )
 
         source = model.get("source")
         if not isinstance(source, dict) or not source.get("protocol"):
@@ -240,13 +248,13 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
 
 
 def _check_required_embedder(by_id: dict[str, Any]) -> list[str]:
-    """KEEP Nomic as the memory default; EmbeddingGemma copy is 300M not 300B."""
+    """Require EmbeddingGemma as the memory default and keep its 300M identity."""
     problems: list[str] = []
-    nomic = by_id.get(REQUIRED_EMBEDDER_ID)
+    required = by_id.get(REQUIRED_EMBEDDER_ID)
     if (
-        isinstance(nomic, dict)
-        and "task" in nomic
-        and nomic.get("task") not in ("embed", "embeddings")
+        isinstance(required, dict)
+        and "task" in required
+        and required.get("task") not in ("embed", "embeddings")
     ):
         problems.append(f"{REQUIRED_EMBEDDER_ID}: task must be embed")
 

@@ -29,6 +29,13 @@ def _make_assets(root: Path, names: tuple[str, ...]) -> None:
         (assets / name).write_bytes(b"\x00")
 
 
+def _make_tuning(root: Path, names: tuple[str, ...]) -> None:
+    tuning = root / "core" / "tuning"
+    tuning.mkdir(parents=True)
+    for name in names:
+        (tuning / name).write_text("{}", encoding="utf-8")
+
+
 class TestRegistryFile:
     def test_source_tree_walkup_finds_real_catalog(self) -> None:
         path = registry_paths.registry_file("catalog.json")
@@ -105,6 +112,26 @@ class TestAssetFile:
     def test_missing_everywhere_returns_relative_fallback(self) -> None:
         path = registry_paths.asset_file("no-such-icon.ico")
         assert path == Path("assets") / "no-such-icon.ico"
+
+
+class TestTuningFile:
+    def test_source_tree_walkup_finds_unsloth_pins(self) -> None:
+        path = registry_paths.tuning_file("unsloth-pins.json")
+        assert path.is_file()
+        assert path.parts[-3:] == ("core", "tuning", "unsloth-pins.json")
+
+    def test_frozen_prefers_bundle_dir(self, tmp_path, monkeypatch) -> None:
+        _make_tuning(tmp_path, ("unsloth-pins.json",))
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+        path = registry_paths.tuning_file("unsloth-pins.json")
+        assert path == tmp_path / "core" / "tuning" / "unsloth-pins.json"
+
+    def test_resource_file_rejects_unsafe_segments(self) -> None:
+        import pytest
+
+        with pytest.raises(ValueError):
+            registry_paths.resource_file("core", "..", "secret")
 
 
 class TestResolveWindowIcon:

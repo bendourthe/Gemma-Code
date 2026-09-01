@@ -1,0 +1,120 @@
+/** Canonical v2.4.1 model roster and display ordering shared by product surfaces. */
+
+export interface ModelDisplayRow {
+  readonly id: string;
+  readonly displayName?: string;
+  readonly task?: string;
+  readonly source?: string;
+  readonly tags?: readonly string[];
+  readonly type?: string;
+  readonly installed?: boolean;
+  readonly releaseDate?: string;
+  readonly vramGB?: number;
+}
+
+export type ModelDisplayTier = "required" | "recommended" | "compatible";
+
+export function isUserSelectableCatalogRow(row: ModelDisplayRow): boolean {
+  return typeof row.task === "string" && row.task.trim().length > 0 && row.source !== "external";
+}
+
+export function modelDisplayTier(row: ModelDisplayRow): ModelDisplayTier {
+  const tags = row.tags ?? [];
+  if (tags.includes("required")) {
+    return "required";
+  }
+  return tags.includes("recommended") ? "recommended" : "compatible";
+}
+
+function tierRank(row: ModelDisplayRow): number {
+  const tier = modelDisplayTier(row);
+  return tier === "required" ? 0 : tier === "recommended" ? 1 : 2;
+}
+
+function releaseOrdinal(value: string | undefined): number {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return 0;
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function folded(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-US")
+    .replaceAll("ß", "ss")
+    .replaceAll("ς", "σ");
+}
+
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+export interface ModelDisplayOptions {
+  readonly hostVramGB?: number | null;
+  readonly gpuVendor?: string;
+}
+
+function isIncompatible(row: ModelDisplayRow, options: ModelDisplayOptions): boolean {
+  if (typeof row.vramGB !== "number" || row.vramGB <= 0) return false;
+  if (options.gpuVendor === "none") return true;
+  return typeof options.hostVramGB === "number" && row.vramGB > options.hostVramGB;
+}
+
+function isDownloaded(row: ModelDisplayRow): boolean {
+  return Boolean(row.installed && row.source && row.source !== "catalog-only");
+}
+
+export function modelAvailabilityBucket(
+  row: ModelDisplayRow,
+  options: ModelDisplayOptions = {},
+): 0 | 1 | 2 {
+  if (isDownloaded(row)) return 0;
+  return isIncompatible(row, options) ? 2 : 1;
+}
+
+export function compareModelDisplayRows(
+  a: ModelDisplayRow,
+  b: ModelDisplayRow,
+  options: ModelDisplayOptions = {},
+): number {
+  const compatibility = Number(isIncompatible(a, options)) - Number(isIncompatible(b, options));
+  if (compatibility !== 0) return compatibility;
+  const tier = tierRank(a) - tierRank(b);
+  if (tier !== 0) return tier;
+  const release = releaseOrdinal(b.releaseDate) - releaseOrdinal(a.releaseDate);
+  if (release !== 0) return release;
+  const name = compareText(folded(a.displayName || a.id), folded(b.displayName || b.id));
+  if (name !== 0) return name;
+  return compareText(folded(a.id), folded(b.id));
+}
+
+export function canonicalModelDisplayOrder<T extends ModelDisplayRow>(
+  rows: readonly T[],
+  options: ModelDisplayOptions = {},
+): T[] {
+  return rows
+    .filter(isUserSelectableCatalogRow)
+    .sort((a, b) => compareModelDisplayRows(a, b, options));
+}
+
+export function settingsModelDisplayOrder<T extends ModelDisplayRow>(
+  rows: readonly T[],
+  options: ModelDisplayOptions = {},
+): T[] {
+  return rows
+    .filter(isUserSelectableCatalogRow)
+    .sort((a, b) => {
+      const availability = modelAvailabilityBucket(a, options) - modelAvailabilityBucket(b, options);
+      return availability || compareModelDisplayRows(a, b, options);
+    });
+}
+
+export function installedOutsideCatalog<T extends ModelDisplayRow>(rows: readonly T[]): T[] {
+  return rows
+    .filter(
+      (row) =>
+        row.source === "external" ||
+        (row.source === "registry" && row.installed === true && !row.task && row.type !== "vae" && row.type !== "controlnet"),
+    )
+    .sort((a, b) => compareText(folded(a.displayName || a.id), folded(b.displayName || b.id)));
+}

@@ -104,8 +104,29 @@ describe("sessionContextUsage", () => {
     });
     expect(result.denominatorKind).toBe("visual");
     expect(result.usedTokens).toBe(2);
-    expect(result.percent).toBe(50);
+    expect(result.percent).toBe(25);
     expect(result.atOrAbove80).toBe(false);
+  });
+
+  it("meters visual sessions against the session cap, not catalog maxImages: 1", () => {
+    const one = sessionContextUsage({
+      turns: [{ role: "assistant", visualUnits: 1 }],
+      contextWindow: null,
+      visualTokenBudget: { maxImages: 1 },
+    });
+    expect(one.denominatorKind).toBe("visual");
+    expect(one.usedTokens).toBe(1);
+    expect(one.percent).toBe(12.5);
+    expect(one.atOrAbove80).toBe(false);
+    const two = sessionContextUsage({
+      turns: [
+        { role: "assistant", visualUnits: 1 },
+        { role: "assistant", visualUnits: 1 },
+      ],
+      contextWindow: null,
+      visualTokenBudget: { maxImages: 1 },
+    });
+    expect(two.percent).toBe(25);
   });
 
   // v2.2.9 Phase 3.2 (T008): video rows publish maxVideoFrames, not maxImages.

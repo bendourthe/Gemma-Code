@@ -16,6 +16,20 @@ import { useAskInboxPendingCount } from "../pages/inbox/useAskInboxPendingCount"
 import { GpuStatusFooter } from "./GpuStatusFooter";
 import { ApprovalsBell } from "./ApprovalsBell";
 import type { TelemetryStream } from "./LocalModelStatus.types";
+import {
+  isSidebarHistoryRoute,
+  SIDEBAR_COMPACT_STORAGE_KEY,
+  useSidebarHistory,
+} from "./SidebarHistoryHost";
+import { HISTORY_PANE_WIDTH } from "../shared/explorer/historyPaneLayout";
+
+/**
+ * v2.4.4 Phase 2.1 (T005) -- vertical gap on each side of the history
+ * hairline. Exported so the tree below the rule can assert it adds none of
+ * its own; the rule is the single source of that spacing.
+ */
+export const HISTORY_HAIRLINE_GAP = "var(--space-2)";
+
 
 interface NavEntry {
   id: ModuleId;
@@ -48,13 +62,12 @@ const ADMIN_ENTRIES = [
 
 /** Small inset under the frameless title bar so Chatbot is not flush. */
 export const SIDEBAR_NAV_INSET_TOP = "var(--space-2)";
-const COMPACT_KEY = "nexus.sidebar.compact";
-const FULL_WIDTH = 248;
+const FULL_WIDTH = HISTORY_PANE_WIDTH;
 const RAIL_WIDTH = 56;
 
 function readCompactPreference(): boolean | null {
   try {
-    const raw = localStorage.getItem(COMPACT_KEY);
+    const raw = localStorage.getItem(SIDEBAR_COMPACT_STORAGE_KEY);
     return raw === null ? null : raw === "true";
   } catch {
     // Private mode / blocked storage: fall back to the breakpoint.
@@ -78,28 +91,30 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const pendingCount = useAskInboxPendingCount(askInboxClient);
+  const historyHost = useSidebarHistory();
 
-  // v2.2.1: compact icon rail is the default. An explicit expand (stored
-  // false) still persists, including on a narrow window -- auto-compact must
-  // not clobber that choice. With no stored preference the rail is compact
-  // even on a wide window (v2.2.0 used `storedCompact ?? narrow`, so a 1440px
-  // window started expanded).
+  // v2.4.2 Phase 1: module routes default expanded so session titles fit in
+  // the history slot. Compact icon-rail is still one click away. When this
+  // Sidebar is rendered without the App provider (unit tests), local state
+  // matches the same default.
   const [storedCompact, setStoredCompact] = useState<boolean | null>(() =>
     readCompactPreference(),
   );
-  const compact = storedCompact ?? true;
+  const compact = historyHost ? historyHost.compact : (storedCompact ?? false);
 
-  const toggleCompact = useCallback(() => {
+  const toggleLocalCompact = useCallback(() => {
     setStoredCompact((prev) => {
-      const next = !(prev ?? true);
+      const next = !(prev ?? false);
       try {
-        localStorage.setItem(COMPACT_KEY, String(next));
+        localStorage.setItem(SIDEBAR_COMPACT_STORAGE_KEY, String(next));
       } catch {
         // Preference is a convenience; failing to persist must not break the toggle.
       }
       return next;
     });
   }, []);
+  const toggleCompact = historyHost ? historyHost.toggleCompact : toggleLocalCompact;
+  const showHistorySlot = isSidebarHistoryRoute(location.pathname);
 
   useEffect(() => {
     writeActiveRoute(location.pathname);
@@ -158,6 +173,8 @@ export function Sidebar({
         v2.2.8 Phase 3 (3.1): a small top inset (`SIDEBAR_NAV_INSET_TOP`) sits
         under the title bar so the Chatbot row is not flush. Compact and
         expanded both keep that inset. Do not restore the brand wordmark.
+        v2.4.2 Phase 1: history is a segment of this sidebar under the four
+        module tabs (supersedes v2.4.1 AD-8 second-column / Agents band).
       */}
       <nav
         aria-label="Modules"
@@ -196,7 +213,44 @@ export function Sidebar({
         ))}
       </nav>
 
-      <div style={{ flex: 1 }} />
+      {showHistorySlot ? (
+        <div
+          data-testid="sidebar-history-hairline"
+          role="separator"
+          aria-hidden
+          style={{
+            height: 1,
+            // v2.4.4 Phase 2.1 (T005): the rule owns the whole gap on BOTH
+            // sides. Field screenshot 2 sat the line closer to Videos because
+            // this margin was `--space-1` while FolderTree's header added a
+            // second `--space-2` below it. One symmetric block margin here,
+            // zero top padding there, and the two gaps read equal.
+            marginBlock: HISTORY_HAIRLINE_GAP,
+            marginInline: compact ? "var(--space-2)" : 0,
+            background:
+              "color-mix(in srgb, var(--border-1, var(--fg-muted)) 55%, transparent)",
+            flexShrink: 0,
+          }}
+        />
+      ) : null}
+
+      {showHistorySlot ? (
+        <div
+          ref={historyHost ? historyHost.setHostEl : undefined}
+          data-testid="sidebar-history-host"
+          data-compact={compact ? "true" : "false"}
+          aria-label="Session history"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        />
+      ) : (
+        <div data-testid="sidebar-history-spacer" style={{ flex: 1, minHeight: 0 }} />
+      )}
 
       <div className="nx-divider" role="separator" />
 

@@ -30,6 +30,11 @@ export interface TuningStatusDto {
   pins: TuningPinDto[];
 }
 
+export interface TuningHardwareSnapshot {
+  hostVramGB: number;
+  gpuVendor: string;
+}
+
 export interface TuningPreflightDto {
   ok: boolean;
   message: string;
@@ -72,8 +77,8 @@ export interface TuningBaseModelDto {
 }
 
 export interface FineTuningClient {
-  status(): Promise<TuningStatusDto>;
-  provision(): Promise<TuningStatusDto & { ok: boolean }>;
+  status(hardware?: TuningHardwareSnapshot): Promise<TuningStatusDto>;
+  provision(hardware?: TuningHardwareSnapshot): Promise<TuningStatusDto & { ok: boolean }>;
   preflight(): Promise<TuningPreflightDto>;
   buildDataset(sources: string[], id?: string): Promise<TuningDatasetDto>;
   listJobs(): Promise<TuningJobDto[]>;

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="source-sha256" content="38533df62f68f3502f9fdd1f2a89ba996ef2c3be125cd10df73a959c96f79a34">
+  <title>Generation Recovery and Validation</title>
+  <style>body{font:16px/1.6 system-ui,sans-serif;max-width:72rem;margin:auto;padding:2rem;color:#172033;background:#f7f9fc}a{color:#075eb8}code,pre{font-family:ui-monospace,monospace}pre{overflow:auto;padding:1rem;background:#e9eef6;border-radius:.5rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bac5d6;padding:.5rem;text-align:left}</style>
+</head>
+<body>
+<h1>Generation Recovery and Validation</h1>
+<p>This handbook describes the supported operator path for recovering local image and video generation after an interrupted install. It applies to the packaged Windows installer and installed Nexus desktop application.</p>
+<h2>Recover the runtime</h2>
+<ol>
+<li>Close Nexus and any active installer window.</li>
+<li>Run the exact <code>NexusSetup.exe</code> candidate and choose repair when an existing install is detected.</li>
+<li>Let the installer reclaim only a lease whose owner is proven dead or mismatched. A live or uncertain owner remains protected.</li>
+<li>Treat the install as successful only when the runtime readiness probe reaches <code>ready</code>. A selected media capability that remains unavailable is a required failure.</li>
+</ol>
+<h2>Validate image and video generation</h2>
+<p>Run <code>scripts/installer/build/smoke-installed-media.ps1</code> against the exact installer artifact and installed sidecar. The harness must retain one decodable PNG and one playable video. Record the installer hash, runtime versions, model ids, elapsed time, artifact hashes, and probe metadata.</p>
+<p>The PNG proof includes format, dimensions, non-zero pixel content, and SHA-256. The video proof includes codec, duration, frame count, dimensions, and SHA-256. Unit tests and mock CUDA runs do not replace this packaged evidence.</p>
+<h2>Interpret failures</h2>
+<ul>
+<li><code>REPAIR_BUSY</code> means a verified live owner holds the repair lease.</li>
+<li><code>REPAIR_OWNER_UNKNOWN</code> means ownership cannot be proved safely; stop the competing process or reboot before retrying.</li>
+<li><code>runtime-unavailable</code> means the installed media environment failed readiness and should expose Repair rather than claiming generation is available.</li>
+<li>A missing PNG or video after the exact packaged run blocks release publication.</li>
+</ul>
+<p>See the <a href="../technical/installer-runtime.md">installer runtime</a> and <a href="../technical/media-runtime.md">media runtime</a> companions for component ownership.</p>
+</body>
+</html>

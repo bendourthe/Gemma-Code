@@ -73,7 +73,9 @@ def apply_state_to_installer_state(
             setattr(installer_state, name, value)
     installer_state.failed_steps = list(install_state.failed_steps)
     installer_state.failed_models = list(install_state.failed_models)
+    installer_state.optional_failed_steps = list(install_state.optional_failed_steps)
     installer_state.step_failures = list(install_state.step_failures)
+    installer_state.step_results = list(install_state.step_results)
     if install_state.log_path:
         installer_state.install_log = state_store.read_log_lines(install_state.log_path)
 
@@ -156,7 +158,13 @@ class StateRecorder:
 
     def on_step_failed(self, name: str) -> None:
         self.state.steps[name] = STEP_FAILED
-        if name not in self.state.failed_steps:
+        is_optional = bool(
+            self._installer_state
+            and name in self._installer_state.optional_failed_steps
+        )
+        if is_optional and name not in self.state.optional_failed_steps:
+            self.state.optional_failed_steps.append(name)
+        elif not is_optional and name not in self.state.failed_steps:
             self.state.failed_steps.append(name)
         self._sync_failures()
         self._write(force=True)
@@ -228,6 +236,10 @@ class StateRecorder:
             return
         self.state.failed_models = list(self._installer_state.failed_models)
         self.state.step_failures = list(self._installer_state.step_failures)
+        self.state.step_results = list(self._installer_state.step_results)
+        self.state.optional_failed_steps = list(
+            self._installer_state.optional_failed_steps
+        )
         for step in self._installer_state.failed_steps:
             if step not in self.state.failed_steps:
                 self.state.failed_steps.append(step)

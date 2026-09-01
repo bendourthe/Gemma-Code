@@ -21,18 +21,27 @@ import sys
 from pathlib import Path
 
 
-def registry_file(name: str) -> Path:
-    """Locate ``core/registry/<name>`` for frozen and source runs alike."""
+def resource_file(*parts: str) -> Path:
+    """Locate a bundled repository resource in frozen or source-tree mode."""
+    if not parts or any(not part or part in {".", ".."} for part in parts):
+        raise ValueError("resource path must contain safe non-empty segments")
+    relative = Path(*parts)
+    if relative.is_absolute():
+        raise ValueError("resource path must be relative")
     if getattr(sys, "frozen", False):
-        bundle_root = Path(getattr(sys, "_MEIPASS", ""))
-        candidate = bundle_root / "core" / "registry" / name
+        candidate = Path(getattr(sys, "_MEIPASS", "")) / relative
         if candidate.is_file():
             return candidate
     for parent in Path(__file__).resolve().parents:
-        candidate = parent / "core" / "registry" / name
+        candidate = parent / relative
         if candidate.is_file():
             return candidate
-    return Path("core") / "registry" / name
+    return relative
+
+
+def registry_file(name: str) -> Path:
+    """Locate ``core/registry/<name>`` for frozen and source runs alike."""
+    return resource_file("core", "registry", name)
 
 
 def asset_file(name: str) -> Path:
@@ -44,15 +53,12 @@ def asset_file(name: str) -> Path:
     relative walk silently missed in the frozen onefile, so the taskbar fell
     back to the generic Python host icon.
     """
-    if getattr(sys, "frozen", False):
-        candidate = Path(getattr(sys, "_MEIPASS", "")) / "assets" / name
-        if candidate.is_file():
-            return candidate
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "assets" / name
-        if candidate.is_file():
-            return candidate
-    return Path("assets") / name
+    return resource_file("assets", name)
+
+
+def tuning_file(name: str) -> Path:
+    """Locate a validated file under ``core/tuning``."""
+    return resource_file("core", "tuning", name)
 
 
 def resolve_window_icon() -> Path | None:
@@ -104,5 +110,7 @@ __all__ = [
     "default_catalog_path",
     "default_recommended_path",
     "registry_file",
+    "resource_file",
     "resolve_window_icon",
+    "tuning_file",
 ]

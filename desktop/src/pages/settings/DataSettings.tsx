@@ -13,6 +13,7 @@ import { useState } from "react";
 
 import { Button, SearchInput, Switch } from "../../components/ui";
 import { createDataTransferClient, defaultExportPath } from "./dataTransferClient";
+import { ArchivedChatsSettings, type ArchivedChatsClient } from "./ArchivedChatsSettings";
 
 export interface TransferCategoryDto {
   id: string;
@@ -36,6 +37,7 @@ export interface DataSettingsProps {
   client?: DataSettingsClient;
   /** Test seam / fallback list when the sidecar cannot be reached. */
   categories?: readonly TransferCategoryDto[];
+  archivedChatsClient?: ArchivedChatsClient;
 }
 
 const DEFAULT_CATEGORIES: readonly TransferCategoryDto[] = [
@@ -52,7 +54,7 @@ const DEFAULT_CATEGORIES: readonly TransferCategoryDto[] = [
   },
 ];
 
-export function DataSettings({ client, categories }: DataSettingsProps): JSX.Element {
+export function DataSettings({ client, categories, archivedChatsClient }: DataSettingsProps): JSX.Element {
   const list = categories ?? DEFAULT_CATEGORIES;
   // v2.2.0 Phase 8 (DF-16): self-wire to the sidecar when one is present.
   // Tests and the browser dev server pass (or get) null and see the honest
@@ -267,6 +269,9 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
           {error}
         </span>
       ) : null}
+
+      <hr style={{ border: 0, borderTop: "1px solid var(--border-subtle)", width: "100%" }} />
+      <ArchivedChatsSettings client={archivedChatsClient} embedded />
     </section>
   );
 }

@@ -34,7 +34,7 @@ import {
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
 
-import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, useStickToBottom, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
@@ -43,12 +43,14 @@ import {
 } from "../../shared/models/installedFeed";
 import {
   ownedIdSet,
-  readFavorite,
+  recommendOrderForTask,
   resolveDefaultId,
+  writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
-import type { ListedModelDto } from "../../pages/settings/modelsTypes";
+import type { ListedModelDto, InstallProgressDto } from "../../pages/settings/modelsTypes";
+import type { InstallHandle } from "../../pages/settings/ModelsSettings";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import {
   DEFAULT_FORM_VALUES,
@@ -58,7 +60,16 @@ import {
 } from "./ImagePromptForm";
 import { inferImageIntent } from "./intent";
 import { MaskEditor } from "./MaskEditor";
-import { parseReplaceIntent, inpaintPromptFor } from "../../../../core/image/replaceIntent";
+import { parseReplaceIntent, inpaintPromptFor, restylePromptFor, usesSegment } from "../../../../core/image/replaceIntent";
+import {
+  FOLLOWUP_IMG2IMG_STRENGTH,
+  MISSING_RESTYLE_SOURCE_TEXT,
+  planRestyleRequest,
+  SAM2_MODEL_ID,
+  pngToDataUrl,
+  resolveFollowUpSourceImage,
+  stripToRawImageBytes,
+} from "./followUpSource";
 import {
   type DiffusionClient,
   type ProgressEvent,
@@ -78,15 +89,27 @@ import {
 } from "../../shared/explorer/studioExplorerClient";
 import { createIpcStudioExplorerClient } from "../../shared/explorer/ipcStudioExplorerClient";
 import { tauriAvailable } from "../chat/ipcChatExplorerClient";
+import { ipc } from "../../lib/ipc";
 import {
   isUsablePathRef,
   lastAssistantMediaRef,
-  sessionTitleFromPrompt,
   studioTurnsToChatMessages,
   UNREADABLE_OUTPUT_TEXT,
 } from "../../shared/explorer/studioSessionMemory";
+import {
+  applyImmediateFallbackTitle,
+  DEFAULT_SESSION_TITLE,
+  refineGeneratedTitle,
+  shouldTitleOnFirstSend,
+} from "../../shared/explorer/scheduleFirstPromptTitle";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
 import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
+import {
+  createIpcMediaRuntimeClient,
+  isMediaRuntimeFailure,
+  type MediaRuntimeClient,
+  type MediaRuntimeState,
+} from "../../shared/studio/mediaRuntimeClient";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_FORM_VALUES.modelId,
@@ -111,6 +134,10 @@ export interface ImageStudioPageProps {
   readonly modelsClient?: {
     list(): Promise<readonly ListedModelDto[]>;
     lastSelection?: SelectionSnapshot | null;
+    install?(
+      id: string,
+      onProgress: (p: InstallProgressDto) => void,
+    ): InstallHandle & { done: Promise<void> };
   };
   /** Test seam: drain interval (ms). Defaults to 100ms. */
   readonly drainIntervalMs?: number;
@@ -129,6 +156,8 @@ export interface ImageStudioPageProps {
    * value from the telemetry stream.
    */
   readonly hostVramFreeGB?: number | null;
+  /** Host VRAM total so the picker uses installer recommend order. */
+  readonly hostVramGB?: number | null;
   /** The scheduler's active job, so the policy knows what would be evicted. */
   readonly activeSchedulerJob?: SchedulerActiveJob | null;
   readonly residencyMemory?: ResidencySessionMemory;
@@ -138,12 +167,26 @@ export interface ImageStudioPageProps {
   readonly initialSessionId?: string;
   /** Test seam: probe whether a last-output path still exists on disk. */
   readonly outputExists?: (path: string) => boolean;
+  readonly mediaRuntimeClient?: MediaRuntimeClient;
 }
 
 let messageSeq = 0;
 function nextId(prefix: string): string {
   messageSeq += 1;
   return `${prefix}-${messageSeq}`;
+}
+
+function imageRecoveryState(state: MediaRuntimeState): ChatMessage["mediaRecovery"] {
+  if (state.state === "ready") return undefined;
+  return {
+    state: state.state,
+    code: state.code,
+    message: state.message,
+    retryable: state.retryable,
+    progress: state.progress,
+    ...(state.details ? { details: state.details } : {}),
+    ...(state.logPath ? { logPath: state.logPath } : {}),
+  };
 }
 
 export function ImageStudioPage({
@@ -154,18 +197,25 @@ export function ImageStudioPage({
   onGetMoreModels,
   diffusionTier = "diffusion-low",
   hostVramFreeGB,
+  hostVramGB = null,
   activeSchedulerJob,
   residencyMemory,
   queueClient: queueOverride,
   explorerClient: explorerClientOverride,
   initialSessionId,
   outputExists,
+  mediaRuntimeClient: mediaRuntimeOverride,
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
   const [queueClient] = useState<GenerationQueueClient>(
     () => queueOverride ?? createIpcGenerationQueueClient(),
   );
+  const [mediaRuntimeClient] = useState<MediaRuntimeClient>(
+    () => mediaRuntimeOverride ?? createIpcMediaRuntimeClient(),
+  );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
+  const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
+  const userChangedModelRef = useRef(false);
   const [noneInstalled, setNoneInstalled] = useState(false);
   // v2.2.0 Phase 2 (2.2): distinguish "the backend is down" from "you have no
   // image models". The pre-v2.2.0 catch-all reported the latter for both.
@@ -180,6 +230,11 @@ export function ImageStudioPage({
     text: "",
     attachments: [],
   });
+  const mediaRetryRef = useRef<{
+    assistantId: string;
+    text: string;
+    attachments: readonly string[];
+  } | null>(null);
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
   const studioClient = useMemo(() => {
     if (explorerClientOverride) return explorerClientOverride;
@@ -189,7 +244,12 @@ export function ImageStudioPage({
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const lastStudioMessage = messages[messages.length - 1];
+  const { scrollRef, onScroll, stickNow } = useStickToBottom(
+    `${messages.length}:${lastStudioMessage?.id ?? ""}:${lastStudioMessage?.content?.length ?? 0}:${lastStudioMessage?.pending ? 1 : 0}`,
+  );
   const activeSessionIdRef = useRef<string | null>(null);
+  const titleJobRef = useRef<{ id: string; prompt: string } | null>(null);
   // v2.2.9 Phase 1.4 (T004): state mirror of the ref so the history pane can
   // bind its highlighted row to the session that is actually open.
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -198,6 +258,8 @@ export function ImageStudioPage({
     setActiveSessionId(id);
   }, []);
   const lastOutputRef = useRef<string | null>(null);
+  const lastPngB64Ref = useRef<string | null>(null);
+  const modelsSourceRef = useRef<ImageStudioPageProps["modelsClient"]>(modelsClient);
   const [historyEpoch, setHistoryEpoch] = useState(0);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
@@ -226,6 +288,7 @@ export function ImageStudioPage({
   useEffect(() => {
     let cancelled = false;
     const source = modelsClient ?? createIpcModelsClient();
+    modelsSourceRef.current = source;
     void (async () => {
       try {
         const all = await source.list();
@@ -234,14 +297,14 @@ export function ImageStudioPage({
           (m) => !m.tags?.includes("utility"),
         );
         if (cancelled) return;
+        setSelection(snap);
         const first = image[0];
         if (first) {
           setModels(image);
           const next = resolveDefaultId(image, {
-            favorite: readFavorite("image"),
             recommended: snap?.recommendedByTask.image ?? null,
           });
-          setSelectedModelId(next || first.id);
+          if (!userChangedModelRef.current) setSelectedModelId(next || first.id);
           setNoneInstalled(false);
           setListFailure(null);
         } else {
@@ -300,18 +363,42 @@ export function ImageStudioPage({
   );
 
   const ensureSession = useCallback(
-    async (title: string): Promise<string | null> => {
+    async (prompt: string): Promise<string | null> => {
       if (backendDown) return null;
-      if (activeSessionIdRef.current) return activeSessionIdRef.current;
+      const scheduleTitle = (sessionId: string, title: string, turnCount: number): void => {
+        if (!shouldTitleOnFirstSend({ title, turnCount, prompt })) return;
+        titleJobRef.current = { id: sessionId, prompt };
+        void applyImmediateFallbackTitle({
+          sessionId,
+          prompt,
+          currentTitle: title,
+          rename: (id, nextTitle) => studioClient.renameSession(id, nextTitle),
+        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+      };
+      if (activeSessionIdRef.current) {
+        const existingId = activeSessionIdRef.current;
+        try {
+          const session = await Promise.resolve(studioClient.getSession(existingId));
+          scheduleTitle(
+            existingId,
+            session?.title ?? DEFAULT_SESSION_TITLE,
+            session?.turnCount ?? 0,
+          );
+        } catch {
+          scheduleTitle(existingId, DEFAULT_SESSION_TITLE, 0);
+        }
+        return existingId;
+      }
       try {
         const session = await Promise.resolve(
           studioClient.createSession({
             folderId: null,
-            title: sessionTitleFromPrompt(title),
+            title: DEFAULT_SESSION_TITLE,
             modelId: selectedModelId,
           }),
         );
         setActiveSession(session.id);
+        scheduleTitle(session.id, DEFAULT_SESSION_TITLE, 0);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {
@@ -326,6 +413,9 @@ export function ImageStudioPage({
       const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
         setActiveSession(sessionId);
         lastOutputRef.current = lastRef;
+        lastPngB64Ref.current = lastRef?.toLowerCase().startsWith("data:")
+          ? lastRef
+          : null;
         setMessages(studioTurnsToChatMessages(turns, { outputExists }));
       };
       const turnsMaybe = studioClient.listTurns?.(sessionId) ?? [];
@@ -353,6 +443,7 @@ export function ImageStudioPage({
   const startFreshStudioSession = useCallback(async (): Promise<void> => {
     setMessages([]);
     lastOutputRef.current = null;
+    lastPngB64Ref.current = null;
     setActiveSession(null);
     if (backendDown) return;
     try {
@@ -406,6 +497,7 @@ export function ImageStudioPage({
             continue;
           }
           outputs.current.set(messageId, png);
+          lastPngB64Ref.current = png;
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
@@ -416,6 +508,7 @@ export function ImageStudioPage({
             lastOutputRef.current = pathRef;
             persistTurn({ role: "assistant", content: "", mediaRef: pathRef });
           } else {
+            lastOutputRef.current = `data:image/png;base64,${png}`;
             persistTurn({ role: "assistant", content: "" });
           }
           void client.extractWorkflow(png).then((wf) => {
@@ -426,9 +519,25 @@ export function ImageStudioPage({
               }));
             }
           });
+          if (mediaRetryRef.current?.assistantId === messageId) {
+            mediaRetryRef.current = null;
+          }
         } else if (event.kind === "error") {
           done = true;
           outputs.current.delete(messageId);
+          const runtimeMessage = event.message ?? "unknown error";
+          if (isMediaRuntimeFailure(runtimeMessage)) {
+            void mediaRuntimeClient.status().then((state) => {
+              patchMessage(messageId, {
+                pending: false,
+                progress: undefined,
+                media: undefined,
+                content: "",
+                mediaRecovery: imageRecoveryState(state),
+              });
+            });
+            continue;
+          }
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
@@ -443,7 +552,7 @@ export function ImageStudioPage({
       }
       return { done };
     },
-    [patchMessage, client, persistTurn],
+    [patchMessage, client, persistTurn, mediaRuntimeClient],
   );
 
   const handleMediaError = useCallback(
@@ -507,12 +616,36 @@ export function ImageStudioPage({
     };
   }, [queueClient, drainIntervalMs]);
 
+  const markMediaRuntimeFailure = useCallback(
+    async (assistantId: string, error: unknown): Promise<boolean> => {
+      const message = formatInferenceError(error);
+      if (!isMediaRuntimeFailure(message)) return false;
+      try {
+        const state = await mediaRuntimeClient.status();
+        patchMessage(assistantId, {
+          pending: false,
+          content: "",
+          mediaRecovery: imageRecoveryState(state),
+        });
+      } catch {
+        patchMessage(assistantId, {
+          pending: false,
+          content: `Generation failed: ${message}`,
+        });
+      }
+      return true;
+    },
+    [mediaRuntimeClient, patchMessage],
+  );
+
   const handleSubmit = useCallback(
     async (
       text: string,
       attachments: readonly string[],
       residencyApproved = false,
+      retryAssistantId?: string,
     ): Promise<void> => {
+      stickNow();
       if (isGenerating) return;
       // v2.2.0 Phase 4: ask the policy before doing GPU work. A `confirm`
       // verdict opens the dialog and returns; the user's answer re-enters
@@ -547,10 +680,35 @@ export function ImageStudioPage({
           return;
         }
       }
-      const replace = attachments.length > 0 ? parseReplaceIntent(text) : null;
+      const implicitSource = resolveFollowUpSourceImage({
+        lastPngBase64: lastPngB64Ref.current,
+        lastOutputRef: lastOutputRef.current,
+      });
+      const replace = parseReplaceIntent(text);
+      const objectEdit = Boolean(replace && usesSegment(replace));
+      const restyle = replace?.scope === "image";
+      if (restyle && attachments.length === 0 && !implicitSource) {
+        const userMsg: ChatMessage = {
+          id: nextId("user"),
+          role: "user",
+          content: text,
+        };
+        const assistantMsg: ChatMessage = {
+          id: nextId("assistant"),
+          role: "assistant",
+          content: MISSING_RESTYLE_SOURCE_TEXT,
+        };
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+        persistTurn({ role: "assistant", content: MISSING_RESTYLE_SOURCE_TEXT });
+        return;
+      }
       if (
         attachments.length === 0 &&
         lastOutputRef.current &&
+        !lastPngB64Ref.current &&
+        !implicitSource?.toLowerCase().startsWith("data:") &&
         !isUsablePathRef(lastOutputRef.current, outputExists)
       ) {
         const userMsg: ChatMessage = {
@@ -573,7 +731,7 @@ export function ImageStudioPage({
         text,
         attachments,
         mask: paintedMask,
-        lastOutputRef: lastOutputRef.current,
+        lastOutputRef: implicitSource,
       });
       const userMsg: ChatMessage = {
         id: nextId("user"),
@@ -581,7 +739,7 @@ export function ImageStudioPage({
         content: text,
         ...(attachments.length > 0 ? { attachments: [...attachments] } : {}),
       };
-      const assistantId = nextId("assistant");
+      const assistantId = retryAssistantId ?? nextId("assistant");
       const assistantMsg: ChatMessage = {
         id: assistantId,
         role: "assistant",
@@ -589,32 +747,58 @@ export function ImageStudioPage({
         pending: true,
         activity: "image-generation",
       };
-      setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
-      await ensureSession(text);
-      persistTurn({ role: "user", content: text });
+      if (retryAssistantId) {
+        patchMessage(assistantId, {
+          pending: true,
+          content: "",
+          mediaRecovery: undefined,
+          sam2Recovery: undefined,
+          activity: "image-generation",
+        });
+      } else {
+        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+      }
+      mediaRetryRef.current = { assistantId, text, attachments: [...attachments] };
 
       const base = valuesToBaseRequest(values, {
-        prompt: replace ? inpaintPromptFor(replace) : intent.prompt,
+        prompt: restyle && replace
+          ? restylePromptFor(replace)
+          : objectEdit && replace
+            ? inpaintPromptFor(replace)
+            : intent.prompt,
         modelId: selectedModelId,
       }) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
+      const segmentSource = attachments[0] ?? implicitSource;
+      const followUpImg2img = Boolean(implicitSource) && attachments.length === 0;
 
       try {
-        if (replace && attachments[0]) {
-          const sourceImage = attachments[0].includes(",")
-            ? attachments[0].slice(attachments[0].indexOf(",") + 1)
-            : attachments[0];
+        if (objectEdit && replace && segmentSource) {
+          const sourceImage = stripToRawImageBytes(segmentSource);
           const seg = await client.segment({
             sourceImage,
             phrase: replace.object,
             hint: { text: replace.object },
           });
           if (!seg.ok || !seg.candidates || seg.candidates.length === 0) {
+            const fallback =
+              seg.message ??
+              "Could not find a mask for that object. Paint a mask to continue, or install sam2:hiera-tiny.";
+            const missing = seg.code === "weights_missing";
             patchMessage(assistantId, {
               pending: false,
-              content:
-                seg.message ??
-                "Could not find a mask for that object. Paint a mask to continue, or install sam2:hiera-tiny.",
+              content: fallback,
+              ...(missing
+                ? {
+                    sam2Recovery: {
+                      modelId: SAM2_MODEL_ID,
+                      message: fallback,
+                    },
+                  }
+                : {}),
             });
+            persistTurn({ role: "assistant", content: fallback });
             return;
           }
           if (seg.candidates.length > 1) {
@@ -641,10 +825,40 @@ export function ImageStudioPage({
         }
 
         let accepted;
-        if (intent.mode === "txt2img") {
+        // v2.4.4 Phase 3.1 (T010): a restyle is decided here and only here.
+        // Previously it depended on `intent.mode`, which is inferred from the
+        // presence of a source and knows nothing about restyle; any path that
+        // produced "txt2img" silently reprinted the original prompt instead.
+        const restylePlan =
+          restyle && replace
+            ? planRestyleRequest({
+                restylePrompt: restylePromptFor(replace),
+                sourceImage: attachments[0] ?? implicitSource,
+              })
+            : null;
+        if (restyle && !restylePlan) {
+          patchMessage(assistantId, {
+            pending: false,
+            content: MISSING_RESTYLE_SOURCE_TEXT,
+          });
+          persistTurn({ role: "assistant", content: MISSING_RESTYLE_SOURCE_TEXT });
+          return;
+        }
+        if (restylePlan) {
+          accepted = await client.img2img({
+            ...base,
+            prompt: restylePlan.prompt,
+            sourceImage: restylePlan.sourceImage,
+            strength: restylePlan.strength,
+          });
+        } else if (intent.mode === "txt2img") {
           accepted = await client.txt2img(base);
         } else if (intent.mode === "img2img") {
-          accepted = await client.img2img({ ...base, sourceImage: intent.sourceImage ?? "" });
+          accepted = await client.img2img({
+            ...base,
+            sourceImage: intent.sourceImage ?? implicitSource ?? "",
+            ...(followUpImg2img ? { strength: FOLLOWUP_IMG2IMG_STRENGTH } : {}),
+          });
         } else if (intent.mode === "inpaint") {
           accepted = await client.inpaint({
             ...base,
@@ -661,17 +875,111 @@ export function ImageStudioPage({
         }
         setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
       } catch (err) {
-        patchMessage(assistantId, {
-          pending: false,
-          content: `Generation failed: ${formatInferenceError(err)}`,
+        if (!(await markMediaRuntimeFailure(assistantId, err))) {
+          patchMessage(assistantId, {
+            pending: false,
+            content: `Generation failed: ${formatInferenceError(err)}`,
+          });
+          persistTurn({
+            role: "assistant",
+            content: `Generation failed: ${formatInferenceError(err)}`,
+          });
+          mediaRetryRef.current = null;
+        }
+      }
+      const titleJob = titleJobRef.current;
+      titleJobRef.current = null;
+      if (titleJob) {
+        void refineGeneratedTitle({
+          sessionId: titleJob.id,
+          prompt: titleJob.prompt,
+          rename: (id, title) => studioClient.renameSession(id, title),
+          generateTitle: async (id, prompt) => {
+            const reply = await ipc.call<{ title: string }>("chat.generateTitle", {
+              chatId: id,
+              firstMessage: prompt,
+            });
+            return reply.ok ? reply.value : null;
+          },
+        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+      }
+    },
+    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists, markMediaRuntimeFailure, stickNow, studioClient],
+  );
+
+  const repairMediaRuntime = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      let state = await mediaRuntimeClient.repair();
+      patchMessage(message.id, { mediaRecovery: imageRecoveryState(state) });
+      while (state.state === "repairing") {
+        await new Promise((resolve) => window.setTimeout(resolve, 750));
+        state = await mediaRuntimeClient.status();
+        patchMessage(message.id, { mediaRecovery: imageRecoveryState(state) });
+      }
+      const pending = mediaRetryRef.current;
+      if (state.state === "ready" && pending?.assistantId === message.id) {
+        mediaRetryRef.current = null;
+        await handleSubmit(pending.text, pending.attachments, true, pending.assistantId);
+      }
+    },
+    [handleSubmit, mediaRuntimeClient, patchMessage],
+  );
+
+  const cancelMediaRepair = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const state = await mediaRuntimeClient.cancelRepair();
+      mediaRetryRef.current = null;
+      patchMessage(message.id, { mediaRecovery: imageRecoveryState(state) });
+    },
+    [mediaRuntimeClient, patchMessage],
+  );
+
+  const installSam2 = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const source = modelsSourceRef.current;
+      const recovery = message.sam2Recovery;
+      if (!source?.install || backendDown || !recovery) return;
+      patchMessage(message.id, {
+        sam2Recovery: { ...recovery, installing: true, installed: false },
+      });
+      try {
+        await source.install(SAM2_MODEL_ID, () => undefined).done;
+        patchMessage(message.id, {
+          sam2Recovery: { ...recovery, installing: false, installed: true },
         });
-        persistTurn({
-          role: "assistant",
-          content: `Generation failed: ${formatInferenceError(err)}`,
+      } catch (err) {
+        patchMessage(message.id, {
+          sam2Recovery: {
+            ...recovery,
+            installing: false,
+            message: `Install failed: ${formatInferenceError(err)}`,
+          },
         });
       }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists],
+    [backendDown, patchMessage],
+  );
+
+  const paintSam2Mask = useCallback((message: ChatMessage): void => {
+    const parked = mediaRetryRef.current;
+    const src = resolveFollowUpSourceImage({
+      attachment: parked?.attachments[0] ?? message.attachments?.[0],
+      lastPngBase64: lastPngB64Ref.current,
+      lastOutputRef: lastOutputRef.current,
+    });
+    if (src) {
+      setSeededAttachment(src.toLowerCase().startsWith("data:") ? src : pngToDataUrl(src));
+    }
+    setAdvancedOpen(true);
+  }, []);
+
+  const retrySam2 = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const parked = mediaRetryRef.current;
+      if (!parked || parked.assistantId !== message.id) return;
+      await handleSubmit(parked.text, parked.attachments, true, parked.assistantId);
+    },
+    [handleSubmit],
   );
 
   const pickCandidate = useCallback(
@@ -807,19 +1115,35 @@ export function ImageStudioPage({
         />
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
-        <StudioHistoryPane
-          pillar="image"
-          client={studioClient}
-          defaultModelId={selectedModelId}
-          sidecarDown={backendDown}
-          refreshToken={historyEpoch}
-          onSelectSession={hydrateSession}
-          activeSessionId={activeSessionId}
-        />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <StudioHistoryPane
+        pillar="image"
+        client={studioClient}
+        defaultModelId={selectedModelId}
+        sidecarDown={backendDown}
+        refreshToken={historyEpoch}
+        onSelectSession={hydrateSession}
+        activeSessionId={activeSessionId}
+        onBeforeSessionDisposition={async (id) => {
+          if (activeSessionId !== id || !activeJob) return;
+          await queueClient.cancel(activeJob.jobId);
+        }}
+        onSessionDisposition={(id) => {
+          if (activeSessionId !== id) return;
+          setActiveJob(null);
+          setActiveSession(null);
+          setMessages([]);
+          setSeededAttachment(null);
+          lastOutputRef.current = null;
+          lastPngB64Ref.current = null;
+          pendingPromptRef.current = { text: "", attachments: [] };
+          setFormEpoch((value) => value + 1);
+        }}
+      />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="image-history"
+        ref={scrollRef}
+        onScroll={onScroll}
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
       >
         {messages.length === 0 ? (
@@ -892,6 +1216,14 @@ export function ImageStudioPage({
                 </>
               ) : null
             }
+            onRepairMediaRuntime={(message) => void repairMediaRuntime(message)}
+            onCancelMediaRepair={(message) => void cancelMediaRepair(message)}
+            onOpenMediaRepairLog={() => void mediaRuntimeClient.openLogLocation()}
+            onInstallSam2={(message) => void installSam2(message)}
+            onPaintSam2Mask={paintSam2Mask}
+            onOpenSam2Settings={onGetMoreModels ? () => onGetMoreModels() : undefined}
+            onRetrySam2={(message) => void retrySam2(message)}
+            sam2InstallDisabled={backendDown}
           />
         )}
       </div>
@@ -994,13 +1326,19 @@ export function ImageStudioPage({
             models={models}
             taskType="image"
             value={selectedModelId}
-            onChange={setSelectedModelId}
+            hostVramGB={hostVramGB}
+            recommendOrder={recommendOrderForTask(selection, "image")}
+            ownedIds={ownedIdSet(selection)}
+            onChange={(nextModelId) => {
+              userChangedModelRef.current = true;
+              setSelectedModelId(nextModelId);
+              writeFavorite("image", nextModelId);
+            }}
             onGetMoreModels={onGetMoreModels}
             disabled={isGenerating}
           />
         </ComposerContextRow>
       </div>
-        </div>
       </div>
     </section>
   );

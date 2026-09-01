@@ -32,6 +32,10 @@ import {
   type PersistedMessage,
 } from "../../../../core/memory/sessionArtifacts.js";
 import type { SidecarModelEntry } from "./models.js";
+import type {
+  MessageTokenUsageV1,
+  RequestTokenUsageV1,
+} from "../../../../core/chat/tokenUsage.js";
 
 /** One persisted user prompt plus the assistant text that exists for that turn. */
 export interface PersistedTurn {
@@ -39,8 +43,12 @@ export interface PersistedTurn {
   readonly assistantText: string;
   readonly inputTokens?: number | null;
   readonly reasoningTokens?: number | null;
+  readonly reasoningText?: string | null;
   readonly outputTokens?: number | null;
   readonly tokensEstimated?: boolean;
+  readonly requestUsage?: RequestTokenUsageV1;
+  readonly userMessageUsage?: MessageTokenUsageV1;
+  readonly assistantMessageUsage?: MessageTokenUsageV1;
   /** v2.2.7 Phase 4 -- ISO time for transcript chrome. Optional on older files. */
   readonly createdAt?: string;
 }
@@ -55,6 +63,17 @@ export interface PersistedSession {
   readonly messages: readonly string[];
   /** v2.2.6 Phase 4 -- optional because files written before this field omit it. */
   readonly turns?: readonly PersistedTurn[];
+  /** ISO timestamp while archived. Missing/null records are active. */
+  readonly archivedAt?: string | null;
+  /** v2.4.1 -- immutable workspace snapshot. workspacePath is one-cycle compatibility. */
+  readonly workspacePath?: string;
+  readonly workspaceId?: string;
+  readonly workspaceRoots?: readonly string[];
+  readonly identityRoots?: readonly string[];
+  readonly primaryRoot?: string;
+  readonly workspaceLabel?: string;
+  readonly workspaceCreatedAt?: string;
+  readonly workspaceLastUsedAt?: string;
 }
 
 /** Persistence seam for `CodingSessionManager`. Synchronous to match the manager. */
@@ -67,6 +86,9 @@ export interface SessionStore {
   upsert(session: PersistedSession): void;
   /** Remove a session. Missing ids are a no-op. */
   delete(id: string): void;
+  archive(id: string, archivedAt?: string): PersistedSession;
+  restore(id: string): PersistedSession;
+  listArchived(): readonly PersistedSession[];
 }
 
 /** A session as persisted to disk, where messages may be dehydration markers. */
@@ -75,13 +97,13 @@ interface DiskSession extends Omit<PersistedSession, "messages"> {
 }
 
 interface SessionsFile {
-  /** Schema version: 1 = inline-only messages; 2 = dehydration-aware. */
+  /** Schema version: 1 = inline-only; 2 = dehydration; 3 = reasoning; 4 = workspace scope; 5 = usage provenance. */
   readonly version: number;
   readonly sessions: readonly DiskSession[];
 }
 
-/** Schema version this store writes. Bumped from 1 in v1.6.0 Phase 3 (A1). */
-const SCHEMA_VERSION = 2;
+/** Older schemas remain readable because every added turn field is optional. */
+const SCHEMA_VERSION = 5;
 
 /** Default path for the shared session store: `<nexusHome>/sessions.json`. */
 export function defaultSessionStorePath(homeDirFn?: () => string): string {
@@ -180,5 +202,27 @@ export class JsonFileSessionStore implements SessionStore {
   delete(id: string): void {
     if (!this._sessions.delete(id)) return;
     this._persist();
+  }
+
+  archive(id: string, archivedAt = new Date().toISOString()): PersistedSession {
+    const existing = this._sessions.get(id);
+    if (!existing) throw new Error(`session not found: ${id}`);
+    const archived = { ...existing, archivedAt };
+    this._sessions.set(id, archived);
+    this._persist();
+    return archived;
+  }
+
+  restore(id: string): PersistedSession {
+    const existing = this._sessions.get(id);
+    if (!existing || !existing.archivedAt) throw new Error(`archived session not found: ${id}`);
+    const restored = { ...existing, archivedAt: null };
+    this._sessions.set(id, restored);
+    this._persist();
+    return restored;
+  }
+
+  listArchived(): readonly PersistedSession[] {
+    return Array.from(this._sessions.values()).filter((session) => Boolean(session.archivedAt));
   }
 }

@@ -92,9 +92,7 @@ def resume_plan(state: InstallState) -> ResumePlan:
     that is actually missing is still re-done safely.
     """
     completed = [
-        step
-        for step in state.components
-        if state.steps.get(step) in DONE_STEP_STATUSES
+        step for step in state.components if state.steps.get(step) in DONE_STEP_STATUSES
     ]
     completed_set = set(completed)
     remaining = [step for step in state.components if step not in completed_set]

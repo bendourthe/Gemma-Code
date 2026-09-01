@@ -56,14 +56,17 @@ class TestRepoCatalog:
         assert gemma["source"]["url"] == "ollama://gemma4:12b"
         assert gemma.get("minOllamaVersion") == "0.32.15"
 
-    def test_sana_int4_is_flagged_gated(self) -> None:
-        # Direct regression check for the reported HTTP-401 loop.
+    def test_sana_int4_uses_public_pinned_nunchaku_source(self) -> None:
+        # Direct regression check for the reported 404/auth loop.
         catalog = _load_repo_catalog()
         sana = next(
             (m for m in catalog["models"] if m.get("id") == "sana-1.6b-int4"), None
         )
         if sana is not None:
-            assert sana.get("gated") is True
+            assert sana.get("gated") is not True
+            assert sana["source"]["repo"] == "nunchaku-ai/nunchaku-sana"
+            assert len(sana["source"]["revision"]) == 40
+            assert sana["weights"]["files"][0]["sha256"] != "0" * 64
 
     def test_post_2025_ollama_targets_are_present(self) -> None:
         catalog = _load_repo_catalog()
@@ -241,16 +244,19 @@ class TestValidateCatalog:
         }
         assert any("gatedReason" in p for p in validate_catalog(catalog))
 
-    def test_known_gated_id_must_stay_flagged(self) -> None:
+    def test_sana_public_source_is_not_a_known_gated_id(self) -> None:
         catalog = {
             "models": [
                 {
                     "id": "sana-1.6b-int4",
-                    "source": {"protocol": "huggingface", "repo": "r"},
+                    "source": {
+                        "protocol": "huggingface",
+                        "repo": "nunchaku-ai/nunchaku-sana",
+                    },
                 }
             ]
         }
-        assert any("known access-gated" in p for p in validate_catalog(catalog))
+        assert not any("known access-gated" in p for p in validate_catalog(catalog))
 
     def test_missing_source_protocol_is_flagged(self) -> None:
         catalog = {"models": [{"id": "x"}]}
@@ -321,7 +327,7 @@ class TestValidateCatalog:
 
 
 class TestRequiredEmbedderPolicy:
-    def test_decision_file_is_keep_nomic(self) -> None:
+    def test_decision_file_records_embeddinggemma_supersession(self) -> None:
         from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
 
         repo = default_catalog_path().resolve().parents[2]
@@ -334,7 +340,8 @@ class TestRequiredEmbedderPolicy:
             / "embedder-default-decision.md"
         )
         text = decision.read_text(encoding="utf-8")
-        assert "**KEEP**" in text
+        assert "Superseded" in text
+        assert "**SWITCH**" in text
         assert REQUIRED_EMBEDDER_ID in text
         assert "300M" in text
         assert "reindex" in text.lower()
@@ -354,9 +361,9 @@ class TestRequiredEmbedderPolicy:
         )
         assert "300M" in copy or "300 million" in copy.lower()
         assert "300b" not in copy.lower()
-        assert "opt-in" in gemma["description"].lower()
+        assert "required default" in gemma["description"].lower()
 
-    def test_recommended_embed_defaults_are_nomic_only(self) -> None:
+    def test_recommended_embed_defaults_are_embeddinggemma_only(self) -> None:
         from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
         from nexus_installer.registry_paths import default_recommended_path
 
@@ -364,7 +371,7 @@ class TestRequiredEmbedderPolicy:
         for tier, sections in matrix["tiers"].items():
             assert sections["embed"] == [REQUIRED_EMBEDDER_ID], tier
 
-    def test_settings_default_embedding_model_is_nomic(self) -> None:
+    def test_settings_default_embedding_model_is_embeddinggemma(self) -> None:
         from nexus_installer.catalog_invariants import REQUIRED_EMBEDDER_ID
 
         repo = default_catalog_path().resolve().parents[2]
@@ -391,15 +398,16 @@ class TestRequiredEmbedderPolicy:
         problems = validate_catalog(catalog)
         assert any("300B" in p for p in problems)
 
-    def test_nomic_wrong_task_is_flagged(self) -> None:
+    def test_required_embeddinggemma_wrong_task_is_flagged(self) -> None:
         catalog = {
             "models": [
                 {
-                    "id": "nomic-embed-text",
+                    "id": "embeddinggemma",
+                    "displayName": "EmbeddingGemma 300M",
                     "task": "chat",
                     "source": {
                         "protocol": "ollama",
-                        "url": "ollama://nomic-embed-text",
+                        "url": "ollama://embeddinggemma:300m",
                     },
                 }
             ]

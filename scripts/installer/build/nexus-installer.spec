@@ -117,6 +117,37 @@ recommended_path = REPO_ROOT / "core" / "registry" / "recommended.json"
 if recommended_path.exists():
     datas.append((str(recommended_path), "core/registry"))
 
+# v2.4.1 Phase 1: opt-in Unsloth provisioning runs after the required desktop
+# steps, so its pins must resolve from the frozen bundle rather than a checkout
+# relative working directory. Fail the build on a missing or malformed file.
+unsloth_pins_path = REPO_ROOT / "core" / "tuning" / "unsloth-pins.json"
+if not unsloth_pins_path.is_file():
+    raise SystemExit(f"unsloth-pins.json missing: expected {unsloth_pins_path}")
+try:
+    _unsloth_pins = json.loads(unsloth_pins_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"unsloth-pins.json is unreadable or invalid: {exc}") from exc
+_unsloth_packages = _unsloth_pins.get("provisioned")
+if not isinstance(_unsloth_packages, list) or not _unsloth_packages:
+    raise SystemExit("unsloth-pins.json must contain provisioned packages")
+for _package in _unsloth_packages:
+    if not isinstance(_package, dict) or not all(
+        str(_package.get(_field) or "").strip()
+        for _field in ("name", "version", "license")
+    ):
+        raise SystemExit(
+            "every Unsloth provisioned package needs name, version, and license"
+        )
+datas.append((str(unsloth_pins_path), "core/tuning"))
+
+versions_lock_path = INSTALLER_ROOT / "build" / "versions.lock.json"
+if not versions_lock_path.is_file():
+    raise SystemExit(f"versions.lock.json missing: expected {versions_lock_path}")
+_versions_lock = json.loads(versions_lock_path.read_text(encoding="utf-8"))
+if not isinstance(_versions_lock.get("diffusion", {}).get("targets"), dict):
+    raise SystemExit("versions.lock.json must contain diffusion.targets")
+datas.append((str(versions_lock_path), "installer-build"))
+
 # Backend requirements
 req_candidates = [
     REPO_ROOT / "scripts" / "installer" / "backend-requirements.txt",

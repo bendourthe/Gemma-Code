@@ -91,6 +91,7 @@ export function createTelemetryStream(
         vramFreeGB: raw.freeVramGB,
         deviceName: raw.deviceName,
         lastUpdated: raw.capturedAt,
+        gpuVendor: raw.device === "cuda" ? "nvidia" : raw.device === "apple" ? "apple" : "none",
         vramTotalGB: raw.totalVramGB,
         vramAllocatedGB: Math.max(0, raw.totalVramGB - raw.freeVramGB),
         queuedJobs: snap.queued,

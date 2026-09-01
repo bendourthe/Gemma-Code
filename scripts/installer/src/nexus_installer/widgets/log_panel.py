@@ -1,4 +1,4 @@
-﻿"""Scrollable log panel with color-coded output levels."""
+"""Scrollable log panel with color-coded output levels."""
 
 from __future__ import annotations
 

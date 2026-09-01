@@ -6,6 +6,24 @@
 * **Windows process host:** pin the PowerShell helper PATH to System32 and .NET Framework roots so in-memory `Add-Type` can find `csc.exe`, and run desktop vitest as a single worker on Windows CI so those compiles are not starved by parallel coverage. Do not retag `v2.3.1`.
 
 
+# [2.4.1](https://github.com/bendourthe/Nexus-AI/compare/v2.3.1...v2.4.1) (2026-08-29)
+
+Windows installer and field-reliability candidate. Automated and packaged-smoke evidence is local-first; the operator checklist keeps clean/repair install visuals, live CUDA generation, and packaged interaction checks explicit until observed.
+
+### Features
+
+* **Transcript and archives:** separate pending motion from response bubbles, add compact accessible token metadata and provider-supplied reasoning disclosure, and support archive/restore/delete with active-view reset across Chatbot, Agents, Images, and Videos.
+* **Models and workspaces:** share model ordering and display facts between installer and Settings, add a live model-storage meter, and support durable multi-root Agents workspaces with union-of-roots authorization and workspace-grouped history.
+
+### Bug Fixes
+
+* **Installer completion:** make overall progress prominent and monotonic, bundle frozen Unsloth pins, and contain optional provisioning failures without misreporting successful required work.
+* **Image runtime readiness:** provision and repair the pinned diffusion environment, fail closed when CUDA readiness is not observed, and retain the last known-good runtime on repair failure.
+* **Release gates:** format the inherited Rust and installer Python baselines and add an exact-count, stale-detecting repository-check baseline for intentional historical fixtures while leaving new or excess errors blocking.
+
+Plan: [v2.4.1](docs/v2/v2.4/plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md). Gaps: [docs/v2/v2.4/known-gaps.md](docs/v2/v2.4/known-gaps.md).
+
+
 # [2.3.1](https://github.com/bendourthe/Nexus-AI/compare/v2.3.0...v2.3.1) (2026-08-29)
 
 Windows installer field repair after v2.3.0. Local-only. Packaged wizard screenshots remain human QA, not a silent pass. `host_detect.py` OS-specific probes stay at 40% line coverage (MT-1). Marketplace `engines.vscode` `^1.134.0` also matches 1.136+ at VS Code engine-check time; the wizard still disables 1.136+.

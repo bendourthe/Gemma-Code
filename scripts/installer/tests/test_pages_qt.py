@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from nexus_installer.installer_state import InstallerState
 
 
@@ -178,6 +180,22 @@ class TestGpuDetectionPage:
             assert state.total_ram_gb == 32
             assert state.vram_mb == 16384
             assert state.free_disk_gb == 0
+            assert "16 GB VRAM" in page._gpu_detail_label.text()
+
+    def test_detection_ceils_15360_mib_to_16_gb_label(self, qt_app: object) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            page = GpuDetectionPage(InstallerState())
+            page._on_detection_complete("RTX 3080", "nvidia", 15360)
+            assert "16 GB VRAM" in page._gpu_detail_label.text()
+            assert "15360" not in page._gpu_detail_label.text()
 
 
 class TestInstallPathPage:
@@ -246,7 +264,55 @@ class TestInstallPathPage:
             assert state.disk_space_gb == 0.0
 
 
+class TestSetupPage:
+    def test_compacts_three_machine_panels(self, qt_app: object) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        from nexus_installer.pages.setup import SetupPage
+
+        with (
+            patch("nexus_installer.pages.prerequisites._DetectionWorker.start"),
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+        ):
+            page = SetupPage(InstallerState())
+            texts = " ".join(lbl.text() for lbl in page.findChildren(QLabel))
+            assert "Set up this machine" in texts
+            assert "Prerequisites" in texts
+            assert "GPU Detection" in texts
+            assert "Install Path" in texts
+
+    def test_validate_waits_for_nested_panels(self, qt_app: object, tmp_path) -> None:
+        from nexus_installer.pages.setup import SetupPage
+
+        with (
+            patch("nexus_installer.pages.prerequisites._DetectionWorker.start"),
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            state = InstallerState(install_path=str(tmp_path / "NexusAI"))
+            page = SetupPage(state)
+            ok, _msg = page.validate()
+            assert ok is False
+            page._prereq._vscode_found = True
+            page._prereq._disk_ok = True
+            page._gpu._on_detection_complete("RTX 3080 Ti", "nvidia", 16384)
+            ok, msg = page.validate()
+            assert ok is True, msg
+
+
 class TestConfigurationPage:
+    @pytest.fixture(autouse=True)
+    def _stub_vscode_detect(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from nexus_installer.engine.extension_installer import VsCodeCliStatus
+
+        monkeypatch.setattr(
+            "nexus_installer.pages.vscode_extension.detect_vscode_cli",
+            lambda: VsCodeCliStatus(None, None, None, False, "not-found"),
+        )
+
     def test_creates_with_toggles(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
 
@@ -279,10 +345,20 @@ class TestConfigurationPage:
         assert page._video2x_note.text() == INSTALLER_NOTE
         assert "never installed by this wizard" in page._video2x_note.text()
 
+    def test_components_and_features_are_separate_columns(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        assert page._components_col.objectName() == "config-components-column"
+        assert page._features_col.objectName() == "config-features-column"
+        assert page._components_col.parent() is not page._features_col
+        assert page._ollama_toggle.parentWidget() is page._components_col
+        assert page._unsloth.parentWidget().parentWidget() is page._features_col
+
     def test_unsloth_checkbox_is_off_and_sets_state(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
 
-        state = InstallerState()
+        state = InstallerState(gpu_vendor="nvidia", vram_mb=16384)
         page = ConfigurationPage(state)
         assert page._unsloth.isChecked() is False
         assert state.install_unsloth is False
@@ -291,14 +367,32 @@ class TestConfigurationPage:
         assert "QLoRA" in page._unsloth.text()
         assert "LGPL" in page._unsloth_help.text()
 
-    def test_unsloth_warns_without_nvidia_16gb(self, qt_app: object) -> None:
+    def test_unsloth_incompatible_cannot_be_checked(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
 
-        state = InstallerState(gpu_vendor="none", vram_mb=0)
+        state = InstallerState(gpu_vendor="nvidia", vram_mb=8192)
         page = ConfigurationPage(state)
+        assert page._unsloth_badge.text() == "Incompatible"
+        assert page._unsloth.isEnabled() is False
         page._unsloth.setChecked(True)
-        assert "NVIDIA" in page._unsloth_warning.text()
-        assert not page._unsloth_warning.isHidden()
+        assert page._unsloth.isChecked() is False
+        assert state.install_unsloth is False
+        assert page._unsloth_warning.isHidden()
+
+    def test_unsloth_refreshes_on_show_after_gpu(self, qt_app: object) -> None:
+        from PyQt5.QtGui import QShowEvent
+
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        page = ConfigurationPage(state)
+        assert page._unsloth_badge.text() == "Incompatible"
+        assert page._unsloth.isEnabled() is False
+        state.gpu_vendor = "nvidia"
+        state.vram_mb = 16384
+        page.showEvent(QShowEvent())
+        assert page._unsloth_badge.text() == "Compatible"
+        assert page._unsloth.isEnabled() is True
 
     def test_unsloth_hides_warning_on_nvidia_16gb(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
@@ -308,6 +402,38 @@ class TestConfigurationPage:
         page._unsloth.setChecked(True)
         assert page._unsloth_warning.isHidden()
         assert page._unsloth_warning.text() == ""
+
+    def test_unsloth_badge_is_visible_before_opt_in(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        none_page = ConfigurationPage(InstallerState(gpu_vendor="none", vram_mb=0))
+        assert none_page._unsloth.isChecked() is False
+        assert none_page._unsloth_badge.text() == "Incompatible"
+        assert none_page._unsloth.isEnabled() is False
+
+        ok_page = ConfigurationPage(InstallerState(gpu_vendor="nvidia", vram_mb=16384))
+        assert ok_page._unsloth_badge.text() == "Compatible"
+        assert ok_page._unsloth.isEnabled() is True
+
+    def test_narrow_width_stacks_config_columns(self, qt_app: object) -> None:
+        from PyQt5.QtCore import QSize
+        from PyQt5.QtGui import QResizeEvent
+
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        page.resizeEvent(QResizeEvent(QSize(400, 700), QSize(900, 700)))
+        assert page._narrow_columns is True
+        page.resizeEvent(QResizeEvent(QSize(900, 700), QSize(400, 700)))
+        assert page._narrow_columns is False
+
+    def test_vscode_checkbox_lives_on_configuration(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        assert page._vscode._checkbox.isHidden() is False
+        assert page._vscode._checkbox.isEnabled() is False
+        assert "not found" in page._vscode._detection_label.text().lower()
 
 
 class TestReviewPage:
@@ -321,6 +447,54 @@ class TestReviewPage:
         )
         page = ReviewPage(state)
         assert page is not None
+
+    def test_facts_and_models_are_separate_columns(self, qt_app: object) -> None:
+        from nexus_installer.pages.review import ReviewPage
+
+        state = InstallerState(
+            install_path=r"C:\Program Files\NexusAI",
+            gpu_name="NVIDIA GeForce RTX 3080 Ti Laptop GPU",
+            vram_mb=16384,
+            selected_model_ids=["embedding-gemma", "gemma-4-12b-it-gguf"],
+            selected_models_gb=20.0,
+            components_to_install=["extension", "ollama", "venv", "model", "desktop"],
+        )
+        page = ReviewPage(state)
+        page._rebuild_summary()
+        facts = page._facts_label.text()
+        models = page._models_label.text()
+        assert page._facts_label.objectName() == "review-facts-column"
+        assert page._models_label.objectName() == "review-models-column"
+        assert r"C:\Program Files\NexusAI" in facts
+        assert "Estimated installation time" in facts
+        assert "Estimated time:" not in facts
+        assert "16 GB VRAM" in facts
+        assert "16384 MB" not in facts
+        assert "embedding-gemma" in models
+        assert "embedding-gemma" not in facts
+        assert "Install path" not in models
+
+    def test_zero_vram_omits_gb_suffix(self, qt_app: object) -> None:
+        from nexus_installer.pages.review import ReviewPage
+
+        page = ReviewPage(InstallerState(gpu_name="", vram_mb=0))
+        page._rebuild_summary()
+        facts = page._facts_label.text()
+        assert "None detected" in facts
+        assert "GB VRAM" not in facts
+        assert "0 GB" not in facts
+
+    def test_narrow_width_stacks_review_columns(self, qt_app: object) -> None:
+        from PyQt5.QtCore import QSize
+        from PyQt5.QtGui import QResizeEvent
+
+        from nexus_installer.pages.review import ReviewPage
+
+        page = ReviewPage(InstallerState())
+        page.resizeEvent(QResizeEvent(QSize(400, 700), QSize(900, 700)))
+        assert page._narrow_columns is True
+        page.resizeEvent(QResizeEvent(QSize(900, 700), QSize(400, 700)))
+        assert page._narrow_columns is False
 
 
 class TestInstallingPage:
@@ -450,6 +624,34 @@ class TestCompletePage:
         assert page._title.text() == "Installation Stopped"
         assert "unexpected error" in page._subtitle.text()
         assert not page._warning_callout.isHidden()
+
+    def test_optional_failure_is_warning_not_stopped(self, qt_app: object) -> None:
+        page = self._refreshed_page(
+            optional_failed_steps=["unsloth"],
+            step_failures=[
+                {
+                    "step": "unsloth",
+                    "summary": "The optional Unsloth environment is not ready.",
+                    "suggestion": "Retry from Settings.",
+                }
+            ],
+        )
+        assert page._title.text() == "Installation Completed with Warnings"
+        assert "unexpected error" not in page._subtitle.text()
+        assert not page._warning_callout.isHidden()
+        assert "#f" in page._warning_callout.styleSheet().lower()
+
+    def test_dropped_progress_diagnostic_is_not_a_completion_warning(
+        self, qt_app: object
+    ) -> None:
+        page = self._refreshed_page(
+            install_log=[
+                "[WARN] Model progress display update was dropped for m1: "
+                "completed event"
+            ]
+        )
+        assert page._title.text() == "Installation Complete"
+        assert page._warning_callout.isHidden()
 
 
 class TestInstallingGatedAuthWiring:

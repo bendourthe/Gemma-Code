@@ -316,9 +316,7 @@ class ModelStepRouter:
             )
 
         entries = {mid: catalog.get(mid) for mid in selected}
-        ollama_ids = [
-            mid for mid in selected if protocol_for(entries[mid]) == "ollama"
-        ]
+        ollama_ids = [mid for mid in selected if protocol_for(entries[mid]) == "ollama"]
         server_ok = True
         if ollama_ids:
             server_ok = self.ensure_ollama_server(state, log)
@@ -405,8 +403,7 @@ class ModelStepRouter:
                     failed[model_id] = reason or "failed"
                 events.failed(model_id, failed[model_id])
                 mlog(
-                    f"Model {model_id} failed; continuing with the "
-                    "remaining models.",
+                    f"Model {model_id} failed; continuing with the remaining models.",
                     "warn",
                 )
 

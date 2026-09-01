@@ -45,7 +45,9 @@ class TestInstallStateRoundTrip:
             models={"m1": ModelState(model_id="m1", fraction=0.5, bytes_done=50)},
             failed_steps=["desktop"],
             failed_models=["m2"],
+            optional_failed_steps=["unsloth"],
             step_failures=[{"step": "desktop", "summary": "s", "suggestion": "a"}],
+            step_results=[{"step": "desktop", "status": "failed"}],
             results={"desktop_installed": True},
         )
         target = tmp_path / "state.json"
@@ -59,6 +61,8 @@ class TestInstallStateRoundTrip:
         assert loaded.steps == {"ollama": STEP_DONE, "model": "running"}
         assert loaded.models["m1"].fraction == pytest.approx(0.5)
         assert loaded.failed_steps == ["desktop"]
+        assert loaded.optional_failed_steps == ["unsloth"]
+        assert loaded.step_results == [{"step": "desktop", "status": "failed"}]
         assert loaded.results == {"desktop_installed": True}
 
     def test_save_stamps_updated_at(self, tmp_path: Path) -> None:

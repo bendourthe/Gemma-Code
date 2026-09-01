@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -13,14 +11,14 @@ from nexus_installer.engine.node_provisioner import (
     NodeProvisioner,
     add_to_user_path_windows,
     node_executable,
-    ollama_service_running_windows,
     offline_ollama_installer_path,
+    ollama_service_running_windows,
     run_bundled_ollama_setup,
     runtime_root,
 )
 
 
-def _logs() -> tuple[list[tuple[str, str]], "callable"]:
+def _logs() -> tuple[list[tuple[str, str]], callable]:
     log: list[tuple[str, str]] = []
 
     def fn(msg: str, level: str) -> None:

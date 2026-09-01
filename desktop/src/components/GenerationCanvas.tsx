@@ -24,6 +24,150 @@ import {
 
 export type GenerationTint = "image" | "video";
 
+export interface MediaRuntimeRecoveryCardProps {
+  readonly state: "repairable" | "repairing" | "failed";
+  readonly code: string;
+  readonly message: string;
+  readonly retryable: boolean;
+  readonly progress: number;
+  readonly details?: string;
+  readonly logPath?: string;
+  readonly onRepair?: () => void;
+  readonly onCancel?: () => void;
+  readonly onOpenLog?: () => void;
+}
+
+/** Inline, non-bubble recovery surface shared by Image Studio and Video Lab. */
+export function MediaRuntimeRecoveryCard({
+  state,
+  code,
+  message,
+  retryable,
+  progress,
+  details,
+  logPath,
+  onRepair,
+  onCancel,
+  onOpenLog,
+}: MediaRuntimeRecoveryCardProps): JSX.Element {
+  return (
+    <section
+      data-testid="media-runtime-recovery"
+      role="alert"
+      style={{
+        width: "min(100%, 42rem)",
+        border: "1px solid color-mix(in srgb, var(--warning, #f59e0b) 55%, var(--border-1))",
+        borderRadius: "var(--radius-lg)",
+        background: "color-mix(in srgb, var(--warning, #f59e0b) 8%, var(--bg-1))",
+        padding: "var(--space-3)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-2)",
+      }}
+    >
+      <strong>Media runtime needs attention</strong>
+      <span>{message}</span>
+      {state === "repairing" ? (
+        <div role="status" aria-live="polite">
+          <progress value={progress} max={1} style={{ width: "100%" }} />
+          <span style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+            {Math.round(progress * 100)}%
+          </span>
+        </div>
+      ) : null}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+        {state === "repairing" ? (
+          <button type="button" onClick={onCancel} data-testid="media-runtime-cancel">
+            Cancel repair
+          </button>
+        ) : retryable ? (
+          <button type="button" onClick={onRepair} data-testid="media-runtime-repair">
+            Repair media runtime
+          </button>
+        ) : null}
+        {logPath ? (
+          <button type="button" onClick={onOpenLog} data-testid="media-runtime-open-log">
+            Open log location
+          </button>
+        ) : null}
+      </div>
+      <details>
+        <summary>View details</summary>
+        <p style={{ marginBottom: 0, whiteSpace: "pre-wrap", color: "var(--fg-muted)" }}>
+          {details || code}
+        </p>
+      </details>
+    </section>
+  );
+}
+
+export interface Sam2RecoveryCardProps {
+  readonly modelId: string;
+  readonly message: string;
+  readonly installing?: boolean;
+  readonly installed?: boolean;
+  readonly installDisabled?: boolean;
+  readonly onInstall?: () => void;
+  readonly onPaintMask?: () => void;
+  readonly onOpenSettings?: () => void;
+  readonly onRetry?: () => void;
+}
+
+/** Inline recovery when SAM2 weights are missing. Same card grammar as media runtime. */
+export function Sam2RecoveryCard({
+  modelId,
+  message,
+  installing = false,
+  installed = false,
+  installDisabled = false,
+  onInstall,
+  onPaintMask,
+  onOpenSettings,
+  onRetry,
+}: Sam2RecoveryCardProps): JSX.Element {
+  return (
+    <section
+      data-testid="sam2-recovery"
+      role="alert"
+      style={{
+        width: "min(100%, 42rem)",
+        border: "1px solid color-mix(in srgb, var(--warning, #f59e0b) 55%, var(--border-1))",
+        borderRadius: "var(--radius-lg)",
+        background: "color-mix(in srgb, var(--warning, #f59e0b) 8%, var(--bg-1))",
+        padding: "var(--space-3)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-2)",
+        marginTop: "var(--space-2)",
+      }}
+    >
+      <strong>SAM2 weights are not installed</strong>
+      <span>{message}</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+        <button
+          type="button"
+          data-testid="sam2-install"
+          disabled={installDisabled || installing || installed}
+          onClick={onInstall}
+        >
+          {installing ? "Installing..." : `Install ${modelId}`}
+        </button>
+        <button type="button" data-testid="sam2-paint-mask" onClick={onPaintMask}>
+          Paint a mask
+        </button>
+        <button type="button" data-testid="sam2-open-settings" onClick={onOpenSettings}>
+          Open Settings &gt; Models
+        </button>
+        {installed ? (
+          <button type="button" data-testid="sam2-retry" onClick={onRetry}>
+            Retry
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export interface GenerationCanvasProps {
   /** Job progress 0-1; drives how far the live preview has "materialized". */
   progress?: number;

@@ -23,17 +23,31 @@ import {
   IpcMethodError,
 } from "../protocol.js";
 import { estimateTokens } from "../../../../core/chat/sessionContextUsage.js";
+import {
+  estimatedMessageUsage,
+  type MessageTokenUsageV1,
+  type RequestTokenUsageV1,
+} from "../../../../core/chat/tokenUsage.js";
+import { redactSecrets } from "../../../../core/observability/redactSecrets.js";
 import { requireModel, type SidecarModelEntry } from "./models.js";
 import type { AgentRunner } from "./headlessAgentRunner.js";
 import type { PersistedSession, PersistedTurn, SessionStore } from "./sessionStore.js";
+import {
+  workspaceScopeFromPersisted,
+  type WorkspaceScope,
+} from "../../../../core/project/WorkspaceScope.js";
 
 interface SessionTurn {
   prompt: string;
   assistantText: string;
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  userMessageUsage?: MessageTokenUsageV1;
+  assistantMessageUsage?: MessageTokenUsageV1;
   createdAt?: string;
 }
 
@@ -45,8 +59,20 @@ interface SessionRecord {
   messages: string[];
   turns: SessionTurn[];
   cancelRequested: boolean;
-  /** v1.7.0 -- project root the headless agent's tools are scoped to (in-memory). */
-  workspacePath?: string;
+  /** v2.4.1 -- immutable roots captured when the session starts. */
+  workspaceScope?: WorkspaceScope;
+}
+
+function scopeFromSession(session: PersistedSession): WorkspaceScope | undefined {
+  if (!session.workspaceRoots?.length && !session.workspacePath) return undefined;
+  return workspaceScopeFromPersisted({
+    workspaceRoots: session.workspaceRoots,
+    workspacePath: session.workspacePath,
+    primaryRoot: session.primaryRoot,
+    workspaceId: session.workspaceId,
+    createdAt: session.workspaceCreatedAt,
+    lastUsedAt: session.workspaceLastUsedAt,
+  });
 }
 
 function tokenTextFromEvents(events: readonly CodingSessionEventT[]): string {
@@ -67,8 +93,12 @@ function copyTurn(turn: PersistedTurn | SessionTurn): SessionTurn {
     assistantText: turn.assistantText,
     inputTokens: turn.inputTokens,
     reasoningTokens: turn.reasoningTokens,
+    reasoningText: turn.reasoningText,
     outputTokens: turn.outputTokens,
     tokensEstimated: turn.tokensEstimated,
+    requestUsage: turn.requestUsage,
+    userMessageUsage: turn.userMessageUsage,
+    assistantMessageUsage: turn.assistantMessageUsage,
     createdAt: turn.createdAt,
   };
 }
@@ -97,18 +127,44 @@ function persistedTurnFromEvents(
   now: Date,
 ): SessionTurn {
   const assistantText = tokenTextFromEvents(events);
+  const reasoningText = redactSecrets(
+    events
+      .filter((event) => event.kind === "reasoning_delta")
+      .map((event) => event.text)
+      .join(""),
+  ).slice(0, 65_536) || null;
   const usage = usageFromCodingEvents(events);
   const hasReported =
     usage.inputTokens != null || usage.reasoningTokens != null || usage.outputTokens != null;
   const createdAt = now.toISOString();
+  const requestUsage: RequestTokenUsageV1 | undefined = hasReported
+    ? {
+        version: 1,
+        inputTokens: usage.inputTokens,
+        reasoningTokens: usage.reasoningTokens,
+        outputTokens: usage.outputTokens,
+        provenance: { accuracy: "exact", source: "provider" },
+        raw: {
+          inputTokens: usage.inputTokens,
+          reasoningTokens: usage.reasoningTokens,
+          outputTokens: usage.outputTokens,
+        },
+      }
+    : undefined;
+  const userMessageUsage = estimatedMessageUsage("user", prompt);
+  const assistantMessageUsage = estimatedMessageUsage("assistant", assistantText, reasoningText);
   if (hasReported) {
     return {
       prompt,
       assistantText,
       inputTokens: usage.inputTokens,
       reasoningTokens: usage.reasoningTokens,
+      ...(reasoningText ? { reasoningText } : {}),
       outputTokens: usage.outputTokens,
       tokensEstimated: false,
+      requestUsage,
+      userMessageUsage,
+      assistantMessageUsage,
       createdAt,
     };
   }
@@ -117,7 +173,10 @@ function persistedTurnFromEvents(
     assistantText,
     inputTokens: estimateTokens(prompt),
     outputTokens: estimateTokens(assistantText),
+    ...(reasoningText ? { reasoningText } : {}),
     tokensEstimated: true,
+    userMessageUsage,
+    assistantMessageUsage,
     createdAt,
   };
 }
@@ -151,6 +210,7 @@ export class CodingSessionManager {
     // started in another surface (e.g. the CLI) is visible + resumable here.
     if (this._store) {
       for (const s of this._store.list()) {
+        if (s.archivedAt) continue;
         this._sessions.set(s.id, {
           id: s.id,
           model: s.model,
@@ -161,6 +221,7 @@ export class CodingSessionManager {
             copyTurn,
           ),
           cancelRequested: false,
+          workspaceScope: scopeFromSession(s),
         });
       }
     }
@@ -176,15 +237,43 @@ export class CodingSessionManager {
       createdAt: rec.createdAt,
       messages: [...rec.messages],
       turns: turnsFromRecord(rec),
+      ...(rec.workspaceScope
+        ? {
+            workspacePath: rec.workspaceScope.primaryRoot,
+            workspaceId: rec.workspaceScope.workspaceId,
+            workspaceRoots: [...rec.workspaceScope.workspaceRoots],
+            identityRoots: [...rec.workspaceScope.identityRoots],
+            primaryRoot: rec.workspaceScope.primaryRoot,
+            workspaceLabel: rec.workspaceScope.displayLabel,
+            workspaceCreatedAt: rec.workspaceScope.createdAt,
+            workspaceLastUsedAt: rec.workspaceScope.lastUsedAt,
+          }
+        : {}),
     };
     this._store.upsert(persisted);
   }
 
   start(req: CodingSessionStartRequestT): CodingSessionStartResponseT {
+    const scope =
+      req.workspaceRoots?.length || req.workspacePath
+        ? workspaceScopeFromPersisted({
+            workspaceRoots: req.workspaceRoots,
+            workspacePath: req.workspacePath,
+            primaryRoot: req.primaryRoot,
+            workspaceId: req.workspaceId,
+          })
+        : undefined;
+    return this.startWithScope(req, scope);
+  }
+
+  startWithScope(
+    req: CodingSessionStartRequestT,
+    workspaceScope: WorkspaceScope | undefined,
+  ): CodingSessionStartResponseT {
     const model = requireModel(req.modelId);
     const id = this._idFactory();
     const createdAt = this._now().toISOString();
-    const title = req.title?.trim() || `Session ${id.slice(0, 8)}`;
+    const title = req.title?.trim() || "New chat";
     const rec: SessionRecord = {
       id,
       model,
@@ -193,7 +282,7 @@ export class CodingSessionManager {
       messages: [],
       turns: [],
       cancelRequested: false,
-      workspacePath: req.workspacePath,
+      workspaceScope,
     };
     this._sessions.set(id, rec);
     this._persist(rec);
@@ -202,6 +291,13 @@ export class CodingSessionManager {
       modelId: model.id,
       family: model.family,
       createdAt,
+      ...(workspaceScope
+        ? {
+            workspaceId: workspaceScope.workspaceId,
+            workspaceRoots: [...workspaceScope.workspaceRoots],
+            primaryRoot: workspaceScope.primaryRoot,
+          }
+        : {}),
     };
   }
 
@@ -228,7 +324,8 @@ export class CodingSessionManager {
           sessionId: rec.id,
           message,
           model: rec.model,
-          workspacePath: rec.workspacePath,
+          workspacePath: rec.workspaceScope?.primaryRoot,
+          workspaceScope: rec.workspaceScope,
         })
       : [
           { kind: "token", text: `Acknowledged: ${message.slice(0, 80)}` },
@@ -297,6 +394,36 @@ export class CodingSessionManager {
     return { sessionId, deleted: true };
   }
 
+  archive(sessionId: string): { sessionId: string; archivedAt: string } {
+    this._requireSession(sessionId, "sessions.archive");
+    if (!this._store) throw new IpcMethodError("sessions.archive", "session storage is unavailable");
+    const archivedAt = this._now().toISOString();
+    this._store.archive(sessionId, archivedAt);
+    this._sessions.delete(sessionId);
+    return { sessionId, archivedAt };
+  }
+
+  listArchived(): readonly PersistedSession[] {
+    return this._store?.listArchived() ?? [];
+  }
+
+  restore(sessionId: string): { session: CodingSessionSummaryT; parentFallback: false } {
+    if (!this._store) throw new IpcMethodError("sessions.restore", "session storage is unavailable");
+    const s = this._store.restore(sessionId);
+    const rec: SessionRecord = {
+      id: s.id,
+      model: s.model,
+      title: s.title,
+      createdAt: s.createdAt,
+      messages: [...s.messages],
+      turns: (s.turns ?? s.messages.map((prompt) => ({ prompt, assistantText: "" }))).map(copyTurn),
+      cancelRequested: false,
+      workspaceScope: scopeFromSession(s),
+    };
+    this._sessions.set(rec.id, rec);
+    return { session: this._summary(rec), parentFallback: false };
+  }
+
   private _summary(rec: SessionRecord): CodingSessionSummaryT {
     return {
       sessionId: rec.id,
@@ -305,6 +432,13 @@ export class CodingSessionManager {
       title: rec.title,
       createdAt: rec.createdAt,
       messageCount: rec.messages.length,
+      ...(rec.workspaceScope
+        ? {
+            workspaceId: rec.workspaceScope.workspaceId,
+            workspaceRoots: [...rec.workspaceScope.workspaceRoots],
+            primaryRoot: rec.workspaceScope.primaryRoot,
+          }
+        : {}),
     };
   }
 

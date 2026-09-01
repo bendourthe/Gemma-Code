@@ -60,6 +60,7 @@ export interface SidecarHeadlessToolsOptions {
     text: string;
     sourcePath: string;
     engine: string;
+    workspaceId?: string;
   }) => Promise<{ stored: boolean; reason?: string }>;
 }
 
@@ -130,33 +131,36 @@ function withWorkspacePermissionsDeny(tools: readonly HeadlessTool[]): HeadlessT
   return tools.map((tool) => ({
     ...tool,
     async execute(args, ctx) {
-      const denyPath = join(ctx.workdir, ".nexus", "permissions.deny");
-      let content: string;
-      try {
-        content = await readFile(denyPath, "utf8");
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          return tool.execute(args, ctx);
-        }
-        return permissionsDenied(
-          `Tool ${tool.name} denied: could not read .nexus/permissions.deny.`,
-        );
-      }
-
-      const malformedLine = malformedDenyLine(content);
-      if (malformedLine !== null) {
-        return permissionsDenied(
-          `Tool ${tool.name} denied: malformed .nexus/permissions.deny line ${malformedLine}.`,
-        );
-      }
-
-      const denyList = parsePermissionsDeny(content);
-      for (const subject of denySubjects(args)) {
-        const evaluation = evaluateDeny(tool.name, subject, denyList);
-        if (evaluation.denied) {
+      const roots = ctx.workspaceRoots?.length ? ctx.workspaceRoots : [ctx.workdir];
+      for (const root of roots) {
+        const denyPath = join(root, ".nexus", "permissions.deny");
+        let content: string;
+        try {
+          content = await readFile(denyPath, "utf8");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            continue;
+          }
           return permissionsDenied(
-            `Tool ${tool.name} denied by .nexus/permissions.deny line ${evaluation.rule?.line ?? "unknown"}.`,
+            `Tool ${tool.name} denied: could not read .nexus/permissions.deny in root "${root}".`,
           );
+        }
+
+        const malformedLine = malformedDenyLine(content);
+        if (malformedLine !== null) {
+          return permissionsDenied(
+            `Tool ${tool.name} denied: malformed .nexus/permissions.deny line ${malformedLine} in root "${root}".`,
+          );
+        }
+
+        const denyList = parsePermissionsDeny(content);
+        for (const subject of denySubjects(args)) {
+          const evaluation = evaluateDeny(tool.name, subject, denyList);
+          if (evaluation.denied) {
+            return permissionsDenied(
+              `Tool ${tool.name} denied by .nexus/permissions.deny line ${evaluation.rule?.line ?? "unknown"} in root "${root}".`,
+            );
+          }
         }
       }
       return tool.execute(args, ctx);
@@ -175,9 +179,9 @@ export function createSidecarHeadlessTools(
   const documentParser = resolveParser(enabled, options.documentParser);
   const ingestToMemory =
     options.ingestToMemory ??
-    (async (input: { text: string; sourcePath: string; engine: string }) => {
+    (async (input: { text: string; sourcePath: string; engine: string; workspaceId?: string }) => {
       sidecarDocumentMemory.push(
-        `[ocr engine=${input.engine} path=${input.sourcePath}]\n${input.text}`,
+        `[ocr workspace=${input.workspaceId ?? "legacy"} engine=${input.engine} path=${input.sourcePath}]\n${input.text}`,
       );
       return { stored: true };
     });

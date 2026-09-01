@@ -14,6 +14,7 @@ const MODELS: ListedModelDto[] = [
     id: "gemma4:e4b",
     displayName: "Gemma 4 E4B",
     type: "llm",
+    task: "chat",
     installed: true,
     source: "registry",
   },
@@ -21,6 +22,7 @@ const MODELS: ListedModelDto[] = [
     id: "qwen2.5-coder:7b",
     displayName: "Qwen 2.5 Coder 7B",
     type: "llm",
+    task: "chat",
     installed: true,
     source: "registry",
   },
@@ -28,6 +30,7 @@ const MODELS: ListedModelDto[] = [
     id: "catalog-only-llm",
     displayName: "Not Installed",
     type: "llm",
+    task: "chat",
     installed: false,
     source: "catalog-only",
   },
@@ -35,6 +38,7 @@ const MODELS: ListedModelDto[] = [
     id: "sana",
     displayName: "SANA",
     type: "image",
+    task: "image",
     installed: true,
     source: "registry",
   },
@@ -170,16 +174,52 @@ describe("QuickModelSwitcher", () => {
     expect(onChange).toHaveBeenCalledWith("qwen2.5-coder:7b");
   });
 
-  it("forwards a harnessLabel to the ModelSelector badge", () => {
+  it("lists 16 GB agentic models with gemma-4-12b-it-gguf before gpt-oss", () => {
+    const models: ListedModelDto[] = [
+      {
+        id: "gpt-oss:20b",
+        displayName: "gpt-oss 20B",
+        type: "llm",
+        task: "agentic",
+        installed: true,
+        source: "registry",
+        tags: ["recommended"],
+      },
+      {
+        id: "lfm2.5:2.6b",
+        displayName: "LFM2.5 2.6B",
+        type: "llm",
+        task: "agentic",
+        installed: true,
+        source: "registry",
+      },
+      {
+        id: "gemma-4-12b-it-gguf",
+        displayName: "Gemma 4 12B",
+        type: "llm",
+        task: "agentic",
+        installed: true,
+        source: "registry",
+        tags: ["required"],
+      },
+    ];
     render(
       <QuickModelSwitcher
-        models={MODELS}
+        models={models}
         taskType="llm"
-        value="gemma4:e4b"
+        catalogTab="agentic"
+        value="gemma-4-12b-it-gguf"
         onChange={() => undefined}
-        harnessLabel="plan-first"
+        hostVramGB={16}
+        recommendOrder={["gemma-4-12b-it-gguf", "gpt-oss:20b"]}
       />,
     );
-    expect(screen.getByTestId("quick-model-switcher-harness")).toHaveTextContent("plan-first");
+    const select = screen.getByTestId("quick-model-switcher") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual([
+      "gemma-4-12b-it-gguf",
+      "gpt-oss:20b",
+      "lfm2.5:2.6b",
+      GET_MORE_MODELS_ID,
+    ]);
   });
 });

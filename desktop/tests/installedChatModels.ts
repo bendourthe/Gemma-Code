@@ -14,6 +14,7 @@ export const INSTALLED_CHAT_MODELS = {
         id: "gemma4:e4b",
         displayName: "Gemma 4 E4B",
         type: "llm" as const,
+        task: "chat",
         installed: true,
         source: "registry" as const,
       },

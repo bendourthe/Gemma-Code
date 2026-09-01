@@ -104,10 +104,7 @@ pub enum SidecarError {
     /// Display is `sidecar-exited:<code>` so the Complete page can print it
     /// without wrapping a Windows 232 broken-pipe error around a dead stdin.
     #[error("sidecar-exited:{code}")]
-    Exited {
-        code: i32,
-        stderr_tail: Vec<String>,
-    },
+    Exited { code: i32, stderr_tail: Vec<String> },
 }
 
 #[derive(Debug, Serialize)]
@@ -205,7 +202,12 @@ pub fn provisioned_node_path() -> Option<PathBuf> {
         std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
             .or_else(home_dir)
-            .map(|base| base.join("Nexus").join("runtime").join("node").join("node.exe"))
+            .map(|base| {
+                base.join("Nexus")
+                    .join("runtime")
+                    .join("node")
+                    .join("node.exe")
+            })
     }
     #[cfg(target_os = "macos")]
     {
@@ -266,10 +268,7 @@ pub fn resolve_node(runtime_config: Option<&Path>) -> NodeResolution {
                                 rejected,
                             };
                         }
-                        rejected.push(format!(
-                            "runtime.json nodePath not a file: {}",
-                            p.display()
-                        ));
+                        rejected.push(format!("runtime.json nodePath not a file: {}", p.display()));
                     } else {
                         rejected.push("runtime.json has no nodePath".to_string());
                     }
@@ -340,10 +339,10 @@ impl Sidecar {
     /// in the resource bundle (`bundle.resources` maps `../sidecar/dist` to
     /// `sidecar/dist`); in dev we walk relative to the working directory.
     pub fn script_path(app: &AppHandle) -> PathBuf {
-        if let Ok(resolved) = app.path().resolve(
-            "sidecar/dist/main.js",
-            tauri::path::BaseDirectory::Resource,
-        ) {
+        if let Ok(resolved) = app
+            .path()
+            .resolve("sidecar/dist/main.js", tauri::path::BaseDirectory::Resource)
+        {
             if resolved.exists() {
                 return resolved;
             }
@@ -535,8 +534,7 @@ impl Sidecar {
             method,
             params,
         };
-        let line = serde_json::to_string(&req)
-            .map_err(|e| SidecarError::Request(e.to_string()))?;
+        let line = serde_json::to_string(&req).map_err(|e| SidecarError::Request(e.to_string()))?;
         {
             let mut guard = handle
                 .stdin
@@ -545,23 +543,19 @@ impl Sidecar {
             let Some(stdin) = guard.as_mut() else {
                 return Err(SidecarError::Request("stdin-closed".to_string()));
             };
-            writeln!(stdin, "{line}").map_err(|e| {
-                match handle.try_exit_code() {
-                    Ok(Some(code)) => SidecarError::Exited {
-                        code,
-                        stderr_tail: handle.stderr_tail(),
-                    },
-                    _ => SidecarError::Request(e.to_string()),
-                }
+            writeln!(stdin, "{line}").map_err(|e| match handle.try_exit_code() {
+                Ok(Some(code)) => SidecarError::Exited {
+                    code,
+                    stderr_tail: handle.stderr_tail(),
+                },
+                _ => SidecarError::Request(e.to_string()),
             })?;
-            stdin.flush().map_err(|e| {
-                match handle.try_exit_code() {
-                    Ok(Some(code)) => SidecarError::Exited {
-                        code,
-                        stderr_tail: handle.stderr_tail(),
-                    },
-                    _ => SidecarError::Request(e.to_string()),
-                }
+            stdin.flush().map_err(|e| match handle.try_exit_code() {
+                Ok(Some(code)) => SidecarError::Exited {
+                    code,
+                    stderr_tail: handle.stderr_tail(),
+                },
+                _ => SidecarError::Request(e.to_string()),
             })?;
         }
 
@@ -692,7 +686,9 @@ mod tests {
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-        ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     struct EnvGuard(&'static str, Option<std::ffi::OsString>);
@@ -933,7 +929,8 @@ mod tests {
                 if let Some(line) = cwd_line {
                     let reported = line.trim_start_matches("cwd=");
                     let expected = fs::canonicalize(&dir).unwrap_or(dir.clone());
-                    let reported_canon = fs::canonicalize(reported).unwrap_or_else(|_| PathBuf::from(reported));
+                    let reported_canon =
+                        fs::canonicalize(reported).unwrap_or_else(|_| PathBuf::from(reported));
                     assert_eq!(reported_canon, expected, "spawn cwd was {reported}");
                 }
                 Sidecar::shutdown(handle);
@@ -948,7 +945,10 @@ mod tests {
         assert_eq!(rpc_timeout_for("ping"), Duration::from_secs(15));
         assert_eq!(rpc_timeout_for("models.list"), Duration::from_secs(15));
         assert_eq!(rpc_timeout_for("skills.status"), Duration::from_secs(15));
-        assert_eq!(rpc_timeout_for("chat.explorer.tree"), Duration::from_secs(15));
+        assert_eq!(
+            rpc_timeout_for("chat.explorer.tree"),
+            Duration::from_secs(15)
+        );
         // Malformed / unknown names stay on the short default.
         assert_eq!(rpc_timeout_for(""), Duration::from_secs(15));
         assert_eq!(rpc_timeout_for("chat.send "), Duration::from_secs(15));
@@ -967,7 +967,10 @@ mod tests {
             rpc_timeout_for("coding.session.sendMessage"),
             Duration::from_secs(600)
         );
-        assert_eq!(rpc_timeout_for("diffusion.txt2img"), Duration::from_secs(600));
+        assert_eq!(
+            rpc_timeout_for("diffusion.txt2img"),
+            Duration::from_secs(600)
+        );
         assert_eq!(
             rpc_timeout_for("diffusion.video.text2video"),
             Duration::from_secs(600)

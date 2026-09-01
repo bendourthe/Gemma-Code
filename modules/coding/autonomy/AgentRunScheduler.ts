@@ -14,6 +14,7 @@ import { MORNING_BRIEF_FALLBACK_PROMPT, MORNING_BRIEF_PROMPT_SOURCE } from "./mo
 import { assertNoAutoApprove, type AutoApproveFlags } from "./noAutoApprove.js";
 import { createParkingConfirm } from "./parkingConfirm.js";
 import { MORNING_BRIEF_SCHEDULE_ID } from "./types.js";
+import { workspaceIdForRoots } from "../../../core/project/WorkspaceScope.js";
 
 export type ScheduleKind = "daily" | "interval";
 
@@ -28,11 +29,17 @@ export interface ScheduledRunSpec {
   readonly prompt: string;
   readonly promptSource?: string;
   readonly workspacePath?: string;
+  readonly workspaceId?: string;
+  readonly workspaceRoots?: readonly string[];
+  readonly primaryRoot?: string;
 }
 
 export interface HeadlessScheduledRun {
   readonly prompt: string;
   readonly workspacePath: string;
+  readonly workspaceId?: string;
+  readonly workspaceRoots?: readonly string[];
+  readonly primaryRoot?: string;
   readonly runId: string;
   readonly confirm: HeadlessConfirmFn;
   readonly checkpoint: ScheduledGitCheckpoint | null;
@@ -41,6 +48,9 @@ export interface HeadlessScheduledRun {
 export interface AgentRunSchedulerOptions {
   readonly inbox: AskInbox;
   readonly workspacePath: string;
+  readonly workspaceId?: string;
+  readonly workspaceRoots?: readonly string[];
+  readonly primaryRoot?: string;
   readonly now?: () => number;
   readonly setInterval?: (cb: () => void, ms: number) => unknown;
   readonly clearInterval?: (handle: unknown) => void;
@@ -93,6 +103,9 @@ export function createScheduledRun(
     prompt: spec.prompt,
     promptSource: spec.promptSource,
     workspacePath: spec.workspacePath,
+    workspaceId: spec.workspaceId,
+    workspaceRoots: spec.workspaceRoots ? Object.freeze([...spec.workspaceRoots]) : undefined,
+    primaryRoot: spec.primaryRoot,
   };
 }
 
@@ -101,6 +114,9 @@ const DEFAULT_TICK_MS = 30_000;
 export class AgentRunScheduler {
   private readonly _inbox: AskInbox;
   private readonly _workspacePath: string;
+  private readonly _workspaceId: string;
+  private readonly _workspaceRoots: readonly string[];
+  private readonly _primaryRoot: string;
   private readonly _now: () => number;
   private readonly _setInterval: (cb: () => void, ms: number) => unknown;
   private readonly _clearInterval: (handle: unknown) => void;
@@ -115,6 +131,9 @@ export class AgentRunScheduler {
   constructor(opts: AgentRunSchedulerOptions) {
     this._inbox = opts.inbox;
     this._workspacePath = opts.workspacePath;
+    this._workspaceRoots = Object.freeze([...(opts.workspaceRoots?.length ? opts.workspaceRoots : [opts.workspacePath])]);
+    this._primaryRoot = opts.primaryRoot ?? opts.workspacePath;
+    this._workspaceId = opts.workspaceId ?? workspaceIdForRoots(this._workspaceRoots);
     this._now = opts.now ?? Date.now;
     this._setInterval = opts.setInterval ?? ((cb, ms) => setInterval(cb, ms));
     this._clearInterval =
@@ -148,6 +167,9 @@ export class AgentRunScheduler {
       prompt: schedule.prompt,
       promptSource: schedule.promptSource,
       workspacePath: schedule.workspacePath,
+      workspaceId: schedule.workspaceId,
+      workspaceRoots: schedule.workspaceRoots ? [...schedule.workspaceRoots] : undefined,
+      primaryRoot: schedule.primaryRoot,
     };
   }
 
@@ -206,6 +228,11 @@ export class AgentRunScheduler {
   private async fire(schedule: ScheduleState): Promise<void> {
     assertNoAutoApprove();
     const workspacePath = schedule.workspacePath ?? this._workspacePath;
+    const workspaceRoots = Object.freeze([
+      ...(schedule.workspaceRoots?.length ? schedule.workspaceRoots : this._workspaceRoots),
+    ]);
+    const primaryRoot = schedule.primaryRoot ?? workspacePath ?? this._primaryRoot;
+    const workspaceId = schedule.workspaceId ?? this._workspaceId;
     const runId = `${schedule.id}:${this._now()}`;
     const checkpoint = await this._createCheckpoint(workspacePath);
     const confirm = createParkingConfirm({
@@ -216,6 +243,9 @@ export class AgentRunScheduler {
     await this._runHeadless({
       prompt: schedule.prompt,
       workspacePath,
+      workspaceId,
+      workspaceRoots,
+      primaryRoot,
       runId,
       confirm,
       checkpoint,

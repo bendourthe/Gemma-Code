@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import (
     QCheckBox,
+    QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QVBoxLayout,
@@ -16,20 +18,35 @@ from nexus_installer.constants import (
     BG_CARD,
     BORDER,
     FS_CAPTION,
+    SUCCESS,
     TEXT_SECONDARY,
+    WARNING,
 )
+from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
 from nexus_installer.video_enhancement_support import INSTALLER_NOTE
+from nexus_installer.vram_display import display_vram_gb
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
+
+_NARROW_COLUMNS_PX = 560
 
 
 class ConfigurationPage(QWidget):
     """Page for configuring installation components and options."""
 
-    def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        state: InstallerState,
+        parent: QWidget | None = None,
+        *,
+        detect_fn=None,
+        inspect_fn=None,
+        list_fn=None,
+    ) -> None:
         super().__init__(parent)
         self._state = state
+        self._narrow_columns = False
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
@@ -38,10 +55,16 @@ class ConfigurationPage(QWidget):
         title.setObjectName("pageTitle")
         layout.addWidget(title)
 
-        # Component toggles
+        self._components_col = QWidget()
+        self._components_col.setObjectName("config-components-column")
+        self._components_col.setStyleSheet("background: transparent;")
+        components_layout = QVBoxLayout(self._components_col)
+        components_layout.setContentsMargins(0, 0, 0, 0)
+        components_layout.setSpacing(8)
+
         components_label = QLabel("Components")
         components_label.setObjectName("sectionHead")
-        layout.addWidget(components_label)
+        components_layout.addWidget(components_label)
 
         self._ollama_toggle = QCheckBox("Install Ollama")
         self._ollama_toggle.setChecked("ollama" in state.components_to_install)
@@ -51,14 +74,14 @@ class ConfigurationPage(QWidget):
         self._ollama_toggle.stateChanged.connect(
             lambda s: self._toggle_component("ollama", s)
         )
-        layout.addWidget(self._ollama_toggle)
+        components_layout.addWidget(self._ollama_toggle)
 
         self._venv_toggle = QCheckBox("Create Python virtual environment")
         self._venv_toggle.setChecked("venv" in state.components_to_install)
         self._venv_toggle.stateChanged.connect(
             lambda s: self._toggle_component("venv", s)
         )
-        layout.addWidget(self._venv_toggle)
+        components_layout.addWidget(self._venv_toggle)
 
         # v1.8.0 Phase 2 -- the desktop app ships default-checked, like the
         # extension choice.
@@ -67,16 +90,23 @@ class ConfigurationPage(QWidget):
         self._desktop_toggle.stateChanged.connect(
             lambda s: self._toggle_component("desktop", s)
         )
-        layout.addWidget(self._desktop_toggle)
+        components_layout.addWidget(self._desktop_toggle)
 
         self._shortcut_toggle = QCheckBox("Add Start Menu / Applications shortcut")
         self._shortcut_toggle.setChecked(True)
-        layout.addWidget(self._shortcut_toggle)
+        components_layout.addWidget(self._shortcut_toggle)
+        components_layout.addStretch()
 
-        # Feature toggles
+        self._features_col = QWidget()
+        self._features_col.setObjectName("config-features-column")
+        self._features_col.setStyleSheet("background: transparent;")
+        features_layout = QVBoxLayout(self._features_col)
+        features_layout.setContentsMargins(0, 0, 0, 0)
+        features_layout.setSpacing(8)
+
         features_label = QLabel("Features")
         features_label.setObjectName("sectionHead")
-        layout.addWidget(features_label)
+        features_layout.addWidget(features_label)
 
         self._thinking_toggle = QCheckBox(
             "Enable thinking mode (show the model's step-by-step reasoning)"
@@ -85,7 +115,7 @@ class ConfigurationPage(QWidget):
         self._thinking_toggle.stateChanged.connect(
             lambda s: setattr(state, "enable_thinking", bool(s))
         )
-        layout.addWidget(self._thinking_toggle)
+        features_layout.addWidget(self._thinking_toggle)
 
         self._memory_toggle = QCheckBox(
             "Enable persistent memory (remember context across sessions)"
@@ -94,7 +124,13 @@ class ConfigurationPage(QWidget):
         self._memory_toggle.stateChanged.connect(
             lambda s: setattr(state, "enable_memory", bool(s))
         )
-        layout.addWidget(self._memory_toggle)
+        features_layout.addWidget(self._memory_toggle)
+
+        unsloth_row = QWidget()
+        unsloth_row.setStyleSheet("background: transparent;")
+        unsloth_layout = QHBoxLayout(unsloth_row)
+        unsloth_layout.setContentsMargins(0, 0, 0, 0)
+        unsloth_layout.setSpacing(8)
 
         self._unsloth = QCheckBox(
             "Install Unsloth Core (optional local QLoRA fine-tuning runtime "
@@ -103,7 +139,12 @@ class ConfigurationPage(QWidget):
         self._unsloth.setChecked(bool(state.install_unsloth))
         self._unsloth.setStyleSheet("background: transparent;")
         self._unsloth.stateChanged.connect(self._on_unsloth)
-        layout.addWidget(self._unsloth)
+        unsloth_layout.addWidget(self._unsloth, 1)
+
+        self._unsloth_badge = QLabel("")
+        self._unsloth_badge.setObjectName("unsloth-compat-badge")
+        unsloth_layout.addWidget(self._unsloth_badge)
+        features_layout.addWidget(unsloth_row)
 
         self._unsloth_help = QLabel(
             "For NVIDIA GPUs with 16 GB or more VRAM. unsloth is Apache-2.0; "
@@ -115,7 +156,7 @@ class ConfigurationPage(QWidget):
             f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
             "background: transparent;"
         )
-        layout.addWidget(self._unsloth_help)
+        features_layout.addWidget(self._unsloth_help)
 
         self._unsloth_warning = QLabel("")
         self._unsloth_warning.setWordWrap(True)
@@ -124,8 +165,24 @@ class ConfigurationPage(QWidget):
             "background: transparent;"
         )
         self._unsloth_warning.setVisible(False)
-        layout.addWidget(self._unsloth_warning)
-        self._refresh_unsloth_warning()
+        features_layout.addWidget(self._unsloth_warning)
+        features_layout.addStretch()
+        self._apply_unsloth_host_lock()
+
+        self._split = QGridLayout()
+        self._split.setContentsMargins(0, 0, 0, 0)
+        self._split.setHorizontalSpacing(24)
+        self._split.setVerticalSpacing(12)
+        self._split.addWidget(self._components_col, 0, 0)
+        self._split.addWidget(self._features_col, 0, 1)
+        self._split.setColumnStretch(0, 1)
+        self._split.setColumnStretch(1, 1)
+
+        split_host = QWidget()
+        split_host.setObjectName("config-split-host")
+        split_host.setStyleSheet("background: transparent;")
+        split_host.setLayout(self._split)
+        layout.addWidget(split_host)
 
         # Ollama URL
         url_label = QLabel("Ollama URL")
@@ -140,6 +197,15 @@ class ConfigurationPage(QWidget):
         settings_label = QLabel("VS Code Extension Settings")
         settings_label.setObjectName("sectionHead")
         layout.addWidget(settings_label)
+
+        self._vscode = VsCodeExtensionPage(
+            state,
+            detect_fn=detect_fn,
+            inspect_fn=inspect_fn,
+            list_fn=list_fn,
+            compact=True,
+        )
+        layout.addWidget(self._vscode)
 
         model_name = state.selected_model or state.recommended_model or "gemma4:e4b"
         settings_preview = QLabel(
@@ -171,25 +237,77 @@ class ConfigurationPage(QWidget):
 
         layout.addStretch()
 
+    def set_interactive(self, enabled: bool) -> None:
+        self._vscode.set_interactive(enabled)
+
+    def showEvent(self, event: object) -> None:  # noqa: N802
+        """Refresh Unsloth after GPU detection on Setup has finished."""
+        super().showEvent(event)  # type: ignore[arg-type]
+        self._apply_unsloth_host_lock()
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        width = event.size().width() if hasattr(event, "size") else self.width()
+        self._restack_columns(width < _NARROW_COLUMNS_PX)
+
+    def _restack_columns(self, narrow: bool) -> None:
+        if narrow == self._narrow_columns:
+            return
+        self._narrow_columns = narrow
+        self._split.removeWidget(self._features_col)
+        if narrow:
+            self._split.addWidget(self._features_col, 1, 0)
+            self._split.setColumnStretch(1, 0)
+            return
+        self._split.addWidget(self._features_col, 0, 1)
+        self._split.setColumnStretch(1, 1)
+
+    def _unsloth_host_ok(self) -> bool:
+        vendor = (self._state.gpu_vendor or "").lower()
+        shown_gb = display_vram_gb(int(self._state.vram_mb or 0))
+        return vendor == "nvidia" and shown_gb >= 16
+
+    def _refresh_unsloth_badge(self) -> None:
+        if self._unsloth_host_ok():
+            self._unsloth_badge.setText("Compatible")
+            self._unsloth_badge.setStyleSheet(
+                f"color: {SUCCESS}; font-size: {FS_CAPTION}px; font-weight: 600; "
+                "background: transparent;"
+            )
+            return
+        self._unsloth_badge.setText("Incompatible")
+        self._unsloth_badge.setStyleSheet(
+            f"color: {WARNING}; font-size: {FS_CAPTION}px; font-weight: 600; "
+            "background: transparent;"
+        )
+
+    def _apply_unsloth_host_lock(self) -> None:
+        self._refresh_unsloth_badge()
+        ok = self._unsloth_host_ok()
+        self._unsloth.setEnabled(ok)
+        if not ok:
+            self._unsloth.blockSignals(True)
+            self._unsloth.setChecked(False)
+            self._unsloth.blockSignals(False)
+            self._state.install_unsloth = False
+            self._unsloth_warning.clear()
+            self._unsloth_warning.setVisible(False)
+            return
+        self._refresh_unsloth_warning()
+
     def _on_unsloth(self, state_value: int) -> None:
+        if not self._unsloth_host_ok():
+            self._unsloth.blockSignals(True)
+            self._unsloth.setChecked(False)
+            self._unsloth.blockSignals(False)
+            self._state.install_unsloth = False
+            self._unsloth_warning.clear()
+            self._unsloth_warning.setVisible(False)
+            return
         self._state.install_unsloth = self._unsloth.isChecked()
         self._refresh_unsloth_warning()
 
     def _refresh_unsloth_warning(self) -> None:
-        if not self._unsloth.isChecked():
-            self._unsloth_warning.clear()
-            self._unsloth_warning.setVisible(False)
-            return
-        vendor = (self._state.gpu_vendor or "").lower()
-        vram_gb = max(0, int(self._state.vram_mb or 0) // 1024)
-        if vendor != "nvidia" or vram_gb < 16:
-            self._unsloth_warning.setText(
-                "This host does not look like NVIDIA with 16 GB or more VRAM. "
-                "You can still tick this; the provisioner will record a skip "
-                "instead of rolling back the rest of the install."
-            )
-            self._unsloth_warning.setVisible(True)
-            return
         self._unsloth_warning.clear()
         self._unsloth_warning.setVisible(False)
 

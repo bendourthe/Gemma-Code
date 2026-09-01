@@ -111,6 +111,20 @@ describe("messages", () => {
       inputTokens: 12,
       reasoningTokens: 3,
       outputTokens: 5,
+      requestUsage: {
+        version: 1,
+        inputTokens: 12,
+        reasoningTokens: 3,
+        outputTokens: 5,
+        provenance: { accuracy: "exact", source: "provider" },
+      },
+      messageUsage: {
+        version: 1,
+        inputTokens: null,
+        reasoningTokens: 7,
+        outputTokens: 2,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
       createdAt: 2,
     });
     s.appendMessage({
@@ -126,9 +140,69 @@ describe("messages", () => {
     expect(messages[1]?.reasoningTokens).toBe(3);
     expect(messages[1]?.outputTokens).toBe(5);
     expect(messages[1]?.tokensEstimated).toBe(false);
+    expect(messages[1]?.requestUsage?.inputTokens).toBe(12);
+    expect(messages[1]?.messageUsage).toMatchObject({
+      reasoningTokens: 7,
+      outputTokens: 2,
+      provenance: { accuracy: "estimated", source: "estimate" },
+    });
     expect(messages[2]?.inputTokens).toBeNull();
     expect(messages[2]?.outputTokens).toBeNull();
     expect(messages[2]?.reasoningTokens).toBeNull();
+    s.close();
+  });
+
+  it("round-trips bounded redacted explicit reasoning separately from output", () => {
+    const s = store();
+    const chat = seedChat(s);
+    s.appendMessage({
+      chatId: chat.id,
+      role: "assistant",
+      content: "Safe answer",
+      reasoningText: "Inspect " + ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join(""),
+    });
+    const message = s.listMessages(chat.id)[0];
+    expect(message?.content).toBe("Safe answer");
+    expect(message?.reasoningText).toContain("<redacted>");
+    expect(message?.reasoningText).not.toContain("ghp_");
+    s.close();
+  });
+});
+
+describe("archive lifecycle", () => {
+  it("filters archived chats while preserving messages and restores the original parent", () => {
+    const s = store();
+    const folder = s.createFolder({ parentId: null, name: "Keep" });
+    const chat = s.createChat({ folderId: folder.id, title: "Archive me", modelId: "m" });
+    s.appendMessage({ chatId: chat.id, role: "user", content: "preserved" });
+    const archived = s.archiveChat(chat.id, 1234);
+    expect(archived.archivedAt).toBe(1234);
+    expect(s.listTree().children[0]?.chats).toEqual([]);
+    expect(s.search("Archive")).toEqual([]);
+    expect(s.getChat(chat.id)).toBeNull();
+    expect(s.listArchivedChats()[0]?.folderId).toBeNull();
+    expect(s.listArchivedChats()[0]?.archivedFolderId).toBe(folder.id);
+    expect(s.listMessages(chat.id)[0]?.content).toBe("preserved");
+    const restored = s.restoreChat(chat.id);
+    expect(restored.parentFallback).toBe(false);
+    expect(restored.chat.folderId).toBe(folder.id);
+    expect(s.getChat(chat.id)?.archivedAt).toBeNull();
+    s.close();
+  });
+
+  it("keeps an archive after its former folder is deleted and restores it at root", () => {
+    const s = store();
+    const folder = s.createFolder({ parentId: null, name: "Temporary" });
+    const chat = s.createChat({ folderId: folder.id, title: "Survivor", modelId: "m" });
+    s.appendMessage({ chatId: chat.id, role: "user", content: "still here" });
+    s.archiveChat(chat.id, 1234);
+    s.deleteFolder(folder.id);
+
+    expect(s.listArchivedChats()[0]?.id).toBe(chat.id);
+    const restored = s.restoreChat(chat.id);
+    expect(restored.parentFallback).toBe(true);
+    expect(restored.chat.folderId).toBeNull();
+    expect(s.listMessages(chat.id)[0]?.content).toBe("still here");
     s.close();
   });
 });

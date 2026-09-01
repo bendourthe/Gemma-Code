@@ -10,6 +10,7 @@ import { ipcCall } from "../../lib/ipc";
 
 export type ChatStreamEvent =
   | { kind: "token"; text: string }
+  | { kind: "reasoning_delta"; text: string }
   | {
       kind: "done";
       finishReason?: string;
@@ -53,6 +54,18 @@ export function joinChatReply(events: readonly ChatStreamEvent[]): string {
     .filter((e): e is { kind: "token"; text: string } => e.kind === "token")
     .map((e) => e.text)
     .join("");
+}
+
+/** Collapse only the explicit provider reasoning channel. */
+export function joinChatReasoning(events: readonly ChatStreamEvent[]): string {
+  return events
+    .filter(
+      (event): event is { kind: "reasoning_delta"; text: string } =>
+        event.kind === "reasoning_delta",
+    )
+    .map((event) => event.text)
+    .join("")
+    .slice(0, 65_536);
 }
 
 export interface ChatTurnUsage {

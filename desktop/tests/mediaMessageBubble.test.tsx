@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { MessageBubble } from "../src/shared/chat/MessageBubble";
 import type { ChatMessage } from "../src/shared/chat/types";
+import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
 
 afterEach(() => cleanup());
 
@@ -59,10 +60,8 @@ describe("MessageBubble media", () => {
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(orb).toHaveAttribute("data-orb-pill", "true");
     expect(orb.querySelector("canvas")?.style.height).toBe("48px");
-    expect(screen.getByTestId("message-pending-a2")).toHaveStyle({
-      justifyContent: "center",
-      width: "100%",
-    });
+    expect(screen.getByTestId("message-pending-a2")).toHaveStyle({ width: "fit-content" });
+    expect(screen.queryByTestId("message-bubble-a2")).toBeNull();
     expect(screen.getByText(/^(Thinking|Searching|Working|Solving)\.\.\.$/)).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
   });
@@ -77,11 +76,17 @@ describe("MessageBubble media", () => {
     };
     render(<MessageBubble message={msg} />);
     expect(screen.getByRole("img", { name: /agent shaping/i })).toHaveAttribute("data-orb-size", "hero");
-    expect(screen.getByText("Shaping...")).toBeInTheDocument();
-    expect(screen.getByTestId("message-bubble-studio-pending").getAttribute("style")).toContain(
+    // v2.4.4 Phase 5.3: studio pending rotates Creating / Crafting /
+    // Generating; the single static "Shaping" read as a stuck word.
+    expect(screen.queryByText("Shaping...")).toBeNull();
+    expect(STUDIO_PENDING_CAPTIONS).toContain(
+      screen.getByTestId("agent-state-orb-caption").textContent,
+    );
+    expect(screen.getByTestId("message-pending-studio-pending").getAttribute("style")).toContain(
       "min-height: 12rem",
     );
-    expect(screen.getByTestId("message-bubble-studio-pending")).toHaveStyle({ width: "100%" });
+    expect(screen.getByTestId("message-pending-studio-pending")).toHaveStyle({ width: "100%" });
+    expect(screen.queryByTestId("message-bubble-studio-pending")).toBeNull();
   });
 
   it("replaces undecodable generated media with a visible failure", () => {

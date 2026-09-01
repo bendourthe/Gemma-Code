@@ -10,6 +10,8 @@ import { InMemoryDiffusionClient } from "../src/modules/image/diffusionClient";
 import { InMemoryGenerationQueueClient } from "../src/shared/studio/generationQueueClient";
 import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplorerClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
+import { RESTYLE_IMG2IMG_STRENGTH } from "../src/modules/image/followUpSource";
+import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
 
@@ -115,6 +117,61 @@ describe("ImageStudioPage (chat)", () => {
     expect(screen.queryAllByTestId(/^message-tokens-/).length).toBe(0);
     // User bubble plus the auto-created session title both read the prompt.
     expect(screen.getAllByText("a fox").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("repairs an unavailable runtime and retries the same image turn exactly once", async () => {
+    const client = new InMemoryDiffusionClient();
+    const txt2img = client.txt2img.bind(client);
+    const txt2imgSpy = vi
+      .spyOn(client, "txt2img")
+      .mockRejectedValueOnce(new Error("runtime-unavailable: CUDA runtime is not ready"))
+      .mockImplementation(txt2img);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "PNGB64==" }]);
+    const mediaRuntimeClient = {
+      status: vi.fn(async () => ({
+        state: "repairable" as const,
+        code: "RUNTIME_UNAVAILABLE",
+        message: "The local media runtime needs repair.",
+        retryable: true,
+        progress: 0,
+        logPath: "C:\\logs\\media-runtime-repair.log",
+      })),
+      repair: vi.fn(async () => ({
+        state: "ready" as const,
+        code: "READY",
+        message: "The local media runtime is ready.",
+        retryable: false,
+        progress: 100,
+        logPath: "C:\\logs\\media-runtime-repair.log",
+      })),
+      cancelRepair: vi.fn(),
+      openLogLocation: vi.fn(async () => true),
+    };
+
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        mediaRuntimeClient={mediaRuntimeClient}
+        drainIntervalMs={20}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a repaired fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => expect(screen.getByTestId("media-runtime-recovery")).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-runtime-repair"));
+      await Promise.resolve();
+      vi.advanceTimersByTime(60);
+    });
+    await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
+    expect(txt2imgSpy).toHaveBeenCalledTimes(2);
+    expect(mediaRuntimeClient.repair).toHaveBeenCalledTimes(1);
+    const page = screen.getByTestId("image-studio-page");
+    expect(page.querySelectorAll('[data-testid^="message-shell-user-"]')).toHaveLength(1);
+    expect(page.querySelectorAll('[data-testid^="message-shell-assistant-"]')).toHaveLength(1);
   });
 
   it("does not generate until a conflicting active model switch is approved", async () => {
@@ -225,8 +282,17 @@ describe("ImageStudioPage (chat)", () => {
     const orb = await screen.findByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
     expect(orb).toHaveAttribute("data-orb-size", "hero");
-    expect(screen.getByText("Shaping...")).toBeInTheDocument();
-    expect(screen.queryByText("Generating...")).toBeNull();
+    // v2.4.4 Phase 5.3: one of Creating / Crafting / Generating, never Shaping.
+    expect(screen.queryByText("Shaping...")).toBeNull();
+    expect(
+      STUDIO_PENDING_CAPTIONS.some((caption) => screen.queryByText(caption) !== null),
+    ).toBe(true);
+    // The old assertion here was that "Generating..." is absent, meaning "no
+    // second status label beside the orb". "Generating..." is now one of the
+    // three studio captions, so as written it failed whenever the per-bubble
+    // shuffle happened to land on it -- a one-in-three flake. The intent moves
+    // to the composer: the pending signal must still be the orb alone.
+    expect(screen.queryByTestId("image-studio-status-label")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
   });
 
@@ -332,6 +398,7 @@ describe("ImageStudioPage (chat)", () => {
               id: "sana-1.6b-1024",
               displayName: "SANA 1.5 1.6B",
               type: "image",
+              task: "image",
               installed: true,
               source: "registry",
             },
@@ -339,6 +406,7 @@ describe("ImageStudioPage (chat)", () => {
               id: "sam2:hiera-tiny",
               displayName: "SAM2 Hiera Tiny",
               type: "image",
+              task: "image",
               installed: true,
               source: "registry",
               tags: ["sam2", "utility"],
@@ -396,7 +464,10 @@ describe("ImageStudioPage (chat)", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
-    expect(await screen.findByText(/Install sam2:hiera-tiny/i)).toBeInTheDocument();
+    expect(await screen.findByTestId("sam2-recovery")).toBeInTheDocument();
+    expect(screen.getByTestId("sam2-install")).toHaveTextContent(/Install sam2:hiera-tiny/i);
+    expect(screen.getByTestId("sam2-install")).toBeEnabled();
+    expect(screen.getByTestId("sam2-paint-mask")).toBeInTheDocument();
     expect(client.lastRequest).toBeNull();
     expect(screen.getByAltText("Attachment")).toBeInTheDocument();
   });
@@ -508,7 +579,10 @@ describe("ImageStudioPage (chat)", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(client.lastRequest?.mode).toBe("img2img"));
-    expect((client.lastRequest?.request as { sourceImage: string }).sourceImage).toBe("/tmp/fox.png");
+    expect((client.lastRequest?.request as { sourceImage: string }).sourceImage).toBe(
+      "data:image/png;base64,PNGB64==",
+    );
+    expect((client.lastRequest?.request as { strength?: number }).strength).toBe(0.45);
     await waitFor(() => {
       const session = explorer.listTree().sessions[0];
       expect(explorer.listTurns(session!.id).length).toBeGreaterThanOrEqual(3);
@@ -577,5 +651,182 @@ describe("ImageStudioPage (chat)", () => {
     );
     await waitFor(() => expect(screen.getByText(/output missing on disk/i)).toBeInTheDocument());
     expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("titles a pre-created untitled session on the first prompt", async () => {
+    const explorer = new InMemoryStudioExplorerClient("image");
+    const session = explorer.createSession({
+      folderId: null,
+      title: "New chat",
+      modelId: "sana-1.6b-1024",
+    });
+    const client = new InMemoryDiffusionClient();
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+        drainIntervalMs={20}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId(`tree-row-chat-${session.id}`)).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "PNGB64==" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "Generate image of a puppy" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => {
+      expect(explorer.getSession(session.id)?.title).toBe("Generate image of a puppy");
+    });
+    expect(screen.queryByText("New chat")).toBeNull();
+  });
+
+  it("Make that puppy black without an attachment img2imgs the last PNG and does not segment", async () => {
+    const client = new InMemoryDiffusionClient();
+    const explorer = new InMemoryStudioExplorerClient("image");
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+        drainIntervalMs={20}
+      />,
+    );
+    client.scriptEvents("mem-job-1", [
+      { kind: "complete", jobId: "mem-job-1", png: "PNGB64==", outputPath: "/tmp/puppy.png" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a puppy" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
+    client.lastSegment = null;
+    client.scriptEvents("mem-job-2", [
+      { kind: "complete", jobId: "mem-job-2", png: "PNGB64==", outputPath: "/tmp/puppy-black.png" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "Make that puppy black" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("img2img"));
+    expect(client.lastSegment).toBeNull();
+    expect((client.lastRequest?.request as { sourceImage: string }).sourceImage).toBe(
+      "data:image/png;base64,PNGB64==",
+    );
+    // v2.4.4 Phase 3.2: 0.7 shipped in v2.4.3 and still returned a picture
+    // indistinguishable from the source in the field.
+    expect((client.lastRequest?.request as { strength?: number }).strength).toBe(
+      RESTYLE_IMG2IMG_STRENGTH,
+    );
+    expect((client.lastRequest?.request as { prompt?: string }).prompt).toMatch(
+      /Keep the same composition/,
+    );
+    expect((client.lastRequest?.request as { prompt?: string }).prompt).toMatch(/fur and color to black/);
+  });
+
+  it("fails closed on an unattached restyle when last output is missing", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "Make the puppy black" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/No previous image in this session to restyle/)).toBeInTheDocument();
+    });
+    expect(client.lastRequest).toBeNull();
+  });
+
+  it("replace the sky with sunset without an attachment segments the last PNG", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(
+      <ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />,
+    );
+    client.scriptEvents("mem-job-1", [
+      { kind: "complete", jobId: "mem-job-1", png: "PNGB64==", outputPath: "/tmp/scene.png" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a field" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
+    client.scriptEvents("mem-job-2", [{ kind: "complete", jobId: "mem-job-2", png: "P==" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "replace the sky with sunset" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("inpaint"));
+    expect(client.lastSegment?.phrase).toBe("sky");
+  });
+
+  it("SAM2 install then Retry replays the parked object replace", async () => {
+    const client = new InMemoryDiffusionClient();
+    client.segmentResult = {
+      ok: false,
+      code: "weights_missing",
+      message: "SAM2 weights are not installed. Install sam2:hiera-tiny from Settings > Models, or paint a mask to continue.",
+    };
+    let resolveInstall: (() => void) | undefined;
+    const modelsClient = {
+      ...imageModels(),
+      install: () => {
+        const done = new Promise<void>((resolve) => {
+          resolveInstall = resolve;
+        });
+        return { cancel() {}, done };
+      },
+    };
+    render(
+      <ImageStudioPage client={client} modelsClient={modelsClient} drainIntervalMs={20} />,
+    );
+    const file = new File(["x"], "scene.png", { type: "image/png" });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "replace the car with a truck" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    expect(await screen.findByTestId("sam2-recovery")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("sam2-install"));
+    });
+    client.segmentResult = {
+      ok: true,
+      candidates: [{ id: "c0", maskPngBase64: "mask", score: 0.9, label: "car" }],
+    };
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "P==" }]);
+    await act(async () => {
+      resolveInstall?.();
+      await Promise.resolve();
+    });
+    fireEvent.click(await screen.findByTestId("sam2-retry"));
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("inpaint"));
   });
 });

@@ -2,8 +2,8 @@
  * v1.0.0 Phase 4.4 -- Local Chatbot Explorer page.
  *
  * The Chat module's top-level page. Hosts:
- *   - left rail: `<FolderTree>` (drag-drop, context menu, keyboard nav)
- *   - right pane: shared chat shell (`<MessageList>`, `<MediaComposer>`)
+ *   - sidebar-hosted `<FolderTree>` (drag-drop, context menu, keyboard nav)
+ *   - main pane: shared chat shell (`<MessageList>`, `<MediaComposer>`)
  *   - compact model switcher under the composer (installed-and-ready LLMs + Get more models)
  *   - tools always on (confirmation and sandbox still gate execution)
  *
@@ -17,10 +17,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
 import {
-  CollapsibleHistoryAside,
-  usePersistentCollapsed,
-} from "../../shared/explorer/CollapsibleHistoryAside";
-import { CHAT_HISTORY_COLLAPSE_KEY } from "../../shared/explorer/historyPaneLayout";
+  SidebarHistorySlot,
+  SIDEBAR_COMPACT_STORAGE_KEY,
+  useSidebarCompact,
+} from "../../components/SidebarHistoryHost";
 import { InMemoryChatExplorerClient } from "./chatExplorerClient";
 import {
   createIpcChatExplorerAdapter,
@@ -31,6 +31,7 @@ import type {
 } from "./chatExplorerClient";
 import {
   createChatIpcClient,
+  joinChatReasoning,
   joinChatReply,
   usageFromChatEvents,
   type ChatSessionClient,
@@ -43,6 +44,7 @@ import {
   MessageList,
   composerSessionUsage,
   isoTimestampFromMillis,
+  useStickToBottom,
   withLiveTimestamp,
   type ChatMessage,
 } from "../../shared/chat";
@@ -63,7 +65,7 @@ import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visua
 import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
 import type { EpisodicMemory } from "../../../../core/memory/MemoryHub";
 import { redactSecrets } from "../../../../core/observability/redactSecrets";
-import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
+import { estimatedMessageUsage } from "../../../../core/chat/tokenUsage";
 import { foldModelId } from "../../../../core/registry/modelAliases";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 import {
@@ -89,8 +91,9 @@ import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
 import {
   installedForTask,
   ownedIdSet,
-  readFavorite,
+  recommendOrderForTask,
   resolveDefaultId,
+  writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -117,8 +120,8 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   modalities: ["text"] as const,
 }));
 
-/** v2.2.5 Phase 4 / v2.2.8 Phase 2 -- chats aside collapse, namespaced away from the main rail. */
-export const CHATS_PANE_STORAGE_KEY = CHAT_HISTORY_COLLAPSE_KEY;
+/** @deprecated v2.4.2: chat collapse is the sidebar compact toggle. */
+export const CHATS_PANE_STORAGE_KEY = SIDEBAR_COMPACT_STORAGE_KEY;
 
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
@@ -166,6 +169,8 @@ export interface ChatPageProps {
   sidecarStatus?: UseSidecarStatusOptions;
   /** v2.2.3 Phase 5 -- submit-time GPU occupancy inputs. */
   hostVramFreeGB?: number | null;
+  /** Host VRAM total so the picker uses installer recommend order. */
+  hostVramGB?: number | null;
   activeSchedulerJob?: SchedulerActiveJob | null;
   residencyMemory?: ResidencySessionMemory;
 }
@@ -184,6 +189,7 @@ export function ChatPage({
   memoryHub,
   sidecarStatus: sidecarStatusOptions,
   hostVramFreeGB = null,
+  hostVramGB = null,
   activeSchedulerJob = null,
   residencyMemory,
 }: ChatPageProps = {}): JSX.Element {
@@ -214,9 +220,7 @@ export function ChatPage({
   const hydrationVersionRef = useRef<Map<string, number>>(new Map());
 
   const [selected, setSelected] = useState<SelectedNode | null>(null);
-  const { collapsed: chatsCollapsed, toggle: toggleChatsPane } = usePersistentCollapsed(
-    CHATS_PANE_STORAGE_KEY,
-  );
+  const chatsCollapsed = useSidebarCompact();
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   // Bumped when something outside the rail renames a chat (auto-titling).
   const [treeVersion, setTreeVersion] = useState(0);
@@ -230,10 +234,6 @@ export function ChatPage({
     text: "",
     attachments: [],
   });
-  // v1.5.0 Phase 5 (item 24): the artifact currently shown in the side-by-side
-  // preview pane, or null when the pane is closed.
-  const [preview, setPreview] = useState<PreviewArtifact | null>(null);
-
   // v1.16.0 Phase 3 (adoption item A5) -- document-parse state.
   const [documentClient] = useState<DocumentClient>(
     () => documentClientOverride ?? createIpcDocumentClient(),
@@ -253,6 +253,7 @@ export function ChatPage({
   // projection when `models.list` is unavailable (tests, sidecar down).
   const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
+  const userChangedModelRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -280,11 +281,10 @@ export function ChatPage({
           setSelection(snap);
           const ready = installedForTask(all, "chat", snap);
           const next = resolveDefaultId(ready, {
-            favorite: readFavorite("chat"),
             recommended: snap?.recommendedByTask.chat ?? null,
           });
-          if (next) {
-            setModelId((current) => (ready.some((m) => m.id === current) ? current : next));
+          if (next && !userChangedModelRef.current) {
+            setModelId(next);
           }
         }
       },
@@ -312,6 +312,11 @@ export function ChatPage({
       },
     ];
   }, [activeChat, messagesByChat, voiceLoop.captureVisible]);
+
+  const lastMessage = messages[messages.length - 1];
+  const { scrollRef, onScroll, stickNow } = useStickToBottom(
+    `${messages.length}:${lastMessage?.id ?? ""}:${lastMessage?.content?.length ?? 0}:${lastMessage?.pending ? 1 : 0}`,
+  );
 
   const selectedListedModel = useMemo(() => {
     const id = activeChat?.modelId ?? modelId;
@@ -387,7 +392,6 @@ export function ChatPage({
   const handleOpenChat = useCallback((chat: Chat) => {
     setActiveChat(chat);
     setSelected({ kind: "chat", id: chat.id });
-    setPreview(null);
     if (!client.listMessages) return;
 
     const version = (hydrationVersionRef.current.get(chat.id) ?? 0) + 1;
@@ -416,22 +420,6 @@ export function ChatPage({
     });
   }, [client]);
 
-  // v1.5.0 Phase 5 (item 24): open a message's output in the side-by-side
-  // preview pane. HTML artifacts (interactive forms / tool HTML) render through
-  // the shared `InteractiveArtifact`; everything else renders as text.
-  const handleSelectMessage = useCallback((message: ChatMessage) => {
-    const isHtmlArtifact = message.content.includes("data-nexus-artifact");
-    setPreview(
-      isHtmlArtifact
-        ? { kind: "html", title: "Artifact", html: message.content }
-        : {
-            kind: "text",
-            title: message.role === "assistant" ? "Assistant output" : "Message",
-            text: message.content,
-          },
-    );
-  }, []);
-
   const persistMessage = useCallback(
     async (chatId: string, message: ChatMessage): Promise<void> => {
       if (!client.appendMessage || message.pending) return;
@@ -445,6 +433,9 @@ export function ChatPage({
             ...(message.inputTokens !== undefined ? { inputTokens: message.inputTokens } : {}),
             ...(message.reasoningTokens !== undefined
               ? { reasoningTokens: message.reasoningTokens }
+              : {}),
+            ...(message.reasoningText !== undefined
+              ? { reasoningText: message.reasoningText }
               : {}),
             ...(message.outputTokens !== undefined ? { outputTokens: message.outputTokens } : {}),
             ...(message.tokensEstimated ? { tokensEstimated: true } : {}),
@@ -504,6 +495,7 @@ export function ChatPage({
       });
       let content: string;
       let usage = { inputTokens: null as number | null, reasoningTokens: null as number | null, outputTokens: null as number | null };
+      let reasoningText: string | null = null;
       try {
         const chat = activeChat;
         let sessionId = sessionIdsRef.current.get(chatId);
@@ -548,12 +540,37 @@ export function ChatPage({
           });
         }
         content = joinChatReply(reply.events) || "(no reply)";
+        reasoningText = joinChatReasoning(reply.events) || null;
         usage = usageFromChatEvents(reply.events);
       } catch (err) {
         content = formatChatTurnError(err);
       }
-      patchMessage(chatId, assistantId, { content, pending: false, ...usage });
-      void persistMessage(chatId, { id: assistantId, role: "assistant", content, ...usage });
+      const requestUsage = {
+        version: 1 as const,
+        ...usage,
+        provenance: { accuracy: "exact" as const, source: "provider" as const },
+        raw: {
+          inputTokens: usage.inputTokens,
+          reasoningTokens: usage.reasoningTokens,
+          outputTokens: usage.outputTokens,
+        },
+      };
+      const messageUsage = estimatedMessageUsage("assistant", content, reasoningText);
+      patchMessage(chatId, assistantId, {
+        content,
+        pending: false,
+        reasoningText,
+        requestUsage,
+        messageUsage,
+      });
+      void persistMessage(chatId, {
+        id: assistantId,
+        role: "assistant",
+        content,
+        reasoningText,
+        requestUsage,
+        messageUsage,
+      });
       return content;
     },
     [activeChat, appendMessage, chatSession, modelId, patchMessage, persistMessage, personaByChat],
@@ -628,6 +645,7 @@ export function ChatPage({
       attachments: readonly string[] = [],
       residencyApproved = false,
     ) => {
+      stickNow();
       let chat = activeChat;
       if (!chat) {
         const created = client.createChat({
@@ -883,6 +901,7 @@ export function ChatPage({
       sampleVideoFrames,
       selectedListedModel,
       sendChatTurn,
+      stickNow,
       voiceEnabled,
     ],
   );
@@ -1017,25 +1036,35 @@ export function ChatPage({
         color: "var(--fg-0)",
       }}
     >
-      <CollapsibleHistoryAside
-        testId="chats-pane"
-        ariaLabel="Chats"
-        collapsed={chatsCollapsed}
-        onToggle={toggleChatsPane}
-        toggleTestId="chats-pane-collapse-toggle"
-        expandLabel="Expand chats"
-        collapseLabel="Collapse chats"
-      >
-        <FolderTree
-          client={client}
-          selected={selected}
-          onSelect={handleSelect}
-          onOpenChat={handleOpenChat}
-          refreshToken={treeVersion}
-          defaultModelId={modelId}
-          collapsed={chatsCollapsed}
-        />
-      </CollapsibleHistoryAside>
+      <SidebarHistorySlot>
+        <div
+          data-testid="chats-pane"
+          aria-label="Chats"
+          data-history-collapsed={chatsCollapsed ? "true" : "false"}
+          style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+        >
+          <FolderTree
+            client={client}
+            selected={selected}
+            onSelect={handleSelect}
+            onOpenChat={handleOpenChat}
+            refreshToken={treeVersion}
+            defaultModelId={modelId}
+            collapsed={chatsCollapsed}
+            onSessionDisposition={(id) => {
+              if (activeChat?.id !== id) return;
+              const next = new Map(messagesByChatRef.current);
+              next.delete(id);
+              messagesByChatRef.current = next;
+              setMessagesByChat(next);
+              pendingPromptRef.current = { text: "", attachments: [] };
+              setActiveChat(null);
+              setSelected(null);
+              setPersonaOpen(false);
+            }}
+          />
+        </div>
+      </SidebarHistorySlot>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, padding: "var(--space-4)", gap: "var(--space-3)" }}>
         {sidecar.isDown && (
           <SidecarDownBanner
@@ -1074,13 +1103,17 @@ export function ChatPage({
           />
         ) : null}
 
-        <div style={{ flex: 1, display: "flex", minHeight: 0, gap: "var(--space-3)" }}>
-          <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          <div
+            data-testid="transcript-scroll"
+            ref={scrollRef}
+            onScroll={onScroll}
+            style={{ flex: 1, overflowY: "auto", minWidth: 0 }}
+          >
             {activeChat ? (
               <MessageList
                 messages={messages}
                 enableTools={true}
-                onSelectMessage={handleSelectMessage}
               />
             ) : (
               <p data-testid="chat-page-empty" style={{ color: "var(--fg-muted)" }}>
@@ -1088,13 +1121,6 @@ export function ChatPage({
               </p>
             )}
           </div>
-          {preview ? (
-            <PreviewPane
-              artifact={preview}
-              onClose={() => setPreview(null)}
-              style={{ flex: 1 }}
-            />
-          ) : null}
         </div>
 
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", position: "relative" }}>
@@ -1212,8 +1238,14 @@ export function ChatPage({
                 models={listedModels}
                 taskType="llm"
                 ownedIds={ownedIdSet(selection)}
+                hostVramGB={hostVramGB}
+                recommendOrder={recommendOrderForTask(selection, "chat")}
                 value={modelId}
-                onChange={setModelId}
+                onChange={(nextModelId) => {
+                  userChangedModelRef.current = true;
+                  setModelId(nextModelId);
+                  writeFavorite("chat", nextModelId);
+                }}
                 onGetMoreModels={onGetMoreModels}
                 disabled={Boolean(activeChat)}
               />
@@ -1243,16 +1275,24 @@ function chatMessageFromRecord(record: ChatMessageRecord): ChatMessage {
     timestamp: isoTimestampFromMillis(record.createdAt),
     inputTokens: record.inputTokens ?? null,
     reasoningTokens: record.reasoningTokens ?? null,
+    reasoningText: record.reasoningText ?? null,
     outputTokens: record.outputTokens ?? null,
     tokensEstimated: record.tokensEstimated,
+    requestUsage: record.requestUsage,
+    messageUsage: record.messageUsage,
   };
 }
 
 function estimatedUserUsage(content: string): {
   inputTokens: number;
   tokensEstimated: true;
+  messageUsage: ReturnType<typeof estimatedMessageUsage>;
 } {
-  return { inputTokens: estimateTokens(content), tokensEstimated: true };
+  return {
+    inputTokens: estimateTokens(content),
+    tokensEstimated: true,
+    messageUsage: estimatedMessageUsage("user", content),
+  };
 }
 
 function replayHistory(

@@ -16,12 +16,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
 import {
   CAPTION_ROTATE_INTERVAL_MS,
+  longestPendingCaption,
   PENDING_CAPTIONS,
   pendingCaptionState,
   shufflePendingCaptions,
 } from "../src/components/agentState/captionRotator";
 import { MessageBubble } from "../src/shared/chat/MessageBubble";
 import type { ChatMessage } from "../src/shared/chat/types";
+import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
 
 afterEach(() => {
   cleanup();
@@ -47,6 +49,13 @@ describe("shufflePendingCaptions", () => {
     const a = shufflePendingCaptions(() => 0.5);
     const b = shufflePendingCaptions(() => 0.5);
     expect(a).toEqual(b);
+  });
+
+  it("treats Searching... as the longest caption for a constant pill min-width", () => {
+    expect(longestPendingCaption()).toBe("Searching...");
+    expect(PENDING_CAPTIONS.every((caption) => caption.length <= longestPendingCaption().length)).toBe(
+      true,
+    );
   });
 });
 
@@ -144,6 +153,13 @@ describe("MessageBubble pending pill", () => {
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(orb).toHaveAttribute("data-orb-pill", "true");
     expect(PENDING_CAPTIONS).toContain(captionText());
+    // v2.4.4 Phase 1: the pill takes its left offset from the list gutter, so
+    // neither the orb nor the pending row may add a second inset.
+    expect(orb.style.marginLeft).toBe("");
+    expect(orb.style.minWidth).toContain(`${longestPendingCaption().length}ch`);
+    const pending = screen.getByTestId("message-pending-p1");
+    expect(pending.style.overflow).toBe("visible");
+    expect(pending.style.paddingInline).toBe("0px");
   });
 
   it("keeps Image/Video pending on the hero preset without the pill", () => {
@@ -158,7 +174,8 @@ describe("MessageBubble pending pill", () => {
     const orb = screen.getByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     expect(orb).not.toHaveAttribute("data-orb-pill");
-    expect(captionText()).toBe("Shaping...");
+    // v2.4.4 Phase 5.3: studio pending uses its own pool.
+    expect(STUDIO_PENDING_CAPTIONS).toContain(captionText());
   });
 });
 

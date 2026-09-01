@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import traceback
 from typing import Any, Callable, Optional
 
@@ -34,10 +35,28 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INTERNAL_ERROR = -32603
 
+#: Methods answered on the reader thread itself. They are pure lookups that
+#: return in microseconds, and the caller uses them to ask whether the runtime
+#: is alive -- which is exactly the question that must stay answerable while a
+#: job is running (v2.4.4 Phase 5.1).
+CONTROL_METHODS = frozenset({"health", "version"})
+
+#: Cadence for the progress notifications emitted while a job runs. Diffusers
+#: gives no step callback on every pipeline here, so this is a liveness signal
+#: rather than a percentage: it proves the runtime is still working.
+HEARTBEAT_INTERVAL_S = 2.0
+
+#: One lock around stdout. Job threads and the reader thread both write here,
+#: and the wire format is line-delimited JSON -- two interleaved writes would
+#: produce one unparseable line and take down the channel.
+_STDOUT_LOCK = threading.Lock()
+
 
 def _emit(payload: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(payload) + "\n")
-    sys.stdout.flush()
+    line = json.dumps(payload) + "\n"
+    with _STDOUT_LOCK:
+        sys.stdout.write(line)
+        sys.stdout.flush()
 
 
 def _ok(req_id: Any, result: JsonRpcResult) -> None:
@@ -115,14 +134,112 @@ def dispatch(line: str, handlers: dict[str, HandlerFn]) -> None:
     _ok(req_id, result)
 
 
-def main() -> int:
-    handlers = build_handlers()
-    for raw in sys.stdin:
+def _notify(method: str, params: dict[str, Any]) -> None:
+    """Emit a JSON-RPC notification (no `id`, so no response is expected)."""
+    _emit({"jsonrpc": "2.0", "method": method, "params": params})
+
+
+def heartbeat_while(
+    job_id: Any,
+    method: str,
+    done: threading.Event,
+    interval: float = HEARTBEAT_INTERVAL_S,
+) -> None:
+    """Emit `progress` notifications until `done` is set.
+
+    v2.4.4 Phase 5.1: a Wan run on a 16 GB laptop takes minutes during which
+    the runtime previously said nothing at all, so the shell had no way to
+    distinguish "still working" from "dead". The UI keeps its pending state
+    and its animation until a real completion or a written error; these
+    notifications are what make that wait honest rather than a guess.
+    """
+    elapsed = 0.0
+    while not done.wait(interval):
+        elapsed += interval
+        _notify(
+            "progress",
+            {
+                "kind": "progress",
+                "jobId": job_id,
+                "method": method,
+                "elapsedS": elapsed,
+            },
+        )
+
+
+def serve(stream, handlers: dict[str, HandlerFn]) -> int:
+    """Read requests forever, running job methods off the reader thread.
+
+    Before this, `dispatch` ran the handler to completion inline, so a CUDA
+    job held the stdin loop for its whole duration: `health` queued behind it
+    and the runtime looked hung. Job methods now run on their own thread, so
+    the reader keeps accepting and answering while work is in flight. The wire
+    contract is unchanged -- responses are correlated by `id`, so answering
+    out of order is exactly what JSON-RPC allows for.
+    """
+    workers: list[threading.Thread] = []
+    for raw in stream:
         line = raw.strip()
         if not line:
             continue
+        method = _peek_method(line)
+        if method is not None and method not in CONTROL_METHODS:
+            worker = threading.Thread(
+                target=_dispatch_with_heartbeat,
+                args=(line, handlers, method),
+                daemon=True,
+            )
+            worker.start()
+            workers.append(worker)
+            workers[:] = [w for w in workers if w.is_alive()]
+            continue
         dispatch(line, handlers)
+    # stdin closed: let work already accepted finish rather than truncating a
+    # job the caller is still waiting on.
+    for worker in workers:
+        worker.join(timeout=HEARTBEAT_INTERVAL_S)
     return 0
+
+
+def _peek_method(line: str) -> Optional[str]:
+    """Method name if the line is a well-formed request, else None.
+
+    A malformed line goes down the inline path so `dispatch` produces the same
+    parse/invalid-request error it always has.
+    """
+    try:
+        request = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(request, dict):
+        return None
+    method = request.get("method")
+    return method if isinstance(method, str) else None
+
+
+def _dispatch_with_heartbeat(
+    line: str, handlers: dict[str, HandlerFn], method: str
+) -> None:
+    job_id = None
+    try:
+        job_id = (json.loads(line).get("params") or {}).get("jobId")
+    except Exception:  # noqa: BLE001 - heartbeats never break dispatch
+        job_id = None
+    done = threading.Event()
+    beat = threading.Thread(
+        target=heartbeat_while, args=(job_id, method, done), daemon=True
+    )
+    beat.start()
+    try:
+        dispatch(line, handlers)
+    finally:
+        done.set()
+        beat.join(timeout=HEARTBEAT_INTERVAL_S)
+
+
+def main() -> int:
+    handlers = build_handlers()
+    return serve(sys.stdin, handlers)
 
 
 if __name__ == "__main__":

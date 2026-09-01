@@ -1,9 +1,21 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 
 import { ModelsSettings, type ModelsClient, type InstallHandle } from "../src/pages/settings/ModelsSettings";
 import { FAVORITE_STORAGE_PREFIX } from "../src/shared/models/selectionPolicy";
-import type { InstallProgressDto, ListedModelDto } from "../src/pages/settings/modelsTypes";
+import type { DiskUsageDto, InstallProgressDto, ListedModelDto } from "../src/pages/settings/modelsTypes";
+
+function diskUsage(overrides: Partial<DiskUsageDto> = {}): DiskUsageDto {
+  return {
+    usedBytes: 0,
+    modelBytes: 0,
+    freeBytes: null,
+    capacityBytes: null,
+    measurementPath: "C:\\Users\\test\\.nexus\\models",
+    measuredAt: "2026-08-29T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function makeItems(): ListedModelDto[] {
   return [
@@ -112,7 +124,12 @@ function client(): {
       events.reveal.push(p);
     },
     async diskUsage() {
-      return { usedBytes: 2_700_000_000, freeBytes: 500_000_000_000 };
+      return diskUsage({
+        usedBytes: 2_700_000_000,
+        modelBytes: 2_700_000_000,
+        freeBytes: 500_000_000_000,
+        capacityBytes: 502_700_000_000,
+      });
     },
   };
   return {
@@ -160,6 +177,74 @@ describe("ModelsSettings", () => {
     expect(screen.getByTestId("models-panel-chat")).toBeInTheDocument();
     expect(screen.getByTestId("models-row-gemma4:e4b")).toBeInTheDocument();
     expect(screen.queryByTestId("models-row-qwen2.5-coder:7b")).not.toBeInTheDocument();
+  });
+
+  it("labels downloaded, available, and incompatible groups in display order", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      {
+        id: "downloaded",
+        displayName: "Downloaded",
+        type: "llm",
+        task: "chat",
+        installed: true,
+        source: "registry",
+        vramGB: 8,
+      },
+      {
+        id: "available",
+        displayName: "Available",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 8,
+      },
+      {
+        id: "incompatible",
+        displayName: "Incompatible",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 24,
+      },
+    ];
+    render(
+      <ModelsSettings client={ctx.client} hostVramGB={16} gpuVendor="nvidia" />,
+    );
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+
+    const list = screen.getByTestId("models-list");
+    expect(Array.from(list.children).map((child) => child.textContent)).toEqual([
+      "Downloaded",
+      expect.stringContaining("Downloaded"),
+      "Available to download",
+      expect.stringContaining("Available"),
+      "Incompatible",
+      expect.stringContaining("Incompatible"),
+    ]);
+  });
+
+  it("refreshes disk usage on focus only while the page is visible", async () => {
+    const ctx = client();
+    const diskUsage = vi.spyOn(ctx.client, "diskUsage");
+    await loaded(ctx);
+    await waitFor(() => expect(diskUsage).toHaveBeenCalledTimes(1));
+
+    fireEvent.focus(window);
+    await waitFor(() => expect(diskUsage).toHaveBeenCalledTimes(2));
+
+    const visibilityState = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    try {
+      fireEvent.focus(window);
+      await Promise.resolve();
+      expect(diskUsage).toHaveBeenCalledTimes(2);
+    } finally {
+      if (visibilityState) Object.defineProperty(document, "visibilityState", visibilityState);
+      else Reflect.deleteProperty(document, "visibilityState");
+    }
   });
 
   it("shows Downloaded for catalog id gemma-4-12b-it-gguf when the probe marked it installed", async () => {
@@ -269,7 +354,8 @@ describe("ModelsSettings", () => {
   it("renders the disk-usage summary", async () => {
     await loaded(client());
     await waitFor(() => {
-      expect(screen.getByTestId("models-disk-summary").textContent).toMatch(/Models occupy/);
+      expect(screen.getByTestId("models-disk-summary").textContent).toMatch(/used by models/);
+      expect(screen.getByRole("progressbar", { name: "Model storage usage" })).toBeInTheDocument();
     });
   });
 
@@ -294,7 +380,7 @@ describe("ModelsSettings", () => {
       },
       async remove() {},
       async diskUsage() {
-        return { usedBytes: 0, freeBytes: null };
+        return diskUsage();
       },
     };
     render(<ModelsSettings client={embedClient} />);
@@ -327,7 +413,7 @@ describe("ModelsSettings", () => {
       },
       async remove() {},
       async diskUsage() {
-        return { usedBytes: 0, freeBytes: null };
+        return diskUsage();
       },
     };
     render(<ModelsSettings client={audioClient} />);
@@ -345,7 +431,7 @@ describe("ModelsSettings", () => {
     expect(screen.queryByTestId("models-install-ltx-video")).not.toBeInTheDocument();
   });
 
-  it("hides hideBelowVram siblings and collapses a family to the best fit", async () => {
+  it("shows every catalog sibling and keeps incompatible rows visible", async () => {
     const ctx = client();
     ctx.state.items = [
       {
@@ -383,8 +469,46 @@ describe("ModelsSettings", () => {
     ];
     await loaded(ctx, { hostVramGB: 16 });
     expect(screen.getByTestId("models-row-gemma-e4b")).toBeInTheDocument();
-    expect(screen.queryByTestId("models-row-gemma-e2b")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("models-row-kimi-hidden")).not.toBeInTheDocument();
+    expect(screen.getByTestId("models-row-gemma-e2b")).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-kimi-hidden")).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-kimi-hidden")).toHaveAttribute("data-over-budget", "true");
+  });
+
+  it("lists dependency-only family components inside Details without a primary card", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      {
+        id: "sana-1.6b-2k",
+        displayName: "SANA 1.6B 2K",
+        family: "sana",
+        type: "image",
+        task: "image",
+        installed: false,
+        source: "catalog-only",
+        description: "A compact SANA image model.",
+        sizeBytes: 3_200_000_000,
+        vramGB: 12,
+      },
+      {
+        id: "dc-ae-f32c32-sana-1.1",
+        displayName: "DC-AE f32c32 (SANA 1.1)",
+        family: "sana",
+        type: "vae",
+        installed: false,
+        source: "catalog-only",
+        sizeBytes: 320_000_000,
+      },
+    ];
+    await loaded(ctx, { hostVramGB: 16 });
+    fireEvent.click(screen.getByTestId("models-tab-image"));
+    expect(screen.getByTestId("models-row-sana-1.6b-2k")).toBeInTheDocument();
+    expect(screen.queryByTestId("models-row-dc-ae-f32c32-sana-1.1")).not.toBeInTheDocument();
+    const details = screen.getByTestId("models-row-sana-1.6b-2k-details");
+    fireEvent.click(details.querySelector("summary")!);
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByTestId("models-row-sana-1.6b-2k-components")).toHaveTextContent(
+      "DC-AE f32c32 (SANA 1.1)",
+    );
   });
 
   it("renders installer card copy and the LFM use-restriction note", async () => {
@@ -417,7 +541,7 @@ describe("ModelsSettings", () => {
       },
       async remove() {},
       async diskUsage() {
-        return { usedBytes: 0, freeBytes: null };
+        return diskUsage();
       },
     };
     render(<ModelsSettings client={lfmClient} />);
@@ -472,13 +596,13 @@ describe("ModelsSettings", () => {
       },
       async remove() {},
       async diskUsage() {
-        return { usedBytes: 0, freeBytes: null };
+        return diskUsage();
       },
     };
     render(<ModelsSettings client={lfmClient} />);
     await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    // v2.2.9 Phase 5 (T010): golden pill row (dual-asserted with the installer).
+    // Origin / license / context pills live in Details so the dense facts row stays nowrap.
     const pillRow = screen.getByTestId("models-pills-lfm2.5:2.6b");
     expect(Array.from(pillRow.children).map((c) => c.textContent)).toEqual([
       "Company: Liquid AI",
@@ -489,9 +613,10 @@ describe("ModelsSettings", () => {
       "License: LFM Open License v1.0",
       "Released: August 2026",
     ]);
-    // Pills sit inside the header (name) row, not under the description.
     const header = screen.getByTestId("models-header-lfm2.5:2.6b");
-    expect(header.contains(pillRow)).toBe(true);
+    const details = screen.getByTestId("models-row-lfm2.5:2.6b-details");
+    expect(header.contains(pillRow)).toBe(false);
+    expect(details.contains(pillRow)).toBe(true);
     expect(header.firstChild?.textContent).toBe("LFM2.5 2.6B");
     // The split-window row derives its pill from the in-window.
     expect(screen.getByTestId("models-pills-split-ctx").textContent).toContain(
@@ -567,7 +692,7 @@ describe("ModelsSettings", () => {
       },
       async remove() {},
       async diskUsage() {
-        return { usedBytes: 0, freeBytes: null };
+        return diskUsage();
       },
     };
     render(<ModelsSettings client={sanaClient} hostVramGB={16} />);
@@ -577,7 +702,7 @@ describe("ModelsSettings", () => {
     expect(rows[0]).toHaveAttribute("data-testid", "models-row-sana-sprint-1024");
     expect(rows[1]).toHaveAttribute("data-testid", "models-row-sana-1.6b-4k");
     expect(rows[1]).toHaveAttribute("data-over-budget", "true");
-    expect(screen.getByTestId("models-badge-sana-1.6b-4k").textContent).toBe("Needs 20 GB VRAM");
+    expect(screen.getByTestId("models-compatibility-sana-1.6b-4k").textContent).toBe("Incompatible - needs 20 GB VRAM");
     expect(screen.getByTestId("models-badge-sana-sprint-1024").textContent).toBe("Recommended");
     // v2.2.9 Phase 5 (T010): the locked name-row pills replace the old chips.
     const pills = Array.from(screen.getByTestId("models-pills-sana-1.6b-4k").children).map(
@@ -613,7 +738,7 @@ describe("ModelsSettings", () => {
       },
       async remove() {},
       async diskUsage() {
-        return { usedBytes: 0, freeBytes: null };
+        return diskUsage();
       },
     };
     render(<ModelsSettings client={qwenClient} hostVramGB={16} />);

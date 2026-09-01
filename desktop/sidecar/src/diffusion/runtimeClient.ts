@@ -140,18 +140,30 @@ export interface ChildProcessRuntimeOptions {
  * dispatcher drains them at the end of the synchronous IPC reply so the
  * Tauri shell can render progress incrementally.
  */
+export const DEFAULT_DIFFUSION_REQUEST_TIMEOUT_MS = 60_000;
+export const GENERATION_DIFFUSION_REQUEST_TIMEOUT_MS = 1_800_000;
+
+export function diffusionRequestTimeoutMs(
+  method: string,
+  overrideMs?: number,
+): number {
+  if (overrideMs != null) return overrideMs;
+  return /txt2img|img2img|inpaint|outpaint|text2video|image2video|video\./i.test(
+    method,
+  )
+    ? GENERATION_DIFFUSION_REQUEST_TIMEOUT_MS
+    : DEFAULT_DIFFUSION_REQUEST_TIMEOUT_MS;
+}
+
 export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
   private child: ChildProcessWithoutNullStreams | null = null;
   private rl: Interface | null = null;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly events = new Map<string, DiffusionEvent[]>();
   private nextId = 1;
-  private readonly requestTimeoutMs: number;
   private stderrTail = "";
 
-  constructor(private readonly options: ChildProcessRuntimeOptions = {}) {
-    this.requestTimeoutMs = options.requestTimeoutMs ?? 60_000;
-  }
+  constructor(private readonly options: ChildProcessRuntimeOptions = {}) {}
 
   private ensureSpawned(): ChildProcessWithoutNullStreams {
     if (this.child) return this.child;
@@ -234,16 +246,15 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
     const child = this.ensureSpawned();
     const id = this.nextId++;
     const payload = JSON.stringify({ jsonrpc: "2.0", id, method, params });
+    const timeoutMs = diffusionRequestTimeoutMs(method, this.options.requestTimeoutMs);
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.pending.delete(id)) {
           reject(
-            new Error(
-              `diffusion.${method}: timeout after ${this.requestTimeoutMs}ms`,
-            ),
+            new Error(`diffusion.${method}: timeout after ${timeoutMs}ms`),
           );
         }
-      }, this.requestTimeoutMs);
+      }, timeoutMs);
       this.pending.set(id, {
         resolve: (value) => {
           clearTimeout(timer);

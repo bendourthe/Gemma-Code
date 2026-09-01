@@ -20,6 +20,8 @@ import {
   CodingSessionResumeRequest,
   CodingSessionSendMessageRequest,
   CodingSessionStartRequest,
+  SessionDispositionRequest,
+  SessionsListArchivedRequest,
   CodingTraceSubscribeRequest,
   CredentialsDeleteRequest,
   CredentialsListRequest,
@@ -50,6 +52,7 @@ import {
   VideoVideo2xPathGetRequest,
   VideoVideo2xPathSetRequest,
   TuningEmptyRequest,
+  TuningHardwareRequest,
   TuningDatasetBuildRequest,
   TuningJobStartRequest,
   TuningJobListRequest,
@@ -146,6 +149,8 @@ import {
   hubLayoutDir,
   nexusHome,
 } from "../../../core/storage/paths.js";
+import { createWorkspaceScope } from "../../../core/project/WorkspaceScope.js";
+import { WorkspaceScopeStore } from "../../../core/project/WorkspaceScopeStore.js";
 import {
   readHubVersionManifest,
   resolveHubLayout,
@@ -159,6 +164,7 @@ import {
   type DiffusionRuntimeClient,
   InMemoryDiffusionRuntime,
 } from "./diffusion/runtimeClient.js";
+import type { MediaRuntimeService } from "./diffusion/runtimeFactory.js";
 import {
   buildJobRequest,
   extractWorkflowFromBase64Png,
@@ -262,6 +268,8 @@ export interface HandlerContext {
   /** v1.7.0 -- Local Chatbot Explorer session manager. */
   chat: ChatSessionManager;
   diffusion: DiffusionRuntimeClient;
+  /** v2.4.1 -- shared media readiness and bounded repair coordinator. */
+  mediaRuntime?: MediaRuntimeService;
   ffmpeg: FfmpegContext;
   /**
    * v1.5.0 Phase 5 (item 25) -- OS-keychain credential vault. The credential
@@ -307,6 +315,8 @@ export interface HandlerContext {
    * Production uses `NEXUS_WORKSPACE` or `process.cwd()`; tests inject a temp dir.
    */
   workspacePath?: string;
+  /** v2.4.1 -- durable workspace registry used before coding session allocation. */
+  workspaceStore?: WorkspaceScopeStore;
   /** v1.18.0 Phase 4 -- persistent approval queue. Tests inject a memory inbox. */
   askInbox?: AskInbox;
   /** v1.18.0 Phase 4 -- local cron-style agent-run scheduler. */
@@ -354,6 +364,13 @@ function resolveServingRuntime(ctx: HandlerContext): ServingRuntime {
   if (ctx.serving) return ctx.serving;
   if (!_servingRuntime) _servingRuntime = createServingRuntime();
   return _servingRuntime;
+}
+
+let _workspaceStore: WorkspaceScopeStore | null = null;
+function resolveWorkspaceStore(ctx: HandlerContext): WorkspaceScopeStore {
+  if (ctx.workspaceStore) return ctx.workspaceStore;
+  if (!_workspaceStore) _workspaceStore = new WorkspaceScopeStore();
+  return _workspaceStore;
 }
 
 /**
@@ -909,6 +926,17 @@ function mcpHarnessFor(ctx: HandlerContext) {
   };
 }
 
+function unavailableMediaRepairState() {
+  return {
+    state: "failed" as const,
+    code: "REPAIR_SERVICE_UNAVAILABLE",
+    message: "The media repair service is unavailable.",
+    retryable: false,
+    progress: 0,
+    logPath: "",
+  };
+}
+
 export const handlers: Record<Method, HandlerFn> = {
   ping: async (_params, ctx): Promise<PingResponseT> => {
     const response: PingResponseT = {
@@ -925,7 +953,7 @@ export const handlers: Record<Method, HandlerFn> = {
     const models = await runtime.service.list();
     const { loadSnapshot } = await import("./models/selectionSnapshot.js");
     const selection = await loadSnapshot();
-    return { models, catalogStatus: runtime.catalogStatus, selection };
+    return { models, catalogStatus: runtime.catalogStatus, catalogHash: runtime.service.catalogHash, selection };
   },
   "models.install": async (params, ctx) => {
     const req = ModelsInstallRequest.parse(params ?? {});
@@ -1066,7 +1094,10 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "coding.session.start": async (params, ctx) => {
     const req = CodingSessionStartRequest.parse(params ?? {});
-    return ctx.sessions.start(req);
+    const previous = req.workspaceId ? resolveWorkspaceStore(ctx).get(req.workspaceId) : undefined;
+    const scope = await createWorkspaceScope(req, { previous });
+    const stored = resolveWorkspaceStore(ctx).upsert(scope);
+    return ctx.sessions.startWithScope(req, stored);
   },
   "coding.session.sendMessage": async (params, ctx) => {
     const req = CodingSessionSendMessageRequest.parse(params ?? {});
@@ -1111,6 +1142,61 @@ export const handlers: Record<Method, HandlerFn> = {
   "coding.session.delete": async (params, ctx) => {
     const req = CodingSessionDeleteRequest.parse(params ?? {});
     return ctx.sessions.delete(req.sessionId);
+  },
+  "sessions.archive": async (params, ctx) => {
+    const req = SessionDispositionRequest.parse(params ?? {});
+    if (req.pillar === "agents") {
+      const result = ctx.sessions.archive(req.id);
+      return { pillar: req.pillar, id: req.id, archivedAt: result.archivedAt };
+    }
+    if (req.pillar === "chatbot") {
+      const chat = (await explorerOps()).archiveChat({ id: req.id });
+      return { pillar: req.pillar, id: req.id, archivedAt: new Date(chat.archivedAt ?? Date.now()).toISOString() };
+    }
+    const session = (await studioSessionOps()).archiveSession({ id: req.id });
+    return { pillar: req.pillar, id: req.id, archivedAt: new Date(session.archivedAt ?? Date.now()).toISOString() };
+  },
+  "sessions.listArchived": async (params, ctx) => {
+    SessionsListArchivedRequest.parse(params ?? {});
+    const sessions: Array<{ pillar: "chatbot" | "agents" | "images" | "videos"; id: string; title: string; archivedAt: string; originalParent: string | null }> = [];
+    const errors: Array<{ pillar: "chatbot" | "agents" | "images" | "videos"; message: string }> = [];
+    try {
+      for (const chat of (await explorerOps()).listArchived().chats) {
+        sessions.push({ pillar: "chatbot", id: chat.id, title: chat.title, archivedAt: new Date(chat.archivedAt).toISOString(), originalParent: chat.archivedFolderId ?? chat.folderId });
+      }
+    } catch (error) {
+      errors.push({ pillar: "chatbot", message: error instanceof Error ? error.message : String(error) });
+    }
+    try {
+      for (const session of ctx.sessions.listArchived()) {
+        sessions.push({ pillar: "agents", id: session.id, title: session.title, archivedAt: session.archivedAt ?? session.createdAt, originalParent: null });
+      }
+    } catch (error) {
+      errors.push({ pillar: "agents", message: error instanceof Error ? error.message : String(error) });
+    }
+    for (const [pillar, studioPillar] of [["images", "image"], ["videos", "video"]] as const) {
+      try {
+        for (const session of (await studioSessionOps()).listArchived({ pillar: studioPillar }).sessions) {
+          sessions.push({ pillar, id: session.id, title: session.title, archivedAt: new Date(session.archivedAt).toISOString(), originalParent: session.archivedFolderId ?? session.folderId });
+        }
+      } catch (error) {
+        errors.push({ pillar, message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return { sessions, errors };
+  },
+  "sessions.restore": async (params, ctx) => {
+    const req = SessionDispositionRequest.parse(params ?? {});
+    if (req.pillar === "agents") {
+      const restored = ctx.sessions.restore(req.id);
+      return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
+    }
+    if (req.pillar === "chatbot") {
+      const restored = (await explorerOps()).restoreChat({ id: req.id });
+      return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
+    }
+    const restored = (await studioSessionOps()).restoreSession({ id: req.id });
+    return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
   },
   "coding.memory.snapshot": async (params) => {
     CodingMemorySnapshotRequest.parse(params ?? {});
@@ -1511,6 +1597,22 @@ export const handlers: Record<Method, HandlerFn> = {
     DiffusionEmptyRequest.parse(params ?? {});
     return ctx.diffusion.call("version", {});
   },
+  "diffusion.runtime.status": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.status() ?? unavailableMediaRepairState();
+  },
+  "diffusion.runtime.repair": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.startRepair() ?? unavailableMediaRepairState();
+  },
+  "diffusion.runtime.cancelRepair": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.cancelRepair() ?? unavailableMediaRepairState();
+  },
+  "diffusion.runtime.openLogLocation": async (params, ctx) => {
+    DiffusionEmptyRequest.parse(params ?? {});
+    return ctx.mediaRuntime?.openLogLocation() ?? { opened: false };
+  },
   "diffusion.txt2img": async (params, ctx) => {
     const req = DiffusionTxt2ImgRequest.parse(params ?? {});
     return enqueueInteractive(
@@ -1752,12 +1854,12 @@ export const handlers: Record<Method, HandlerFn> = {
     return resolveStudio(ctx).scheduler.snapshot();
   },
   "tuning.status": async (params, ctx) => {
-    TuningEmptyRequest.parse(params ?? {});
-    return resolveTuning(ctx).status();
+    const req = TuningHardwareRequest.parse(params ?? {});
+    return resolveTuning(ctx).status(req);
   },
   "tuning.provision": async (params, ctx) => {
-    TuningEmptyRequest.parse(params ?? {});
-    return resolveTuning(ctx).provision();
+    const req = TuningHardwareRequest.parse(params ?? {});
+    return resolveTuning(ctx).provision(req);
   },
   "tuning.preflight": async (params, ctx) => {
     TuningEmptyRequest.parse(params ?? {});

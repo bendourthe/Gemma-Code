@@ -17,6 +17,7 @@ export interface LocalModelTelemetry {
   deviceName: string;
   lastUpdated: number;
   /** Optional fields added in v1.0.0 Phase 8.3 for the live telemetry feed. */
+  gpuVendor?: "nvidia" | "apple" | "none";
   vramTotalGB?: number;
   vramAllocatedGB?: number;
   queuedJobs?: ReadonlyArray<LocalModelQueuedJob>;

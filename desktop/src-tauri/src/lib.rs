@@ -44,16 +44,8 @@ async fn ipc_call(
 
 /// Refresh liveness + stderr tail into the stored status, then return it.
 fn refreshed_status(state: &AppState) -> SidecarStatus {
-    let handle = state
-        .sidecar
-        .lock()
-        .ok()
-        .and_then(|guard| guard.clone());
-    let mut status = state
-        .status
-        .lock()
-        .map(|s| s.clone())
-        .unwrap_or_default();
+    let handle = state.sidecar.lock().ok().and_then(|guard| guard.clone());
+    let mut status = state.status.lock().map(|s| s.clone()).unwrap_or_default();
     if let Some(handle) = handle {
         status.stderr_tail = handle.stderr_tail();
         match handle.try_exit_code() {
@@ -104,6 +96,62 @@ fn sidecar_restart(
     result
 }
 
+#[tauri::command]
+fn canonicalize_workspace_roots(paths: Vec<String>) -> Result<Vec<String>, String> {
+    if paths.is_empty() || paths.len() > 32 {
+        return Err("select between 1 and 32 workspace directories".to_string());
+    }
+    let mut canonical = Vec::with_capacity(paths.len());
+    let mut seen = std::collections::HashSet::new();
+    for raw in paths {
+        let candidate = std::path::PathBuf::from(&raw);
+        if !candidate.is_absolute() {
+            return Err(format!("workspace directory must be absolute: {raw}"));
+        }
+        let resolved = std::fs::canonicalize(&candidate)
+            .map_err(|error| format!("workspace directory is unavailable ({raw}): {error}"))?;
+        if !resolved.is_dir() {
+            return Err(format!("workspace path is not a directory: {raw}"));
+        }
+        let display = native_display_path(&resolved);
+        let key = if cfg!(windows) {
+            display.to_lowercase()
+        } else {
+            display.clone()
+        };
+        if seen.insert(key) {
+            canonical.push(display);
+        }
+    }
+    Ok(canonical)
+}
+
+#[tauri::command]
+fn default_workspace_root() -> Result<String, String> {
+    let raw = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+        .ok_or_else(|| "the operating-system home directory is unavailable".to_string())?;
+    let resolved = std::fs::canonicalize(std::path::PathBuf::from(raw))
+        .map_err(|error| format!("the operating-system home directory is unavailable: {error}"))?;
+    if !resolved.is_dir() {
+        return Err("the operating-system home path is not a directory".to_string());
+    }
+    Ok(native_display_path(&resolved))
+}
+
+fn native_display_path(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy().to_string();
+    #[cfg(windows)]
+    {
+        if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{unc}");
+        }
+        if let Some(local) = value.strip_prefix(r"\\?\") {
+            return local.to_string();
+        }
+    }
+    value
+}
+
 /// The restart body, factored out so the single-flight flag reset in
 /// `sidecar_restart` wraps exactly one call.
 fn restart_sidecar_locked(
@@ -127,11 +175,7 @@ fn restart_sidecar_locked(
             Ok(status)
         }
         Err(err) => {
-            let mut status = state
-                .status
-                .lock()
-                .map(|s| s.clone())
-                .unwrap_or_default();
+            let mut status = state.status.lock().map(|s| s.clone()).unwrap_or_default();
             status.running = false;
             status.failure = Some(err.to_string());
             if let SidecarError::Exited { code, .. } = &err {
@@ -164,8 +208,7 @@ fn force_dark_app_mode() {
             return;
         }
         if let Some(func) = GetProcAddress(module, 135 as *const u8) {
-            let set_preferred_app_mode: extern "system" fn(i32) -> i32 =
-                std::mem::transmute(func);
+            let set_preferred_app_mode: extern "system" fn(i32) -> i32 = std::mem::transmute(func);
             let _ = set_preferred_app_mode(2);
         }
     }
@@ -186,9 +229,10 @@ pub fn run_healthcheck(budget_secs: u64) -> i32 {
         Ok(pair) => pair,
         Err(err) => {
             let (exit_code, stderr_tail) = match &err {
-                SidecarError::Exited { code, stderr_tail } => {
-                    (Some(*code), last_stderr_lines(stderr_tail, HEALTHCHECK_STDERR_LINES))
-                }
+                SidecarError::Exited { code, stderr_tail } => (
+                    Some(*code),
+                    last_stderr_lines(stderr_tail, HEALTHCHECK_STDERR_LINES),
+                ),
                 _ => (None, Vec::new()),
             };
             let verdict = json!({
@@ -306,6 +350,7 @@ pub fn run() {
 
     force_dark_app_mode();
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             sidecar: Mutex::new(None),
             status: Mutex::new(SidecarStatus::default()),
@@ -314,7 +359,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ipc_call,
             sidecar_status,
-            sidecar_restart
+            sidecar_restart,
+            canonicalize_workspace_roots,
+            default_workspace_root
         ])
         .setup(|app| {
             // Window icon (title bar + taskbar): the transparent no-background
@@ -371,4 +418,17 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod workspace_tests {
+    use super::default_workspace_root;
+
+    #[test]
+    fn default_workspace_root_is_an_existing_absolute_directory() {
+        let root = default_workspace_root().expect("home directory should resolve");
+        let path = std::path::PathBuf::from(root);
+        assert!(path.is_absolute());
+        assert!(path.is_dir());
+    }
 }

@@ -50,6 +50,9 @@ export function createIpcStudioExplorerClient(pillar: StudioPillar): StudioExplo
     async deleteSession(id) {
       await call("studio.session.deleteSession", { id });
     },
+    async archiveSession(id) {
+      await call("sessions.archive", { pillar: pillar === "image" ? "images" : "videos", id });
+    },
     async getFolder(id) {
       const tree = await this.listTree();
       const stack = [tree];
@@ -97,8 +100,11 @@ export function createIpcStudioExplorerClient(pillar: StudioPillar): StudioExplo
         mediaRef: input.mediaRef ?? null,
         ...(input.inputTokens !== undefined ? { inputTokens: input.inputTokens } : {}),
         ...(input.reasoningTokens !== undefined ? { reasoningTokens: input.reasoningTokens } : {}),
+        ...(input.reasoningText !== undefined ? { reasoningText: input.reasoningText } : {}),
         ...(input.outputTokens !== undefined ? { outputTokens: input.outputTokens } : {}),
         ...(input.tokensEstimated ? { tokensEstimated: true } : {}),
+        ...(input.requestUsage ? { requestUsage: input.requestUsage } : {}),
+        ...(input.messageUsage ? { messageUsage: input.messageUsage } : {}),
         ...(input.visualUnits !== undefined ? { visualUnits: input.visualUnits } : {}),
       }),
     async listTurns(sessionId, limit) {

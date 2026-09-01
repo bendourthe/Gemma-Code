@@ -45,6 +45,7 @@ export interface IpcChatExplorerClient {
   renameChat(id: string, title: string, byUser?: boolean): Promise<Chat>;
   moveChat(id: string, folderId: string | null): Promise<Chat>;
   deleteChat(id: string): Promise<void>;
+  archiveChat?(id: string): Promise<void>;
   setPersona(id: string, persona: string | null): Promise<void>;
   /** OPTIONAL so IPC-shaped fakes in tests can omit it; the adapter falls back to its cached tree. */
   search?(query: string, limit?: number): Promise<readonly ChatExplorerSearchHit[]>;
@@ -55,8 +56,11 @@ export interface IpcChatExplorerClient {
     attachments?: readonly string[];
     inputTokens?: number | null;
     reasoningTokens?: number | null;
+    reasoningText?: string | null;
     outputTokens?: number | null;
     tokensEstimated?: boolean;
+    requestUsage?: ChatMessageRecord["requestUsage"];
+    messageUsage?: ChatMessageRecord["messageUsage"];
   }): Promise<ChatMessageRecord>;
   listMessages(chatId: string, limit?: number): Promise<readonly ChatMessageRecord[]>;
   generateTitle(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
@@ -113,6 +117,9 @@ export function createIpcChatExplorerClient(): IpcChatExplorerClient {
     async deleteChat(id) {
       await call("chat.explorer.deleteChat", { id });
     },
+    async archiveChat(id) {
+      await call("sessions.archive", { pillar: "chatbot", id });
+    },
     async setPersona(id, persona) {
       await call("chat.explorer.setPersona", { id, persona });
     },
@@ -133,8 +140,11 @@ export function createIpcChatExplorerClient(): IpcChatExplorerClient {
           : {}),
         ...(input.inputTokens !== undefined ? { inputTokens: input.inputTokens } : {}),
         ...(input.reasoningTokens !== undefined ? { reasoningTokens: input.reasoningTokens } : {}),
+        ...(input.reasoningText !== undefined ? { reasoningText: input.reasoningText } : {}),
         ...(input.outputTokens !== undefined ? { outputTokens: input.outputTokens } : {}),
         ...(input.tokensEstimated ? { tokensEstimated: true } : {}),
+        ...(input.requestUsage ? { requestUsage: input.requestUsage } : {}),
+        ...(input.messageUsage ? { messageUsage: input.messageUsage } : {}),
       }),
     async listMessages(chatId, limit) {
       const { messages } = await call<{ messages: ChatMessageRecord[] }>(
@@ -251,6 +261,11 @@ export function createExplorerAdapter(ipc: IpcChatExplorerClient): ExplorerAdapt
     moveChat: async (id, newFolderId) => invalidate(await ipc.moveChat(id, newFolderId)),
     deleteChat: async (id) => {
       await ipc.deleteChat(id);
+      cachedTree = null;
+    },
+    archiveChat: async (id) => {
+      if (!ipc.archiveChat) throw new Error("Archive is unavailable.");
+      await ipc.archiveChat(id);
       cachedTree = null;
     },
     getFolder: async (id) => findFolderIn(await ensureTree(), id),

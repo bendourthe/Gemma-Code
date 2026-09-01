@@ -12,6 +12,7 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import BetterSqlite from "better-sqlite3";
 import type Database from "better-sqlite3";
+import { redactSecrets } from "../observability/redactSecrets.js";
 import { isStudioPillar, type StudioPillar } from "./StudioSessionStore.types.js";
 import type {
   AppendStudioTurnInput,
@@ -48,6 +49,8 @@ interface SessionRow {
   created_at: number;
   updated_at: number;
   turn_count: number;
+  archived_at?: number | null;
+  archived_folder_id?: string | null;
 }
 
 interface TurnRow {
@@ -93,8 +96,11 @@ function extraJsonOk(raw: string | null): boolean {
 interface TurnUsageExtra {
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: AppendStudioTurnInput["requestUsage"];
+  messageUsage?: AppendStudioTurnInput["messageUsage"];
   visualUnits?: number | null;
 }
 
@@ -113,9 +119,17 @@ function parseTurnUsage(raw: string | null): TurnUsageExtra {
     const extra: TurnUsageExtra = {
       inputTokens: optionalNumber(obj.inputTokens),
       reasoningTokens: optionalNumber(obj.reasoningTokens),
+      reasoningText:
+        typeof obj.reasoningText === "string" ? obj.reasoningText.slice(0, 65_536) : null,
       outputTokens: optionalNumber(obj.outputTokens),
     };
     if (obj.tokensEstimated === true) extra.tokensEstimated = true;
+    if (obj.requestUsage && typeof obj.requestUsage === "object") {
+      extra.requestUsage = obj.requestUsage as NonNullable<AppendStudioTurnInput["requestUsage"]>;
+    }
+    if (obj.messageUsage && typeof obj.messageUsage === "object") {
+      extra.messageUsage = obj.messageUsage as NonNullable<AppendStudioTurnInput["messageUsage"]>;
+    }
     if (typeof obj.visualUnits === "number" && Number.isFinite(obj.visualUnits)) {
       extra.visualUnits = obj.visualUnits;
     } else if (obj.visualUnits === null) {
@@ -131,8 +145,15 @@ function turnUsageExtraJson(input: AppendStudioTurnInput): string | null {
   const extra: TurnUsageExtra = {};
   if (input.inputTokens !== undefined) extra.inputTokens = input.inputTokens;
   if (input.reasoningTokens !== undefined) extra.reasoningTokens = input.reasoningTokens;
+  if (input.reasoningText !== undefined) {
+    extra.reasoningText = input.reasoningText
+      ? redactSecrets(input.reasoningText).slice(0, 65_536)
+      : null;
+  }
   if (input.outputTokens !== undefined) extra.outputTokens = input.outputTokens;
   if (input.tokensEstimated) extra.tokensEstimated = true;
+  if (input.requestUsage) extra.requestUsage = input.requestUsage;
+  if (input.messageUsage) extra.messageUsage = input.messageUsage;
   if (input.visualUnits !== undefined) extra.visualUnits = input.visualUnits;
   return Object.keys(extra).length === 0 ? null : JSON.stringify(extra);
 }
@@ -165,6 +186,8 @@ function rowToSession(row: SessionRow): StudioSession | null {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     turnCount: row.turn_count,
+    archivedAt: row.archived_at ?? null,
+    archivedFolderId: row.archived_folder_id ?? null,
   };
 }
 
@@ -238,6 +261,13 @@ export class StudioSessionStore {
       CREATE INDEX IF NOT EXISTS idx_studio_turns_session
         ON studio_turns(session_id, created_at);
     `);
+    const columns = this.db.prepare(`PRAGMA table_info(studio_sessions)`).all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "archived_at")) {
+      this.db.exec(`ALTER TABLE studio_sessions ADD COLUMN archived_at INTEGER`);
+    }
+    if (!columns.some((column) => column.name === "archived_folder_id")) {
+      this.db.exec(`ALTER TABLE studio_sessions ADD COLUMN archived_folder_id TEXT`);
+    }
   }
 
   close(): void {
@@ -383,9 +413,80 @@ export class StudioSessionStore {
     this.db.prepare(`DELETE FROM studio_sessions WHERE id = ?`).run(id);
   }
 
+  archiveSession(id: string, archivedAt = Date.now()): StudioSession {
+    const tx = this.db.transaction(() => {
+      const existing = this.getSessionRow(id);
+      if (!existing) throw new Error(`session not found: ${id}`);
+      if (existing.archived_at != null) {
+        const mapped = rowToSession(existing);
+        if (!mapped) throw new Error(`session not found: ${id}`);
+        return mapped;
+      }
+      this.db
+        .prepare(
+          `UPDATE studio_sessions
+              SET archived_folder_id = folder_id, folder_id = NULL, archived_at = ?, updated_at = ?
+            WHERE id = ?`,
+        )
+        .run(archivedAt, archivedAt, id);
+      const mapped = rowToSession({
+        ...existing,
+        folder_id: null,
+        archived_folder_id: existing.folder_id,
+        archived_at: archivedAt,
+        updated_at: archivedAt,
+      });
+      if (!mapped) throw new Error(`session not found: ${id}`);
+      return mapped;
+    });
+    return tx();
+  }
+
+  restoreSession(id: string): { session: StudioSession; parentFallback: boolean } {
+    const tx = this.db.transaction(() => {
+      const existing = this.getSessionRow(id);
+      if (!existing || existing.archived_at == null) throw new Error(`archived session not found: ${id}`);
+      const archivedFolderId = existing.archived_folder_id ?? existing.folder_id;
+      const parent = archivedFolderId === null ? null : this.getFolderRow(archivedFolderId);
+      const parentFallback = archivedFolderId !== null && parent === undefined;
+      const folderId = parentFallback ? null : archivedFolderId;
+      const now = Date.now();
+      this.db
+        .prepare(
+          `UPDATE studio_sessions
+              SET folder_id = ?, archived_folder_id = NULL, archived_at = NULL, updated_at = ?
+            WHERE id = ?`,
+        )
+        .run(folderId, now, id);
+      const mapped = rowToSession({
+        ...existing,
+        folder_id: folderId,
+        archived_folder_id: null,
+        archived_at: null,
+        updated_at: now,
+      });
+      if (!mapped) throw new Error(`session not found: ${id}`);
+      return { session: mapped, parentFallback };
+    });
+    return tx();
+  }
+
+  listArchivedSessions(pillar?: StudioPillar): readonly import("./StudioSessionStore.types.js").ArchivedStudioSession[] {
+    const rows = pillar
+      ? (this.db
+          .prepare(`SELECT * FROM studio_sessions WHERE archived_at IS NOT NULL AND pillar = ? ORDER BY archived_at DESC, title ASC`)
+          .all(pillar) as SessionRow[])
+      : (this.db
+          .prepare(`SELECT * FROM studio_sessions WHERE archived_at IS NOT NULL ORDER BY archived_at DESC, title ASC`)
+          .all() as SessionRow[]);
+    return rows
+      .map(rowToSession)
+      .filter((session): session is import("./StudioSessionStore.types.js").ArchivedStudioSession => session?.archivedAt != null);
+  }
+
   getSession(id: string): StudioSession | null {
     const row = this.getSessionRow(id);
-    return row ? rowToSession(row) : null;
+    return row && row.archived_at == null ? rowToSession(row) : null;
   }
 
   appendTurn(input: AppendStudioTurnInput): StudioTurn {
@@ -431,8 +532,13 @@ export class StudioSessionStore {
       createdAt: now,
       inputTokens: input.inputTokens,
       reasoningTokens: input.reasoningTokens,
+      reasoningText: input.reasoningText
+        ? redactSecrets(input.reasoningText).slice(0, 65_536)
+        : input.reasoningText,
       outputTokens: input.outputTokens,
       tokensEstimated: input.tokensEstimated,
+      requestUsage: input.requestUsage,
+      messageUsage: input.messageUsage,
       visualUnits: input.visualUnits,
     };
   }
@@ -462,7 +568,7 @@ export class StudioSessionStore {
       .all(pillar);
     const sessionRows = this.db
       .prepare<unknown[], SessionRow>(
-        `SELECT * FROM studio_sessions WHERE pillar = ? ORDER BY title ASC`,
+        `SELECT * FROM studio_sessions WHERE pillar = ? AND archived_at IS NULL ORDER BY title ASC`,
       )
       .all(pillar);
     const byParent = new Map<string | null, StudioFolder[]>();

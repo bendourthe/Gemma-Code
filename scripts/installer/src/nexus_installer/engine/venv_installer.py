@@ -1,4 +1,4 @@
-﻿"""Python virtual environment stub.
+"""Python virtual environment stub.
 
 The Python FastAPI backend was removed in v0.4.0 (ADR-0001). The installer no
 longer creates a venv or installs backend dependencies; the extension talks

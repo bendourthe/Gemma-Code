@@ -1,4 +1,4 @@
-﻿"""Shared fixtures for the installer test suite."""
+"""Shared fixtures for the installer test suite."""
 
 from __future__ import annotations
 

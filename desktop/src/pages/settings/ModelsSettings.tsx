@@ -7,26 +7,29 @@
  * tab. Search stays as a secondary filter. Unknown tasks land in Other so a
  * row is never dropped. Long description copy lives behind a closed details
  * disclosure, matching installer density. The installer Qt wizard is not
- * iframed.
+ * iframed. v2.4.2 Phase 5 drops the catalog fingerprint from the header and
+ * tightens page and card spacing so more rows fit.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { CircleCheck, Download, Trash2 } from "lucide-react";
+import { modelAvailabilityBucket } from "../../../../core/registry/modelDisplayPolicy";
 import { Button, SearchInput } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
 
 import {
   CATALOG_TAB_DEFS,
-  catalogTabsFor,
-  cardBadgeLabel,
   catalogSortGpuVendor,
-  modelsOnTab,
+  installedOutsideCatalogModels,
+  isCatalogOverBudget,
+  recommendationKind,
   visibleModelsOnTab,
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
-import { filterCatalog, modelFitsHost } from "../../shared/models/modelLibrary";
-import { buildModelPills } from "../../shared/models/modelPills";
+import { filterCatalog } from "../../shared/models/modelLibrary";
+import { buildModelPills, splitModelPill } from "../../shared/models/modelPills";
 import {
   FAVORITE_STORAGE_PREFIX,
   readFavorite,
@@ -43,6 +46,7 @@ import type {
 export type InstallHandle = { cancel(): void };
 
 export interface ModelsClient {
+  catalogHash?: string | null;
   list(): Promise<readonly ListedModelDto[]>;
   install(
     id: string,
@@ -62,6 +66,7 @@ export interface ModelsSettingsProps {
    * Omit or pass null when telemetry has not reported a total yet.
    */
   hostVramGB?: number | null;
+  gpuVendor?: string | null;
 }
 
 const TASK_TABS: readonly TaskKey[] = ["chat", "agentic", "image", "video", "audio", "document"];
@@ -70,7 +75,7 @@ function isTaskKey(tab: CatalogTab): tab is TaskKey {
   return (TASK_TABS as readonly string[]).includes(tab);
 }
 
-export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProps): JSX.Element {
+export function ModelsSettings({ client, hostVramGB = null, gpuVendor = null }: ModelsSettingsProps): JSX.Element {
   const [items, setItems] = useState<readonly ListedModelDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +85,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   const [progress, setProgress] = useState<Record<string, InstallProgressDto>>({});
   const [active, setActive] = useState<Record<string, InstallHandle>>({});
   const [disk, setDisk] = useState<DiskUsageDto | null>(null);
+  const diskRequest = useRef(0);
   const [favorites, setFavorites] = useState<Partial<Record<string, string | null>>>(() => {
     const next: Partial<Record<string, string | null>> = {};
     for (const t of TASK_TABS) next[t] = readFavorite(t);
@@ -94,6 +100,16 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   });
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(error);
+
+  const refreshDisk = useCallback(async (): Promise<void> => {
+    const request = ++diskRequest.current;
+    try {
+      const next = await client.diskUsage();
+      if (request === diskRequest.current) setDisk(next);
+    } catch {
+      if (request === diskRequest.current) setDisk(null);
+    }
+  }, [client]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,18 +128,25 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    client
-      .diskUsage()
-      .then((d) => {
-        if (!cancelled) setDisk(d);
-      })
-      .catch(() => {
-        /* disk usage is informational */
-      });
+    void refreshDisk();
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, refreshDisk]);
+
+  useEffect(() => {
+    const refreshWhenVisible = (): void => {
+      if (document.visibilityState === "visible") void refreshDisk();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 30_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshDisk]);
 
   const searched = useMemo(
     () =>
@@ -138,18 +161,29 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
     [items, query, hostVramGB],
   );
 
-  const otherCount = modelsOnTab(searched, "other").length;
-  const tabDefs = otherCount > 0 ? [...CATALOG_TAB_DEFS, { id: "other" as const, label: "Other" }] : CATALOG_TAB_DEFS;
-  const visible = visibleModelsOnTab(searched, tab, {
+  const external = installedOutsideCatalogModels(searched);
+  const tabDefs = external.length > 0
+    ? [...CATALOG_TAB_DEFS, { id: "other" as const, label: "Installed outside catalog" }]
+    : CATALOG_TAB_DEFS;
+  const visible = tab === "other"
+    ? external
+    : visibleModelsOnTab(searched, tab, {
+        hostVramGB,
+        gpuVendor: gpuVendor ?? catalogSortGpuVendor(hostVramGB),
+      });
+  const availabilityOptions = {
     hostVramGB,
-    gpuVendor: catalogSortGpuVendor(hostVramGB),
-  });
+    gpuVendor: gpuVendor ?? catalogSortGpuVendor(hostVramGB),
+  };
+  const availabilityBuckets = new Set(
+    visible.map((model) => modelAvailabilityBucket(model, availabilityOptions)),
+  );
+  const showAvailabilityHeadings = tab !== "other" && availabilityBuckets.size > 1;
 
   async function refresh(): Promise<void> {
     const list = await client.list();
     setItems(list);
-    const d = await client.diskUsage();
-    setDisk(d);
+    await refreshDisk();
   }
 
   function startInstall(id: string): void {
@@ -226,8 +260,11 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
 
   return (
     <section data-testid="settings-models" style={pageStyle}>
+      <div data-testid="models-chrome" style={chromeStyle}>
       <header style={headerStyle}>
-        <h1 style={{ margin: 0 }}>Models</h1>
+        <div>
+          <h1 style={{ margin: 0 }}>Models</h1>
+        </div>
         <DiskSummary disk={disk} />
       </header>
 
@@ -240,39 +277,49 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
           context="Installed models cannot be listed."
           testId="models-sidecar-down"
         />
-      ) : (
-        <div role="alert" aria-live="polite" style={{ minHeight: "1.5em", color: "var(--accent-warning, #d97706)" }}>
-          {error ?? ""}
+      ) : error ? (
+        <div role="alert" aria-live="polite" style={{ color: "var(--accent-warning, #d97706)" }}>
+          {error}
         </div>
+      ) : (
+        <div role="status" aria-live="polite" data-testid="models-status" style={visuallyHiddenStyle} />
       )}
 
-      <div role="tablist" aria-label="Model catalog" style={tabListStyle}>
-        {tabDefs.map((def) => (
-          <Button
-            key={def.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === def.id}
-            testId={`models-tab-${def.id}`}
-            onClick={() => setTab(def.id)}
-            variant="ghost"
-            style={tabButtonStyle(tab === def.id)}
-          >
-            {def.label}
-          </Button>
-        ))}
+      {/*
+        v2.4.4 Phase 6.1 (T023): tabs and search share one row. Search used to
+        be a sibling below the chrome, which spent a whole row on a single
+        field and pushed the first card off the fold.
+      */}
+      <div style={tabRowStyle}>
+        <div role="tablist" aria-label="Model catalog" style={tabListStyle}>
+          {tabDefs.map((def) => (
+            <Button
+              key={def.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === def.id}
+              testId={`models-tab-${def.id}`}
+              onClick={() => setTab(def.id)}
+              variant="ghost"
+              style={tabButtonStyle(tab === def.id)}
+            >
+              {def.label}
+            </Button>
+          ))}
+        </div>
+        <label style={searchLabelStyle}>
+          {/* Hidden, not removed: the field keeps its accessible name. */}
+          <span style={visuallyHiddenStyle}>Search</span>
+          <SearchInput
+            testId="models-search"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search by name, type, or id"
+            label="Search models"
+          />
+        </label>
       </div>
-
-      <label>
-        <span style={labelStyle}>Search</span>
-        <SearchInput
-          testId="models-search"
-          value={query}
-          onChange={setQuery}
-          placeholder="Search by name, type, or id"
-          label="Search models"
-        />
-      </label>
+      </div>
 
       {loading ? (
         <p data-testid="models-loading">Loading installed models...</p>
@@ -282,24 +329,36 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
             <p style={{ color: "var(--fg-muted)" }}>No matching entries.</p>
           ) : (
             <ul data-testid="models-list" style={listStyle}>
-              {visible.map((m) => (
-                <ModelCard
-                  key={m.id}
-                  item={m}
-                  hostVramGB={hostVramGB}
-                  progress={progress[m.id]}
-                  installing={Boolean(active[m.id])}
-                  favorite={favorites[tab] === m.id}
-                  rowError={rowErrors[m.id]}
-                  onFavorite={() => toggleFavorite(m.id)}
-                  onInstall={() => startInstall(m.id)}
-                  onCancel={() => cancelInstall(m.id)}
-                  onRemove={m.source === "registry" ? () => void handleRemove(m.id) : undefined}
-                  onReveal={
-                    m.absPath && client.reveal ? () => client.reveal?.(m.absPath as string) : undefined
-                  }
-                />
-              ))}
+              {visible.map((m, index) => {
+                const bucket = modelAvailabilityBucket(m, availabilityOptions);
+                const previous = index > 0 ? modelAvailabilityBucket(visible[index - 1]!, availabilityOptions) : null;
+                return (
+                  <Fragment key={m.id}>
+                    {showAvailabilityHeadings && bucket !== previous ? (
+                      <li data-testid={`models-group-${bucket}`} style={groupHeadingStyle}>
+                        {bucket === 0 ? "Downloaded" : bucket === 1 ? "Available to download" : "Incompatible"}
+                      </li>
+                    ) : null}
+                    <ModelCard
+                      item={m}
+                      components={componentsFor(m, items)}
+                      hostVramGB={hostVramGB}
+                      gpuVendor={gpuVendor}
+                      progress={progress[m.id]}
+                      installing={Boolean(active[m.id])}
+                      favorite={favorites[tab] === m.id}
+                      rowError={rowErrors[m.id]}
+                      onFavorite={() => toggleFavorite(m.id)}
+                      onInstall={() => startInstall(m.id)}
+                      onCancel={() => cancelInstall(m.id)}
+                      onRemove={m.source === "registry" ? () => void handleRemove(m.id) : undefined}
+                      onReveal={
+                        m.absPath && client.reveal ? () => client.reveal?.(m.absPath as string) : undefined
+                      }
+                    />
+                  </Fragment>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -310,7 +369,9 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
 
 interface ModelCardProps {
   item: ListedModelDto;
+  components: readonly ListedModelDto[];
   hostVramGB?: number | null;
+  gpuVendor?: string | null;
   progress?: InstallProgressDto;
   installing?: boolean;
   favorite: boolean;
@@ -322,9 +383,31 @@ interface ModelCardProps {
   onReveal?: () => void;
 }
 
+/**
+ * v2.4.4 Phase 6.3 (T025): keep "Why this one" only when it says something the
+ * pills and the Best for list do not already say. Most catalog entries phrase
+ * it as a restatement of the strengths or the license, and printing it then
+ * just makes Details longer without making it more informative.
+ */
+function whyAddsSomething(item: {
+  whyRecommended?: string | undefined;
+  strengths?: readonly string[] | undefined;
+  license?: string | undefined;
+}): boolean {
+  const why = item.whyRecommended?.trim();
+  if (!why) return false;
+  const normalized = why.toLowerCase();
+  if (item.license && normalized.includes(item.license.toLowerCase())) return false;
+  return !(item.strengths ?? []).some((strength) =>
+    normalized.includes(strength.trim().toLowerCase()),
+  );
+}
+
 function ModelCard({
   item,
+  components,
   hostVramGB,
+  gpuVendor,
   progress,
   installing,
   favorite,
@@ -335,18 +418,30 @@ function ModelCard({
   onRemove,
   onReveal,
 }: ModelCardProps): JSX.Element {
-  const kindLabel = cardBadgeLabel(item, hostVramGB);
-  const overBudget = modelFitsHost(item, hostVramGB) === false;
+  const tier = recommendationKind(item);
+  const kindLabel = tier === "compatible" ? "" : tier === "required" ? "Required" : "Recommended";
+  const overBudget = isCatalogOverBudget(
+    item,
+    hostVramGB,
+    gpuVendor ?? catalogSortGpuVendor(hostVramGB),
+  );
   const downloaded = item.installed && item.source !== "catalog-only";
   const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
   // v2.2.9 Phase 5 (T010): the locked name-row pill set (shared card grammar).
   const pills = buildModelPills(item);
+  const description = item.description?.trim() || "Catalog metadata is unavailable for this installed model.";
+  const compatibilityLabel = typeof item.vramGB === "number"
+    ? overBudget
+      ? `Incompatible - needs ${item.vramGB} GB VRAM`
+      : typeof hostVramGB === "number"
+        ? `Compatible - ${item.vramGB} GB VRAM`
+        : `${item.vramGB} GB VRAM required`
+    : null;
   const card: CSSProperties = {
     ...cardStyle,
     ...(downloaded
       ? {
-          background: "color-mix(in srgb, var(--status-ok, #16a34a) 14%, var(--bg-1, transparent))",
-          border: "1px solid color-mix(in srgb, var(--status-ok, #16a34a) 45%, var(--border-1, #2a2a2a))",
+          boxShadow: "inset 3px 0 color-mix(in srgb, var(--accent-primary, #6366f1) 35%, transparent)",
         }
       : null),
     ...(overBudget
@@ -364,24 +459,46 @@ function ModelCard({
       data-over-budget={overBudget ? "true" : "false"}
       style={card}
     >
-      <div style={{ display: "flex", gap: "var(--space-3, 12px)", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: MODELS_CARD_INNER_GAP, alignItems: "flex-start" }}>
         <ModelIcon type={item.type} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* v2.2.9 Phase 5 (T010): one header row -- display name first, then
-              the locked fact pills (wrapping is fine); never under the
-              description. Badge and Also-agentic remain install affordances. */}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) auto",
+            columnGap: MODELS_CARD_INNER_GAP,
+            rowGap: 4,
+            alignItems: "start",
+          }}
+        >
           <div
             data-testid={`models-header-${item.id}`}
-            style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)", flexWrap: "wrap" }}
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-2, 8px)",
+              minWidth: 0,
+            }}
           >
-            <span style={{ fontWeight: 600 }}>{item.displayName}</span>
-            {pills.length > 0 ? (
-              <span data-testid={`models-pills-${item.id}`} style={pillRowStyle}>
-                {pills.map((pill) => (
-                  <span key={pill} style={chipStyle}>
-                    {pill}
-                  </span>
-                ))}
+            <span
+              style={{
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                minWidth: 0,
+              }}
+            >
+              {item.displayName}
+            </span>
+          </div>
+          <div data-testid={`models-facts-${item.id}`} style={factsRowStyle}>
+            {typeof item.sizeBytes === "number" ? <span style={chipStyle}>{formatBytes(item.sizeBytes)}</span> : null}
+            {compatibilityLabel ? (
+              <span data-testid={`models-compatibility-${item.id}`} style={badgeStyle(overBudget ? "Incompatible" : "Compatible")}>
+                {compatibilityLabel}
               </span>
             ) : null}
             {kindLabel ? (
@@ -389,43 +506,123 @@ function ModelCard({
                 {kindLabel}
               </span>
             ) : null}
-            {catalogTabsFor(item).includes("agentic") && item.task === "chat" ? (
-              <span style={{ fontSize: "0.75em", color: "var(--fg-muted)" }}>Also agentic</span>
+            {downloaded ? (
+              <span data-testid={`models-facts-installed-${item.id}`} style={chipStyle}>
+                Installed
+              </span>
             ) : null}
           </div>
-          <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
-            {item.family ?? "?"}
-            {item.tag ? `:${item.tag}` : ""}
-            {item.task ? ` - ${item.task}` : ""} - {formatBytes(item.sizeBytes)}
-            {typeof item.vramGB === "number" ? ` - ${item.vramGB} GB VRAM` : ""}
+          <p
+            data-testid={`models-row-${item.id}-description`}
+            style={{ ...copyStyle, minWidth: 0, gridColumn: 1 }}
+          >
+            {description}
+          </p>
+          {/*
+            v2.4.4 Phase 6.2 (T024): one horizontal row, not a column. As a
+            column the star sat above the download/delete control and stretched
+            the grid row taller than the copy beside it, which is where the
+            empty space under every description came from.
+          */}
+          <div
+            data-testid={`models-actions-${item.id}`}
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "var(--space-2, 8px)",
+              gridColumn: 2,
+              alignSelf: "center",
+            }}
+          >
+            <Button
+              type="button"
+              testId={`models-favorite-${item.id}`}
+              aria-pressed={favorite}
+              aria-label={favorite ? "Unfavorite" : "Favorite"}
+              onClick={onFavorite}
+              variant="ghost"
+              style={starStyle(favorite)}
+            >
+              {favorite ? "★" : "☆"}
+            </Button>
+            <RowActions
+              item={item}
+              progress={progress}
+              installing={installing}
+              downloaded={downloaded}
+              overBudget={overBudget}
+              selectedMissing={selectedMissing}
+              hostVramGB={hostVramGB}
+              onInstall={onInstall}
+              onCancel={onCancel}
+              onRemove={onRemove}
+              onReveal={onReveal}
+            />
           </div>
-          {item.description || (item.strengths && item.strengths.length > 0) || item.whyRecommended ? (
-            <details data-testid={`models-row-${item.id}-details`} style={{ marginTop: 4 }}>
+          {item.task || item.strengths?.length || item.whyRecommended || item.license || item.family || item.tag || components.length > 0 || pills.length > 0 ? (
+            <details
+              data-testid={`models-row-${item.id}-details`}
+              style={{ marginTop: 4, gridColumn: "1 / -1" }}
+            >
               <summary style={{ cursor: "pointer", fontSize: "0.8em", color: "var(--fg-muted)" }}>Details</summary>
-              {item.description ? (
-                <p data-testid={`models-row-${item.id}-description`} style={copyStyle}>
-                  {item.description}
-                </p>
+              {/*
+                v2.4.4 Phase 6.3 (T025): pills, then Best for. The ID/task
+                line, "Also agentic", the License paragraph, and the backend
+                model line all restated a pill that is already shown two lines
+                above, so Details was mostly its own echo.
+              */}
+              {pills.length > 0 ? (
+                <span data-testid={`models-pills-${item.id}`} style={pillRowStyle}>
+                  {pills.map((pill) => {
+                    const { label, value } = splitModelPill(pill);
+                    return (
+                      <span key={pill} style={chipStyle}>
+                        {label ? <span style={pillLabelStyle}>{label} </span> : null}
+                        <span style={pillValueStyle}>{value}</span>
+                      </span>
+                    );
+                  })}
+                </span>
               ) : null}
               {item.strengths && item.strengths.length > 0 ? (
-                <p data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
-                  Best for: {item.strengths.join(", ")}
-                </p>
+                <div data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
+                  <span style={pillLabelStyle}>Best for</span>
+                  <ul style={{ margin: "4px 0 0", paddingInlineStart: 20 }}>
+                    {item.strengths.map((strength) => (
+                      <li key={strength}>{strength}</li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
-              {item.whyRecommended ? (
+              {whyAddsSomething(item) ? (
                 <p data-testid={`models-row-${item.id}-why`} style={copyStyle}>
                   Why this one: {item.whyRecommended}
                 </p>
               ) : null}
+              {components.length > 0 ? (
+                <div data-testid={`models-row-${item.id}-components`} style={copyStyle}>
+                  Components:
+                  <ul style={{ margin: "4px 0 0", paddingInlineStart: 20 }}>
+                    {components.map((component) => (
+                      <li key={component.id}>
+                        {component.displayName}
+                        {typeof component.sizeBytes === "number" ? ` (${formatBytes(component.sizeBytes)})` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </details>
           ) : null}
           {selectedMissing ? (
-            <p data-testid={`models-row-${item.id}-selected-missing`} style={copyStyle}>
+            <p data-testid={`models-row-${item.id}-selected-missing`} style={{ ...copyStyle, gridColumn: "1 / -1" }}>
               Selected during setup but not found in Ollama. Retry the download, or ignore if the installer skipped this sibling.
             </p>
           ) : null}
           {item.licenseNote ? (
-            <div data-testid={`models-row-${item.id}-license-note`} style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2 }}>
+            <div data-testid={`models-row-${item.id}-license-note`} style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2, gridColumn: "1 / -1" }}>
               Use restriction: {item.licenseNote}
               {item.licenseUrl ? (
                 <>
@@ -438,36 +635,10 @@ function ModelCard({
             </div>
           ) : null}
           {rowError ? (
-            <p data-testid={`models-row-error-${item.id}`} role="alert" style={{ color: "var(--status-err, #dc2626)", fontSize: "0.85em" }}>
+            <p data-testid={`models-row-error-${item.id}`} role="alert" style={{ color: "var(--status-err, #dc2626)", fontSize: "0.85em", gridColumn: "1 / -1" }}>
               {rowError}
             </p>
           ) : null}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--space-2, 8px)" }}>
-          <Button
-            type="button"
-            testId={`models-favorite-${item.id}`}
-            aria-pressed={favorite}
-            aria-label={favorite ? "Unfavorite" : "Favorite"}
-            onClick={onFavorite}
-            variant="ghost"
-            style={starStyle(favorite)}
-          >
-            {favorite ? "★" : "☆"}
-          </Button>
-          <RowActions
-            item={item}
-            progress={progress}
-            installing={installing}
-            downloaded={downloaded}
-            overBudget={overBudget}
-            selectedMissing={selectedMissing}
-            hostVramGB={hostVramGB}
-            onInstall={onInstall}
-            onCancel={onCancel}
-            onRemove={onRemove}
-            onReveal={onReveal}
-          />
         </div>
       </div>
     </li>
@@ -527,20 +698,30 @@ function RowActions({
       <div style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}>
         <span
           data-testid={`models-downloaded-${item.id}`}
+          aria-label="Downloaded"
           style={{
-            fontSize: "0.8em",
-            fontWeight: 600,
-            padding: "2px 8px",
-            borderRadius: "999px",
-            background: "color-mix(in srgb, var(--status-ok, #16a34a) 22%, transparent)",
-            color: "var(--status-ok, #16a34a)",
+            display: "inline-flex",
+            color: MODELS_DOWNLOADED_COLOR,
           }}
         >
-          Downloaded
+          <CircleCheck size={16} aria-hidden="true" />
+          <span style={visuallyHiddenStyle}>Downloaded</span>
         </span>
         {onRemove ? (
-          <Button type="button" testId={`models-remove-${item.id}`} onClick={onRemove}>
-            Remove
+          <Button
+            type="button"
+            testId={`models-remove-${item.id}`}
+            aria-label="Remove"
+            variant="ghost"
+            onClick={onRemove}
+            style={{
+              color: MODELS_REMOVE_COLOR,
+              padding: 4,
+              minWidth: 0,
+            }}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            <span style={visuallyHiddenStyle}>Remove</span>
           </Button>
         ) : null}
       </div>
@@ -557,9 +738,22 @@ function RowActions({
       </span>
     );
   }
+  const installLabel = selectedMissing ? "Retry" : "Download";
   return (
-    <Button type="button" testId={`models-install-${item.id}`} onClick={onInstall}>
-      {selectedMissing ? "Retry" : "Download"}
+    <Button
+      type="button"
+      testId={`models-install-${item.id}`}
+      aria-label={installLabel}
+      onClick={onInstall}
+      variant="ghost"
+      style={{
+        color: MODELS_DOWNLOAD_COLOR,
+        padding: 4,
+        minWidth: 0,
+      }}
+    >
+      <Download size={16} aria-hidden="true" />
+      <span style={visuallyHiddenStyle}>{installLabel}</span>
     </Button>
   );
 }
@@ -620,19 +814,53 @@ function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
 }
 
 function DiskSummary({ disk }: { disk: DiskUsageDto | null }): JSX.Element {
-  if (!disk) {
+  if (!disk || disk.freeBytes === null) {
     return (
-      <p data-testid="models-disk-summary" style={{ margin: 0, color: "var(--fg-muted)" }}>
-        Disk usage: ...
-      </p>
+      <div data-testid="models-disk-summary" role="status" style={{ margin: 0, color: "var(--fg-muted)" }}>
+        Model storage unavailable.
+      </div>
     );
   }
-  const free = disk.freeBytes !== null ? formatBytes(disk.freeBytes) : "unknown";
+  const modelBytes = disk.modelBytes ?? disk.usedBytes;
+  const totalAvailableWithoutModels = modelBytes + disk.freeBytes;
+  const percent = totalAvailableWithoutModels > 0
+    ? Math.min(100, (modelBytes / totalAvailableWithoutModels) * 100)
+    : 0;
+  const label = `${formatBytes(modelBytes)} used by models, ${formatBytes(disk.freeBytes)} free, ${percent.toFixed(1)}% used`;
   return (
-    <p data-testid="models-disk-summary" style={{ margin: 0, color: "var(--fg-muted)" }}>
-      Models occupy {formatBytes(disk.usedBytes)}. {free} free. Weights left from an older install can appear until you remove them here.
-    </p>
+    <div
+      data-testid="models-disk-summary"
+      title={disk.measurementPath && disk.measuredAt ? `Measured at ${disk.measurementPath} on ${new Date(disk.measuredAt).toLocaleString()}` : undefined}
+      style={{ minWidth: 320, color: "var(--fg-muted)" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: "0.82em" }}>
+        <span>{formatBytes(modelBytes)} used by models</span>
+        <span>{formatBytes(disk.freeBytes)} free ({percent.toFixed(1)}%)</span>
+      </div>
+      <progress
+        aria-label="Model storage usage"
+        aria-valuetext={label}
+        value={modelBytes}
+        max={totalAvailableWithoutModels || 1}
+        style={{ width: "100%", accentColor: "var(--accent-primary, #6366f1)" }}
+      />
+    </div>
   );
+}
+
+function componentsFor(
+  model: ListedModelDto,
+  rows: readonly ListedModelDto[],
+): ListedModelDto[] {
+  if (!model.family) return [];
+  return rows
+    .filter(
+      (row) =>
+        !row.task &&
+        (row.type === "vae" || row.type === "controlnet") &&
+        row.family === model.family,
+    )
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 function formatBytes(n: number | undefined): string {
@@ -653,7 +881,7 @@ function messageFor(e: unknown): string {
 }
 
 function badgeStyle(kind: string): CSSProperties {
-  const over = kind.startsWith("Needs ");
+  const over = kind.startsWith("Needs ") || kind === "Incompatible";
   return {
     fontSize: "0.75em",
     padding: "2px 8px",
@@ -694,28 +922,71 @@ function starStyle(on: boolean): CSSProperties {
   };
 }
 
+export const MODELS_PAGE_GAP = "var(--space-3, 12px)";
+export const MODELS_HEADER_TO_TABS_GAP = "var(--space-1, 4px)";
+export const MODELS_CARD_PADDING = "var(--space-2, 8px)";
+export const MODELS_CARD_INNER_GAP = "var(--space-2, 8px)";
+export const MODELS_DOWNLOADED_COLOR = "rgb(74, 222, 128)";
+export const MODELS_REMOVE_COLOR = "rgb(248, 113, 113)";
+export const MODELS_DOWNLOAD_COLOR = "rgb(96, 165, 250)";
+
 const pageStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
   display: "flex",
   flexDirection: "column",
-  gap: "var(--space-4, 16px)",
-  padding: "var(--space-6, 24px)",
+  gap: MODELS_PAGE_GAP,
+  padding: "var(--space-4, 16px)",
   color: "var(--fg-0)",
   overflow: "hidden",
+  position: "relative",
+};
+
+const chromeStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: MODELS_HEADER_TO_TABS_GAP,
+};
+
+const visuallyHiddenStyle: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
 };
 
 const headerStyle: CSSProperties = {
   display: "flex",
   alignItems: "baseline",
   justifyContent: "space-between",
-  gap: "var(--space-4, 16px)",
+  gap: "var(--space-3, 12px)",
 };
 
 const tabListStyle: CSSProperties = {
   display: "flex",
-  gap: "var(--space-2, 8px)",
+  gap: "var(--space-1, 4px)",
   flexWrap: "wrap",
+};
+
+/**
+ * v2.4.4 Phase 6.1 (T023): tabs left, search right, on one line. Wrapping is
+ * allowed so a narrow Settings pane drops search below the tabs rather than
+ * forcing the page to scroll sideways.
+ */
+const tabRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "var(--space-2, 8px)",
+};
+
+const searchLabelStyle: CSSProperties = {
+  display: "block",
+  flex: "1 1 14rem",
+  minWidth: "10rem",
+  maxWidth: "22rem",
 };
 
 const sectionStyle: CSSProperties = {
@@ -739,23 +1010,40 @@ const listStyle: CSSProperties = {
   overflowY: "auto",
 };
 
+const groupHeadingStyle: CSSProperties = {
+  margin: "var(--space-2, 8px) 0 0",
+  color: "var(--fg-muted)",
+  fontSize: "var(--text-xs, 12px)",
+  fontWeight: 600,
+  letterSpacing: "0.02em",
+};
+
 const cardStyle: CSSProperties = {
-  padding: "var(--space-3, 12px)",
+  padding: MODELS_CARD_PADDING,
   border: "1px solid var(--border-1, #2a2a2a)",
   borderRadius: "var(--radius-2, 6px)",
   background: "var(--bg-1, transparent)",
 };
 
-const labelStyle: CSSProperties = {
-  display: "block",
-  fontSize: "0.8em",
+/**
+ * v2.4.4 Phase 6.3 (T025): the label half of a pill is muted and lighter so
+ * the value it introduces is what the eye lands on. Rendering both halves in
+ * one weight is what made `Company: Google` read as an undifferentiated blob.
+ */
+const pillLabelStyle: CSSProperties = {
   color: "var(--fg-muted)",
-  marginBottom: "2px",
+  fontWeight: 400,
+};
+
+const pillValueStyle: CSSProperties = {
+  color: "var(--fg-0)",
+  fontWeight: 500,
 };
 
 const copyStyle: CSSProperties = {
-  margin: "4px 0 0",
+  margin: "2px 0 0",
   fontSize: "0.85em",
+  lineHeight: 1.35,
   color: "var(--fg-1, var(--fg-0))",
 };
 
@@ -764,6 +1052,16 @@ const pillRowStyle: CSSProperties = {
   flexWrap: "wrap",
   alignItems: "center",
   gap: "6px",
+};
+
+const factsRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "nowrap",
+  alignItems: "center",
+  gap: "6px",
+  overflow: "hidden",
+  minWidth: 0,
+  gridColumn: "1 / -1",
 };
 
 const chipStyle: CSSProperties = {

@@ -90,7 +90,13 @@ def resolve_latest_tag(upstream: str = DEFAULT_UPSTREAM) -> str | None:
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-    except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
+    except (
+        OSError,
+        urllib.error.URLError,
+        TimeoutError,
+        json.JSONDecodeError,
+        ValueError,
+    ):
         return None
     tag = data.get("tag_name") if isinstance(data, dict) else None
     if isinstance(tag, str) and tag.strip():

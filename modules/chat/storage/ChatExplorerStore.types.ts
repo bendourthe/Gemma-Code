@@ -7,6 +7,11 @@
  * IPC (sidecar) but renders rows shaped by the types declared here.
  */
 
+import type {
+  MessageTokenUsageV1,
+  RequestTokenUsageV1,
+} from "../../../core/chat/tokenUsage.js";
+
 /** Identifier used for the synthetic root folder (parentId === null). */
 export const ROOT_FOLDER_ID = null;
 
@@ -47,6 +52,14 @@ export interface Chat {
    * must never overwrite a title the user chose.
    */
   userRenamed?: boolean;
+  /** Set only while the chat is archived; active listings exclude these rows. */
+  archivedAt?: number | null;
+  /** Former folder retained while archived, without keeping a cascading foreign key alive. */
+  archivedFolderId?: string | null;
+}
+
+export interface ArchivedChat extends Chat {
+  archivedAt: number;
 }
 
 /** v2.2.0 Phase 5: one persisted message turn. */
@@ -60,8 +73,11 @@ export interface ChatMessageRecord {
   /** v2.2.7 Phase 2 -- null when the backend did not report usage. Never invent 0. */
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
 }
 
 export interface AppendMessageInput {
@@ -74,8 +90,11 @@ export interface AppendMessageInput {
   createdAt?: number;
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
 }
 
 /** Tree node returned by `listTree()`; children are folders, with chats as a sibling list. */

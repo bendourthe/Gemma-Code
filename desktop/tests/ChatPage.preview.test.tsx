@@ -1,6 +1,6 @@
 /**
- * v1.5.0 Phase 5 (adoption-ecosystem-2026-06 T016) -- ChatPage preview-pane
- * integration: selecting a message opens its output beside the active chat.
+ * v2.4.1 Phase 5 -- ordinary transcript text remains in the conversation.
+ * Media retains its own focused preview, but text no longer opens a side pane.
  */
 
 import { describe, it, expect } from "vitest";
@@ -41,32 +41,19 @@ async function openChatAndSend(): Promise<void> {
   await screen.findByText(REPLY); // wait for the async assistant reply to render
 }
 
-describe("<ChatPage> preview pane", () => {
-  it("is closed until a message is selected", async () => {
+describe("<ChatPage> text messages", () => {
+  it("does not mount a generic preview pane", async () => {
     await openChatAndSend();
     expect(screen.queryByTestId("preview-pane")).not.toBeInTheDocument();
   });
 
-  it("renders the selected message output beside the chat", async () => {
+  it("keeps the transcript unchanged when assistant text is clicked", async () => {
     await openChatAndSend();
     const user = userEvent.setup();
-    // Click the assistant reply bubble to open it in the preview pane.
     const assistant = screen.getByText(REPLY);
     await user.click(assistant);
-
-    const pane = screen.getByTestId("preview-pane");
-    expect(pane).toBeInTheDocument();
-    // Both the message list and the preview pane are mounted side-by-side.
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
-    expect(screen.getByTestId("preview-pane-text")).toHaveTextContent(REPLY);
-  });
-
-  it("closes the pane when the close button is clicked", async () => {
-    await openChatAndSend();
-    const user = userEvent.setup();
-    await user.click(screen.getByText(REPLY));
-    expect(screen.getByTestId("preview-pane")).toBeInTheDocument();
-    await user.click(screen.getByTestId("preview-pane-close"));
     expect(screen.queryByTestId("preview-pane")).not.toBeInTheDocument();
+    expect(assistant.closest("article")).not.toHaveAttribute("role", "button");
   });
 });

@@ -10,15 +10,18 @@ import {
 export function usageTurnsFromMessages(messages: readonly ChatMessage[]): SessionUsageTurn[] {
   return messages
     .filter((message) => !message.pending)
-    .map((message) => ({
-      role: message.role === "system" ? undefined : message.role,
-      content: message.content,
-      inputTokens: message.inputTokens,
-      reasoningTokens: message.reasoningTokens,
-      outputTokens: message.outputTokens,
-      tokensEstimated: message.tokensEstimated,
-      visualUnits: message.media ? 1 : 0,
-    }));
+    .map((message) => {
+      const usage = message.requestUsage ?? message.messageUsage;
+      return {
+        role: message.role === "system" ? undefined : message.role,
+        content: message.content,
+        inputTokens: usage?.inputTokens ?? message.inputTokens,
+        reasoningTokens: usage?.reasoningTokens ?? message.reasoningTokens,
+        outputTokens: usage?.outputTokens ?? message.outputTokens,
+        tokensEstimated: usage ? usage.provenance.accuracy !== "exact" : message.tokensEstimated,
+        visualUnits: message.media ? 1 : 0,
+      };
+    });
 }
 
 /** Meter against the current picker window (or visual budget). Never invents 128k. */

@@ -1,12 +1,15 @@
-"""Shared Models-tab collapse + sort (v2.2.8 Phase 4).
+"""Shared legacy and v2.4.1 model display ordering helpers.
 
-Installer `typed_catalog._sorted_section_models` and desktop `visibleModelsOnTab`
-must produce the same id order for the same rows: hideBelowVram, one best-fit
-per family, required / recommended / compatible, then over-budget last.
+The v2.4.1 installer and desktop use ``canonical_display_order`` so every
+selectable catalog row appears in the same deterministic order. The older
+collapse helpers remain only for compatibility tests and callers outside the
+new catalog surfaces.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -40,6 +43,14 @@ def row_hide_below(row: Mapping[str, Any]) -> float:
         return 0.0
 
 
+def row_ram(row: Mapping[str, Any]) -> float:
+    raw = row.get("requiredRamGB", row.get("ramGB", row.get("ram_gb", 0))) or 0
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def is_over_budget(
     row: Mapping[str, Any],
     host_vram_gb: int | float | None,
@@ -53,6 +64,19 @@ def is_over_budget(
     if host_vram_gb is None:
         return False
     return float(host_vram_gb) < vram
+
+
+def is_incompatible(
+    row: Mapping[str, Any],
+    *,
+    host_vram_gb: int | float | None,
+    host_ram_gb: int | float | None,
+    gpu_vendor: str,
+) -> bool:
+    if is_over_budget(row, host_vram_gb, gpu_vendor):
+        return True
+    ram = row_ram(row)
+    return ram > 0 and host_ram_gb is not None and float(host_ram_gb) < ram
 
 
 def is_hidden_by_vram_floor(
@@ -69,9 +93,7 @@ def is_hidden_by_vram_floor(
 
 def is_required_row(row: Mapping[str, Any]) -> bool:
     tags = row.get("tags") or ()
-    if "required" in tags:
-        return True
-    return row.get("type") == "embed" or row.get("task") == "embed"
+    return "required" in tags
 
 
 def recommend_group(
@@ -137,7 +159,7 @@ def collapse_and_sort(
         else:
             disabled.append(min(rest, key=lambda m: (row_vram(m), display_name(m))))
 
-    def enabled_key(m: Mapping[str, Any]) -> tuple:
+    def enabled_key(m: Mapping[str, Any]) -> tuple[bool, int, int, int, float, str]:
         return (
             not is_required_row(m),
             recommend_group(m, default_ids, rec_rank),
@@ -187,3 +209,94 @@ def downloaded_first(
     downloaded = [i for i in ordered if is_downloaded_row(by_id.get(i, {}))]
     downloaded_set = set(downloaded)
     return downloaded + [i for i in ordered if i not in downloaded_set]
+
+
+def canonical_display_order(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    host_vram_gb: int | float | None = None,
+    host_ram_gb: int | float | None = None,
+    gpu_vendor: str = "nvidia",
+) -> list[str]:
+    """Return every selectable catalog id in the stable v2.4.1 display order."""
+
+    def tier(row: Mapping[str, Any]) -> int:
+        tags = row.get("tags") or ()
+        if "required" in tags:
+            return 0
+        if "recommended" in tags:
+            return 1
+        return 2
+
+    selectable = [
+        row
+        for row in rows
+        if str(row.get("task") or "").strip() and row.get("source") != "external"
+    ]
+    selectable.sort(
+        key=lambda row: (
+            is_incompatible(
+                row,
+                host_vram_gb=host_vram_gb,
+                host_ram_gb=host_ram_gb,
+                gpu_vendor=gpu_vendor,
+            ),
+            tier(row),
+            -release_ordinal(str(row.get("releaseDate") or "")),
+            display_name(row).casefold(),
+            str(row.get("id") or "").casefold(),
+        )
+    )
+    return [str(row.get("id") or "") for row in selectable]
+
+
+def settings_display_order(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    host_vram_gb: int | float | None = None,
+    host_ram_gb: int | float | None = None,
+    gpu_vendor: str = "nvidia",
+) -> list[str]:
+    """Settings order: downloaded, compatible catalog, incompatible catalog."""
+    canonical_ids = canonical_display_order(
+        rows,
+        host_vram_gb=host_vram_gb,
+        host_ram_gb=host_ram_gb,
+        gpu_vendor=gpu_vendor,
+    )
+    by_id = {str(row.get("id") or ""): row for row in rows}
+
+    def availability(model_id: str) -> int:
+        row = by_id.get(model_id, {})
+        if is_downloaded_row(row):
+            return 0
+        return (
+            2
+            if is_incompatible(
+                row,
+                host_vram_gb=host_vram_gb,
+                host_ram_gb=host_ram_gb,
+                gpu_vendor=gpu_vendor,
+            )
+            else 1
+        )
+
+    return sorted(canonical_ids, key=availability)
+
+
+def catalog_fingerprint(catalog: Mapping[str, Any]) -> str:
+    def normalize(value: Any) -> Any:
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        if isinstance(value, Mapping):
+            return {str(key): normalize(item) for key, item in value.items()}
+        if isinstance(value, Sequence) and not isinstance(
+            value, (str, bytes, bytearray)
+        ):
+            return [normalize(item) for item in value]
+        return value
+
+    payload = json.dumps(
+        normalize(catalog), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()

@@ -6,14 +6,16 @@
  * Assistant labels on normal turns. Tool cards keep their name.
  */
 
-import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 import {
+  bubbleTokenMetadata,
   formatBubbleTime,
-  formatBubbleTokens,
   parseMessageTime,
 } from "./transcriptChrome";
+import { ReasoningDisclosure } from "./ReasoningDisclosure";
+import { MediaRuntimeRecoveryCard, Sam2RecoveryCard } from "../../components/GenerationCanvas";
 
 const COMPACT_MEDIA_STYLE: CSSProperties = {
   display: "block",
@@ -32,28 +34,36 @@ export interface MessageBubbleProps {
   message: ChatMessage;
   /** When false, tool-call cards are omitted from the rendered output. */
   enableTools?: boolean;
-  /**
-   * v1.5.0 Phase 5 (item 24) -- when provided, the bubble becomes selectable
-   * (click / Enter / Space) so the host can open the message's output in the
-   * side-by-side preview pane. Omitted by default; non-preview hosts (e.g. the
-   * Coding pillar) render a static bubble unchanged.
-   */
-  onSelect?: (message: ChatMessage) => void;
   /** Lets the owning Studio clear actions and cached output after decode failure. */
   onMediaError?: (message: ChatMessage) => void;
   /** v2.2.4 Phase 4 -- extra studio actions inside the media lightbox. */
   renderPreviewExtra?: (message: ChatMessage) => ReactNode;
   /** v2.2.7 Phase 4 -- tests pin `en-US`; production uses the host locale. */
   locale?: string;
+  onRepairMediaRuntime?: (message: ChatMessage) => void;
+  onCancelMediaRepair?: (message: ChatMessage) => void;
+  onOpenMediaRepairLog?: (message: ChatMessage) => void;
+  onInstallSam2?: (message: ChatMessage) => void;
+  onPaintSam2Mask?: (message: ChatMessage) => void;
+  onOpenSam2Settings?: (message: ChatMessage) => void;
+  onRetrySam2?: (message: ChatMessage) => void;
+  sam2InstallDisabled?: boolean;
 }
 
 export function MessageBubble({
   message,
   enableTools = true,
-  onSelect,
   onMediaError,
   renderPreviewExtra,
   locale,
+  onRepairMediaRuntime,
+  onCancelMediaRepair,
+  onOpenMediaRepairLog,
+  onInstallSam2,
+  onPaintSam2Mask,
+  onOpenSam2Settings,
+  onRetrySam2,
+  sam2InstallDisabled = false,
 }: MessageBubbleProps): JSX.Element {
   const [mediaFailed, setMediaFailed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -66,33 +76,59 @@ export function MessageBubble({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [previewOpen]);
-  const selectable = Boolean(onSelect);
   const studioPending = isStudioPending(message);
-  const handleSelect = () => onSelect?.(message);
   const caption = captionFor(message);
+  const purePending = Boolean(
+    message.pending &&
+      !message.content &&
+      !message.media &&
+      (!message.toolCards || message.toolCards.length === 0),
+  );
+  if (purePending) {
+    return <PendingMessage message={message} studioPending={studioPending} />;
+  }
   return (
-    <article
+    <div
+      data-testid={`message-shell-${message.id}`}
+      style={{
+        width: "fit-content",
+        maxWidth: message.media ? "min(100%, 28rem)" : "80%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {message.role === "assistant" ? (
+        <ReasoningDisclosure
+          messageId={message.id}
+          text={message.reasoningText}
+          tokenCount={message.reasoningTokens}
+        />
+      ) : null}
+      <article
       data-testid={`message-bubble-${message.id}`}
       data-role={message.role}
-      {...(selectable
-        ? {
-            role: "button",
-            tabIndex: 0,
-            "aria-label": `Preview ${ariaRole(message.role)} message`,
-            onClick: handleSelect,
-            onKeyDown: (e: ReactKeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleSelect();
-              }
-            },
-          }
-        : {})}
-      style={bubbleStyle(message, selectable)}
+      style={bubbleStyle(message)}
     >
-      {caption}
-      {/* v2.2.9 Phase 1.3 (T003): meta sits ABOVE the body, never on pending rows. */}
       {message.pending ? null : <BubbleMeta message={message} locale={locale} />}
+      {message.mediaRecovery ? (
+        <MediaRuntimeRecoveryCard
+          {...message.mediaRecovery}
+          onRepair={() => onRepairMediaRuntime?.(message)}
+          onCancel={() => onCancelMediaRepair?.(message)}
+          onOpenLog={() => onOpenMediaRepairLog?.(message)}
+        />
+      ) : null}
+      {message.sam2Recovery ? (
+        <Sam2RecoveryCard
+          {...message.sam2Recovery}
+          installDisabled={sam2InstallDisabled}
+          onInstall={() => onInstallSam2?.(message)}
+          onPaintMask={() => onPaintSam2Mask?.(message)}
+          onOpenSettings={() => onOpenSam2Settings?.(message)}
+          onRetry={() => onRetrySam2?.(message)}
+        />
+      ) : null}
+      {caption}
       {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
       {message.attachments && message.attachments.length > 0 && (
         <div
@@ -118,10 +154,15 @@ export function MessageBubble({
             color: "var(--fg-muted)",
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
+            alignItems: studioPending ? "center" : "flex-start",
             justifyContent: "center",
             gap: "var(--space-2)",
-            width: "100%",
+            width: studioPending ? "100%" : "fit-content",
+            overflow: "visible",
+            // v2.4.4 Phase 1.1: the transcript gutter on MessageList is the
+            // only left offset. Adding one here again is what pushed the pill
+            // inches into the pane.
+            paddingLeft: 0,
             minHeight: studioPending ? "12rem" : "5.5rem",
           }}
         >
@@ -199,7 +240,53 @@ export function MessageBubble({
           ))}
         </ul>
       )}
-    </article>
+      </article>
+    </div>
+  );
+}
+
+function PendingMessage({
+  message,
+  studioPending,
+}: {
+  message: ChatMessage;
+  studioPending: boolean;
+}): JSX.Element {
+  return (
+    <div
+      data-testid={`message-pending-${message.id}`}
+      role="status"
+      aria-label={studioPending ? "Generating media" : "Generating reply"}
+      style={{
+        color: "var(--fg-muted)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: studioPending ? "center" : "flex-start",
+        justifyContent: "center",
+        gap: "var(--space-2)",
+        width: studioPending ? "100%" : "fit-content",
+        maxWidth: studioPending ? "100%" : "min(100%, 24rem)",
+        // v2.4.4 Phase 1.1 (T001): no inline padding here. The pending row is
+        // an assistant row and takes its left margin from the list gutter, the
+        // same one a completed assistant bubble sits on.
+        paddingInline: 0,
+        boxSizing: "border-box",
+        overflow: "visible",
+        minHeight: studioPending ? "12rem" : undefined,
+      }}
+    >
+      <AgentStateOrb
+        activity={message.activity ?? "chat-streaming"}
+        size={studioPending ? "hero" : "bubble"}
+        showCaption
+        rotateCaptions={!studioPending}
+        accessibleName={studioPending ? undefined : "Generating reply"}
+        surfaceId={`message-${message.id}`}
+      />
+      {message.progress && message.progress.total > 0 ? (
+        <progress value={message.progress.step} max={message.progress.total} />
+      ) : null}
+    </div>
   );
 }
 
@@ -211,17 +298,18 @@ function BubbleMeta({
   locale?: string;
 }): JSX.Element | null {
   const when = parseMessageTime(message.timestamp);
-  const tokens = formatBubbleTokens(message);
+  const tokens = bubbleTokenMetadata(message);
   // Nothing known: no empty chrome row above the text.
-  if (!when && tokens.length === 0) return null;
+  if (!when && !tokens) return null;
   return (
     <div
       data-testid={`message-meta-${message.id}`}
       style={{
         display: "flex",
         alignItems: "baseline",
-        gap: "var(--space-2)",
-        marginBottom: "var(--space-1)",
+        justifyContent: "space-between",
+        gap: "var(--space-4)",
+        marginBottom: "var(--space-2)",
         color: "var(--fg-muted)",
         fontSize: "var(--text-xs)",
       }}
@@ -234,8 +322,23 @@ function BubbleMeta({
           {formatBubbleTime(when, locale)}
         </time>
       ) : null}
-      {tokens.length > 0 ? (
-        <span data-testid={`message-tokens-${message.id}`}>{tokens}</span>
+      {tokens && message.role === "user" ? (
+        <span
+          data-testid={`message-tokens-${message.id}`}
+          style={{ fontStyle: "italic", marginLeft: "auto" }}
+        >
+          {tokens.label}
+        </span>
+      ) : tokens ? (
+        <span
+          data-testid={`message-tokens-${message.id}`}
+          tabIndex={0}
+          title={tokens.detail}
+          aria-label={`${tokens.label}. ${tokens.detail}`}
+          style={{ fontStyle: "italic", marginLeft: "auto" }}
+        >
+          {tokens.label}
+        </span>
       ) : null}
     </div>
   );
@@ -282,13 +385,6 @@ function captionFor(message: ChatMessage): ReactNode {
   }
   return null;
 }
-
-function ariaRole(role: ChatMessage["role"]): string {
-  if (role === "user") return "your";
-  if (role === "assistant") return "assistant";
-  return "system";
-}
-
 
 function MediaLightbox({
   message,
@@ -413,7 +509,7 @@ function isStudioPending(message: ChatMessage): boolean {
   );
 }
 
-function bubbleStyle(message: ChatMessage, selectable = false): CSSProperties {
+function bubbleStyle(message: ChatMessage): CSSProperties {
   const user = message.role === "user";
   const system = message.role === "system";
   const studioPending = isStudioPending(message);
@@ -434,17 +530,16 @@ function bubbleStyle(message: ChatMessage, selectable = false): CSSProperties {
   }
   return {
     width: "fit-content",
-    maxWidth: message.media ? "min(100%, 28rem)" : "80%",
+    maxWidth: "100%",
     boxSizing: "border-box",
     padding: "var(--space-2) var(--space-3)",
     borderRadius: "var(--radius-lg, 12px)",
-    border: `1px solid ${user ? "var(--border-subtle, #2a2a2a)" : "var(--border-1)"}`,
+    border: "1px solid var(--bubble-border, var(--border-1))",
     backgroundColor: system
       ? "transparent"
       : user
-        ? "color-mix(in srgb, var(--bg-2, #2a2a2a) 70%, transparent)"
-        : "color-mix(in srgb, var(--bg-1, #1b1b1b) 85%, transparent)",
+        ? "var(--bubble-user, var(--bg-2))"
+        : "var(--bubble-assistant, var(--bg-1))",
     color: "var(--fg-0)",
-    ...(selectable ? { cursor: "pointer" } : {}),
   };
 }

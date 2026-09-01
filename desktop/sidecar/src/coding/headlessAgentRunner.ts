@@ -26,6 +26,7 @@ import type { CodingSessionEventT } from "../protocol.js";
 import type { SidecarModelEntry } from "./models.js";
 import { runEnrichedHeadlessSession } from "./headlessRunEnrichment.js";
 import { isAbsolute } from "node:path";
+import type { WorkspaceScope } from "../../../../core/project/WorkspaceScope.js";
 
 export interface AgentRunnerInput {
   readonly sessionId: string;
@@ -33,6 +34,7 @@ export interface AgentRunnerInput {
   readonly model: SidecarModelEntry;
   /** Per-session workspace root the tools are scoped to (overrides the default). */
   readonly workspacePath?: string;
+  readonly workspaceScope?: WorkspaceScope;
   readonly signal?: AbortSignal;
 }
 
@@ -96,12 +98,17 @@ export function createHeadlessAgentRunner(
     let toolSeq = 0;
     let lastCallId = "";
     try {
-      const workspace = resolveWorkspace(input.workspacePath, options.workspace);
+      const workspace = input.workspaceScope?.primaryRoot ?? resolveWorkspace(input.workspacePath, options.workspace);
+      const workspaceRoots = Object.freeze([
+        ...(input.workspaceScope?.workspaceRoots ?? [workspace]),
+      ]);
       const result = await runEnrichedHeadlessSession({
         session,
         sessionId: input.sessionId,
         message: input.message,
         workspacePath: workspace,
+        workspaceRoots,
+        workspaceId: input.workspaceScope?.workspaceId,
         model: input.model.id,
         ...(options.systemInstructions
           ? { baseSystemInstructions: options.systemInstructions }

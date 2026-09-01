@@ -11,11 +11,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nexus_installer.catalog_tab_sort import collapse_and_sort, downloaded_first
+from nexus_installer.catalog_tab_sort import (
+    canonical_display_order,
+    catalog_fingerprint,
+    collapse_and_sort,
+    downloaded_first,
+    settings_display_order,
+)
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "fixtures"
 FIXTURE_V228 = _FIXTURES / "v2.2.8-catalog-tab-sort.json"
 FIXTURE_V229 = _FIXTURES / "v2.2.9-catalog-tab-sort.json"
+FIXTURE_V241 = _FIXTURES / "v2.4.1-model-display-order.json"
+DISPLAY_FIXTURE_V241 = (
+    Path(__file__).resolve().parents[3]
+    / "core"
+    / "registry"
+    / "model-display-order.fixture.json"
+)
 
 # v2.2.9 Phase 5 (T010): embed maps to the Embeddings tab, not Chat.
 TASK_TAB = {
@@ -85,6 +98,39 @@ def test_golden_v229_settings_order_is_downloaded_first() -> None:
         assert downloaded_first(rows, **opts) == expected, tab
 
 
+def test_v241_canonical_order_and_fingerprint() -> None:
+    fixture = json.loads(FIXTURE_V241.read_text(encoding="utf-8"))
+    assert (
+        canonical_display_order(fixture["catalog"]["models"]) == fixture["expectedIds"]
+    )
+    assert catalog_fingerprint(fixture["catalog"]) == fixture["expectedFingerprint"]
+
+
+def test_v241_incompatible_rows_sort_after_every_compatible_row() -> None:
+    rows = [
+        {
+            "id": "new-required-over-budget",
+            "displayName": "New Required",
+            "task": "agentic",
+            "tags": ["required"],
+            "vramGB": 24,
+            "releaseDate": "2026-08-01",
+        },
+        {
+            "id": "older-compatible",
+            "displayName": "Older Compatible",
+            "task": "agentic",
+            "tags": [],
+            "vramGB": 8,
+            "releaseDate": "2025-01-01",
+        },
+    ]
+    assert canonical_display_order(rows, host_vram_gb=16) == [
+        "older-compatible",
+        "new-required-over-budget",
+    ]
+
+
 def test_gpt_oss_moves_up_within_the_downloaded_partition_once_installed() -> None:
     """Contract: downloaded gpt-oss ranks above LFM (installer rank wins)."""
     data = json.loads(FIXTURE_V229.read_text(encoding="utf-8"))
@@ -104,3 +150,13 @@ def test_patient_tier_row_is_listed_on_both_orders() -> None:
     for key in ("expectedInstallerIds", "expectedSettingsIds"):
         assert "inkling-small" in data[key]["agentic"]
         assert "inkling-small" in data[key]["chat"]
+
+
+def test_v241_shared_recommendation_and_availability_contract() -> None:
+    data = json.loads(DISPLAY_FIXTURE_V241.read_text(encoding="utf-8"))
+    options = {
+        "host_vram_gb": data["hostVramGB"],
+        "gpu_vendor": data["gpuVendor"],
+    }
+    assert canonical_display_order(data["rows"], **options) == data["expectedInstaller"]
+    assert settings_display_order(data["rows"], **options) == data["expectedSettings"]

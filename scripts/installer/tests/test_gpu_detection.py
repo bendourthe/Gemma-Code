@@ -1,4 +1,4 @@
-﻿"""Tests for GPU detection logic with mocked subprocess calls."""
+"""Tests for GPU detection logic with mocked subprocess calls."""
 
 from __future__ import annotations
 
@@ -108,7 +108,10 @@ class TestDetectApple:
 
 class TestDetectFallbackLinux:
     def test_parses_lspci_nvidia(self) -> None:
-        mock_output = "01:00.0 VGA compatible controller: NVIDIA Corporation GA102 [GeForce RTX 3090]"
+        mock_output = (
+            "01:00.0 VGA compatible controller: NVIDIA Corporation "
+            "GA102 [GeForce RTX 3090]"
+        )
         with patch(
             "nexus_installer.pages.gpu_detection._run_cmd", return_value=mock_output
         ):
@@ -117,7 +120,10 @@ class TestDetectFallbackLinux:
             assert vendor == "nvidia"
 
     def test_parses_lspci_amd(self) -> None:
-        mock_output = "06:00.0 VGA compatible controller: Advanced Micro Devices [AMD/ATI] Navi 21 [Radeon RX 6800]"
+        mock_output = (
+            "06:00.0 VGA compatible controller: Advanced Micro Devices "
+            "[AMD/ATI] Navi 21 [Radeon RX 6800]"
+        )
         with patch(
             "nexus_installer.pages.gpu_detection._run_cmd", return_value=mock_output
         ):

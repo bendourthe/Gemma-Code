@@ -15,6 +15,7 @@ from typing import Any
 
 from nexus_installer.engine.host_detect import HostProfile
 from nexus_installer.engine.platform_utils import is_windows
+from nexus_installer.registry_paths import tuning_file
 
 LogFn = Callable[[str, str], None]
 Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
@@ -24,16 +25,29 @@ FORBIDDEN = ("[studio]", "unsloth-cli", "unsloth_cli")
 
 
 def _pins_path() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "core" / "tuning" / "unsloth-pins.json"
-        if candidate.is_file():
-            return candidate
-    return Path("core") / "tuning" / "unsloth-pins.json"
+    return tuning_file("unsloth-pins.json")
 
 
 def load_pins() -> dict[str, Any]:
     path = _pins_path()
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(
+            f"Unsloth pins are missing from the installer: {path}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Unsloth pins are not valid JSON: {path}") from exc
+    provisioned = data.get("provisioned") if isinstance(data, dict) else None
+    if not isinstance(provisioned, list) or not provisioned:
+        raise ValueError("Unsloth pins must declare provisioned packages")
+    for package in provisioned:
+        if not isinstance(package, dict) or not all(
+            str(package.get(field) or "").strip()
+            for field in ("name", "version", "license")
+        ):
+            raise ValueError("Each Unsloth pin needs name, version, and license")
+    return data
 
 
 def pip_args(pins: dict[str, Any] | None = None) -> list[str]:
@@ -120,7 +134,9 @@ class UnslothVenvProvisioner:
 
     def _write_state(self, payload: dict[str, Any]) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        state_path(self.root).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        state_path(self.root).write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
 
     def state(self) -> dict[str, Any]:
         path = state_path(self.root)
@@ -148,13 +164,17 @@ class UnslothVenvProvisioner:
         if not py.exists():
             venv_result = self._runner(["uv", "venv", str(venv)])
             if venv_result.returncode != 0:
-                err = (venv_result.stderr or venv_result.stdout or "uv venv failed").strip()
+                err = (
+                    venv_result.stderr or venv_result.stdout or "uv venv failed"
+                ).strip()
                 log(err, "error")
                 self._write_state({"status": "failed", "error": err})
                 return False
         argv = ["uv", "pip", "install", "--python", str(py), *args]
         if argv_is_forbidden(argv, pins):
-            self._write_state({"status": "failed", "error": "refusing AGPL studio/cli extra"})
+            self._write_state(
+                {"status": "failed", "error": "refusing AGPL studio/cli extra"}
+            )
             return False
         self._write_state({"status": "pending"})
         result = self._runner(argv)
@@ -173,7 +193,9 @@ class UnslothVenvProvisioner:
             return False, "tuning venv python is missing; re-provision from Settings."
         result = self._runner([str(py), "-c", "import unsloth; print('ok')"])
         if result.returncode != 0:
-            return False, (result.stderr or result.stdout or "import unsloth failed").strip()
+            return False, (
+                result.stderr or result.stdout or "import unsloth failed"
+            ).strip()
         return True, "ok"
 
 

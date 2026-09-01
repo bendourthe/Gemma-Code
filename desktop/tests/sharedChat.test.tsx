@@ -25,8 +25,9 @@ describe("<MessageBubble>", () => {
     expect(screen.queryByTestId("message-tokens-m1")).toBeNull();
     expect(screen.queryByTestId("message-time-m1")).toBeNull();
     expect(bubble.getAttribute("data-role")).toBe("user");
-    expect(bubble.style.maxWidth).toBe("80%");
+    expect(screen.getByTestId("message-shell-m1").style.maxWidth).toBe("80%");
     expect(bubble.style.width).toBe("fit-content");
+    expect(bubble.style.backgroundColor).toBe("var(--bubble-user, var(--bg-2))");
   });
 
   it("renders an assistant turn without an Assistant label", () => {
@@ -36,11 +37,11 @@ describe("<MessageBubble>", () => {
     expect(bubble).toHaveTextContent("Sure");
     expect(bubble).not.toHaveTextContent("Assistant");
     expect(screen.queryByTestId("message-tokens-a1")).toBeNull();
-    expect(bubble.style.maxWidth).toBe("80%");
+    expect(screen.getByTestId("message-shell-a1").style.maxWidth).toBe("80%");
+    expect(bubble.style.backgroundColor).toBe("var(--bubble-assistant, var(--bg-1))");
   });
 
-  // v2.2.9 Phase 1.3 (T003): meta sits ABOVE the body in full words.
-  it("renders time and tokens above the message body", () => {
+  it("renders time left and a focusable compact token total below the bubble", () => {
     const msg: ChatMessage = {
       id: "m2",
       role: "assistant",
@@ -52,15 +53,18 @@ describe("<MessageBubble>", () => {
     render(<MessageBubble message={msg} locale="en-US" />);
     const bubble = screen.getByTestId("message-bubble-m2");
     const meta = screen.getByTestId("message-meta-m2");
-    const body = bubble.querySelector("p");
-    expect(body).not.toBeNull();
-    expect(meta.compareDocumentPosition(body as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByTestId("message-tokens-m2")).toHaveTextContent(
-      "171 tokens (75 reasoning + 96 output)",
+    expect(bubble.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const tokens = screen.getByTestId("message-tokens-m2");
+    expect(tokens).toHaveTextContent("(171 tokens)");
+    expect(tokens).toHaveAttribute("tabindex", "0");
+    expect(tokens).toHaveAttribute(
+      "title",
+      "Legacy count. Reasoning: 75. Output: 96.",
     );
+    expect(tokens).toHaveStyle({ fontStyle: "italic" });
   });
 
-  it("renders no meta at all on a pending bubble (no clock, no token mark)", () => {
+  it("renders a bubble-free pending status with no metadata", () => {
     const msg: ChatMessage = {
       id: "p1",
       role: "assistant",
@@ -72,7 +76,37 @@ describe("<MessageBubble>", () => {
     expect(screen.queryByTestId("message-meta-p1")).toBeNull();
     expect(screen.queryByTestId("message-time-p1")).toBeNull();
     expect(screen.queryByTestId("message-tokens-p1")).toBeNull();
-    expect(screen.getByTestId("message-bubble-p1").textContent ?? "").not.toContain("\u2014");
+    expect(screen.queryByTestId("message-bubble-p1")).toBeNull();
+    expect(screen.getByTestId("message-pending-p1")).toHaveAttribute("role", "status");
+  });
+
+  it("keeps provider reasoning collapsed above the response and hides count-only reasoning", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <MessageBubble
+        message={{
+          id: "reasoned",
+          role: "assistant",
+          content: "Final answer",
+          reasoningText: "Provider reasoning",
+          reasoningTokens: 7,
+        }}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: "Reasoning (7 tokens)" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Model-provided reasoning")).toBeNull();
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Model-provided reasoning")).toHaveTextContent(
+      "Provider reasoning",
+    );
+    rerender(
+      <MessageBubble
+        message={{ id: "count-only", role: "assistant", content: "Answer", reasoningTokens: 7 }}
+      />,
+    );
+    expect(screen.queryByTestId("message-reasoning-count-only")).toBeNull();
   });
 
   it("renders the system label", () => {
@@ -143,8 +177,8 @@ describe("<MessageList>", () => {
     expect(assistantRow).toHaveAttribute("data-role", "assistant");
     expect(userRow.style.alignItems).toBe("flex-end");
     expect(assistantRow.style.alignItems).toBe("flex-start");
-    expect(screen.getByTestId("message-bubble-u1").style.maxWidth).toBe("80%");
-    expect(screen.getByTestId("message-bubble-a1").style.maxWidth).toBe("80%");
+    expect(screen.getByTestId("message-shell-u1").style.maxWidth).toBe("80%");
+    expect(screen.getByTestId("message-shell-a1").style.maxWidth).toBe("80%");
   });
 
   it("honours a custom emptyMessage", () => {
@@ -170,10 +204,8 @@ describe("<MessageList>", () => {
     expect(screen.getByTestId("message-day-2026-08-25")).toHaveTextContent("Tuesday, August 25, 2026");
     expect(screen.getAllByTestId(/^message-day-/)).toHaveLength(2);
     expect(screen.getByTestId("message-time-u1")).toHaveTextContent(/2:15/);
-    expect(screen.getByTestId("message-tokens-u1")).toHaveTextContent("12 input tokens");
-    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent(
-      "48 tokens (12 reasoning + 36 output)",
-    );
+    expect(screen.getByTestId("message-tokens-u1")).toHaveTextContent("(12 tokens)");
+    expect(screen.getByTestId("message-tokens-a1")).toHaveTextContent("(48 tokens)");
     expect(screen.queryByTestId("message-time-missing")).toBeNull();
   });
 

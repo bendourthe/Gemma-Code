@@ -115,8 +115,22 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v2.2.9 | Field chrome and catalog identity: finished Chatbot/studio chrome, typed diffusion readiness errors, installer/Settings model parity, truthful Hub sync | Landed at automated-test tier; packaged field QA remains DF-36 | [docs/v2/v2.2/](docs/v2/v2.2/) |
 | v2.3.0 | Optional local video enhancement, Qwen3.8 stays out, Hub security-audit handoff | Landed at automated/internal-compatible evidence; real Video2X/GPU/packaged measurement remains DF-3 | [docs/v2/v2.3/](docs/v2/v2.3/) |
 | v2.3.1 | Windows installer field repair: honest RAM, crash containment, card chrome, VS Code 1.135, Unsloth on Configuration | Landed at automated evidence; packaged wizard screenshots remain human QA; host_detect coverage remains MT-1 | [docs/v2/v2.3/](docs/v2/v2.3/) |
+| v2.4.1 | Field reliability, transcript reasoning, chat archives, unified models, and multi-root Agents workspaces | Implemented at automated/internal-compatible evidence; packaged Windows and live-GPU operator checks remain open | [docs/v2/v2.4/](docs/v2/v2.4/) |
 
-Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. v2.3.0 and v2.3.1 live under `docs/v2/v2.3/plans/`. Deferred work is in that version's `known-gaps.md`.
+Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2 plans live under `docs/v2/v2.<MINOR>/plans/`. Deferred work is in that version's `known-gaps.md`.
+
+### What's new in v2.4.1
+
+The complete v2.4.1 implementation is locally code-complete. Automated and internal-compatible evidence covers every requested behavior; packaged Windows visuals and live NVIDIA generation remain explicit operator work rather than silent passes.
+
+- **Installer hierarchy and recovery** - A larger overall bar shows a monotonic percentage and reduced-motion-safe gradient animation. Optional Unsloth and diffusion inputs are frozen with the installer, and failures stay inside the wizard with repair-aware state.
+- **Image runtime readiness** - The selected diffusion environment is staged atomically and reports ready only when required weights and CUDA-capable torch are verified.
+- **Transcript clarity** - Generating motion is not a bubble. Completed answers use a subtly distinct assistant bubble, time and total tokens sit on opposite sides, detailed token counts are hover/focus accessible, and separate reasoning is collapsed above the answer.
+- **Archive and delete** - All four pillars confirm destructive or reversible removal, reset an active view, ignore late events, and expose archived chats in Settings by pillar for restore.
+- **Model library** - Installer and Settings share order and display policy. Cards use restrained downloaded color, always-visible summaries, size pills, VRAM beside compatibility, honest external entries, and a live disk-use meter.
+- **Multi-root Agents** - Agents defaults to the OS home directory, supports a primary folder plus additions, snapshots roots per session, enforces every selected root, and groups history by durable workspace. The top tabs are Chat, Memory, and Activity.
+
+Support details: [release notes](docs/v2/v2.4/release-notes.md). Open field evidence: [known gaps](docs/v2/v2.4/known-gaps.md). Operator steps: [v2.4.1 checklist](docs/v2/v2.4/development/v2.4.1-operator-checklist.md).
 
 ### What's new in v2.3.1
 

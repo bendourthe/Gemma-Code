@@ -395,7 +395,7 @@ class TestInstallingPageGroups:
         state = InstallerState(components_to_install=["extension", "model"])
         page = InstallingPage(state)
         titles = [g._title.text() for g in page.phase_groups]
-        assert titles == ["VS Code Extension", "Models"]
+        assert titles == ["VS Code Extension", "Models", "Nexus Desktop"]
 
     def test_step_signals_route_to_groups(self, qt_app: object) -> None:
         from nexus_installer.pages.installing import InstallingPage
@@ -418,6 +418,11 @@ class TestInstallingPageGroups:
 
         page._on_step_started("desktop")
         page._on_step_failed("desktop")
+        assert desktop.state == STATE_ACTIVE
+        page._on_step_started("runtime")
+        page._on_step_completed("runtime")
+        page._on_step_started("hub-catalog")
+        page._on_step_completed("hub-catalog")
         assert desktop.state == STATE_FAILED
         assert ext.state == STATE_PENDING
 
@@ -467,7 +472,24 @@ class TestInstallingPageGroups:
         state.components_to_install = ["model"]
         page._build_groups()
         titles = [g._title.text() for g in page.phase_groups]
-        assert titles == ["Models"]
+        assert titles == ["Models", "Nexus Desktop"]
+
+    def test_desktop_group_stays_active_through_visible_finalization(
+        self, qt_app: object
+    ) -> None:
+        from nexus_installer.pages.installing import InstallingPage
+
+        page = InstallingPage(InstallerState())
+        desktop = page.phase_groups[-1]
+        page._on_step_started("desktop")
+        page._on_step_completed("desktop")
+        assert desktop.state != STATE_DONE
+        page._on_step_started("runtime")
+        page._on_step_completed("runtime")
+        assert desktop.state != STATE_DONE
+        page._on_step_started("hub-catalog")
+        page._on_step_completed("hub-catalog")
+        assert desktop.state == STATE_DONE
 
 
 class TestPhase4Layout:

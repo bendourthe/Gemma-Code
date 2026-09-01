@@ -30,8 +30,13 @@ import {
   useSidecarStatus,
 } from "../../lib/sidecarStatus";
 
-import { ComposerContextRow, MediaComposer, MessageList, chatComposerAccept, composerSessionUsage, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
+import { ComposerContextRow, MediaComposer, MessageList, chatComposerAccept, composerSessionUsage, useStickToBottom, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
 import { isUsableVideoPath } from "../../shared/studio/usablePayload";
+import {
+  EMPTY_VIDEO_CLIP,
+  formatVideoFailure,
+  persistableAssistant,
+} from "./videoFailClosed";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
   SETTINGS_MODELS_PATH,
@@ -39,8 +44,9 @@ import {
 } from "../../shared/models/installedFeed";
 import {
   ownedIdSet,
-  readFavorite,
+  recommendOrderForTask,
   resolveDefaultId,
+  writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -85,15 +91,27 @@ import {
 } from "../../shared/explorer/studioExplorerClient";
 import { createIpcStudioExplorerClient } from "../../shared/explorer/ipcStudioExplorerClient";
 import { tauriAvailable } from "../chat/ipcChatExplorerClient";
+import { ipc } from "../../lib/ipc";
 import {
   isUsablePathRef,
   lastAssistantMediaRef,
-  sessionTitleFromPrompt,
   studioTurnsToChatMessages,
   UNREADABLE_OUTPUT_TEXT,
 } from "../../shared/explorer/studioSessionMemory";
+import {
+  applyImmediateFallbackTitle,
+  DEFAULT_SESSION_TITLE,
+  refineGeneratedTitle,
+  shouldTitleOnFirstSend,
+} from "../../shared/explorer/scheduleFirstPromptTitle";
 import type { StudioTurn } from "../../../../core/generations/StudioSessionStore.types";
 import { studioPersistUsage } from "../../shared/studio/studioTurnUsage";
+import {
+  createIpcMediaRuntimeClient,
+  isMediaRuntimeFailure,
+  type MediaRuntimeClient,
+  type MediaRuntimeState,
+} from "../../shared/studio/mediaRuntimeClient";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_VIDEO_FORM_VALUES.modelId,
@@ -140,6 +158,7 @@ export interface VideoLabPageProps {
   readonly initialSessionId?: string;
   /** Test seam: probe whether a last-output path still exists on disk. */
   readonly outputExists?: (path: string) => boolean;
+  readonly mediaRuntimeClient?: MediaRuntimeClient;
 }
 
 interface VideoEnhancementSourceBinding {
@@ -157,6 +176,19 @@ const OUTPUT_HASH_PATTERN = /^[a-f0-9]{64}$/;
 function nextId(prefix: string): string {
   messageSeq += 1;
   return `${prefix}-${messageSeq}`;
+}
+
+function videoRecoveryState(state: MediaRuntimeState): ChatMessage["mediaRecovery"] {
+  if (state.state === "ready") return undefined;
+  return {
+    state: state.state,
+    code: state.code,
+    message: state.message,
+    retryable: state.retryable,
+    progress: state.progress,
+    ...(state.details ? { details: state.details } : {}),
+    ...(state.logPath ? { logPath: state.logPath } : {}),
+  };
 }
 
 export function VideoLabPage({
@@ -178,6 +210,7 @@ export function VideoLabPage({
   explorerClient: explorerClientOverride,
   initialSessionId,
   outputExists,
+  mediaRuntimeClient: mediaRuntimeOverride,
 }: VideoLabPageProps = {}): JSX.Element {
   const tierClip = getDiffusionTierConfig(diffusionTier).video.clipSeconds || 4;
   const canAvatar = avatarAvailable(diffusionTier, vramGB);
@@ -188,12 +221,22 @@ export function VideoLabPage({
   const [queueClient] = useState<GenerationQueueClient>(
     () => queueOverride ?? createIpcGenerationQueueClient(),
   );
+  const [mediaRuntimeClient] = useState<MediaRuntimeClient>(
+    () => mediaRuntimeOverride ?? createIpcMediaRuntimeClient(),
+  );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
+  const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
+  const userChangedModelRef = useRef(false);
   const [noneInstalled, setNoneInstalled] = useState(false);
   // v2.2.0 Phase 2 (2.2): "backend down" is not "no models installed".
   const [listFailure, setListFailure] = useState<string | null>(null);
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
+  const mediaRetryRef = useRef<{
+    assistantId: string;
+    text: string;
+    attachments: readonly string[];
+  } | null>(null);
   const studioClient = useMemo(() => {
     if (explorerClientOverride) return explorerClientOverride;
     if (backendDown || !tauriAvailable()) return new InMemoryStudioExplorerClient("video");
@@ -206,7 +249,12 @@ export function VideoLabPage({
     ...initialValues,
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const lastStudioMessage = messages[messages.length - 1];
+  const { scrollRef, onScroll, stickNow } = useStickToBottom(
+    `${messages.length}:${lastStudioMessage?.id ?? ""}:${lastStudioMessage?.content?.length ?? 0}:${lastStudioMessage?.pending ? 1 : 0}`,
+  );
   const activeSessionIdRef = useRef<string | null>(null);
+  const titleJobRef = useRef<{ id: string; prompt: string } | null>(null);
   // v2.2.9 Phase 1.4 (T004): state mirror of the ref so the history pane can
   // bind its highlighted row to the session that is actually open.
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -274,14 +322,14 @@ export function VideoLabPage({
         const snap = source.lastSelection ?? null;
         const video = installedModelsForType(all, "video", ownedIdSet(snap));
         if (cancelled) return;
+        setSelection(snap);
         const first = video[0];
         if (first) {
           setModels(video);
           const next = resolveDefaultId(video, {
-            favorite: readFavorite("video"),
             recommended: snap?.recommendedByTask.video ?? null,
           });
-          setSelectedModelId(next || first.id);
+          if (!userChangedModelRef.current) setSelectedModelId(next || first.id);
           setNoneInstalled(false);
           setListFailure(null);
         } else {
@@ -324,8 +372,9 @@ export function VideoLabPage({
           studioClient.appendTurn({
             sessionId,
             role: input.role,
-            content: input.content,
-            mediaRef: input.mediaRef ?? null,
+            ...(input.role === "assistant"
+              ? persistableAssistant({ content: input.content, mediaRef: input.mediaRef })
+              : { content: input.content, mediaRef: input.mediaRef ?? null }),
             ...studioPersistUsage(input),
           }),
         ).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
@@ -337,18 +386,42 @@ export function VideoLabPage({
   );
 
   const ensureSession = useCallback(
-    async (title: string): Promise<string | null> => {
+    async (prompt: string): Promise<string | null> => {
       if (backendDown) return null;
-      if (activeSessionIdRef.current) return activeSessionIdRef.current;
+      const scheduleTitle = (sessionId: string, title: string, turnCount: number): void => {
+        if (!shouldTitleOnFirstSend({ title, turnCount, prompt })) return;
+        titleJobRef.current = { id: sessionId, prompt };
+        void applyImmediateFallbackTitle({
+          sessionId,
+          prompt,
+          currentTitle: title,
+          rename: (id, nextTitle) => studioClient.renameSession(id, nextTitle),
+        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+      };
+      if (activeSessionIdRef.current) {
+        const existingId = activeSessionIdRef.current;
+        try {
+          const session = await Promise.resolve(studioClient.getSession(existingId));
+          scheduleTitle(
+            existingId,
+            session?.title ?? DEFAULT_SESSION_TITLE,
+            session?.turnCount ?? 0,
+          );
+        } catch {
+          scheduleTitle(existingId, DEFAULT_SESSION_TITLE, 0);
+        }
+        return existingId;
+      }
       try {
         const session = await Promise.resolve(
           studioClient.createSession({
             folderId: null,
-            title: sessionTitleFromPrompt(title),
+            title: DEFAULT_SESSION_TITLE,
             modelId: selectedModelId,
           }),
         );
         setActiveSession(session.id);
+        scheduleTitle(session.id, DEFAULT_SESSION_TITLE, 0);
         setHistoryEpoch((n) => n + 1);
         return session.id;
       } catch {
@@ -512,11 +585,11 @@ export function VideoLabPage({
               pending: false,
               progress: undefined,
               media: undefined,
-              content: "Generation failed: video generation completed without a playable clip.",
+              content: EMPTY_VIDEO_CLIP,
             });
             persistTurn({
               role: "assistant",
-              content: "Generation failed: video generation completed without a playable clip.",
+              content: EMPTY_VIDEO_CLIP,
             });
             return { done: true };
           }
@@ -549,18 +622,30 @@ export function VideoLabPage({
               return copy;
             });
           }
-          const firstSrc = playlist[0]?.src ?? (mp4Path ? resolveMp4Url(mp4Path) : undefined);
+          const firstSrc =
+            playlist[0]?.src || (mp4Path ? resolveMp4Url(mp4Path) : "") || "";
+          if (!firstSrc) {
+            patchMessage(messageId, {
+              pending: false,
+              progress: undefined,
+              media: undefined,
+              content: EMPTY_VIDEO_CLIP,
+            });
+            persistTurn({ role: "assistant", content: EMPTY_VIDEO_CLIP });
+            chainRef.current = null;
+            return { done: true };
+          }
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
-            media: firstSrc ? { kind: "video", src: firstSrc } : undefined,
+            media: { kind: "video", src: firstSrc },
           });
           if (isUsablePathRef(mp4Path)) {
             lastOutputRef.current = mp4Path;
             lastJobIdRef.current = event.jobId;
             persistTurn({ role: "assistant", content: "", mediaRef: mp4Path });
           } else {
-            persistTurn({ role: "assistant", content: "" });
+            persistTurn({ role: "assistant", content: "Generated video." });
           }
           if (mp4Path) {
             void client.extractWorkflow(mp4Path).then((wf) => {
@@ -600,6 +685,9 @@ export function VideoLabPage({
             });
           }
           chainRef.current = null;
+          if (mediaRetryRef.current?.assistantId === messageId) {
+            mediaRetryRef.current = null;
+          }
           return { done: true };
         } else if (event.kind === "error") {
           chainRef.current = null;
@@ -610,22 +698,41 @@ export function VideoLabPage({
             next.delete(messageId);
             return next;
           });
+          const runtimeMessage = event.message ?? "unknown error";
+          if (isMediaRuntimeFailure(runtimeMessage)) {
+            void mediaRuntimeClient.status().then((state) => {
+              const recovery = videoRecoveryState(state);
+              patchMessage(messageId, {
+                pending: false,
+                progress: undefined,
+                media: undefined,
+                content: recovery ? "" : formatVideoFailure(runtimeMessage),
+                mediaRecovery: recovery,
+              });
+              persistTurn({
+                role: "assistant",
+                content: recovery?.message ?? formatVideoFailure(runtimeMessage),
+              });
+            });
+            return { done: true };
+          }
+          const failed = formatVideoFailure(runtimeMessage);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
             media: undefined,
-            content: `Generation failed: ${event.message ?? "unknown error"}`,
+            content: failed,
           });
           persistTurn({
             role: "assistant",
-            content: `Generation failed: ${event.message ?? "unknown error"}`,
+            content: failed,
           });
           return { done: true };
         }
       }
       return { done: false };
     },
-    [patchMessage, resolveMp4Url, dispatchSegment, client, persistTurn],
+    [patchMessage, resolveMp4Url, dispatchSegment, client, persistTurn, mediaRuntimeClient],
   );
 
   const handleMediaError = useCallback(
@@ -652,9 +759,10 @@ export function VideoLabPage({
         delete next[message.id];
         return next;
       });
+      const failed = formatVideoFailure("generated video could not be displayed.");
       patchMessage(message.id, {
         media: undefined,
-        content: "Generation failed: generated video could not be displayed.",
+        content: failed,
       });
     },
     [patchMessage],
@@ -685,7 +793,11 @@ export function VideoLabPage({
           chainRef.current = null;
           patchMessage(activeJob.messageId, {
             pending: false,
-            content: `Generation failed: ${formatInferenceError(err)}`,
+            content: formatVideoFailure(formatInferenceError(err)),
+          });
+          persistTurn({
+            role: "assistant",
+            content: formatVideoFailure(formatInferenceError(err)),
           });
           setActiveJob(null);
         }
@@ -695,7 +807,7 @@ export function VideoLabPage({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage]);
+  }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage, persistTurn]);
 
   useEffect(() => {
     let cancelled = false;
@@ -710,12 +822,45 @@ export function VideoLabPage({
     };
   }, [queueClient, drainIntervalMs]);
 
+  const markMediaRuntimeFailure = useCallback(
+    async (assistantId: string, error: unknown): Promise<boolean> => {
+      const message = formatInferenceError(error);
+      if (!isMediaRuntimeFailure(message)) return false;
+      try {
+        const state = await mediaRuntimeClient.status();
+        const recovery = videoRecoveryState(state);
+        patchMessage(assistantId, {
+          pending: false,
+          content: recovery ? "" : formatVideoFailure(message),
+          mediaRecovery: recovery,
+        });
+        persistTurn({
+          role: "assistant",
+          content: recovery?.message ?? formatVideoFailure(message),
+        });
+      } catch {
+        patchMessage(assistantId, {
+          pending: false,
+          content: formatVideoFailure(message),
+        });
+        persistTurn({
+          role: "assistant",
+          content: formatVideoFailure(message),
+        });
+      }
+      return true;
+    },
+    [mediaRuntimeClient, patchMessage],
+  );
+
   const handleSubmit = useCallback(
     async (
       text: string,
       attachments: readonly string[],
       residencyApproved = false,
+      retryAssistantId?: string,
     ): Promise<void> => {
+      stickNow();
       if (isGenerating) return;
       if (!residencyApproved) {
         const selected = models.find((m) => m.id === selectedModelId);
@@ -775,20 +920,30 @@ export function VideoLabPage({
         content: text,
         ...(attachments.length > 0 ? { attachments: [...attachments] } : {}),
       };
-      const assistantId = nextId("vassistant");
-      setMessages((prev) => [
-        ...prev,
-        withLiveTimestamp(userMsg),
-        withLiveTimestamp({
-          id: assistantId,
-          role: "assistant",
-          content: "",
+      const assistantId = retryAssistantId ?? nextId("vassistant");
+      if (retryAssistantId) {
+        patchMessage(assistantId, {
           pending: true,
+          content: "",
+          mediaRecovery: undefined,
           activity: "video-generation",
-        }),
-      ]);
-      await ensureSession(text);
-      persistTurn({ role: "user", content: text });
+        });
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          withLiveTimestamp(userMsg),
+          withLiveTimestamp({
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            pending: true,
+            activity: "video-generation",
+          }),
+        ]);
+        await ensureSession(text);
+        persistTurn({ role: "user", content: text });
+      }
+      mediaRetryRef.current = { assistantId, text, attachments: [...attachments] };
 
       if (intent.blockedReason) {
         patchMessage(assistantId, { pending: false, content: intent.blockedReason });
@@ -812,7 +967,9 @@ export function VideoLabPage({
       const segments = planVideoContinuation(values.durationSeconds, clipSeconds);
       const first = segments[0];
       if (!first) {
-        patchMessage(assistantId, { pending: false, content: "Generation failed: empty continuation plan" });
+        const failed = formatVideoFailure("empty continuation plan");
+        patchMessage(assistantId, { pending: false, content: failed });
+        persistTurn({ role: "assistant", content: failed });
         return;
       }
 
@@ -860,14 +1017,33 @@ export function VideoLabPage({
         setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
       } catch (err) {
         chainRef.current = null;
-        patchMessage(assistantId, {
-          pending: false,
-          content: `Generation failed: ${formatInferenceError(err)}`,
-        });
-        persistTurn({
-          role: "assistant",
-          content: `Generation failed: ${formatInferenceError(err)}`,
-        });
+        if (!(await markMediaRuntimeFailure(assistantId, err))) {
+          patchMessage(assistantId, {
+            pending: false,
+            content: formatVideoFailure(formatInferenceError(err)),
+          });
+          persistTurn({
+            role: "assistant",
+            content: formatVideoFailure(formatInferenceError(err)),
+          });
+          mediaRetryRef.current = null;
+        }
+      }
+      const titleJob = titleJobRef.current;
+      titleJobRef.current = null;
+      if (titleJob) {
+        void refineGeneratedTitle({
+          sessionId: titleJob.id,
+          prompt: titleJob.prompt,
+          rename: (id, title) => studioClient.renameSession(id, title),
+          generateTitle: async (id, prompt) => {
+            const reply = await ipc.call<{ title: string }>("chat.generateTitle", {
+              chatId: id,
+              firstMessage: prompt,
+            });
+            return reply.ok ? reply.value : null;
+          },
+        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
       }
     },
     [
@@ -885,7 +1061,37 @@ export function VideoLabPage({
       persistTurn,
       ensureSession,
       outputExists,
+      markMediaRuntimeFailure,
+      stickNow,
+      studioClient,
     ],
+  );
+
+  const repairMediaRuntime = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      let state = await mediaRuntimeClient.repair();
+      patchMessage(message.id, { mediaRecovery: videoRecoveryState(state) });
+      while (state.state === "repairing") {
+        await new Promise((resolve) => window.setTimeout(resolve, 750));
+        state = await mediaRuntimeClient.status();
+        patchMessage(message.id, { mediaRecovery: videoRecoveryState(state) });
+      }
+      const pending = mediaRetryRef.current;
+      if (state.state === "ready" && pending?.assistantId === message.id) {
+        mediaRetryRef.current = null;
+        await handleSubmit(pending.text, pending.attachments, true, pending.assistantId);
+      }
+    },
+    [handleSubmit, mediaRuntimeClient, patchMessage],
+  );
+
+  const cancelMediaRepair = useCallback(
+    async (message: ChatMessage): Promise<void> => {
+      const state = await mediaRuntimeClient.cancelRepair();
+      mediaRetryRef.current = null;
+      patchMessage(message.id, { mediaRecovery: videoRecoveryState(state) });
+    },
+    [mediaRuntimeClient, patchMessage],
   );
 
   const handleEnhancementComplete = useCallback(
@@ -1092,19 +1298,33 @@ export function VideoLabPage({
         />
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "row", minHeight: 0 }}>
-        <StudioHistoryPane
-          pillar="video"
-          client={studioClient}
-          defaultModelId={selectedModelId}
-          sidecarDown={backendDown}
-          refreshToken={historyEpoch}
-          onSelectSession={hydrateSession}
-          activeSessionId={activeSessionId}
-        />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <StudioHistoryPane
+        pillar="video"
+        client={studioClient}
+        defaultModelId={selectedModelId}
+        sidecarDown={backendDown}
+        refreshToken={historyEpoch}
+        onSelectSession={hydrateSession}
+        activeSessionId={activeSessionId}
+        onBeforeSessionDisposition={async (id) => {
+          if (activeSessionId !== id || !activeJob) return;
+          await queueClient.cancel(activeJob.jobId);
+        }}
+        onSessionDisposition={(id) => {
+          if (activeSessionId !== id) return;
+          setActiveJob(null);
+          setActiveSession(null);
+          setMessages([]);
+          setSeededAttachment(null);
+          lastOutputRef.current = null;
+          pendingPromptRef.current = { text: "", attachments: [] };
+        }}
+      />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
         data-testid="video-history"
+        ref={scrollRef}
+        onScroll={onScroll}
         style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
       >
         {messages.length === 0 ? (
@@ -1239,6 +1459,9 @@ export function VideoLabPage({
                 </>
               ) : null
             }
+            onRepairMediaRuntime={(message) => void repairMediaRuntime(message)}
+            onCancelMediaRepair={(message) => void cancelMediaRepair(message)}
+            onOpenMediaRepairLog={() => void mediaRuntimeClient.openLogLocation()}
           />
         )}
       </div>
@@ -1308,13 +1531,19 @@ export function VideoLabPage({
             models={models}
             taskType="video"
             value={selectedModelId}
-            onChange={setSelectedModelId}
+            hostVramGB={vramGB > 0 ? vramGB : null}
+            recommendOrder={recommendOrderForTask(selection, "video")}
+            ownedIds={ownedIdSet(selection)}
+            onChange={(nextModelId) => {
+              userChangedModelRef.current = true;
+              setSelectedModelId(nextModelId);
+              writeFavorite("video", nextModelId);
+            }}
             onGetMoreModels={onGetMoreModels}
             disabled={isGenerating}
           />
         </ComposerContextRow>
       </div>
-        </div>
       </div>
     </section>
   );

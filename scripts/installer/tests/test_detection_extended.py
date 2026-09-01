@@ -1,4 +1,4 @@
-﻿"""Extended detection tests for GPU and prerequisite functions to boost coverage."""
+"""Extended detection tests for GPU and prerequisite functions to boost coverage."""
 
 from __future__ import annotations
 

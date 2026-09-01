@@ -128,7 +128,7 @@ describe("Sidebar", () => {
     expect((aside as HTMLElement).style.padding.startsWith("0 ")).toBe(false);
     expect((aside as HTMLElement).style.padding).toContain("var(--space-2)");
     expect(toggle.className).toContain("nexus-sidebar-collapse-pill");
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
   });
 
   it("keeps the title-bar inset in both compact and expanded rails", () => {
@@ -143,10 +143,10 @@ describe("Sidebar", () => {
   it("toggles the edge pill without navigating modules", () => {
     renderAt("/chatbot");
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
-    expect(toggle.getAttribute("aria-label")).toBe("Expand sidebar");
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(toggle.getAttribute("aria-label")).toBe("Collapse sidebar");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-label")).toBe("Expand sidebar");
     expect(screen.getByTestId("nav-chatbot").getAttribute("aria-current")).toBe("page");
   });
 });

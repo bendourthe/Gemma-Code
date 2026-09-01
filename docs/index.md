@@ -12,7 +12,7 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 | `desktop` | 2 | 299 | [src/desktop/ipcClient.ts](../src/desktop/ipcClient.ts) | `createInProcessIpcClient`, `DaemonDiscoveryOptions`, `DaemonDiscoveryResult` |
 | `panels` | 32 | 10236 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
 | `storage` | 37 | 8902 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
-| `tools` | 30 | 8238 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `AgentLoop`, `AgentLoopOptions` |
+| `tools` | 30 | 8266 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `AgentLoop`, `AgentLoopOptions` |
 
 ## Module purposes
 

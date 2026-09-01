@@ -114,6 +114,7 @@ class VsCodeExtensionPage(QWidget):
         *,
         inspect_fn=None,
         list_fn=None,
+        compact: bool = False,
     ) -> None:
         super().__init__(parent)
         self._state = state
@@ -122,31 +123,35 @@ class VsCodeExtensionPage(QWidget):
         self._list_fn = list_fn or installed_nexus_extension_id
         self._interactive = True
         self._user_selection: bool | None = None
+        self._compact = compact
         detected = self._detect_current_host()
         self._compatible = detected.supported
         self._remember_stable_path(detected)
         self._sync_extension_selection(detected.supported)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+        layout.setSpacing(12 if compact else 16)
+        if compact:
+            layout.setContentsMargins(0, 0, 0, 0)
 
-        title = QLabel("Nexus VS Code Extension")
-        title.setStyleSheet(
-            "font-size: 28px; font-weight: bold; background: transparent;"
-        )
-        layout.addWidget(title)
+        if not compact:
+            title = QLabel("Nexus VS Code Extension")
+            title.setStyleSheet(
+                "font-size: 28px; font-weight: bold; background: transparent;"
+            )
+            layout.addWidget(title)
 
-        intro = QLabel(
-            "Install the Nexus VS Code extension to use your local models for "
-            "agentic coding inside Microsoft Visual Studio Code 1.134 or 1.135 "
-            f"(Electron {SUPPORTED_ELECTRON_VERSION}). This release does not "
-            "support VS Code Insiders, Cursor, Windsurf, or other VS Code versions."
-        )
-        intro.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 15px; background: transparent;"
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+            intro = QLabel(
+                "Install the Nexus VS Code extension to use your local models for "
+                "agentic coding inside Microsoft Visual Studio Code 1.134 or 1.135 "
+                f"(Electron {SUPPORTED_ELECTRON_VERSION}). This release does not "
+                "support VS Code Insiders, Cursor, Windsurf, or other VS Code versions."
+            )
+            intro.setStyleSheet(
+                f"color: {TEXT_SECONDARY}; font-size: 15px; background: transparent;"
+            )
+            intro.setWordWrap(True)
+            layout.addWidget(intro)
 
         card = QWidget()
         card.setStyleSheet(
@@ -184,7 +189,8 @@ class VsCodeExtensionPage(QWidget):
         card_layout.addWidget(note)
 
         layout.addWidget(card)
-        layout.addStretch()
+        if not compact:
+            layout.addStretch()
 
     def showEvent(self, event: object) -> None:  # noqa: N802
         """Refresh after asynchronous prerequisite discovery has completed."""

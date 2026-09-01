@@ -49,11 +49,15 @@ export function formatBubbleTime(date: Date, locale?: string): string {
 }
 
 function numericOrNull(value: number | null | undefined): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : null;
 }
 
-function tokenWord(count: number, label: string): string {
-  return count === 1 ? `1 ${label} token` : `${count} ${label} tokens`;
+export interface BubbleTokenMetadata {
+  readonly total: number;
+  readonly label: string;
+  readonly detail: string;
 }
 
 /**
@@ -65,23 +69,40 @@ function tokenWord(count: number, label: string): string {
  * return an empty string so the caller omits the span (never an em dash,
  * never a guessed 0).
  */
-export function formatBubbleTokens(message: Pick<ChatMessage, "role" | "inputTokens" | "reasoningTokens" | "outputTokens">): string {
-  if (message.role === "user") {
-    const input = numericOrNull(message.inputTokens);
-    return input === null ? "" : tokenWord(input, "input");
-  }
-  if (message.role === "assistant") {
-    const reasoning = numericOrNull(message.reasoningTokens);
-    const output = numericOrNull(message.outputTokens);
-    if (reasoning !== null && output !== null) {
-      const total = reasoning + output;
-      return `${total} token${total === 1 ? "" : "s"} (${reasoning} reasoning + ${output} output)`;
-    }
-    if (reasoning !== null) return tokenWord(reasoning, "reasoning");
-    if (output !== null) return tokenWord(output, "output");
-    return "";
-  }
-  return "";
+export function bubbleTokenMetadata(
+  message: Pick<
+    ChatMessage,
+    "role" | "inputTokens" | "reasoningTokens" | "outputTokens" | "tokensEstimated" | "messageUsage"
+  >,
+): BubbleTokenMetadata | null {
+  if (message.role === "system") return null;
+  const usage = message.messageUsage;
+  const input = numericOrNull(usage?.inputTokens ?? message.inputTokens);
+  const reasoning = numericOrNull(usage?.reasoningTokens ?? message.reasoningTokens);
+  const output = numericOrNull(usage?.outputTokens ?? message.outputTokens);
+  const known = message.role === "user"
+    ? [input].filter((value): value is number => value !== null)
+    : [reasoning, output].filter((value): value is number => value !== null);
+  if (known.length === 0) return null;
+  const total = known.reduce((sum, value) => sum + value, 0);
+  const value = (count: number | null): string => (count === null ? "unavailable" : String(count));
+  const accuracy = usage?.provenance.accuracy ?? (message.tokensEstimated ? "estimated" : "legacy");
+  const estimate = accuracy === "exact" ? "" : `${accuracy === "legacy" ? "Legacy count" : "Estimated"}. `;
+  return {
+    total,
+    label: `(${total} token${total === 1 ? "" : "s"})`,
+    detail: message.role === "user" ? "" : `${estimate}Reasoning: ${value(reasoning)}. Output: ${value(output)}.`,
+  };
+}
+
+/** Backward-compatible text helper used by existing consumers and tests. */
+export function formatBubbleTokens(
+  message: Pick<
+    ChatMessage,
+    "role" | "inputTokens" | "reasoningTokens" | "outputTokens" | "tokensEstimated" | "messageUsage"
+  >,
+): string {
+  return bubbleTokenMetadata(message)?.label ?? "";
 }
 
 export function withLiveTimestamp(message: ChatMessage): ChatMessage {

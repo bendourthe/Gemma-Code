@@ -16,7 +16,7 @@
  * real Ollama daemon, disk, or catalog.
  */
 
-import { promises as fs } from "node:fs";
+import { promises as fs, type Dirent } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -33,6 +33,7 @@ import {
   NexusModelRegistry,
 } from "../../../../core/registry/NexusModelRegistry.js";
 import { aliasesFor, foldModelId } from "../../../../core/registry/modelAliases.js";
+import { catalogFingerprint } from "../../../../core/registry/catalogFingerprint.js";
 import { HttpOllamaPullClient, InstallManager } from "./installManager.js";
 import { loadSnapshot, type SelectionSnapshot } from "./selectionSnapshot.js";
 
@@ -88,7 +89,11 @@ export interface ListedModelDto {
 
 export interface DiskUsageDto {
   usedBytes: number;
+  modelBytes: number;
   freeBytes: number | null;
+  capacityBytes: number | null;
+  measurementPath: string;
+  measuredAt: string;
 }
 
 const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
@@ -190,6 +195,10 @@ export interface ModelsServiceOptions {
   fetchFn?: typeof fetch;
   /** Test seam for `~/.nexus/selected-models.json`. */
   loadSnapshot?: () => Promise<SelectionSnapshot | null>;
+  /** Test seam for a slow or unavailable filesystem scan. */
+  measureDisk?: () => Promise<DiskUsageDto>;
+  /** Maximum time a caller waits for a fresh measurement. */
+  diskMeasurementTimeoutMs?: number;
 }
 
 export class ModelsService {
@@ -199,6 +208,10 @@ export class ModelsService {
   private readonly _ollamaBaseUrl: string;
   private readonly _fetch: typeof fetch;
   private readonly _loadSnapshot: () => Promise<SelectionSnapshot | null>;
+  private readonly _measureDisk: () => Promise<DiskUsageDto>;
+  private readonly _diskMeasurementTimeoutMs: number;
+  private _diskMeasurement: Promise<DiskUsageDto> | null = null;
+  private _diskCache: DiskUsageDto | null = null;
 
   constructor(opts: ModelsServiceOptions) {
     this._registry = opts.registry;
@@ -207,10 +220,16 @@ export class ModelsService {
     this._ollamaBaseUrl = opts.ollamaBaseUrl ?? DEFAULT_OLLAMA_URL;
     this._fetch = opts.fetchFn ?? fetch;
     this._loadSnapshot = opts.loadSnapshot ?? (() => loadSnapshot());
+    this._measureDisk = opts.measureDisk ?? (() => measureDiskUsage(this._modelsRoot));
+    this._diskMeasurementTimeoutMs = opts.diskMeasurementTimeoutMs ?? 2_000;
   }
 
   get registry(): NexusModelRegistry {
     return this._registry;
+  }
+
+  get catalogHash(): string {
+    return catalogFingerprint(this._catalog);
   }
 
   /**
@@ -253,24 +272,100 @@ export class ModelsService {
     await this._registry.remove(id);
   }
 
-  /** Used bytes (installed models) + free bytes on the models volume (best-effort). */
+  /** Actual deduplicated model files plus capacity/free bytes for the models volume. */
   async diskUsage(): Promise<DiskUsageDto> {
-    const listed = await this.list();
-    const usedBytes = listed
-      .filter((m) => m.installed && m.source === "registry")
-      .reduce((acc, m) => acc + (m.sizeBytes ?? 0), 0);
-    let freeBytes: number | null = null;
-    try {
-      const statfs = (fs as { statfs?: (p: string) => Promise<{ bavail: number; bsize: number }> }).statfs;
-      if (statfs) {
-        const st = await statfs(this._modelsRoot);
-        freeBytes = st.bavail * st.bsize;
-      }
-    } catch {
-      freeBytes = null;
+    if (!this._diskMeasurement) {
+      const measurement = this._measureDisk().then((result) => {
+        this._diskCache = result;
+        return result;
+      });
+      this._diskMeasurement = measurement;
+      const clearMeasurement = () => {
+        if (this._diskMeasurement === measurement) this._diskMeasurement = null;
+      };
+      void measurement.then(clearMeasurement, clearMeasurement);
     }
-    return { usedBytes, freeBytes };
+
+    const activeMeasurement = this._diskMeasurement;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const timedOut = new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Model disk measurement timed out")),
+          this._diskMeasurementTimeoutMs,
+        );
+      });
+      return await Promise.race([activeMeasurement, timedOut]);
+    } catch (error) {
+      if (error instanceof Error && error.message === "Model disk measurement timed out" && this._diskMeasurement === activeMeasurement) {
+        this._diskMeasurement = null;
+      }
+      if (this._diskCache) return this._diskCache;
+      throw error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
+}
+
+async function measureDiskUsage(modelsRoot: string): Promise<DiskUsageDto> {
+  const modelBytes = await measureModelFiles(modelsRoot);
+  let freeBytes: number | null = null;
+  let capacityBytes: number | null = null;
+  try {
+    const statfs = (fs as { statfs?: (p: string) => Promise<{ bavail: number; blocks: number; bsize: number }> }).statfs;
+    if (statfs) {
+      const st = await statfs(modelsRoot);
+      freeBytes = st.bavail * st.bsize;
+      capacityBytes = st.blocks * st.bsize;
+    }
+  } catch {
+    freeBytes = null;
+    capacityBytes = null;
+  }
+  return {
+    usedBytes: modelBytes,
+    modelBytes,
+    freeBytes,
+    capacityBytes,
+    measurementPath: path.resolve(modelsRoot),
+    measuredAt: new Date().toISOString(),
+  };
+}
+
+async function measureModelFiles(root: string): Promise<number> {
+  const pending = [root];
+  const seen = new Set<string>();
+  let total = 0;
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    let entries: Dirent<string>[];
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true, encoding: "utf8" });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.name === "_tmp") continue;
+      const candidate = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(candidate);
+        continue;
+      }
+      if (!entry.isFile() && !entry.isSymbolicLink()) continue;
+      try {
+        const resolved = await fs.realpath(candidate);
+        if (seen.has(resolved)) continue;
+        const stat = await fs.stat(resolved);
+        if (!stat.isFile()) continue;
+        seen.add(resolved);
+        total += stat.size;
+      } catch {
+        // A file may disappear during install/remove; the next refresh observes it.
+      }
+    }
+  }
+  return total;
 }
 
 function toDto(m: ListedModel): ListedModelDto {

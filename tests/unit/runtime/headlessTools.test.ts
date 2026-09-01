@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createHeadlessTools,
   resolveInsideWorkdir,
+  resolveInsideWorkspaceRoots,
   type HeadlessExec,
   type HeadlessTool,
 } from "../../../modules/coding/runtime/headlessTools.js";
@@ -45,6 +46,30 @@ describe("resolveInsideWorkdir", () => {
 
   it("throws on an empty path", () => {
     expect(() => resolveInsideWorkdir(workdir, "")).toThrow(/required/);
+  });
+
+  it("uses the primary root for relative paths and permits an absolute secondary root", async () => {
+    const second = await fsp.mkdtemp(path.join(os.tmpdir(), "nexus-headless-second-"));
+    try {
+      expect(resolveInsideWorkspaceRoots(workdir, [workdir, second], "relative.txt"))
+        .toBe(path.join(fs.realpathSync(workdir), "relative.txt"));
+      expect(resolveInsideWorkspaceRoots(workdir, [workdir, second], path.join(second, "absolute.txt")))
+        .toBe(path.join(fs.realpathSync(second), "absolute.txt"));
+    } finally {
+      await fsp.rm(second, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves symlinks before rejecting an escape from all selected roots", async () => {
+    const outside = await fsp.mkdtemp(path.join(os.tmpdir(), "nexus-headless-outside-"));
+    const link = path.join(workdir, "outside-link");
+    try {
+      await fsp.symlink(outside, link, process.platform === "win32" ? "junction" : "dir");
+      expect(() => resolveInsideWorkspaceRoots(workdir, [workdir], path.join(link, "escape.txt")))
+        .toThrow(/outside the selected workspace roots/);
+    } finally {
+      await fsp.rm(outside, { recursive: true, force: true });
+    }
   });
 });
 
@@ -148,6 +173,27 @@ describe("createHeadlessTools -- file tools", () => {
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/outside/);
   });
+
+  it("writes to a selected secondary root but rejects it after removal from the snapshot", async () => {
+    const second = await fsp.mkdtemp(path.join(os.tmpdir(), "nexus-headless-write-second-"));
+    try {
+      const tools = createHeadlessTools();
+      const target = path.join(second, "secondary.txt");
+      const allowed = await tool(tools, "write_file").execute(
+        { path: target, content: "ok" },
+        { workdir, workspaceRoots: Object.freeze([workdir, second]) },
+      );
+      expect(allowed.success).toBe(true);
+      const removed = await tool(tools, "write_file").execute(
+        { path: target, content: "blocked" },
+        { workdir, workspaceRoots: Object.freeze([workdir]) },
+      );
+      expect(removed.success).toBe(false);
+      expect(removed.error).toMatch(/outside the selected workspace roots/);
+    } finally {
+      await fsp.rm(second, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("createHeadlessTools -- run_terminal", () => {
@@ -177,6 +223,29 @@ describe("createHeadlessTools -- run_terminal", () => {
     const tools = createHeadlessTools({ exec, byteCap: 1000 });
     const res = await tool(tools, "run_terminal").execute({ command: "x" }, { workdir });
     expect(res.output).toContain("[truncated");
+  });
+
+  it("allows terminal cwd in a selected secondary root and forwards the immutable root set", async () => {
+    const second = await fsp.mkdtemp(path.join(os.tmpdir(), "nexus-terminal-second-"));
+    try {
+      let seenCwd = "";
+      let seenRoots: readonly string[] = [];
+      const exec: HeadlessExec = async (_command, cwd, _signal, _timeout, roots) => {
+        seenCwd = cwd;
+        seenRoots = roots ?? [];
+        return { code: 0, stdout: "", stderr: "" };
+      };
+      const roots = Object.freeze([workdir, second]);
+      const res = await tool(createHeadlessTools({ exec }), "run_terminal").execute(
+        { command: "pwd", cwd: second },
+        { workdir, workspaceRoots: roots },
+      );
+      expect(res.success).toBe(true);
+      expect(seenCwd).toBe(fs.realpathSync(second));
+      expect(seenRoots).toEqual(roots);
+    } finally {
+      await fsp.rm(second, { recursive: true, force: true });
+    }
   });
 });
 

@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
 from nexus_installer.constants import (
     ERROR,
     FS_CAPTION,
+    FS_H3,
     SUCCESS,
     TEXT_SECONDARY,
     WARNING,
@@ -32,15 +33,27 @@ if TYPE_CHECKING:
 class InstallPathPage(QWidget):
     """Page for choosing the installation directory."""
 
-    def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        state: InstallerState,
+        parent: QWidget | None = None,
+        *,
+        compact: bool = False,
+    ) -> None:
         super().__init__(parent)
         self._state = state
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8 if compact else 16)
 
-        title = QLabel("Install Location")
-        title.setObjectName("pageTitle")
+        title = QLabel("Install Path" if compact else "Install Location")
+        if compact:
+            title.setStyleSheet(
+                f"font-size: {FS_H3}px; font-weight: 600; background: transparent;"
+            )
+        else:
+            title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         # Path input row
@@ -81,7 +94,8 @@ class InstallPathPage(QWidget):
         )
         layout.addWidget(callout)
 
-        layout.addStretch()
+        if not compact:
+            layout.addStretch()
 
         self._update_disk_display()
 

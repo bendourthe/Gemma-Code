@@ -106,6 +106,17 @@ def _write_catalog(tmp_path: Path) -> Path:
                 "differentiators": "Coding specialist",
             },
             {
+                "id": "embeddinggemma",
+                "displayName": "EmbeddingGemma 300M",
+                "family": "embeddinggemma",
+                "type": "embed",
+                "task": "embed",
+                "sizeGB": 0.62,
+                "requiredVramGB": 0,
+                "releaseDate": "2025-09-04",
+                "description": "Current required embedding model",
+            },
+            {
                 "id": "nomic-embed-text",
                 "displayName": "Nomic Embed",
                 "type": "embed",
@@ -166,35 +177,35 @@ def _write_recommended(tmp_path: Path) -> Path:
             "cpu": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": [],
                 "video": [],
             },
             "8": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "12": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "16": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "24": {
                 "chat": ["gemma4:e4b"],
                 "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
-                "embed": ["nomic-embed-text"],
+                "embed": ["embeddinggemma"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
@@ -225,10 +236,10 @@ class TestLoadCatalog:
         assert ids == {
             "gemma4:e4b",
             "qwen2.5-coder:7b",
+            "embeddinggemma",
             "nomic-embed-text",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
-            "legacy-text-no-task",
         }
 
     def test_task_drives_tab(self, tmp_path: Path) -> None:
@@ -238,14 +249,14 @@ class TestLoadCatalog:
         # v2.2.9 Phase 5: embed renders on its own Embeddings tab, not Chat.
         assert models["nomic-embed-text"].type == "embeddings"
         assert models["nomic-embed-text"].task == "embed"
+        assert models["embeddinggemma"].type == "embeddings"
+        assert models["embeddinggemma"].task == "embed"
         assert models["juggernaut-xl-v9"].type == "image"
         assert models["wan2.1-t2v-1.3b"].type == "video"
 
-    def test_missing_task_falls_back_to_type(self, tmp_path: Path) -> None:
+    def test_missing_task_is_not_user_selectable(self, tmp_path: Path) -> None:
         models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
-        legacy = models["legacy-text-no-task"]
-        assert legacy.type == "chat"
-        assert legacy.task == "chat"
+        assert "legacy-text-no-task" not in models
 
     def test_phase4_copy_fields_parsed(self, tmp_path: Path) -> None:
         models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
@@ -353,7 +364,7 @@ class TestCompatibilityBadge:
             total_ram_gb=16,
             gpu_vendor="none",
         )
-        assert "Requires 8" in text
+        assert text == "Incompatible - needs 8 GB VRAM"
         assert color == "#ef4444"
 
     def test_short_vram(self) -> None:
@@ -363,7 +374,7 @@ class TestCompatibilityBadge:
             total_ram_gb=16,
             gpu_vendor="nvidia",
         )
-        assert "Requires 12" in text
+        assert text == "Incompatible - needs 12 GB VRAM"
         assert color == "#f59e0b"
 
     def test_compatible(self) -> None:
@@ -373,7 +384,7 @@ class TestCompatibilityBadge:
             total_ram_gb=16,
             gpu_vendor="nvidia",
         )
-        assert text == "Compatible"
+        assert text == "Compatible - 4 GB VRAM"
 
     def test_ram_shortfall_shows_host_ram(self) -> None:
         text, color = compatibility_badge(
@@ -382,7 +393,7 @@ class TestCompatibilityBadge:
             total_ram_gb=4,
             gpu_vendor="nvidia",
         )
-        assert "Requires 8 GB RAM (you have 4)" in text
+        assert text == "Incompatible - needs 8 GB RAM (you have 4)"
         assert color == "#f59e0b"
 
     def test_ram_probe_failed_is_not_you_have_zero(self) -> None:
@@ -402,7 +413,7 @@ class TestCompatibilityBadge:
             total_ram_gb=32,
             gpu_vendor="nvidia",
         )
-        assert text == "Compatible"
+        assert text == "Compatible - CPU"
 
 
 class TestModelMetadata:
@@ -443,9 +454,9 @@ class TestModelMetadata:
         img = self._model(task="image", type="image")
         assert img.guardrails_label == "Safety-tuned"
 
-    def test_is_required_is_nomic_embed_only(self) -> None:
-        assert self._model(id="nomic-embed-text", task="embed").is_required is True
-        assert self._model(id="embeddinggemma", task="embed").is_required is False
+    def test_is_required_is_embeddinggemma_only(self) -> None:
+        assert self._model(id="nomic-embed-text", task="embed").is_required is False
+        assert self._model(id="embeddinggemma", task="embed").is_required is True
         assert self._model(id="qwen3-embedding:0.6b", task="embed").is_required is False
         assert self._model(task="chat").is_required is False
         assert self._model(task="agentic", type="agentic").is_required is False
@@ -529,11 +540,17 @@ class TestTypedCatalogPage:
         # agentic section, so no coder is pre-selected (it stays opt-in).
         assert selected == {
             "gemma4:e4b",
-            "nomic-embed-text",
+            "embeddinggemma",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
         }
         assert "qwen2.5-coder:7b" not in selected
+
+    def test_subtitle_ceils_15360_mib_to_16_gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=15360))
+        page.refresh_from_state()
+        assert "(16 GB VRAM)" in page._subtitle.text()
+        assert max(0, int(15360 / 1024)) == 15
 
     def test_license_note_renders_on_card(self, qt_app, tmp_path: Path) -> None:
         from PyQt5.QtWidgets import QLabel
@@ -564,17 +581,17 @@ class TestTypedCatalogPage:
         # v1.9.0 Phase 4: Gemma covers chat + agentic, so no coder is added.
         assert set(state.selected_model_ids) == {
             "gemma4:e4b",
-            "nomic-embed-text",
+            "embeddinggemma",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
         }
         # Section-ordered: chat ids first, video last.
-        assert state.selected_model_ids[0] in ("gemma4:e4b", "nomic-embed-text")
+        assert state.selected_model_ids[0] in ("gemma4:e4b", "embeddinggemma")
         assert state.selected_model_ids[-1] == "wan2.1-t2v-1.3b"
         # The legacy single-model surface points at the chat pick.
         assert state.selected_model == "gemma4:e4b"
         # Totals feed the disk-aware footer / install guard.
-        assert state.selected_models_gb == pytest.approx(2.7 + 0.27 + 6.9 + 17.6)
+        assert state.selected_models_gb == pytest.approx(2.7 + 0.62 + 6.9 + 17.6)
 
     def test_seeded_selection_wins_over_defaults(self, qt_app, tmp_path: Path) -> None:
         state = _gpu_state(vram_mb=8192)
@@ -655,16 +672,17 @@ class TestTypedCatalogPage:
     ) -> None:
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)
         models = page._sorted_section_models(
-            "chat", 8, "nvidia", {"gemma4:e4b", "nomic-embed-text"}
+            "chat", 8, "nvidia", {"gemma4:e4b", "embeddinggemma"}
         )
         enabled = [m.id for m in models if m.required_vram_gb <= 8]
+        assert enabled[0] == "gemma4:e4b"
         # v2.2.9 Phase 5: embed rows live on the Embeddings tab, not Chat.
         assert "nomic-embed-text" not in enabled
-        assert enabled.index("gemma4:e4b") < enabled.index("legacy-text-no-task")
+        assert "gemma4:e4b" in enabled
         embed_models = page._sorted_section_models(
-            "embeddings", 8, "nvidia", {"nomic-embed-text"}
+            "embeddings", 8, "nvidia", {"embeddinggemma"}
         )
-        assert [m.id for m in embed_models] == ["nomic-embed-text"]
+        assert [m.id for m in embed_models] == ["embeddinggemma", "nomic-embed-text"]
 
     def test_try_advance_tab_walks_tabs_then_stops(
         self, qt_app, tmp_path: Path
@@ -679,9 +697,9 @@ class TestTypedCatalogPage:
         assert page._tabs.currentIndex() == len(TYPE_TABS) - 1
 
     def test_required_embed_checkbox_locked(self, qt_app, tmp_path: Path) -> None:
-        # v1.9.0 Phase 4 (T403): nomic-embed is Required -- checked + locked.
+        # v2.4.1 field correction: EmbeddingGemma is Required -- checked + locked.
         page = self._page(_gpu_state(), tmp_path)
-        card = page._find_card("nomic-embed-text")
+        card = page._find_card("embeddinggemma")
         assert card is not None
         assert card.model.is_required
         assert card.checkbox.isChecked() is True
@@ -709,6 +727,40 @@ class TestTypedCatalogPage:
         page._on_refresh_clicked()
         assert "juggernaut-xl-v9" in page.selection().selected
 
+    def test_reset_button_sits_on_the_category_tab_row(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        from PyQt5.QtCore import Qt
+
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        assert page._refresh_button.text() == "Reset to recommended"
+        assert page._tabs.cornerWidget(Qt.Corner.TopRightCorner) is page._refresh_button
+
+    def test_disk_pressure_keeps_compatible_cards_selectable(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        state = _gpu_state(vram_mb=8192, free_disk_gb=15)
+        state.disk_reserve_gb = 10
+        page = self._page(state, tmp_path)
+        compatible = [
+            c
+            for c in page._cards
+            if not c.over_budget
+            and not (c.model.is_required and c.checkbox.isChecked())
+        ]
+        assert compatible
+        assert all(c.checkbox.isEnabled() for c in compatible)
+
+    def test_required_group_header_precedes_optional_models(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        texts = [lbl.text() for lbl in page.findChildren(QLabel)]
+        assert "Required for this GPU" in texts
+        assert "More compatible models" in texts
+
 
 class TestRealCatalogPage:
     """v1.9.0 Phase 4: the shipped catalog drives the audio pillar + Agentic tab."""
@@ -721,23 +773,13 @@ class TestRealCatalogPage:
         assert "faster-whisper-large-v3" in audio_ids
         assert "kokoro-82m" in audio_ids
 
-    def test_agentic_tab_collapses_to_best_fit_per_family(self, qt_app) -> None:
-        # v1.14.0 Phase 3: the real-catalog agentic tab shows one best-fitting
-        # model per family; the over-budget Gemma tiers (18/22 GB) are grayed at
-        # the bottom on an 8 GB GPU.
+    def test_agentic_tab_lists_all_variants_including_over_budget(self, qt_app) -> None:
         state = _gpu_state(vram_mb=8192)
         page = TypedCatalogPage(state)
         models = page._sorted_section_models("agentic", 8, "nvidia")
-        over = [m.required_vram_gb > 8 for m in models]
-        assert over == sorted(over)  # fitting first, over-budget last
-        fitting = [m for m in models if m.required_vram_gb <= 8]
-        fams = [m.family for m in fitting]
-        assert len(fams) == len(set(fams))  # one best-fit per family
-        gemma_fit = [m for m in fitting if m.family == "gemma4"]
-        assert gemma_fit and gemma_fit[0].required_vram_gb <= 8
-        # The smaller Gemma tier is hidden (collapsed away), not shown alongside.
-        fitting_ids = {m.id for m in fitting}
-        assert not ({"gemma4:e2b", "gemma4:e4b"} <= fitting_ids)
+        ids = {m.id for m in models}
+        assert {"gemma4:e2b", "gemma4:e4b", "gemma4:26b", "gemma4:31b"} <= ids
+        assert any(m.required_vram_gb > 8 for m in models)
 
     def test_over_budget_model_disabled(self, qt_app) -> None:
         # v1.13.0 Phase 4: a model needing more VRAM than the GPU has is marked
@@ -782,9 +824,10 @@ class TestRealCatalogPage:
             fitted,
             list(page._matrix["16"]["agentic"]),
         )
-        enabled = [m.id for m in models if m.required_vram_gb <= 16]
-        assert enabled[:2] == ["gemma-4-12b-it-gguf", "gpt-oss:20b"]
-        assert enabled.index("gpt-oss:20b") < enabled.index("lfm2.5:2.6b")
+        ordered = [m.id for m in models]
+        assert ordered[0] == "gemma-4-12b-it-gguf"
+        assert "lfm2.5:2.6b" in ordered
+        assert "gpt-oss:20b" in ordered
 
     def test_8gb_agentic_order_follows_recommended_list(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=8192))
@@ -795,8 +838,9 @@ class TestRealCatalogPage:
             set(page._current_defaults()),
             list(page._matrix["8"]["agentic"]),
         )
-        enabled = [m.id for m in models if m.required_vram_gb <= 8]
-        assert enabled[:3] == ["gemma4:e4b", "lfm2.5:2.6b", "qwen3.5:9b"]
+        ordered = [m.id for m in models]
+        assert ordered[0] == "gemma4:e4b"
+        assert {"lfm2.5:2.6b", "qwen3.5:9b"} <= set(ordered)
 
     def test_new_specialists_listed_retired_coders_absent(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=24576))
@@ -813,13 +857,13 @@ class TestRealCatalogPage:
         assert "qwen2.5-coder:7b" not in ids
         assert "qwen2.5-coder:14b" not in ids
         assert "deepseek-coder-v2:16b" not in ids
-        assert page._catalog["nomic-embed-text"].is_required is True
-        assert page._catalog["embeddinggemma"].is_required is False
+        assert page._catalog["nomic-embed-text"].is_required is False
+        assert page._catalog["embeddinggemma"].is_required is True
         gemma = page._catalog["embeddinggemma"]
         assert "300M" in gemma.display_name
         assert "300B" not in gemma.display_name
         assert "300B" not in gemma.description
-        assert "opt-in" in gemma.description.lower()
+        assert "required default" in gemma.description.lower()
 
     def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's
@@ -1001,15 +1045,15 @@ class TestPhase3Collapse:
         gemma_fit = [m.id for m in fitting if m.family == "gemma4"]
         assert gemma_fit == ["gemma4:e2b"]
 
-    def test_family_with_no_fitting_variant_shows_one_smallest(self, qt_app) -> None:
-        # A no-GPU host: every VRAM-needing model is over budget; each family
-        # still appears exactly once (its smallest variant, grayed).
+    def test_family_with_no_fitting_variant_keeps_every_variant_visible(
+        self, qt_app
+    ) -> None:
         state = InstallerState()
         state.gpu_vendor = "none"
         page = TypedCatalogPage(state)
         models = page._sorted_section_models("image", 0, "none")
         sana_imgs = [m for m in models if m.family == "sana" and m.type == "image"]
-        assert len(sana_imgs) == 1
+        assert len(sana_imgs) > 1
 
     def test_divider_rendered_when_over_budget(self, qt_app) -> None:
         from PyQt5.QtWidgets import QLabel
@@ -1018,6 +1062,16 @@ class TestPhase3Collapse:
         page.refresh_from_state()
         texts = [lbl.text() for lbl in page.findChildren(QLabel)]
         assert any("Needs more VRAM than this GPU" in t for t in texts)
+
+    def test_preselected_image_default_leads_the_tab(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=16 * 1024))
+        defaults = set(page._current_defaults())
+        models = page._sorted_section_models("image", 16, "nvidia", defaults)
+        fitting = [m.id for m in models if m.required_vram_gb <= 16]
+        default_ids = [mid for mid in fitting if mid in defaults]
+        assert "realvisxl-v5" in default_ids
+        assert fitting[: len(default_ids)] == default_ids
+        assert fitting[0] == "realvisxl-v5"
 
     def test_vae_excluded(self) -> None:
         assert "vae" not in CATALOG_TYPE_TO_TAB
@@ -1039,13 +1093,16 @@ class TestPhase3Collapse:
 class TestV21CatalogVisibility:
     """v2.1.0 Phase 1 -- Muse Glimmer / Lightning hide-below-VRAM gates."""
 
-    def test_muse_hidden_on_12gb(self, qt_app) -> None:
+    def test_muse_visible_but_incompatible_on_12gb(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=12 * 1024))
-        ids = {
-            m.id for m in page._sorted_section_models("agentic", 12, "nvidia", set())
-        }
-        assert not any(i.startswith("muse-glimmer") for i in ids)
-        assert not any(i.startswith("nemotron-lightning") for i in ids)
+        models = page._sorted_section_models("agentic", 12, "nvidia", set())
+        assert any(m.id.startswith("muse-glimmer") for m in models)
+        assert any(m.id.startswith("nemotron-lightning") for m in models)
+        assert all(
+            m.required_vram_gb > 12
+            for m in models
+            if m.id.startswith(("muse-glimmer", "nemotron-lightning"))
+        )
 
     def test_muse_visible_on_24gb(self, qt_app) -> None:
         page = TypedCatalogPage(_gpu_state(vram_mb=24 * 1024))
@@ -1111,6 +1168,6 @@ class TestV21CatalogVisibility:
         assert gemma is not None
         assert gemma.over_budget is True
         texts = [lbl.text() for lbl in page.findChildren(QLabel)]
-        assert any("Requires 18 GB VRAM (you have 16)" in t for t in texts)
+        assert any("Incompatible - needs 18 GB VRAM" in t for t in texts)
         ram_labels = [t for t in texts if "RAM" in t]
         assert not any("you have 0" in t for t in ram_labels)

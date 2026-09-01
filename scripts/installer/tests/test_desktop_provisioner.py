@@ -493,14 +493,14 @@ class TestFirstRunHealthCheck:
         assert state.desktop_health_ok is False
         proc.kill.assert_called_once()
 
-    def test_dead_child_verdict_names_the_exception_not_slash_joined_blanks(self) -> None:
+    def test_dead_child_verdict_names_exception(self) -> None:
         proc = MagicMock()
         proc.communicate.return_value = (
             '{"sidecar":"fail: sidecar-exited:7","exitCode":7,'
             '"nodePath":"C:/Nexus/runtime/node/node.exe",'
             '"scriptPath":"C:/apps/sidecar/dist/main.js","catalogRows":0,'
             '"stderrTail":["","", "Nodejs v22.11.0",'
-            '"Cannot find module \'better-sqlite3\'"]}\n',
+            "\"Cannot find module 'better-sqlite3'\"]}\n",
             None,
         )
         proc.returncode = 1

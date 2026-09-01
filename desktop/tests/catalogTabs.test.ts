@@ -13,8 +13,11 @@ import {
   recommendationKind,
   sortModelsOnTab,
   visibleModelsOnTab,
-  type CatalogTab,
 } from "../src/shared/models/catalogTabs";
+import {
+  canonicalModelDisplayOrder,
+  settingsModelDisplayOrder,
+} from "../../core/registry/modelDisplayPolicy";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
 function model(partial: Partial<ListedModelDto> & Pick<ListedModelDto, "id" | "displayName" | "installed" | "source">): ListedModelDto {
@@ -44,6 +47,21 @@ function fixture(name: string): SortFixture {
 
 const GOLDEN = fixture("v2.2.8-catalog-tab-sort.json");
 const GOLDEN_V229 = fixture("v2.2.9-catalog-tab-sort.json");
+
+interface V241DisplayFixture {
+  hostVramGB: number;
+  gpuVendor: string;
+  rows: ListedModelDto[];
+  expectedInstaller: string[];
+  expectedSettings: string[];
+}
+
+const DISPLAY_V241 = JSON.parse(
+  readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "../../core/registry/model-display-order.fixture.json"),
+    "utf8",
+  ),
+) as V241DisplayFixture;
 
 function sortOptions(data: SortFixture) {
   return {
@@ -83,9 +101,9 @@ describe("catalogTabs", () => {
     expect(modelsOnTab([mystery], "other").map((m) => m.id)).toEqual(["mystery"]);
   });
 
-  it("derives Required / Recommended / Compatible from tags and embed type", () => {
+  it("derives Required / Recommended / Compatible from explicit tags", () => {
     expect(recommendationKind({ tags: ["required"] })).toBe("required");
-    expect(recommendationKind({ type: "embed" })).toBe("required");
+    expect(recommendationKind({ type: "embed" })).toBe("compatible");
     expect(recommendationKind({ tags: ["recommended"] })).toBe("recommended");
     expect(recommendationKind({})).toBe("compatible");
   });
@@ -153,20 +171,14 @@ describe("catalogTabs", () => {
     ]);
   });
 
-  it("matches the shared v2.2.8 golden fixture (hideBelow + family collapse + over-budget last)", () => {
+  it("shows every selectable row without family collapse or VRAM hiding", () => {
     const opts = sortOptions(GOLDEN);
-    expect(visibleModelsOnTab(GOLDEN.models, "chat", opts).map((m) => m.id)).toEqual(
-      GOLDEN.expectedIds.chat,
-    );
-    expect(visibleModelsOnTab(GOLDEN.models, "embeddings", opts).map((m) => m.id)).toEqual(
-      GOLDEN.expectedIds.embeddings,
-    );
-    expect(visibleModelsOnTab(GOLDEN.models, "image", opts).map((m) => m.id)).toEqual(
-      GOLDEN.expectedIds.image,
-    );
-    expect(GOLDEN.expectedIds.chat).not.toContain("gemma-e2b");
-    expect(GOLDEN.expectedIds.chat).not.toContain("kimi-hidden");
-    expect(GOLDEN.expectedIds.chat).not.toContain("nomic-embed-text");
+    const chat = visibleModelsOnTab(GOLDEN.models, "chat", opts).map((m) => m.id);
+    expect(chat).toContain("gemma-e2b");
+    expect(chat).toContain("gemma-e4b");
+    expect(chat).toContain("kimi-hidden");
+    expect(chat).not.toContain("nomic-embed-text");
+    expect(visibleModelsOnTab(GOLDEN.models, "embeddings", opts).map((m) => m.id)).toContain("nomic-embed-text");
   });
 
   it("puts the Embeddings tab first, before Chat (installer TYPE_TABS parity)", () => {
@@ -182,29 +194,47 @@ describe("catalogTabs", () => {
     expect(CATALOG_TAB_DEFS[0]!.label).toBe("Embeddings");
   });
 
-  it("matches the v2.2.9 fixture: Settings is downloaded-first, installer order untouched", () => {
+  it("groups downloaded rows before compatible and incompatible rows", () => {
     const opts = sortOptions(GOLDEN_V229);
-    for (const [tab, expected] of Object.entries(GOLDEN_V229.expectedSettingsIds)) {
-      expect(
-        visibleModelsOnTab(GOLDEN_V229.models, tab as CatalogTab, opts).map((m) => m.id),
-      ).toEqual(expected);
-    }
-    for (const [tab, expected] of Object.entries(GOLDEN_V229.expectedInstallerIds)) {
-      expect(
-        collapseAndSortModels(modelsOnTab(GOLDEN_V229.models, tab as CatalogTab), opts).map(
-          (m) => m.id,
-        ),
-      ).toEqual(expected);
-    }
+    const statusesFlipped = GOLDEN_V229.models.map((model) => ({
+      ...model,
+      installed: !model.installed,
+      source: model.installed ? "catalog-only" as const : "registry" as const,
+    }));
+    const ordered = visibleModelsOnTab(statusesFlipped, "agentic", opts);
+    const firstNotDownloaded = ordered.findIndex((model) => !model.installed);
+    expect(firstNotDownloaded).toBeGreaterThan(0);
+    expect(ordered.slice(0, firstNotDownloaded).every((model) => model.installed)).toBe(true);
   });
 
-  it("moves gpt-oss above LFM within the downloaded partition once installed", () => {
+  it("moves gpt-oss into the downloaded partition once installed", () => {
     const models = GOLDEN_V229.models.map((m) =>
       m.id === "gpt-oss:20b" ? { ...m, installed: true, source: "registry" as const } : m,
     );
     expect(
       visibleModelsOnTab(models, "agentic", sortOptions(GOLDEN_V229)).map((m) => m.id),
-    ).toEqual(GOLDEN_V229.expectedSettingsIdsAfterGptOssDownload.agentic);
+    ).toEqual([
+      "lfm2.5:2.6b",
+      "gemma-4-12b-it-gguf",
+      "gpt-oss:20b",
+      "inkling-small",
+    ]);
+  });
+
+  it("shares the v2.4.1 recommendation and availability contract", () => {
+    const options = {
+      hostVramGB: DISPLAY_V241.hostVramGB,
+      gpuVendor: DISPLAY_V241.gpuVendor,
+    };
+    expect(canonicalModelDisplayOrder(DISPLAY_V241.rows, options).map((m) => m.id)).toEqual(
+      DISPLAY_V241.expectedInstaller,
+    );
+    expect(settingsModelDisplayOrder(DISPLAY_V241.rows, options).map((m) => m.id)).toEqual(
+      DISPLAY_V241.expectedSettings,
+    );
+    expect(visibleModelsOnTab(DISPLAY_V241.rows, "chat", options).map((m) => m.id)).toEqual(
+      DISPLAY_V241.expectedSettings,
+    );
   });
 
   it("lists the patient-tier Inkling-Small row on both surfaces (no env gate)", () => {

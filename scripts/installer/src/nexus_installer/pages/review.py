@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
     BG_CARD,
@@ -14,6 +14,7 @@ from nexus_installer.constants import (
     SUCCESS,
     TEXT_SECONDARY,
 )
+from nexus_installer.vram_display import display_vram_gb
 from nexus_installer.widgets.callout_box import CalloutBox
 
 if TYPE_CHECKING:
@@ -26,6 +27,12 @@ _COMPONENT_LABELS: dict[str, str] = {
     "extension": "VS Code extension",
 }
 
+_NARROW_COLUMNS_PX = 560
+_CARD_STYLE = (
+    f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
+    f"border-radius: 8px; padding: 16px; font-size: {FS_CAPTION}px;"
+)
+
 
 class ReviewPage(QWidget):
     """Summary page showing all selected options before installation."""
@@ -33,6 +40,7 @@ class ReviewPage(QWidget):
     def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._state = state
+        self._narrow_columns = False
 
         self._layout = QVBoxLayout(self)
         self._layout.setSpacing(16)
@@ -47,14 +55,33 @@ class ReviewPage(QWidget):
         )
         self._layout.addWidget(subtitle)
 
-        # Summary card (built dynamically on show)
-        self._summary_label = QLabel()
-        self._summary_label.setWordWrap(True)
-        self._summary_label.setStyleSheet(
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 16px; font-size: {FS_CAPTION}px;"
-        )
-        self._layout.addWidget(self._summary_label)
+        self._facts_label = QLabel()
+        self._facts_label.setObjectName("review-facts-column")
+        self._facts_label.setWordWrap(True)
+        self._facts_label.setStyleSheet(_CARD_STYLE)
+
+        self._models_label = QLabel()
+        self._models_label.setObjectName("review-models-column")
+        self._models_label.setWordWrap(True)
+        self._models_label.setStyleSheet(_CARD_STYLE)
+
+        self._split = QGridLayout()
+        self._split.setContentsMargins(0, 0, 0, 0)
+        self._split.setHorizontalSpacing(16)
+        self._split.setVerticalSpacing(12)
+        self._split.addWidget(self._facts_label, 0, 0)
+        self._split.addWidget(self._models_label, 0, 1)
+        self._split.setColumnStretch(0, 1)
+        self._split.setColumnStretch(1, 1)
+
+        split_host = QWidget()
+        split_host.setObjectName("review-split-host")
+        split_host.setStyleSheet("background: transparent;")
+        split_host.setLayout(self._split)
+        self._layout.addWidget(split_host)
+
+        # Backward-compatible alias: older tests read one HTML blob.
+        self._summary_label = self._facts_label
 
         # Internet warning callout
         callout = CalloutBox(
@@ -73,6 +100,26 @@ class ReviewPage(QWidget):
         super().showEvent(event)  # type: ignore[arg-type]
         self._rebuild_summary()
 
+    def resizeEvent(self, event: object) -> None:  # noqa: N802
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        width = event.size().width() if hasattr(event, "size") else self.width()
+        self._restack_columns(width < _NARROW_COLUMNS_PX)
+
+    def _restack_columns(self, narrow: bool) -> None:
+        if narrow == self._narrow_columns:
+            return
+        self._narrow_columns = narrow
+        self._split.removeWidget(self._models_label)
+        if narrow:
+            self._split.addWidget(self._models_label, 1, 0)
+            self._split.setColumnStretch(1, 0)
+            return
+        self._split.addWidget(self._models_label, 0, 1)
+        self._split.setColumnStretch(1, 1)
+
+    def _summary_text(self) -> str:
+        return f"{self._facts_label.text()}\n{self._models_label.text()}"
+
     def _rebuild_summary(self) -> None:
         s = self._state
         check = f'<span style="color:{SUCCESS};">\u2713</span>'
@@ -89,17 +136,17 @@ class ReviewPage(QWidget):
         # name; an empty selection reads as "none selected".
         if s.selected_model_ids:
             model_size = s.selected_models_gb
-            models_line = (
+            models_html = (
                 f"<b>Models:</b> {len(s.selected_model_ids)} selected "
                 f"(~{model_size:.1f} GB download)<br>"
-                + "".join(f"&nbsp;&nbsp;{mid}<br>" for mid in s.selected_model_ids)
+                + "".join(f"{mid}<br>" for mid in s.selected_model_ids)
             )
         elif s.selected_model:
             model_size = s.selected_models_gb
-            models_line = f"<b>Model:</b> {s.selected_model}<br>"
+            models_html = f"<b>Model:</b> {s.selected_model}"
         else:
             model_size = 0.0
-            models_line = "<b>Models:</b> none selected<br>"
+            models_html = "<b>Models:</b> none selected"
         estimated_disk = model_size + 2.0  # ~2 GB overhead for venv + extension
 
         # Rough install time heuristic
@@ -110,13 +157,14 @@ class ReviewPage(QWidget):
         else:
             time_est = "3-5 minutes"
 
-        html = (
+        vram_part = f" ({display_vram_gb(s.vram_mb)} GB VRAM)" if s.vram_mb else ""
+
+        facts_html = (
             f"<b>Install path:</b> {s.install_path}<br><br>"
             f"<b>Components:</b><br>{components}<br>"
-            f"{models_line}<br>"
-            f"<b>GPU:</b> {s.gpu_name or 'None detected'}"
-            f"{f' ({s.vram_mb} MB VRAM)' if s.vram_mb else ''}<br><br>"
+            f"<b>GPU:</b> {s.gpu_name or 'None detected'}{vram_part}<br><br>"
             f"<b>Estimated disk usage:</b> ~{estimated_disk:.0f} GB<br>"
-            f"<b>Estimated time:</b> {time_est}"
+            f"<b>Estimated installation time:</b> {time_est}"
         )
-        self._summary_label.setText(html)
+        self._facts_label.setText(facts_html)
+        self._models_label.setText(models_html)

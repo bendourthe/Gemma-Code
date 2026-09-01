@@ -462,6 +462,14 @@ export function validateSpec(spec: ModelSpec): void {
   if (spec.task !== undefined && !MODEL_TASKS.includes(spec.task)) {
     throw new Error(`ModelCatalog: invalid task for ${spec.id}: ${spec.task}`);
   }
+  if (spec.task !== undefined) {
+    const description = spec.description?.trim() ?? "";
+    if (!description || !/[.!?]$/.test(description)) {
+      throw new Error(
+        `ModelCatalog: selectable entry ${spec.id} requires a complete-sentence description`,
+      );
+    }
+  }
   if (spec.uncensored === true && !spec.provenance) {
     throw new Error(
       `ModelCatalog: ${spec.id} is uncensored but records no provenance (curation policy: license + provenance per uncensored entry)`,

@@ -82,4 +82,17 @@ describe("ContextUsageBar", () => {
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("picker")).toBeInTheDocument();
   });
+
+  it("quotes the live percent in the warning, not a hardcoded 80", () => {
+    render(
+      <ComposerContextRow
+        usage={usage({ percent: 100, atOrAbove80: true, usedTokens: 8, denominatorKind: "visual" })}
+        onStartNewSession={() => undefined}
+      >
+        <span>picker</span>
+      </ComposerContextRow>,
+    );
+    expect(screen.getByTestId("context-usage-cta")).toHaveTextContent("This session is at 100% of context");
+    expect(screen.getByTestId("context-usage-cta").textContent).not.toMatch(/at 80% of context\. Starting/);
+  });
 });

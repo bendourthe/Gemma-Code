@@ -5,6 +5,7 @@
 
 export type StreamEvent =
   | { kind: "token"; text: string }
+  | { kind: "reasoning_delta"; text: string }
   | { kind: "toolCallHeader"; callId: string; name: string }
   | { kind: "toolCallArgDelta"; callId: string; delta: string }
   | { kind: "toolCallComplete"; callId: string; result: string }
@@ -32,6 +33,8 @@ export function applyEvent(state: RenderedTurn, e: StreamEvent): RenderedTurn {
   switch (e.kind) {
     case "token":
       return { ...state, text: state.text + e.text };
+    case "reasoning_delta":
+      return state;
     case "toolCallHeader":
       return {
         ...state,

@@ -8,11 +8,14 @@
  * Mid-session model switch: callers pass the **current** picker window against
  * **all** turns. History is not rewritten.
  *
- * Image/video: when `contextWindow` is null, `visualTokenBudget.maxImages`
- * (or maxVideoFrames) is the denominator and `visualUnits` on turns are the
- * numerator. A stub 1x1 must pass `visualUnits: 0` (or omit) so it does not
- * count.
+ * Image/video: when `contextWindow` is null, the footer uses a session visual
+ * cap (default 8 generated visuals), not per-request `visualTokenBudget.maxImages`.
+ * `visualUnits` on turns are the numerator. A stub 1x1 must pass `visualUnits: 0`
+ * (or omit) so it does not count.
  */
+
+/** Footer-only session visual denominator. Catalog maxImages stays a per-request encoder cap. */
+export const SESSION_VISUAL_CAP_DEFAULT = 8;
 
 export interface SessionUsageTurn {
   readonly role?: "user" | "assistant" | "system";
@@ -79,6 +82,8 @@ export function sessionContextUsage(opts: {
   readonly turns: readonly SessionUsageTurn[];
   readonly contextWindow?: number | null;
   readonly visualTokenBudget?: VisualBudgetDenom | null;
+  /** Footer-only. When omitted, visual sessions use SESSION_VISUAL_CAP_DEFAULT. */
+  readonly sessionVisualCap?: number | null;
 }): SessionContextUsage {
   const window =
     typeof opts.contextWindow === "number" && opts.contextWindow > 0 ? opts.contextWindow : null;
@@ -122,12 +127,14 @@ export function sessionContextUsage(opts: {
     };
   }
 
-  const visualCap =
-    (opts.visualTokenBudget?.maxImages ?? 0) > 0
-      ? opts.visualTokenBudget!.maxImages!
-      : (opts.visualTokenBudget?.maxVideoFrames ?? 0) > 0
-        ? opts.visualTokenBudget!.maxVideoFrames!
-        : null;
+  const hasVisualBudget =
+    (opts.visualTokenBudget?.maxImages ?? 0) > 0 ||
+    (opts.visualTokenBudget?.maxVideoFrames ?? 0) > 0;
+  const overrideCap =
+    typeof opts.sessionVisualCap === "number" && opts.sessionVisualCap > 0
+      ? opts.sessionVisualCap
+      : null;
+  const visualCap = overrideCap ?? (hasVisualBudget ? SESSION_VISUAL_CAP_DEFAULT : null);
   if (visualCap !== null) {
     let visualUsed = 0;
     for (const turn of opts.turns) {

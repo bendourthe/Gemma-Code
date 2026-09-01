@@ -106,7 +106,9 @@ class TestCatalogEntriesArePinned:
         from pathlib import Path
 
         root = Path(__file__).resolve().parents[3]
-        catalog = json.loads((root / "core" / "registry" / "catalog.json").read_text("utf-8"))
+        catalog = json.loads(
+            (root / "core" / "registry" / "catalog.json").read_text("utf-8")
+        )
         for entry in catalog["models"]:
             if entry["id"] == model_id:
                 return entry

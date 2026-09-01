@@ -31,8 +31,9 @@ function folderToChatFolder(folder: StudioFolder): Folder {
   };
 }
 
-function sessionToChat(session: StudioSession): Chat {
-  return {
+export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncChatExplorerClient {
+  const userRenamed = new Map<string, boolean>();
+  const sessionToChat = (session: StudioSession): Chat => ({
     id: session.id,
     folderId: session.folderId,
     title: session.title,
@@ -42,28 +43,26 @@ function sessionToChat(session: StudioSession): Chat {
     updatedAt: session.updatedAt,
     messageCount: session.turnCount,
     persona: null,
-    userRenamed: true,
-  };
-}
+    userRenamed: userRenamed.get(session.id) === true,
+  });
 
-function mapTree(node: StudioTreeNode): FolderTreeNode {
-  return {
-    folder: node.folder ? folderToChatFolder(node.folder) : null,
-    children: node.children.map(mapTree),
-    chats: node.sessions.map(sessionToChat),
-  };
-}
+  function mapTree(node: StudioTreeNode): FolderTreeNode {
+    return {
+      folder: node.folder ? folderToChatFolder(node.folder) : null,
+      children: node.children.map(mapTree),
+      chats: node.sessions.map(sessionToChat),
+    };
+  }
 
-function isThenable<T>(value: T | Promise<T>): value is Promise<T> {
-  return typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
-}
+  function isThenable<T>(value: T | Promise<T>): value is Promise<T> {
+    return typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
+  }
 
-function wrap<T, U>(value: T | Promise<T>, map: (inner: T) => U): U | Promise<U> {
-  if (isThenable(value)) return value.then(map);
-  return map(value);
-}
+  function wrap<T, U>(value: T | Promise<T>, map: (inner: T) => U): U | Promise<U> {
+    if (isThenable(value)) return value.then(map);
+    return map(value);
+  }
 
-export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncChatExplorerClient {
   return {
     listTree() {
       return wrap(client.listTree(), mapTree);
@@ -90,7 +89,8 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
         sessionToChat,
       );
     },
-    renameChat(id, title) {
+    renameChat(id, title, byUser) {
+      if (byUser === true) userRenamed.set(id, true);
       return wrap(client.renameSession(id, title), sessionToChat);
     },
     moveChat(id, newFolderId) {
@@ -98,6 +98,9 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
     },
     deleteChat(id) {
       return wrap(client.deleteSession(id), () => undefined);
+    },
+    archiveChat(id) {
+      return wrap(client.archiveSession(id), () => undefined);
     },
     getFolder(id) {
       return wrap(client.getFolder(id), (folder) => (folder ? folderToChatFolder(folder) : null));
@@ -149,8 +152,11 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           mediaRef: input.attachments?.[0] ?? null,
           inputTokens: input.inputTokens,
           reasoningTokens: input.reasoningTokens,
+          reasoningText: input.reasoningText,
           outputTokens: input.outputTokens,
           tokensEstimated: input.tokensEstimated,
+          requestUsage: input.requestUsage,
+          messageUsage: input.messageUsage,
         }),
         (turn) => {
           const record: ChatMessageRecord = {
@@ -162,8 +168,11 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
             createdAt: turn.createdAt,
             inputTokens: turn.inputTokens,
             reasoningTokens: turn.reasoningTokens,
+            reasoningText: turn.reasoningText,
             outputTokens: turn.outputTokens,
             tokensEstimated: turn.tokensEstimated,
+            requestUsage: turn.requestUsage,
+            messageUsage: turn.messageUsage,
           };
           return record;
         },
@@ -181,8 +190,11 @@ export function studioClientAsChatExplorer(client: StudioExplorerClient): AsyncC
           createdAt: turn.createdAt,
           inputTokens: turn.inputTokens,
           reasoningTokens: turn.reasoningTokens,
+          reasoningText: turn.reasoningText,
           outputTokens: turn.outputTokens,
           tokensEstimated: turn.tokensEstimated,
+          requestUsage: turn.requestUsage,
+          messageUsage: turn.messageUsage,
         })),
       );
     },

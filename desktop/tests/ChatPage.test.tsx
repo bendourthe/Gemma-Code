@@ -319,6 +319,7 @@ describe("<ChatPage>", () => {
             id: "lfm2.5:1.2b",
             displayName: "LFM 2.5 1.2B",
             type: "llm" as const,
+            task: "chat",
             installed: true,
             source: "registry" as const,
           },
@@ -370,6 +371,7 @@ describe("<ChatPage>", () => {
             id: "gemma-4-12b-it-gguf",
             displayName: "Gemma 4 12B",
             type: "llm" as const,
+            task: "chat",
             installed: true,
             source: "registry" as const,
           },
@@ -455,6 +457,7 @@ describe("<ChatPage>", () => {
             id: "gemma4:e4b",
             displayName: "Gemma 4 E4B",
             type: "llm" as const,
+            task: "chat",
             installed: true,
             source: "registry" as const,
           },
@@ -462,6 +465,7 @@ describe("<ChatPage>", () => {
             id: "catalog-llm",
             displayName: "Not Installed",
             type: "llm" as const,
+            task: "chat",
             installed: false,
             source: "catalog-only" as const,
           },
@@ -469,6 +473,7 @@ describe("<ChatPage>", () => {
             id: "sana",
             displayName: "SANA",
             type: "image" as const,
+            task: "image",
             installed: true,
             source: "registry" as const,
           },
@@ -551,29 +556,16 @@ describe("<ChatPage>", () => {
     expect(await screen.findByText("hello")).toBeInTheDocument();
   });
 
-  it("collapses the chats pane to an icon rail and restores it from the edge pill", () => {
+  it("hosts the chats tree without a second-column collapse pill", () => {
     window.localStorage.removeItem(CHATS_PANE_STORAGE_KEY);
     const client = new InMemoryChatExplorerClient();
     const chat = client.createChat({ folderId: null, title: "draft", modelId: "m" });
     render(<ChatPage client={client} />);
-    const pane = screen.getByTestId("chats-pane");
-    expect(pane.style.width).toBe("280px");
+    expect(screen.getByTestId("chats-pane")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("chats-pane-collapse-toggle"));
-    expect(screen.getByTestId("chats-pane").style.width).toBe("56px");
-    expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
-    expect(screen.getByTestId("folder-tree")).toHaveAttribute("data-collapsed", "true");
-    expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
-    expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
-    expect(screen.getByTestId(`history-rail-mark-${chat.id}`)).toBeInTheDocument();
-    expect(screen.getByTestId("chat-page-empty")).toBeInTheDocument();
-    expect(window.localStorage.getItem(CHATS_PANE_STORAGE_KEY)).toBe("true");
-    const toggle = screen.getByTestId("chats-pane-collapse-toggle");
-    expect(toggle.getAttribute("aria-label")).toMatch(/expand chats/i);
-    expect(toggle.style.minWidth).toBe("24px");
-    fireEvent.click(toggle);
-    expect(screen.getByTestId("chats-pane").style.width).toBe("280px");
     expect(screen.getByTestId("folder-tree")).toHaveAttribute("data-collapsed", "false");
-    expect(window.localStorage.getItem(CHATS_PANE_STORAGE_KEY)).toBe("false");
+    expect(screen.getByTestId(`tree-row-chat-${chat.id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId("chats-pane-collapse-toggle")).toBeNull();
+    expect(screen.getByTestId("chat-page-empty")).toBeInTheDocument();
   });
 });

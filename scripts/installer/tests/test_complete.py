@@ -10,17 +10,19 @@ from nexus_installer.installer_state import InstallerState
 
 class TestOpenVscodeCommand:
     def test_windows_uses_start_cmd(self) -> None:
-        with patch("subprocess.Popen") as mock_popen:
-            with patch.object(sys, "platform", "win32"):
-                state = InstallerState(vscode_path="code.cmd")
-                # Simulate the command that CompletePage._open_vscode would run
-                import subprocess
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch.object(sys, "platform", "win32"),
+        ):
+            state = InstallerState(vscode_path="code.cmd")
+            # Simulate the command that CompletePage._open_vscode would run
+            import subprocess
 
-                subprocess.Popen(["cmd", "/c", "start", "", state.vscode_path])
-                mock_popen.assert_called_once()
-                cmd = mock_popen.call_args[0][0]
-                assert "cmd" in cmd
-                assert "start" in cmd
+            subprocess.Popen(["cmd", "/c", "start", "", state.vscode_path])
+            mock_popen.assert_called_once()
+            cmd = mock_popen.call_args[0][0]
+            assert "cmd" in cmd
+            assert "start" in cmd
 
     def test_macos_uses_open(self) -> None:
         with patch("subprocess.Popen") as mock_popen:

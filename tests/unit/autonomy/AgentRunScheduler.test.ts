@@ -134,4 +134,24 @@ describe("AgentRunScheduler", () => {
     expect(fired).toBe(1);
     scheduler.stop();
   });
+
+  it("captures an immutable workspace root snapshot for a scheduled run", async () => {
+    const roots = ["/tmp/primary", "/tmp/secondary"];
+    let firedRoots: readonly string[] = [];
+    const scheduler = new AgentRunScheduler({
+      inbox: new AskInbox(),
+      workspacePath: roots[0]!,
+      workspaceRoots: roots,
+      primaryRoot: roots[0],
+      createCheckpoint: async () => null,
+      runHeadless: async (run) => {
+        firedRoots = run.workspaceRoots ?? [];
+      },
+      schedules: [{ id: "snapshot", name: "snapshot", enabled: true, kind: "interval", intervalMs: 1, prompt: "p" }],
+    });
+    roots.push("/tmp/added-later");
+    await scheduler.fireNow("snapshot");
+    expect(firedRoots).toEqual(["/tmp/primary", "/tmp/secondary"]);
+    expect(Object.isFrozen(firedRoots)).toBe(true);
+  });
 });

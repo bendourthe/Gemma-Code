@@ -20,11 +20,6 @@ export interface MessageListProps {
   enableTools?: boolean;
   emptyMessage?: string;
   emptyTestId?: string;
-  /**
-   * v1.5.0 Phase 5 (item 24) -- when provided, each bubble becomes selectable
-   * so the host can open the message's output in the side-by-side preview pane.
-   */
-  onSelectMessage?: (message: ChatMessage) => void;
   /** Called when generated media cannot be decoded by the browser/WebView. */
   onMediaError?: (message: ChatMessage) => void;
   /** Optional trailing chrome (download / copy image) still aligned with the bubble. */
@@ -33,7 +28,26 @@ export interface MessageListProps {
   renderPreviewExtra?: (message: ChatMessage) => ReactNode;
   /** v2.2.7 Phase 4 -- tests pin `en-US`; production uses the host locale. */
   locale?: string;
+  onRepairMediaRuntime?: (message: ChatMessage) => void;
+  onCancelMediaRepair?: (message: ChatMessage) => void;
+  onOpenMediaRepairLog?: (message: ChatMessage) => void;
+  onInstallSam2?: (message: ChatMessage) => void;
+  onPaintSam2Mask?: (message: ChatMessage) => void;
+  onOpenSam2Settings?: (message: ChatMessage) => void;
+  onRetrySam2?: (message: ChatMessage) => void;
+  sam2InstallDisabled?: boolean;
 }
+
+/**
+ * v2.4.4 Phase 1.1 (T001) -- the single transcript gutter.
+ *
+ * One value on both inline edges of the list. An assistant bubble (and the
+ * pending pill, which is an assistant row) starts on the left gutter; a user
+ * bubble ends on the matching right gutter, so the two margins read equal.
+ * It is also the room the pending pill's glow spreads into, which is why no
+ * row may add a second inset on top of it.
+ */
+export const TRANSCRIPT_GUTTER_PX = 12;
 
 export function messageRowAlign(role: ChatMessage["role"]): "flex-end" | "flex-start" {
   return role === "user" ? "flex-end" : "flex-start";
@@ -44,11 +58,18 @@ export function MessageList({
   enableTools = true,
   emptyMessage = "Start by asking a question or typing a message.",
   emptyTestId = "message-list-empty",
-  onSelectMessage,
   onMediaError,
   renderAfter,
   renderPreviewExtra,
   locale,
+  onRepairMediaRuntime,
+  onCancelMediaRepair,
+  onOpenMediaRepairLog,
+  onInstallSam2,
+  onPaintSam2Mask,
+  onOpenSam2Settings,
+  onRetrySam2,
+  sam2InstallDisabled,
 }: MessageListProps): JSX.Element {
   if (messages.length === 0) {
     return (
@@ -92,15 +113,25 @@ export function MessageList({
           flexDirection: "column",
           alignItems: messageRowAlign(msg.role),
           width: "100%",
+          // The pill glow spreads past the row box; the list gutter is where
+          // it lands, so nothing between here and the pane may clip it.
+          overflow: "visible",
         }}
       >
         <MessageBubble
           message={msg}
           enableTools={enableTools}
           locale={locale}
-          {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
           {...(onMediaError ? { onMediaError } : {})}
           {...(renderPreviewExtra ? { renderPreviewExtra } : {})}
+          {...(onRepairMediaRuntime ? { onRepairMediaRuntime } : {})}
+          {...(onCancelMediaRepair ? { onCancelMediaRepair } : {})}
+          {...(onOpenMediaRepairLog ? { onOpenMediaRepairLog } : {})}
+          {...(onInstallSam2 ? { onInstallSam2 } : {})}
+          {...(onPaintSam2Mask ? { onPaintSam2Mask } : {})}
+          {...(onOpenSam2Settings ? { onOpenSam2Settings } : {})}
+          {...(onRetrySam2 ? { onRetrySam2 } : {})}
+          {...(sam2InstallDisabled ? { sam2InstallDisabled } : {})}
         />
         {renderAfter?.(msg)}
       </li>,
@@ -112,11 +143,14 @@ export function MessageList({
       style={{
         listStyle: "none",
         padding: 0,
+        paddingInline: `${TRANSCRIPT_GUTTER_PX}px`,
         margin: 0,
         display: "flex",
         flexDirection: "column",
         gap: "var(--space-3)",
         width: "100%",
+        boxSizing: "border-box",
+        overflow: "visible",
       }}
     >
       {rows}

@@ -15,6 +15,7 @@ export { ModelSelector, type ModelSelectorProps } from "./ModelSelector";
 export { ContextUsageBar, type ContextUsageBarProps } from "./ContextUsageBar";
 export { ComposerContextRow, type ComposerContextRowProps } from "./ComposerContextRow";
 export { composerSessionUsage, usageTurnsFromMessages } from "./usageTurnsFromMessages";
+export { useStickToBottom } from "./useStickToBottom";
 export {
   calendarDayKey,
   formatBubbleTime,

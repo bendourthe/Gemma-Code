@@ -37,7 +37,7 @@ class TestReviewSummary:
         state.selected_models_gb = 9.6
         page = ReviewPage(state)
         page._rebuild_summary()
-        text = page._summary_label.text()
+        text = page._summary_text()
         assert "2 selected" in text
         assert "gemma4:e4b" in text
         assert "juggernaut-xl-v9" in text
@@ -53,7 +53,7 @@ class TestReviewSummary:
         state.selected_model = "gemma4:e4b"
         page = ReviewPage(state)
         page._rebuild_summary()
-        text = page._summary_label.text()
+        text = page._summary_text()
         assert "gemma4:e4b" in text
 
     def test_empty_selection_summary(self, qt_app) -> None:
@@ -65,7 +65,7 @@ class TestReviewSummary:
         state.selected_model = ""
         page = ReviewPage(state)
         page._rebuild_summary()
-        text = page._summary_label.text()
+        text = page._summary_text()
         assert "none selected" in text
 
     def test_unavailable_extension_is_not_queued_in_summary(self, qt_app) -> None:
@@ -79,4 +79,4 @@ class TestReviewSummary:
         ]
         page = ReviewPage(state)
         page._rebuild_summary()
-        assert _COMPONENT_LABELS["extension"] not in page._summary_label.text()
+        assert _COMPONENT_LABELS["extension"] not in page._summary_text()

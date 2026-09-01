@@ -180,7 +180,7 @@ export function getSettings(): NexusSettings {
       8,
     ),
     memoryEnabled: c.get<boolean>("nexus.memory.enabled", true),
-    embeddingModel: c.get<string>("nexus.memory.embeddingModel", "nomic-embed-text"),
+    embeddingModel: c.get<string>("nexus.memory.embeddingModel", "embeddinggemma"),
     memoryMaxEntries: c.get<number>("nexus.memory.maxEntries", 10000),
     memoryCorroborationThreshold: clamp(
       c.get<number>("nexus.memory.corroborationThreshold", 2),

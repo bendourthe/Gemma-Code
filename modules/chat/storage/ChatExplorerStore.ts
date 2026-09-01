@@ -15,6 +15,7 @@
 
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
+import { redactSecrets } from "../../../core/observability/redactSecrets.js";
 import { sanitizeFtsQuery } from "../../../src/storage/embeddingUtils.js";
 import { createFtsTableAndTriggers } from "../../../src/storage/sqliteFts.js";
 import { secureDbPermissions } from "../../../src/storage/dbPermissions.js";
@@ -29,7 +30,7 @@ import type {
   FolderTreeNode,
 } from "./ChatExplorerStore.types.js";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 interface FolderRow {
   id: string;
@@ -54,6 +55,8 @@ interface ChatRow {
   // undefined for these until the ALTER runs, hence the optional types.
   persona?: string | null;
   user_renamed?: number;
+  archived_at?: number | null;
+  archived_folder_id?: string | null;
 }
 
 interface MessageRow {
@@ -65,8 +68,11 @@ interface MessageRow {
   created_at: number;
   input_tokens?: number | null;
   reasoning_tokens?: number | null;
+  reasoning_text?: string | null;
   output_tokens?: number | null;
   tokens_estimated?: number | null;
+  request_usage?: string | null;
+  message_usage?: string | null;
 }
 
 function rowToFolder(row: FolderRow): Folder {
@@ -95,11 +101,26 @@ function rowToChat(row: ChatRow): Chat {
     // SQLite has no boolean; 1 means the user renamed this chat by hand and
     // auto-titling must never overwrite it.
     userRenamed: row.user_renamed === 1,
+    archivedAt: row.archived_at ?? null,
+    archivedFolderId: row.archived_folder_id ?? null,
   };
 }
 
 function nullableInt(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function parseUsageJson<T extends { version: 1 }>(value: string | null | undefined): T | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed === "object" && parsed !== null && (parsed as { version?: unknown }).version === 1) {
+      return parsed as T;
+    }
+  } catch {
+    // Corrupt optional telemetry must not make the message unreadable.
+  }
+  return undefined;
 }
 
 function rowToMessage(row: MessageRow): ChatMessageRecord {
@@ -122,8 +143,11 @@ function rowToMessage(row: MessageRow): ChatMessageRecord {
     createdAt: row.created_at,
     inputTokens: nullableInt(row.input_tokens),
     reasoningTokens: nullableInt(row.reasoning_tokens),
+    reasoningText: row.reasoning_text ?? null,
     outputTokens: nullableInt(row.output_tokens),
     tokensEstimated: row.tokens_estimated === 1,
+    requestUsage: parseUsageJson<NonNullable<ChatMessageRecord["requestUsage"]>>(row.request_usage),
+    messageUsage: parseUsageJson<NonNullable<ChatMessageRecord["messageUsage"]>>(row.message_usage),
   };
 }
 
@@ -185,10 +209,15 @@ export class ChatExplorerStore {
     // the constructor idempotent on an already-migrated database.
     this._addColumnIfMissing("chat_chats", "persona", "TEXT");
     this._addColumnIfMissing("chat_chats", "user_renamed", "INTEGER NOT NULL DEFAULT 0");
+    this._addColumnIfMissing("chat_chats", "archived_at", "INTEGER");
+    this._addColumnIfMissing("chat_chats", "archived_folder_id", "TEXT");
     this._addColumnIfMissing("chat_chat_messages", "input_tokens", "INTEGER");
     this._addColumnIfMissing("chat_chat_messages", "reasoning_tokens", "INTEGER");
+    this._addColumnIfMissing("chat_chat_messages", "reasoning_text", "TEXT");
     this._addColumnIfMissing("chat_chat_messages", "output_tokens", "INTEGER");
     this._addColumnIfMissing("chat_chat_messages", "tokens_estimated", "INTEGER NOT NULL DEFAULT 0");
+    this._addColumnIfMissing("chat_chat_messages", "request_usage", "TEXT");
+    this._addColumnIfMissing("chat_chat_messages", "message_usage", "TEXT");
 
     createFtsTableAndTriggers(this._db, {
       ftsTable: "chat_folders_fts",
@@ -376,9 +405,74 @@ export class ChatExplorerStore {
     this._db.prepare(`DELETE FROM chat_chats WHERE id = ?`).run(id);
   }
 
+  archiveChat(id: string, archivedAt = Date.now()): Chat {
+    const tx = this._db.transaction(() => {
+      const existing = this._getChatRow(id);
+      if (!existing) throw new Error(`chat not found: ${id}`);
+      if (existing.archived_at != null) return rowToChat(existing);
+      this._db
+        .prepare(
+          `UPDATE chat_chats
+              SET archived_folder_id = folder_id, folder_id = NULL, archived_at = ?, updated_at = ?
+            WHERE id = ?`,
+        )
+        .run(archivedAt, archivedAt, id);
+      return rowToChat({
+        ...existing,
+        folder_id: null,
+        archived_folder_id: existing.folder_id,
+        archived_at: archivedAt,
+        updated_at: archivedAt,
+      });
+    });
+    return tx();
+  }
+
+  restoreChat(id: string): { chat: Chat; parentFallback: boolean } {
+    const tx = this._db.transaction(() => {
+      const existing = this._db
+        .prepare<[string], ChatRow>(`SELECT * FROM chat_chats WHERE id = ?`)
+        .get(id);
+      if (!existing || existing.archived_at == null) throw new Error(`archived chat not found: ${id}`);
+      const archivedFolderId = existing.archived_folder_id ?? existing.folder_id;
+      const parentFallback =
+        archivedFolderId !== null && this._getFolderRow(archivedFolderId) === undefined;
+      const folderId = parentFallback ? null : archivedFolderId;
+      const now = Date.now();
+      this._db
+        .prepare(
+          `UPDATE chat_chats
+              SET folder_id = ?, archived_folder_id = NULL, archived_at = NULL, updated_at = ?
+            WHERE id = ?`,
+        )
+        .run(folderId, now, id);
+      return {
+        chat: rowToChat({
+          ...existing,
+          folder_id: folderId,
+          archived_folder_id: null,
+          archived_at: null,
+          updated_at: now,
+        }),
+        parentFallback,
+      };
+    });
+    return tx();
+  }
+
+  listArchivedChats(): readonly import("./ChatExplorerStore.types.js").ArchivedChat[] {
+    return this._db
+      .prepare<unknown[], ChatRow>(
+        `SELECT * FROM chat_chats WHERE archived_at IS NOT NULL ORDER BY archived_at DESC, title ASC`,
+      )
+      .all()
+      .map(rowToChat)
+      .filter((chat): chat is import("./ChatExplorerStore.types.js").ArchivedChat => chat.archivedAt != null);
+  }
+
   getChat(id: string): Chat | null {
     const row = this._getChatRow(id);
-    return row ? rowToChat(row) : null;
+    return row && row.archived_at == null ? rowToChat(row) : null;
   }
 
   bumpMessageCount(id: string, delta = 1): void {
@@ -405,7 +499,7 @@ export class ChatExplorerStore {
       .prepare<unknown[], FolderRow>(`SELECT * FROM chat_folders ORDER BY name ASC`)
       .all();
     const chats = this._db
-      .prepare<unknown[], ChatRow>(`SELECT * FROM chat_chats ORDER BY title ASC`)
+      .prepare<unknown[], ChatRow>(`SELECT * FROM chat_chats WHERE archived_at IS NULL ORDER BY title ASC`)
       .all();
     const byParent = new Map<string | null, Folder[]>();
     for (const row of folders) {
@@ -462,7 +556,7 @@ export class ChatExplorerStore {
         `SELECT chat_chats.id, chat_chats.title, chat_chats.folder_id
            FROM chat_chats_fts
            JOIN chat_chats ON chat_chats.rowid = chat_chats_fts.rowid
-          WHERE chat_chats_fts MATCH ?
+          WHERE chat_chats_fts MATCH ? AND chat_chats.archived_at IS NULL
           ORDER BY chat_chats.title ASC
           LIMIT ?`,
       )
@@ -528,8 +622,13 @@ export class ChatExplorerStore {
         : null;
     const inputTokens = input.inputTokens ?? null;
     const reasoningTokens = input.reasoningTokens ?? null;
+    const reasoningText = input.reasoningText
+      ? redactSecrets(input.reasoningText).slice(0, 65_536)
+      : null;
     const outputTokens = input.outputTokens ?? null;
     const tokensEstimated = input.tokensEstimated ? 1 : 0;
+    const requestUsage = input.requestUsage ? JSON.stringify(input.requestUsage) : null;
+    const messageUsage = input.messageUsage ? JSON.stringify(input.messageUsage) : null;
     // One transaction: a message that is stored but not counted (or the
     // reverse) would make the rail disagree with the conversation.
     const tx = this._db.transaction(() => {
@@ -537,8 +636,9 @@ export class ChatExplorerStore {
         .prepare(
           `INSERT INTO chat_chat_messages
              (id, chat_id, role, content, attachments, created_at,
-              input_tokens, reasoning_tokens, output_tokens, tokens_estimated)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              input_tokens, reasoning_tokens, reasoning_text, output_tokens, tokens_estimated,
+              request_usage, message_usage)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -549,8 +649,11 @@ export class ChatExplorerStore {
           now,
           inputTokens,
           reasoningTokens,
+          reasoningText,
           outputTokens,
           tokensEstimated,
+          requestUsage,
+          messageUsage,
         );
       this._db
         .prepare(
@@ -569,8 +672,11 @@ export class ChatExplorerStore {
       createdAt: now,
       inputTokens,
       reasoningTokens,
+      reasoningText,
       outputTokens,
       tokensEstimated: tokensEstimated === 1,
+      requestUsage: input.requestUsage,
+      messageUsage: input.messageUsage,
     };
   }
 

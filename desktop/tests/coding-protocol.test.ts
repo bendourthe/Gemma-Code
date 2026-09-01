@@ -108,6 +108,16 @@ describe("coding protocol", () => {
         text: "hi",
       });
     });
+    it("validates bounded explicit reasoning events", () => {
+      expect(CodingSessionEvent.parse({ kind: "reasoning_delta", text: "step" })).toEqual({
+        kind: "reasoning_delta",
+        text: "step",
+      });
+      expect(() => CodingSessionEvent.parse({ kind: "reasoning_delta", text: "" })).toThrow();
+      expect(() =>
+        CodingSessionEvent.parse({ kind: "reasoning_delta", text: "x".repeat(16_385) }),
+      ).toThrow();
+    });
     it("validates toolCallHeader / toolCallArgDelta / toolCallComplete", () => {
       const header = { kind: "toolCallHeader", callId: "c1", name: "fs.read" };
       const delta = { kind: "toolCallArgDelta", callId: "c1", delta: "{a:1" };

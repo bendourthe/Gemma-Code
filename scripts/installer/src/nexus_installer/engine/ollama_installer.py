@@ -435,7 +435,6 @@ class OllamaInstaller:
         )
         return False
 
-
     def _ollama_version(self, state: InstallerState) -> str | None:
         """Best-effort detection of the installed Ollama version (API, then CLI)."""
         try:
@@ -460,6 +459,7 @@ class OllamaInstaller:
         combined = f"{result.stdout or ''}{result.stderr or ''}"
         match = re.search(r"\d+\.\d+\.\d+", combined)
         return match.group() if match else None
+
 
 # v2.2.0 Phase 2 (2.3) -- per-model Ollama version gate, run at PULL time.
 #

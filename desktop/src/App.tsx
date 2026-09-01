@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { SidebarHistoryProvider } from "./components/SidebarHistoryHost";
 import { ModuleErrorBoundary } from "./components/ModuleErrorBoundary";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
@@ -77,7 +78,9 @@ async function sampleChatVideoFrames(dataUrl: string): Promise<{ frames: string[
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   return (
     <MotionActivityProvider>
-      <AppLayout telemetryStream={telemetryStream} />
+      <SidebarHistoryProvider>
+        <AppLayout telemetryStream={telemetryStream} />
+      </SidebarHistoryProvider>
     </MotionActivityProvider>
   );
 }
@@ -85,6 +88,7 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
 function AppLayout({ telemetryStream }: AppProps): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
   const [hostVramGB, setHostVramGB] = useState<number | null>(null);
+  const [hostGpuVendor, setHostGpuVendor] = useState<string | null>(null);
   const [hostVramFreeGB, setHostVramFreeGB] = useState<number | null>(null);
   const [activeSchedulerJob, setActiveSchedulerJob] = useState<SchedulerActiveJob | null>(null);
   const residencyMemory = useRef<ResidencySessionMemory>(new Set()).current;
@@ -116,6 +120,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
     if (!stream) return;
     return stream.subscribe((sample) => {
       if (typeof sample.vramTotalGB === "number") setHostVramGB(sample.vramTotalGB);
+      if (typeof sample.gpuVendor === "string") setHostGpuVendor(sample.gpuVendor);
       setHostVramFreeGB(
         typeof sample.vramFreeGB === "number" && Number.isFinite(sample.vramFreeGB)
           ? sample.vramFreeGB
@@ -224,6 +229,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   memoryHub={chatMemoryHub}
                   sampleVideoFrames={sampleChatVideoFrames}
                   hostVramFreeGB={hostVramFreeGB}
+                  hostVramGB={hostVramGB}
                   activeSchedulerJob={activeSchedulerJob}
                   residencyMemory={residencyMemory}
                 />
@@ -235,6 +241,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                 <CodingPage
                   onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
                   hostVramFreeGB={hostVramFreeGB}
+                  hostVramGB={hostVramGB}
                   activeSchedulerJob={activeSchedulerJob}
                   residencyMemory={residencyMemory}
                 />
@@ -247,6 +254,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
                   diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
                   hostVramFreeGB={hostVramFreeGB}
+                  hostVramGB={hostVramGB}
                   activeSchedulerJob={activeSchedulerJob}
                   residencyMemory={residencyMemory}
                 />
@@ -283,6 +291,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   mcpClient={mcpClient}
                   videoClient={videoSettingsClient}
                   hostVramGB={hostVramGB}
+                  hostGpuVendor={hostGpuVendor}
                 />
               }
             />

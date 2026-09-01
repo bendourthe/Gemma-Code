@@ -27,8 +27,11 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
+  Archive,
   ChevronDown,
   ChevronRight,
   Folder as FolderIcon,
@@ -39,6 +42,7 @@ import {
 } from "lucide-react";
 import { resolveMaybe, type AsyncChatExplorerClient } from "./chatExplorerClient";
 import type { Chat, Folder, FolderTreeNode } from "./types";
+import { deleteConfirmCopy, parseTreeNodeKey, rangeSelectKeys } from "./folderTreeDeleteCopy";
 
 export type SelectedNode =
   | { kind: "folder"; id: string | null }
@@ -88,6 +92,18 @@ export interface FolderTreeProps {
    * hiding the tree. Delete still confirms.
    */
   collapsed?: boolean;
+  /** Called after durable archive/delete succeeds so an active transcript can reset. */
+  onSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
+  /** May cancel active work; rejection prevents the storage mutation. */
+  onBeforeSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
+  /** Workspace-backed trees use folders as immutable scope containers. */
+  readOnlyFolders?: boolean;
+  /** Optional richer hover text for synthetic folders. */
+  getFolderTitle?: (folder: Folder) => string;
+  /** Reveal sessions immediately while keeping nested user folders collapsible. */
+  expandTopLevelOnLoad?: boolean;
+  /** Offer an explicit reload action when an asynchronous tree read fails. */
+  retryLoadError?: boolean;
 }
 
 export interface FolderTreeCopy {
@@ -152,8 +168,23 @@ interface ContextMenuState {
 }
 
 interface ConfirmDeleteState {
-  target: SelectedNode;
+  targets: SelectedNode[];
+}
+
+interface ConfirmArchiveState {
+  id: string;
   label: string;
+}
+
+/**
+ * v2.4.4 Phase 2.3 (T007) -- whole-list header action.
+ *
+ * `ids` is captured when the dialog opens so a background refresh cannot
+ * silently widen a destructive confirm the operator already read.
+ */
+interface ConfirmBulkState {
+  kind: "archive" | "delete";
+  ids: string[];
 }
 
 interface FlatNode {
@@ -220,6 +251,12 @@ export function FolderTree({
   copy = CHAT_FOLDER_TREE_COPY,
   storageKey = DEFAULT_STORAGE_KEY,
   collapsed = false,
+  onSessionDisposition,
+  onBeforeSessionDisposition,
+  readOnlyFolders = false,
+  getFolderTitle,
+  expandTopLevelOnLoad = false,
+  retryLoadError = false,
 }: FolderTreeProps): JSX.Element {
   const storage = storageAdapter ?? makeDefaultStorage(storageKey);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(storage.read()));
@@ -227,20 +264,41 @@ export function FolderTree({
   const [renameValue, setRenameValue] = useState<string>("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState<ConfirmArchiveState | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState<ConfirmBulkState | null>(null);
+  const [actionPending, setActionPending] = useState(false);
   const [revision, setRevision] = useState(0);
-  const dragSourceRef = useRef<SelectedNode | null>(null);
+  const [multiKeys, setMultiKeys] = useState<Set<string>>(() => new Set());
+  const dragSourceRef = useRef<SelectedNode[] | null>(null);
+  const selectionAnchorIdxRef = useRef<number | null>(null);
   const itemNoun = copy.itemNoun ?? "chat";
 
   useEffect(() => {
-    if (!confirmDelete) return;
+    if (!confirmDelete && !confirmArchive && !confirmBulk) return;
     const onKey = (event: globalThis.KeyboardEvent): void => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      if (actionPending) return;
       setConfirmDelete(null);
+      setConfirmArchive(null);
+      setConfirmBulk(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmDelete]);
+  }, [actionPending, confirmArchive, confirmBulk, confirmDelete]);
+
+  useEffect(() => {
+    if (confirmDelete || confirmArchive || renamingId !== null) return;
+    const onKey = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      if (multiKeys.size === 0) return;
+      event.preventDefault();
+      setMultiKeys(new Set());
+      selectionAnchorIdxRef.current = null;
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmArchive, confirmDelete, multiKeys.size, renamingId]);
 
   const refresh = useCallback(() => {
     setRevision((r) => r + 1);
@@ -260,6 +318,15 @@ export function FolderTree({
       (next) => {
         if (cancelled) return;
         setTree(next);
+        if (expandTopLevelOnLoad) {
+          setExpanded((current) => {
+            const expandedNext = new Set(current);
+            for (const child of next.children) {
+              if (child.folder) expandedNext.add(child.folder.id);
+            }
+            return expandedNext;
+          });
+        }
         setLoadError(null);
       },
       (err) => {
@@ -271,7 +338,7 @@ export function FolderTree({
     return () => {
       cancelled = true;
     };
-  }, [client, revision, refreshToken]);
+  }, [client, expandTopLevelOnLoad, revision, refreshToken]);
 
   const flat = useMemo(() => {
     const full = flattenTree(tree, expanded);
@@ -308,8 +375,56 @@ export function FolderTree({
     }
   }, []);
 
+  const nodeAsTarget = useCallback((node: FlatNode): SelectedNode => {
+    return node.kind === "folder"
+      ? { kind: "folder", id: node.id }
+      : { kind: "chat", id: node.id ?? "" };
+  }, []);
+
+  const requestDelete = useCallback((targets: readonly SelectedNode[]) => {
+    const usable = targets.filter(
+      (target) => target.kind === "chat" || (target.kind === "folder" && target.id !== null),
+    );
+    if (usable.length === 0) return;
+    setConfirmDelete({ targets: usable });
+  }, []);
+
+  const selectedSetTargets = useCallback((): SelectedNode[] => {
+    const fromMulti = [...multiKeys]
+      .map(parseTreeNodeKey)
+      .filter((target): target is SelectedNode => target !== null && !(target.kind === "folder" && target.id === null));
+    return fromMulti;
+  }, [multiKeys]);
+
   const handleClick = useCallback(
-    (node: FlatNode) => {
+    (node: FlatNode, idx: number, event?: MouseEvent<HTMLLIElement>) => {
+      const target = nodeAsTarget(node);
+      const key = nodeKey(target);
+      const modifier = event?.ctrlKey || event?.metaKey;
+      const shift = event?.shiftKey === true;
+      if (shift && selectionAnchorIdxRef.current !== null) {
+        const keys = rangeSelectKeys(
+          flat.map((row) => nodeKey(nodeAsTarget(row))),
+          selectionAnchorIdxRef.current,
+          idx,
+        );
+        setMultiKeys(new Set(keys));
+        selectNode(target);
+        return;
+      }
+      if (modifier) {
+        setMultiKeys((prev) => {
+          const next = new Set(prev);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        });
+        selectionAnchorIdxRef.current = idx;
+        selectNode(target);
+        return;
+      }
+      setMultiKeys(new Set([key]));
+      selectionAnchorIdxRef.current = idx;
       if (node.kind === "folder") {
         if (node.id !== null) toggleExpanded(node.id);
         selectNode({ kind: "folder", id: node.id });
@@ -318,21 +433,33 @@ export function FolderTree({
       }
       if (!node.chat) return;
       const alreadySelected = selected?.kind === "chat" && selected.id === node.chat.id;
-      if (alreadySelected && renamingId === null) {
+      if (alreadySelected && renamingId === null && multiKeys.size <= 1) {
         startRename(node);
         return;
       }
       selectNode({ kind: "chat", id: node.chat.id });
       onOpenChat?.(node.chat);
     },
-    [onOpenChat, onOpenFolder, renamingId, selected, selectNode, startRename, toggleExpanded],
+    [
+      flat,
+      multiKeys.size,
+      nodeAsTarget,
+      onOpenChat,
+      onOpenFolder,
+      renamingId,
+      selected,
+      selectNode,
+      startRename,
+      toggleExpanded,
+    ],
   );
 
   const handleDoubleClick = useCallback(
     (node: FlatNode) => {
+      if (readOnlyFolders && node.kind === "folder") return;
       startRename(node);
     },
-    [startRename],
+    [readOnlyFolders, startRename],
   );
 
   const commitRename = useCallback(
@@ -390,26 +517,28 @@ export function FolderTree({
         });
       } else if (e.key === "Enter") {
         e.preventDefault();
-        handleClick(node);
+        handleClick(node, idx);
       } else if (e.key === "F2") {
         e.preventDefault();
+        if (readOnlyFolders && node.kind === "folder") return;
         handleDoubleClick(node);
       } else if (e.key === "Delete" || e.key === "Del") {
         e.preventDefault();
+        const setTargets = selectedSetTargets();
+        const key = nodeKey(nodeAsTarget(node));
+        if (setTargets.length > 1 && multiKeys.has(key)) {
+          requestDelete(setTargets);
+          return;
+        }
         if (node.kind === "folder" && node.id !== null) {
-          setConfirmDelete({
-            target: { kind: "folder", id: node.id },
-            label: node.label,
-          });
+          if (readOnlyFolders) return;
+          requestDelete([{ kind: "folder", id: node.id }]);
         } else if (node.kind === "chat" && node.chat) {
-          setConfirmDelete({
-            target: { kind: "chat", id: node.chat.id },
-            label: node.label,
-          });
+          requestDelete([{ kind: "chat", id: node.chat.id }]);
         }
       }
     },
-    [flat, handleClick, handleDoubleClick, renamingId],
+    [flat, handleClick, handleDoubleClick, multiKeys, nodeAsTarget, readOnlyFolders, renamingId, requestDelete, selectedSetTargets],
   );
 
   const focusNode = useCallback((node: FlatNode) => {
@@ -421,6 +550,7 @@ export function FolderTree({
   const handleContextMenu = useCallback(
     (e: MouseEvent<HTMLLIElement>, node: FlatNode) => {
       e.preventDefault();
+      if (readOnlyFolders && node.kind === "folder") return;
       const target: SelectedNode =
         node.kind === "folder"
           ? { kind: "folder", id: node.id }
@@ -428,49 +558,57 @@ export function FolderTree({
       setContextMenu({ anchorX: e.clientX, anchorY: e.clientY, target });
       selectNode(target);
     },
-    [selectNode],
+    [readOnlyFolders, selectNode],
   );
 
   const handleDragStart = useCallback((e: DragEvent<HTMLLIElement>, node: FlatNode) => {
-    const target: SelectedNode =
-      node.kind === "folder"
-        ? { kind: "folder", id: node.id }
-        : { kind: "chat", id: node.id ?? "" };
-    dragSourceRef.current = target;
+    if (readOnlyFolders) {
+      e.preventDefault();
+      return;
+    }
+    const target = nodeAsTarget(node);
+    const key = nodeKey(target);
+    const setTargets = selectedSetTargets();
+    const moving =
+      setTargets.length > 1 && multiKeys.has(key) ? setTargets : [target];
+    dragSourceRef.current = moving;
     e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("application/x-nexus-node", nodeKey(target));
-  }, []);
+    e.dataTransfer.setData("application/x-nexus-node", moving.map(nodeKey).join(","));
+  }, [multiKeys, nodeAsTarget, readOnlyFolders, selectedSetTargets]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLLIElement>, node: FlatNode) => {
+    if (readOnlyFolders) return;
     if (node.kind !== "folder") return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-  }, []);
+  }, [readOnlyFolders]);
 
   const handleDrop = useCallback(
     (e: DragEvent<HTMLLIElement>, node: FlatNode) => {
       e.preventDefault();
-      const source = dragSourceRef.current;
+      if (readOnlyFolders) return;
+      const sources = dragSourceRef.current;
       dragSourceRef.current = null;
-      if (!source) return;
+      if (!sources || sources.length === 0) return;
       if (node.kind !== "folder") return;
       const targetFolderId: string | null = node.id;
       resolveMaybe(
         () => {
-          if (source.kind === "folder") {
-            if (source.id === null) return undefined; // root cannot be moved
-            if (source.id === targetFolderId) return undefined;
-            return client.moveFolder(source.id, targetFolderId);
-          }
-          return client.moveChat(source.id, targetFolderId);
+          const jobs = sources.map((source) => {
+            if (source.kind === "folder") {
+              if (source.id === null) return undefined;
+              if (source.id === targetFolderId) return undefined;
+              return client.moveFolder(source.id, targetFolderId);
+            }
+            return client.moveChat(source.id, targetFolderId);
+          });
+          return Promise.all(jobs);
         },
         () => refresh(),
-        // Refused moves (cycle, self) are silently ignored at the UI layer;
-        // the store rejects and the tree stays untouched.
         () => refresh(),
       );
     },
-    [client, refresh],
+    [client, readOnlyFolders, refresh],
   );
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
@@ -503,15 +641,15 @@ export function FolderTree({
           }),
         (chat) => {
           refresh();
-          setRenamingId(chat.id);
-          setRenameValue(chat.title);
+          selectNode({ kind: "chat", id: chat.id });
+          onOpenChat?.(chat);
           if (folderId !== null) setExpanded((prev) => new Set(prev).add(folderId));
         },
         (err) => setLoadError(errorMessage(err)),
       );
       closeContextMenu();
     },
-    [client, closeContextMenu, copy.newItem, defaultModelId, refresh],
+    [client, closeContextMenu, copy.newItem, defaultModelId, onOpenChat, refresh, selectNode],
   );
 
   const onChangeColor = useCallback(
@@ -548,25 +686,104 @@ export function FolderTree({
 
   const confirmDeleteNow = useCallback(() => {
     if (!confirmDelete) return;
-    const target = confirmDelete.target;
-    setConfirmDelete(null);
-    resolveMaybe(
-      () => {
-        if (target.kind === "folder" && target.id !== null) {
-          return client.deleteFolder(target.id);
-        }
+    const targets = confirmDelete.targets;
+    if (actionPending) return;
+    setActionPending(true);
+    void (async () => {
+      for (const target of targets) {
         if (target.kind === "chat") {
-          return client.deleteChat(target.id);
+          await Promise.resolve(onBeforeSessionDisposition?.(target.id, "deleted"));
+          await Promise.resolve(client.deleteChat(target.id));
+          await onSessionDisposition?.(target.id, "deleted");
+        } else if (target.id !== null) {
+          await Promise.resolve(client.deleteFolder(target.id));
         }
-        return undefined;
-      },
-      () => refresh(),
-      (err) => {
-        setLoadError(errorMessage(err));
+      }
+    })()
+      .then(() => {
+        setConfirmDelete(null);
+        setMultiKeys(new Set());
         refresh();
-      },
-    );
-  }, [client, confirmDelete, refresh]);
+      })
+      .catch((err: unknown) => setLoadError(errorMessage(err)))
+      .finally(() => setActionPending(false));
+  }, [actionPending, client, confirmDelete, onBeforeSessionDisposition, onSessionDisposition, refresh]);
+
+  const confirmArchiveNow = useCallback(() => {
+    if (!confirmArchive || actionPending) return;
+    if (!client.archiveChat) {
+      setLoadError("Archive is unavailable.");
+      return;
+    }
+    setActionPending(true);
+    void Promise.resolve()
+      .then(() => onBeforeSessionDisposition?.(confirmArchive.id, "archived"))
+      .then(() => client.archiveChat!(confirmArchive.id))
+      .then(async () => {
+        await onSessionDisposition?.(confirmArchive.id, "archived");
+        setConfirmArchive(null);
+        refresh();
+      })
+      .catch((err: unknown) => setLoadError(errorMessage(err)))
+      .finally(() => setActionPending(false));
+  }, [actionPending, client, confirmArchive, onBeforeSessionDisposition, onSessionDisposition, refresh]);
+
+  /**
+   * Every chat in THIS pillar's tree, including chats inside collapsed
+   * folders. `flat` only carries what is currently visible, so using it would
+   * make "Delete All" quietly mean "delete what I can see".
+   */
+  const allChatIds = useMemo(() => {
+    const ids: string[] = [];
+    const walk = (node: FolderTreeNode): void => {
+      for (const chat of node.chats) ids.push(chat.id);
+      for (const child of node.children) walk(child);
+    };
+    walk(tree);
+    return ids;
+  }, [tree]);
+
+  const canArchive = typeof client.archiveChat === "function";
+
+  const confirmBulkNow = useCallback(() => {
+    if (!confirmBulk || actionPending) return;
+    const { kind, ids } = confirmBulk;
+    if (kind === "archive" && !client.archiveChat) {
+      setLoadError("Archive is unavailable.");
+      return;
+    }
+    setActionPending(true);
+    void (async () => {
+      // Sequential, not Promise.all: these run through the same store and a
+      // partial failure should stop at the first bad id rather than leaving
+      // an unknown subset applied.
+      for (const id of ids) {
+        if (kind === "archive") {
+          await Promise.resolve(onBeforeSessionDisposition?.(id, "archived"));
+          await Promise.resolve(client.archiveChat!(id));
+          await onSessionDisposition?.(id, "archived");
+        } else {
+          await Promise.resolve(onBeforeSessionDisposition?.(id, "deleted"));
+          await Promise.resolve(client.deleteChat(id));
+          await onSessionDisposition?.(id, "deleted");
+        }
+      }
+    })()
+      .then(() => {
+        setConfirmBulk(null);
+        setMultiKeys(new Set());
+        refresh();
+      })
+      .catch((err: unknown) => setLoadError(errorMessage(err)))
+      .finally(() => setActionPending(false));
+  }, [
+    actionPending,
+    client,
+    confirmBulk,
+    onBeforeSessionDisposition,
+    onSessionDisposition,
+    refresh,
+  ]);
 
   const toolbar = (
     <span
@@ -577,19 +794,21 @@ export function FolderTree({
         alignItems: "center",
       }}
     >
-      <button
-        type="button"
-        data-testid="folder-tree-new-folder"
-        aria-label="New folder"
-        title="New folder"
-        onClick={(e) => {
-          e.stopPropagation();
-          onCreateFolder(null);
-        }}
-        style={iconButtonStyle}
-      >
-        <FolderPlus size={14} aria-hidden />
-      </button>
+      {!readOnlyFolders ? (
+        <button
+          type="button"
+          data-testid="folder-tree-new-folder"
+          aria-label="New folder"
+          title="New folder"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCreateFolder(null);
+          }}
+          style={iconButtonStyle}
+        >
+          <FolderPlus size={14} aria-hidden />
+        </button>
+      ) : null}
       <button
         type="button"
         data-testid="folder-tree-new-chat"
@@ -602,6 +821,44 @@ export function FolderTree({
         style={iconButtonStyle}
       >
         <MessageCirclePlus size={14} aria-hidden />
+      </button>
+      {/*
+        v2.4.4 Phase 2.3 (T007): whole-list actions live on the header next to
+        the create actions. Both are disabled on an empty list, and each is
+        gated by one centered confirm portaled to document.body, the same
+        dialog host the per-row delete uses.
+      */}
+      {canArchive ? (
+        <button
+          type="button"
+          data-testid="folder-tree-archive-all"
+          aria-label="Archive all"
+          title="Archive all"
+          disabled={allChatIds.length === 0 || actionPending}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (allChatIds.length === 0) return;
+            setConfirmBulk({ kind: "archive", ids: allChatIds });
+          }}
+          style={iconButtonStyle}
+        >
+          <Archive size={14} aria-hidden />
+        </button>
+      ) : null}
+      <button
+        type="button"
+        data-testid="folder-tree-delete-all"
+        aria-label="Delete all"
+        title="Delete all"
+        disabled={allChatIds.length === 0 || actionPending}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (allChatIds.length === 0) return;
+          setConfirmBulk({ kind: "delete", ids: allChatIds });
+        }}
+        style={iconButtonStyle}
+      >
+        <Trash2 size={14} aria-hidden />
       </button>
     </span>
   );
@@ -621,13 +878,25 @@ export function FolderTree({
       >
         {toolbar}
         {loadError !== null ? (
-          <p
-            data-testid="folder-tree-error"
-            role="status"
-            style={{ margin: 0, color: "var(--status-err, #d33)", fontSize: "var(--text-sm)" }}
-          >
-            {copy.loadError}: {loadError}
-          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <p
+              data-testid="folder-tree-error"
+              role="status"
+              style={{ margin: 0, color: "var(--status-err, #d33)", fontSize: "var(--text-sm)" }}
+            >
+              {copy.loadError}: {loadError}
+            </p>
+            {retryLoadError ? (
+              <button
+                type="button"
+                data-testid="folder-tree-retry"
+                onClick={() => refresh()}
+                style={{ ...iconButtonStyle, alignSelf: "flex-start" }}
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {collapsed ? null : (
           <>
@@ -672,7 +941,14 @@ export function FolderTree({
           flexDirection: collapsed ? "column" : "row",
           justifyContent: collapsed ? "flex-start" : "space-between",
           alignItems: "center",
-          padding: collapsed ? "var(--space-2) 0" : "var(--space-2) var(--space-3)",
+          padding: collapsed
+            ? "0 0 var(--space-2)"
+            : "0 var(--space-3) var(--space-2)",
+          // v2.4.4 Phase 2.1 (T005): no padding-top. The sidebar hairline's
+          // own symmetric margin is the whole gap above this header; adding
+          // one here doubled the space below the rule (field screenshot 2).
+          // Stated after the shorthand so it is the declaration that wins.
+          paddingTop: 0,
           gap: "var(--space-1)",
         }}
       >
@@ -707,7 +983,8 @@ export function FolderTree({
         {flat.map((node, idx) => {
             const key =
               node.kind === "folder" ? `folder:${node.id ?? "ROOT"}` : `chat:${node.id}`;
-            const isSelected = selected ? nodeKey(selected) === key : false;
+            const isSelected =
+              multiKeys.has(key) || (selected ? nodeKey(selected) === key : false);
             const isRenaming = renamingId === node.id && !collapsed;
             const mark = node.label.trim().charAt(0).toUpperCase() || (node.kind === "folder" ? "F" : "S");
             return (
@@ -718,15 +995,15 @@ export function FolderTree({
                 role="treeitem"
                 aria-selected={isSelected}
                 aria-label={node.label}
-                title={node.label}
+                title={node.kind === "folder" && node.folder && getFolderTitle ? getFolderTitle(node.folder) : node.label}
                 tabIndex={isSelected ? 0 : -1}
-                draggable={!isRenaming}
+                draggable={!isRenaming && !readOnlyFolders}
                 onDragStart={(e) => handleDragStart(e, node)}
                 onDragOver={(e) => handleDragOver(e, node)}
                 onDrop={(e) => handleDrop(e, node)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleClick(node);
+                  handleClick(node, idx, e);
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
@@ -753,16 +1030,16 @@ export function FolderTree({
                   </span>
                 ) : (
                   <>
-                <span style={{ width: node.depth * 12, display: "inline-block" }} />
+                {node.depth > 0 ? (
+                  <span style={{ width: node.depth * 12, display: "inline-block" }} />
+                ) : null}
                 {node.kind === "folder" ? (
                   expanded.has(node.id ?? "") ? (
                     <ChevronDown size={12} aria-hidden />
                   ) : (
                     <ChevronRight size={12} aria-hidden />
                   )
-                ) : (
-                  <span style={{ width: 12, display: "inline-block" }} />
-                )}
+                ) : null}
                 {isRenaming ? (
                   <input
                     autoFocus
@@ -801,6 +1078,20 @@ export function FolderTree({
                   >
                     <button
                       type="button"
+                      data-testid={`tree-archive-${node.chat.id}`}
+                      aria-label={`Archive ${node.label}`}
+                      title="Archive"
+                      disabled={actionPending || !client.archiveChat}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmArchive({ id: node.chat!.id, label: node.label });
+                      }}
+                      style={iconButtonStyle}
+                    >
+                      <Archive size={12} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
                       data-testid={`tree-rename-${node.chat.id}`}
                       aria-label={`Rename ${node.label}`}
                       title="Rename"
@@ -817,12 +1108,16 @@ export function FolderTree({
                       data-testid={`tree-delete-${node.chat.id}`}
                       aria-label={`Delete ${node.label}`}
                       title="Delete"
+                      disabled={actionPending}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setConfirmDelete({
-                          target: { kind: "chat", id: node.id ?? "" },
-                          label: node.label,
-                        });
+                        const target: SelectedNode = { kind: "chat", id: node.id ?? "" };
+                        const setTargets = selectedSetTargets();
+                        if (setTargets.length > 1 && multiKeys.has(nodeKey(target))) {
+                          requestDelete(setTargets);
+                          return;
+                        }
+                        requestDelete([target]);
                       }}
                       style={iconButtonStyle}
                     >
@@ -908,21 +1203,12 @@ export function FolderTree({
               onClick={() => {
                 if (!contextMenu) return;
                 const target = contextMenu.target;
-                resolveMaybe(
-                  () => {
-                    if (target.kind === "folder" && target.id !== null) {
-                      return client.getFolder(target.id);
-                    }
-                    if (target.kind === "chat") {
-                      return client.getChat(target.id);
-                    }
-                    return null;
-                  },
-                  (row) => {
-                    const label = row === null ? "" : "name" in row ? row.name : row.title;
-                    setConfirmDelete({ target, label });
-                  },
-                );
+                const setTargets = selectedSetTargets();
+                if (setTargets.length > 1 && multiKeys.has(nodeKey(target))) {
+                  requestDelete(setTargets);
+                } else {
+                  requestDelete([target]);
+                }
                 closeContextMenu();
               }}
               style={ctxButtonStyle}
@@ -945,7 +1231,7 @@ export function FolderTree({
         </ul>
       )}
 
-      {confirmDelete && (
+      {confirmDelete && portalToBody(
         <div
           role="dialog"
           aria-modal="true"
@@ -954,19 +1240,37 @@ export function FolderTree({
           style={modalBackdropStyle}
         >
           <div style={modalCardStyle}>
-            <p style={{ margin: 0, color: "var(--fg-0)" }}>
-              Delete{" "}
-              <strong>
-                {confirmDelete.label.trim() || `this ${itemNoun}`}
-              </strong>
-              {confirmDelete.target.kind === "folder"
-                ? " and all of its contents?"
-                : "?"}
+            <p data-testid="folder-tree-confirm-delete-question" style={{ margin: 0, color: "var(--fg-0)" }}>
+              {deleteConfirmCopy(confirmDelete.targets, itemNoun).question}
             </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
+            {deleteConfirmCopy(confirmDelete.targets, itemNoun).folderWarning ? (
+              <p style={{ margin: "var(--space-2) 0 0", color: "var(--fg-1)" }}>
+                {deleteConfirmCopy(confirmDelete.targets, itemNoun).folderWarning}
+              </p>
+            ) : null}
+            <p style={{ margin: "var(--space-2) 0 0", color: "var(--fg-muted)" }}>
+              {deleteConfirmCopy(confirmDelete.targets, itemNoun).irreversible}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
+              {confirmDelete.targets.length === 1 && confirmDelete.targets[0]?.kind === "chat" ? (
+                <button
+                  type="button"
+                  data-testid="confirm-delete-archive-instead"
+                  disabled={actionPending || !client.archiveChat}
+                  onClick={() => {
+                    const id = confirmDelete.targets[0]?.id ?? "";
+                    setConfirmArchive({ id, label: itemNoun });
+                    setConfirmDelete(null);
+                  }}
+                  style={quietCancelStyle}
+                >
+                  Archive instead
+                </button>
+              ) : null}
               <button
                 type="button"
                 data-testid="confirm-delete-cancel"
+                disabled={actionPending}
                 onClick={() => setConfirmDelete(null)}
                 style={quietCancelStyle}
               >
@@ -978,14 +1282,89 @@ export function FolderTree({
                 onClick={confirmDeleteNow}
                 style={quietDestructiveStyle}
               >
-                Delete
+                {confirmDelete.targets.every((target) => target.kind === "chat")
+                  ? "Delete permanently"
+                  : "Delete"}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+      )}
+
+      {confirmBulk && portalToBody(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={confirmBulk.kind === "archive" ? "Confirm archive all" : "Confirm delete all"}
+          data-testid="folder-tree-confirm-bulk"
+          data-bulk-kind={confirmBulk.kind}
+          style={modalBackdropStyle}
+        >
+          <div style={modalCardStyle}>
+            <p data-testid="folder-tree-confirm-bulk-question" style={{ margin: 0, color: "var(--fg-0)" }}>
+              {confirmBulk.kind === "archive"
+                ? `Archive all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`
+                : `Delete all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`}
+            </p>
+            <p style={{ margin: "var(--space-2) 0 0", color: "var(--fg-muted)" }}>
+              {confirmBulk.kind === "archive"
+                ? "You can restore them from Settings."
+                : "This cannot be undone."}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
+              <button
+                type="button"
+                data-testid="confirm-bulk-cancel"
+                disabled={actionPending}
+                onClick={() => setConfirmBulk(null)}
+                style={quietCancelStyle}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-bulk-ok"
+                disabled={actionPending}
+                onClick={confirmBulkNow}
+                style={confirmBulk.kind === "archive" ? quietCancelStyle : quietDestructiveStyle}
+              >
+                {confirmBulk.kind === "archive" ? "Archive all" : "Delete all"}
+              </button>
+            </div>
+          </div>
+        </div>,
+      )}
+
+      {confirmArchive && portalToBody(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm archive"
+          data-testid="folder-tree-confirm-archive"
+          style={modalBackdropStyle}
+        >
+          <div style={modalCardStyle}>
+            <p style={{ margin: 0, color: "var(--fg-0)" }}>
+              Archive <strong>{confirmArchive.label.trim() || `this ${itemNoun}`}</strong>? You can restore it from Settings.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
+              <button type="button" disabled={actionPending} onClick={() => setConfirmArchive(null)} style={quietCancelStyle}>
+                Cancel
+              </button>
+              <button type="button" data-testid="confirm-archive-ok" disabled={actionPending} onClick={confirmArchiveNow} style={quietCancelStyle}>
+                {actionPending ? "Archiving..." : "Archive"}
+              </button>
+            </div>
+          </div>
+        </div>,
       )}
     </div>
   );
+}
+
+function portalToBody(node: ReactNode): ReactNode {
+  if (typeof document === "undefined" || document.body == null) return node;
+  return createPortal(node, document.body);
 }
 
 const iconButtonStyle: CSSProperties = {
@@ -1082,7 +1461,7 @@ const modalBackdropStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  zIndex: 1100,
+  zIndex: 2000,
 };
 
 const modalCardStyle: CSSProperties = {

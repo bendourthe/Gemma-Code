@@ -1,6 +1,6 @@
 """v1.14.0 Phase 2 -- Hugging Face auth discovery and validation.
 
-Gated open-weight models (sana-1.6b-int4) are
+Gated open-weight models are
 open but sit behind a Hugging Face license click-through, so downloading them
 needs a token from an account that accepted the license. This module resolves
 that token automatically from every place a user might already have one, so
@@ -23,11 +23,20 @@ written to the log; ``mask_token`` produces a safe form for UI confirmation.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import cast
 
 import httpx
 
 from nexus_installer.installer_state import InstallerState
+
+AuthorizeFn = Callable[[str, str], None]
+CancelFn = Callable[[], bool]
+RequestDeviceCodeFn = Callable[[], Mapping[str, object]]
+PollDeviceTokenFn = Callable[..., Mapping[str, object]]
+ValidateFn = Callable[[str, str], bool]
+HttpGetFn = Callable[..., object]
 
 # Environment variables Hugging Face tooling reads, in precedence order.
 HF_TOKEN_ENV_VARS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
@@ -35,6 +44,71 @@ HF_TOKEN_ENV_VARS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
 # Model-info API used to validate that a token actually has access to a
 # (possibly gated) repo: 200 = reachable with these credentials.
 HF_MODEL_INFO_URL = "https://huggingface.co/api/models/{repo}"
+
+
+def browser_login_for_repo(
+    repo: str,
+    *,
+    authorize: AuthorizeFn,
+    cancelled: CancelFn | None = None,
+    request_device_code: RequestDeviceCodeFn | None = None,
+    poll_device_token: PollDeviceTokenFn | None = None,
+    validate: ValidateFn | None = None,
+) -> str | None:
+    """Run Hugging Face browser device login and return a repo-valid token.
+
+    This deliberately calls the device-code primitives instead of
+    ``huggingface_hub.login``. The latter asks the user to choose a login method
+    on stdin before opening a browser, which cannot work in the windowed frozen
+    installer. The model publisher's gated-access form still must be accepted
+    by the user before validation can succeed. Injectable callables keep the
+    network/browser flow out of unit tests.
+    """
+    if not repo:
+        return None
+    requester = request_device_code
+    poller = poll_device_token
+    if requester is None or poller is None:
+        from huggingface_hub import _login as hf_login
+
+        requester = requester or cast(
+            RequestDeviceCodeFn,
+            hf_login.request_device_code,  # type: ignore[attr-defined]
+        )
+        poller = poller or cast(
+            PollDeviceTokenFn,
+            hf_login.poll_device_token,  # type: ignore[attr-defined]
+        )
+
+    if cancelled and cancelled():
+        return None
+    device_info = requester()
+    verification_url = str(
+        device_info.get("verification_uri_complete")
+        or device_info.get("verification_uri")
+        or ""
+    )
+    user_code = str(device_info.get("user_code") or "")
+    if not verification_url:
+        return None
+    authorize(verification_url, user_code)
+
+    def _on_pending() -> None:
+        if cancelled and cancelled():
+            raise BrowserLoginCancelled
+
+    response = poller(device_info, on_pending=_on_pending)
+    if cancelled and cancelled():
+        return None
+    token = response.get("access_token")
+    if not isinstance(token, str) or not token.strip():
+        return None
+    validator = validate or validate_token_for_repo
+    return token.strip() if validator(repo, token.strip()) else None
+
+
+class BrowserLoginCancelled(Exception):
+    """Internal signal used to stop device polling after the dialog is closed."""
 
 
 def hf_token_from_env() -> str | None:
@@ -104,7 +178,7 @@ def mask_token(token: str | None) -> str:
 def validate_token_for_repo(
     repo: str,
     token: str,
-    get: object | None = None,
+    get: HttpGetFn | None = None,
 ) -> bool:
     """True when ``token`` can reach ``repo`` (accepted license + valid token).
 

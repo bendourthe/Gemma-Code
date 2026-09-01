@@ -2,7 +2,7 @@
 
 Supports two modes:
 
-- Interactive GUI (default): launches the PyQt5 wizard with all 10 pages.
+- Interactive GUI (default): launches the PyQt5 wizard with all 7 pages.
 - ``--headless``: runs the full install engine without a GUI. Useful for
   CI smoke tests and scripted installs. In headless mode, `--json-output`
   emits a machine-parseable JSON summary on stdout. Exit code is 0 on
@@ -203,6 +203,7 @@ def _run_headless(args: argparse.Namespace) -> int:
     from nexus_installer.engine.extension_installer import ExtensionInstaller
     from nexus_installer.engine.model_router import ModelStepRouter
     from nexus_installer.engine.ollama_installer import OllamaInstaller
+    from nexus_installer.engine.runtime_provisioner import RuntimeProvisioner
     from nexus_installer.engine.venv_installer import VenvInstaller
     from nexus_installer.installer_state import InstallerState
     from nexus_installer.smoke import (
@@ -318,6 +319,24 @@ def _run_headless(args: argparse.Namespace) -> int:
         )
         (steps_done if ok else steps_failed).append("desktop")
 
+    # The GUI engine always wires the runtime after component work. Keep the
+    # packaged headless contract equivalent so field repair profiles can
+    # reclaim stale leases and prove the installed media environment.
+    import sys as _sys
+
+    payload_root = (
+        Path(getattr(_sys, "_MEIPASS", "")) / "payload"
+        if getattr(_sys, "frozen", False)
+        else None
+    )
+    ok = run_step(
+        "Wiring Desktop Runtime",
+        lambda: RuntimeProvisioner(
+            payload_root if payload_root and payload_root.is_dir() else None
+        ).install(state, log),
+    )
+    (steps_done if ok else steps_failed).append("runtime")
+
     success = not steps_failed
     summary = build_smoke_result(
         profile_name, state, steps_done, steps_failed, log_entries
@@ -399,24 +418,18 @@ def _register_gui_pages(
     """Register the canonical interactive wizard route in display order."""
     from nexus_installer.pages.complete import CompletePage
     from nexus_installer.pages.configuration import ConfigurationPage
-    from nexus_installer.pages.gpu_detection import GpuDetectionPage
-    from nexus_installer.pages.install_path import InstallPathPage
     from nexus_installer.pages.installing import InstallingPage
-    from nexus_installer.pages.prerequisites import PrerequisitesPage
     from nexus_installer.pages.review import ReviewPage
+    from nexus_installer.pages.setup import SetupPage
     from nexus_installer.pages.typed_catalog import TypedCatalogPage
-    from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
     from nexus_installer.pages.welcome import WelcomePage
 
     window.add_page(WelcomePage(state))
-    window.add_page(PrerequisitesPage(state))
-    window.add_page(GpuDetectionPage(state))
-    window.add_page(InstallPathPage(state))
+    window.add_page(SetupPage(state))
     # The typed catalog produces `state.selected_model_ids` for the
     # protocol-routed install step.
     window.add_page(TypedCatalogPage(state))
     window.add_page(ConfigurationPage(state))
-    window.add_page(VsCodeExtensionPage(state))
     window.add_page(ReviewPage(state))
     installing_page = InstallingPage(state, on_engine_created=on_engine_created)
     window.add_page(installing_page)

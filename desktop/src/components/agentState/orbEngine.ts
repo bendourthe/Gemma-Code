@@ -47,6 +47,14 @@ export function orbDotCount(preset: OrbSizePreset): number {
   return 14;
 }
 
+/** True when `inner` lies entirely inside `outer` (inclusive edges). */
+export function rectFullyInside(
+  inner: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
+  outer: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
+): boolean {
+  return inner.left >= outer.left && inner.right <= outer.right && inner.top >= outer.top && inner.bottom <= outer.bottom;
+}
+
 export function createOrbDots(count: number, rand: () => number = Math.random): OrbDot[] {
   const dots: OrbDot[] = [];
   for (let i = 0; i < count; i += 1) {

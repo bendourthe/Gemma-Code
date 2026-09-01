@@ -12,6 +12,46 @@ import type { ChatMessage } from "../src/shared/chat/types";
 const IMAGE_MEDIA = { kind: "image" as const, src: "data:image/png;base64,PNG==" };
 
 describe("composerSessionUsage (visual budget)", () => {
+  it("uses the latest request snapshot for context without changing bubble attribution", () => {
+    const messages: ChatMessage[] = [
+      {
+        id: "u1",
+        role: "user",
+        content: "Hi",
+        messageUsage: {
+          version: 1,
+          inputTokens: 1,
+          reasoningTokens: null,
+          outputTokens: null,
+          provenance: { accuracy: "estimated", source: "estimate" },
+        },
+      },
+      {
+        id: "a1",
+        role: "assistant",
+        content: "Hello! How can I help you today?",
+        requestUsage: {
+          version: 1,
+          inputTokens: 100,
+          reasoningTokens: 40,
+          outputTokens: 59,
+          provenance: { accuracy: "exact", source: "provider" },
+        },
+        messageUsage: {
+          version: 1,
+          inputTokens: null,
+          reasoningTokens: 41,
+          outputTokens: 8,
+          provenance: { accuracy: "estimated", source: "estimate" },
+        },
+      },
+    ];
+    const usage = composerSessionUsage(messages, { contextWindow: 1_000 });
+    expect(usage.usedTokens).toBe(199);
+    expect(usage.percent).toBeCloseTo(19.9);
+    expect(usage.estimated).toBe(false);
+  });
+
   it("meters generated media against maxImages with denominatorKind visual", () => {
     const messages: ChatMessage[] = [
       { id: "u1", role: "user", content: "a fox" },
@@ -23,7 +63,7 @@ describe("composerSessionUsage (visual budget)", () => {
     });
     expect(usage.denominatorKind).toBe("visual");
     expect(usage.usedTokens).toBe(1);
-    expect(usage.percent).toBe(25);
+    expect(usage.percent).toBe(12.5);
     expect(usage.atOrAbove80).toBe(false);
   });
 
@@ -52,7 +92,7 @@ describe("composerSessionUsage (visual budget)", () => {
       visualTokenBudget: { maxImages: 2 },
     });
     expect(usage.usedTokens).toBe(1);
-    expect(usage.percent).toBe(50);
+    expect(usage.percent).toBe(12.5);
   });
 
   it("has no denominator without a budget or window (never invents 128k)", () => {

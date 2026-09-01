@@ -25,19 +25,47 @@ export function workspaceRoot(): string {
  * confines the sub-agent to that worktree rather than weakening the guard.
  */
 export function resolveInsideWorkspace(userPath: string, root: string = workspaceRoot()): string {
-  const rootReal = safeRealpath(root);
+  return resolveInsideWorkspaceRoots(userPath, [root], root);
+}
+
+export function resolveInsideWorkspaceRoots(
+  userPath: string,
+  roots: readonly string[],
+  primaryRoot: string = roots[0] ?? workspaceRoot(),
+): string {
+  if (roots.length === 0) throw new Error("At least one workspace root is required.");
+  const rootReals = roots.map(safeRealpath);
+  const primaryReal = safeRealpath(primaryRoot);
 
   const absolute = path.isAbsolute(userPath)
     ? userPath
-    : path.resolve(rootReal, userPath);
+    : path.resolve(primaryReal, userPath);
   const real = realpathThroughExistingAncestor(absolute);
 
-  if (real !== rootReal && !real.startsWith(rootReal + path.sep)) {
+  if (!rootReals.some((rootReal) => isInside(rootReal, real))) {
     throw new Error(
-      `Path "${userPath}" resolves outside the workspace root "${rootReal}".`,
+      `Path "${userPath}" resolves outside the workspace's selected roots.`,
     );
   }
   return real;
+}
+
+export function resolveWorkspacePathPair(
+  sourcePath: string,
+  destinationPath: string,
+  roots: readonly string[],
+  primaryRoot: string = roots[0] ?? workspaceRoot(),
+): readonly [string, string] {
+  return Object.freeze([
+    resolveInsideWorkspaceRoots(sourcePath, roots, primaryRoot),
+    resolveInsideWorkspaceRoots(destinationPath, roots, primaryRoot),
+  ]);
+}
+
+function isInside(root: string, candidate: string): boolean {
+  const normalizedRoot = process.platform === "win32" ? root.toLowerCase() : root;
+  const normalizedCandidate = process.platform === "win32" ? candidate.toLowerCase() : candidate;
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(normalizedRoot + path.sep);
 }
 
 function safeRealpath(p: string): string {

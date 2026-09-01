@@ -6,6 +6,11 @@
  * `chat.explorer.*` and Chat types; this surface is pillar-scoped.
  */
 
+import type {
+  MessageTokenUsageV1,
+  RequestTokenUsageV1,
+} from "../chat/tokenUsage.js";
+
 export type StudioPillar = "image" | "video";
 
 export const STUDIO_PILLARS: readonly StudioPillar[] = ["image", "video"];
@@ -36,6 +41,13 @@ export interface StudioSession {
   createdAt: number;
   updatedAt: number;
   turnCount: number;
+  archivedAt?: number | null;
+  /** Former folder retained while archived, without keeping a cascading foreign key alive. */
+  archivedFolderId?: string | null;
+}
+
+export interface ArchivedStudioSession extends StudioSession {
+  archivedAt: number;
 }
 
 export interface StudioTurn {
@@ -49,8 +61,11 @@ export interface StudioTurn {
   /** v2.2.7 Phase 2 -- null when usage is unknown. Never invent 0. */
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
   /** Usable visuals this turn. 0/omit for a 1x1 stub or failed generate. */
   visualUnits?: number | null;
 }
@@ -85,7 +100,10 @@ export interface AppendStudioTurnInput {
   createdAt?: number;
   inputTokens?: number | null;
   reasoningTokens?: number | null;
+  reasoningText?: string | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  requestUsage?: RequestTokenUsageV1;
+  messageUsage?: MessageTokenUsageV1;
   visualUnits?: number | null;
 }

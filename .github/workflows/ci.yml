@@ -10,7 +10,12 @@ on:
   push:
     branches-ignore: ["dependabot/**"]
   pull_request:
-    branches: ["main"]
+    # v2.4.4 Phase 7 (QG-5): `develop` joined this list because the
+    # integration pull request targets it. Without it a develop-targeted
+    # PR ran only commitlint, so the branch head was tested by the push
+    # trigger but the MERGE RESULT -- the thing that actually ships --
+    # never was. Path filters already keep the added cost bounded.
+    branches: ["main", "develop"]
 
 concurrency:
   # github.head_ref is set on pull_request events; falls back to
@@ -28,7 +33,6 @@ concurrency:
 # covers diffusion budget.py.
 
 jobs:
-
   # ── TypeScript ─────────────────────────────────────────────────────────────
 
   lint-ts:
@@ -228,11 +232,10 @@ jobs:
 
   # -- nexus-check self-scan (v1.0.0; renamed from gemma-check in Phase 2.4) -
   #
-  # Runs the standalone deterministic-checks CLI against `src/`. The CLI is
-  # LLM-free and the gate is "no error-severity findings" -- it serves both
-  # as a sanity check on the new tool and as a regression guard against
-  # accidental console.log / hardcoded-secret / non-ASCII-prompt leaks in
-  # the production source tree.
+  # Runs the standalone deterministic-checks CLI across the repository. The
+  # exact-count baseline accepts only reviewed historical fixtures; new,
+  # excess, or stale error findings fail. The CLI is LLM-free and the gate is
+  # "no unbaselined error-severity findings".
   #
   # v0.8.0 Phase 7 (post-CI): warnings (e.g. prompt-oversized) emit to
   # stdout for visibility but do not flip the exit code. Run `--strict` to
@@ -240,14 +243,14 @@ jobs:
   # zero-tolerance gates -- not the default for this surface).
 
   nexus-check:
-    name: nexus-check (src/)
+    name: nexus-check (repository)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22"
-      - run: node bin/nexus-check.mjs src/
+      - run: npm run check
       # v1.4.0 Phase 3 (A2) -- test-tampering rules over tests/ and the CI
       # workflows themselves. nexus-check is dependency-free, so this needs no
       # `npm ci`. Error-severity rules (no-focused-tests,

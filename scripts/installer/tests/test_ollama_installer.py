@@ -94,9 +94,7 @@ class TestOllamaVersionGate:
             result = OllamaInstaller().install(state, log)
         assert result is True
         assert any(
-            "ollama floor" in c.args[0].lower()
-            for c in log.call_args_list
-            if c.args
+            "ollama floor" in c.args[0].lower() for c in log.call_args_list if c.args
         )
 
     def test_skips_when_version_undetermined(self) -> None:

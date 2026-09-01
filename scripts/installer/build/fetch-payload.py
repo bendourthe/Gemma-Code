@@ -50,7 +50,7 @@ class PinnedAsset:
         return self.sha256 == PLACEHOLDER_SHA256
 
     @classmethod
-    def from_entry(cls, name: str, entry: dict[str, Any]) -> "PinnedAsset":
+    def from_entry(cls, name: str, entry: dict[str, Any]) -> PinnedAsset:
         return cls(name=name, url=entry["url"], sha256=entry["sha256"])
 
 
@@ -144,7 +144,10 @@ def fetch_all(out_dir: Path, os_label: str, arch: str, lockfile: Path) -> None:
                 url=url,
                 sha256=PLACEHOLDER_SHA256,
             )
-            download(asset, out_dir / "python" / "wheels" / filename_for(url, wheel_name))
+            download(
+                asset,
+                out_dir / "python" / "wheels" / filename_for(url, wheel_name),
+            )
 
     # Model weights + local embedder.
     models = common.get("models", {})
@@ -173,9 +176,7 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(__file__).resolve().parent / "versions.lock.json",
         help="Path to versions.lock.json",
     )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Enable debug logging"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args(argv)
 
     logging.basicConfig(

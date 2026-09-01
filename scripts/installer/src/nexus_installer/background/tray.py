@@ -67,9 +67,7 @@ class TrayController(QObject):
     open_requested = pyqtSignal()
     cancel_requested = pyqtSignal()
 
-    def __init__(
-        self, icon: _TrayIconLike, parent: QObject | None = None
-    ) -> None:
+    def __init__(self, icon: _TrayIconLike, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._icon = icon
         self._visible = False

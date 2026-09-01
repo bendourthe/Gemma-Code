@@ -100,4 +100,36 @@ describe("applyRuntimeConfigEnv", () => {
     const env: NodeJS.ProcessEnv = {};
     expect(applyRuntimeConfigEnv(env, null)).toEqual([]);
   });
+
+  it("applies schema-v2 diffusion paths only after a successful smoke", () => {
+    const env: NodeJS.ProcessEnv = {};
+    const applied = applyRuntimeConfigEnv(env, {
+      schemaVersion: 2,
+      diffusionPython: "/venv/bin/python",
+      diffusionCwd: "/opt/runtimes",
+      diffusion: {
+        status: "ready",
+        backend: "cuda",
+        cuda_available: true,
+        smoke_at: "2026-08-29T00:00:00Z",
+        manifest_fingerprint: "abc123",
+      },
+    });
+    expect(applied.sort()).toEqual([
+      "NEXUS_DIFFUSION_CWD",
+      "NEXUS_DIFFUSION_PYTHON",
+    ]);
+  });
+
+  it("fails closed when schema-v2 readiness is missing", () => {
+    const env: NodeJS.ProcessEnv = {};
+    const applied = applyRuntimeConfigEnv(env, {
+      schemaVersion: 2,
+      diffusionPython: "/venv/bin/python",
+      diffusion: { status: "failed", failure_code: "CUDA_UNAVAILABLE" },
+    });
+    expect(applied).toEqual(["NEXUS_DIFFUSION_NOT_READY"]);
+    expect(env.NEXUS_DIFFUSION_PYTHON).toBeUndefined();
+    expect(env.NEXUS_DIFFUSION_NOT_READY).toBe("CUDA_UNAVAILABLE");
+  });
 });

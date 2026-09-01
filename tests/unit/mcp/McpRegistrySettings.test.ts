@@ -87,4 +87,29 @@ describe("McpRegistrySettings (v1.18.0 Phase 3 OW-A5)", () => {
     expect(server?.tools.find((t) => t.name === "list_skills")?.exposed).toBe(false);
     expect(server?.tools.find((t) => t.name === "list_skills")?.reason).toBe("user-denied");
   });
+
+  it("merges server registrations and denials across selected roots", async () => {
+    const second = await fs.mkdtemp(path.join(os.tmpdir(), "nexus-mcp-reg-second-"));
+    try {
+      await fs.mkdir(path.join(second, ".nexus"), { recursive: true });
+      await fs.writeFile(
+        path.join(second, ".nexus", "mcp.json"),
+        JSON.stringify({ servers: [{ name: "secondary-server" }] }),
+      );
+      writeMcpToolDenyFile(second, {
+        version: 1,
+        servers: { "nexus-skill-server": { deniedTools: ["list_skills"], knownTools: ["list_skills"] } },
+      });
+      const listed = listMcpRegistrySettings({
+        workspacePath: root,
+        workspaceRoots: [root, second],
+        hub: HUB,
+      });
+      expect(listed.servers.some((server) => server.name === "secondary-server")).toBe(true);
+      expect(listed.servers.find((server) => server.name === "nexus-skill-server")?.tools[0]?.reason)
+        .toBe("user-denied");
+    } finally {
+      await fs.rm(second, { recursive: true, force: true });
+    }
+  });
 });

@@ -29,6 +29,7 @@ import { createMockCredentialsClient } from "./mockCredentialsClient";
 import { createMockServingClient } from "./mockServingClient";
 import { createMockFineTuningClient } from "./mockFineTuningClient";
 import { createMockMcpRegistryClient } from "./mockMcpRegistryClient";
+import type { ArchivedChatsClient } from "./ArchivedChatsSettings";
 
 // v2.2.0 Phase 7: "data" hosts export/import; the retired User Profile page
 // redirects here rather than rendering a placeholder that read nothing.
@@ -58,6 +59,7 @@ const SETTINGS_TABS: readonly SettingsTab[] = [
 ];
 
 function parseSettingsTab(raw: string | null): SettingsTab | null {
+  if (raw === "archives") return "data";
   if (raw && (SETTINGS_TABS as readonly string[]).includes(raw)) {
     return raw as SettingsTab;
   }
@@ -78,9 +80,11 @@ export interface SettingsPageProps {
   securityClient?: SecuritySettingsClient;
   auditClient?: AuditLogClient;
   videoClient?: VideoSettingsClient;
-  initialTab?: SettingsTab;
+  archivedChatsClient?: ArchivedChatsClient;
+  initialTab?: SettingsTab | "archives";
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
+  hostGpuVendor?: string | null;
 }
 
 export function SettingsPage({
@@ -94,12 +98,16 @@ export function SettingsPage({
   securityClient,
   auditClient,
   videoClient,
+  archivedChatsClient,
   initialTab = "models",
   hostVramGB = null,
+  hostGpuVendor = null,
 }: SettingsPageProps = {}): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = parseSettingsTab(searchParams.get("tab"));
-  const [tab, setTabState] = useState<SettingsTab>(tabFromUrl ?? initialTab);
+  const [tab, setTabState] = useState<SettingsTab>(
+    tabFromUrl ?? (initialTab === "archives" ? "data" : initialTab),
+  );
 
   useEffect(() => {
     const next = parseSettingsTab(searchParams.get("tab"));
@@ -199,7 +207,7 @@ export function SettingsPage({
           onClick={() => setTab("tuning")}
           style={tabButtonStyle(tab === "tuning")}
         >
-          Fine-tuning
+          Training
         </button>
         <button
           type="button"
@@ -235,7 +243,7 @@ export function SettingsPage({
         </button>
       </nav>
       {tab === "models" ? (
-        <ModelsSettings client={models} hostVramGB={hostVramGB} />
+        <ModelsSettings client={models} hostVramGB={hostVramGB} gpuVendor={hostGpuVendor} />
       ) : tab === "skills" ? (
         <SkillsSettings client={skills} />
       ) : tab === "optimizer" ? (
@@ -243,7 +251,7 @@ export function SettingsPage({
       ) : tab === "serving" ? (
         <ServingSettings client={serving} />
       ) : tab === "tuning" ? (
-        <FineTuningSettings client={fineTuning} />
+        <FineTuningSettings client={fineTuning} hostVramGB={hostVramGB} gpuVendor={hostGpuVendor} />
       ) : tab === "video" ? (
         <VideoSettings client={video} />
       ) : tab === "mcp" ? (
@@ -251,7 +259,7 @@ export function SettingsPage({
       ) : tab === "security" ? (
         <SecuritySettings client={securityClient} auditClient={auditClient} />
       ) : tab === "data" ? (
-        <DataSettings />
+        <DataSettings archivedChatsClient={archivedChatsClient} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

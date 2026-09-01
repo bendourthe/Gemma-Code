@@ -13,7 +13,7 @@
  *     presence over a 64-token vocabulary of common code/text tokens.
  *
  * The embedder is deterministic: the same input always produces the same
- * output bit-for-bit. It is NOT a substitute for nomic-embed-text -- recall
+ * output bit-for-bit. It is NOT a substitute for a learned embedding model -- recall
  * is meaningfully lower -- but it lets semantic search keep working when
  * Ollama is unreachable, with the trade-off that callers should raise the
  * cosine threshold (0.95+) on heuristic-tagged rows.

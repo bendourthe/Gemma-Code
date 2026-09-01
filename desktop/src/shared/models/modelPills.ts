@@ -134,3 +134,24 @@ export function buildModelPills(model: PillSource): string[] {
   if (released) pills.push(released);
   return pills;
 }
+
+/**
+ * v2.4.4 Phase 6.3 (T025) -- split one pill into its label and value.
+ *
+ * Details rendered each pill as one flat run of text, so `Company: Google`
+ * read as a single grey blob and the facts were hard to scan. Splitting here
+ * (rather than in the component) keeps the v2.2.9 pill grammar as the single
+ * source of what a pill says; the component only decides how the two halves
+ * are styled. A pill with no separator is all value, which keeps standalone
+ * pills like a bare released-date rendering correctly.
+ */
+export interface SplitPill {
+  readonly label: string | null;
+  readonly value: string;
+}
+
+export function splitModelPill(pill: string): SplitPill {
+  const at = pill.indexOf(": ");
+  if (at < 0) return { label: null, value: pill };
+  return { label: pill.slice(0, at + 1), value: pill.slice(at + 2) };
+}

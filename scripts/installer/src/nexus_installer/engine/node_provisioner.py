@@ -18,7 +18,11 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from nexus_installer.engine.platform_utils import is_linux, is_macos, is_windows, run_command
+from nexus_installer.engine.platform_utils import (
+    is_macos,
+    is_windows,
+    run_command,
+)
 
 if sys.platform == "win32":
     import winreg

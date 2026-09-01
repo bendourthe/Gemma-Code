@@ -35,6 +35,8 @@ export interface QuickModelSwitcherProps {
   hostVramGB?: number | null;
   /** Override tab (Agents uses agentic; default follows taskType). */
   catalogTab?: CatalogTab;
+  /** Installer recommend order (required/recommended id first). */
+  recommendOrder?: readonly string[];
 }
 
 function catalogTabForTask(type: ModelType): CatalogTab {
@@ -59,16 +61,20 @@ export function QuickModelSwitcher({
   harnessSelectorEnabled,
   hostVramGB = null,
   catalogTab,
+  recommendOrder,
 }: QuickModelSwitcherProps): JSX.Element {
   const ready = useMemo(() => {
     const installed = new Set(
       installedModelsForType(models, taskType, ownedIds).map((m) => m.id),
     );
-    return visibleModelsOnTab(models, catalogTab ?? catalogTabForTask(taskType), {
+    const tab = catalogTab ?? catalogTabForTask(taskType);
+    return visibleModelsOnTab(models, tab, {
       hostVramGB,
       gpuVendor: catalogSortGpuVendor(hostVramGB),
+      recommendOrder,
+      defaults: new Set(recommendOrder?.slice(0, 1) ?? []),
     }).filter((m) => installed.has(m.id));
-  }, [models, taskType, ownedIds, hostVramGB, catalogTab]);
+  }, [models, taskType, ownedIds, hostVramGB, catalogTab, recommendOrder]);
 
   const options = useMemo(
     () => [

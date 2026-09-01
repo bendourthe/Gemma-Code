@@ -31,15 +31,20 @@ class TestValidationProtocol:
 
 
 class TestPageSequence:
-    def test_ten_step_names(self) -> None:
+    def test_seven_step_names(self) -> None:
         from nexus_installer.constants import STEP_NAMES
 
-        assert len(STEP_NAMES) == 10
-        assert STEP_NAMES[0] == "Welcome"
-        assert STEP_NAMES[6] == "VS Code"
-        assert STEP_NAMES[7] == "Review"
-        assert STEP_NAMES[8] == "Installing"
-        assert STEP_NAMES[9] == "Complete"
+        assert len(STEP_NAMES) == 7
+        assert STEP_NAMES == [
+            "Welcome",
+            "Setup",
+            "Models",
+            "Configuration",
+            "Review",
+            "Installing",
+            "Complete",
+        ]
+        assert "VS Code" not in STEP_NAMES
 
     def test_review_is_before_installing(self) -> None:
         from nexus_installer.constants import STEP_NAMES
@@ -48,18 +53,15 @@ class TestPageSequence:
         install_idx = STEP_NAMES.index("Installing")
         assert review_idx == install_idx - 1
 
-    def test_gui_route_registers_vscode_page_before_review(self) -> None:
+    def test_gui_route_registers_vscode_controls_on_configuration(self) -> None:
         from nexus_installer.installer_state import InstallerState
         from nexus_installer.main import _register_gui_pages
 
         route = [
             ("nexus_installer.pages.welcome.WelcomePage", "Welcome"),
-            ("nexus_installer.pages.prerequisites.PrerequisitesPage", "Prerequisites"),
-            ("nexus_installer.pages.gpu_detection.GpuDetectionPage", "GPU Detection"),
-            ("nexus_installer.pages.install_path.InstallPathPage", "Install Path"),
+            ("nexus_installer.pages.setup.SetupPage", "Setup"),
             ("nexus_installer.pages.typed_catalog.TypedCatalogPage", "Models"),
             ("nexus_installer.pages.configuration.ConfigurationPage", "Configuration"),
-            ("nexus_installer.pages.vscode_extension.VsCodeExtensionPage", "VS Code"),
             ("nexus_installer.pages.review.ReviewPage", "Review"),
             ("nexus_installer.pages.installing.InstallingPage", "Installing"),
             ("nexus_installer.pages.complete.CompletePage", "Complete"),
@@ -91,7 +93,7 @@ class TestPageSequence:
         assert window.pages == [name for _target, name in route]
         assert installing == "Installing"
         assert complete == "Complete"
-        factories["VS Code"].assert_called_once_with(state)
+        factories["Configuration"].assert_called_once_with(state)
         factories["Installing"].assert_called_once_with(
             state, on_engine_created=on_engine_created
         )
@@ -109,7 +111,7 @@ class TestPageSequence:
         from nexus_installer.engine.extension_installer import VsCodeCliStatus
         from nexus_installer.installer_state import InstallerState
         from nexus_installer.main import _register_gui_pages
-        from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
+        from nexus_installer.pages.configuration import ConfigurationPage
         from nexus_installer.window import InstallerWindow
 
         not_found = VsCodeCliStatus(None, None, None, False, "not-found")
@@ -127,11 +129,8 @@ class TestPageSequence:
 
         generic_targets = [
             "nexus_installer.pages.welcome.WelcomePage",
-            "nexus_installer.pages.prerequisites.PrerequisitesPage",
-            "nexus_installer.pages.gpu_detection.GpuDetectionPage",
-            "nexus_installer.pages.install_path.InstallPathPage",
+            "nexus_installer.pages.setup.SetupPage",
             "nexus_installer.pages.typed_catalog.TypedCatalogPage",
-            "nexus_installer.pages.configuration.ConfigurationPage",
             "nexus_installer.pages.review.ReviewPage",
             "nexus_installer.pages.installing.InstallingPage",
             "nexus_installer.pages.complete.CompletePage",
@@ -156,21 +155,20 @@ class TestPageSequence:
                 stack.enter_context(patch(target, side_effect=generic_page))
             _register_gui_pages(window, state)
 
-            vscode_index = STEP_NAMES.index("VS Code")
-            vscode_page = window._pages[vscode_index]
-            assert isinstance(vscode_page, VsCodeExtensionPage)
+            config_index = STEP_NAMES.index("Configuration")
+            config_page = window._pages[config_index]
+            assert isinstance(config_page, ConfigurationPage)
+            vscode = config_page._vscode
             assert "extension" not in state.components_to_install
 
-            # Simulate the PrerequisitesPage worker completing after every page
-            # has already been constructed, then enter the VS Code route.
             state.vscode_path = saved_path
             window.show()
             window.show_first_page()
-            window.switch_page(vscode_index)
+            window.switch_page(config_index)
             qt_app.processEvents()
 
-            assert vscode_page._checkbox.isEnabled() is supported
-            assert vscode_page._checkbox.isChecked() is supported
+            assert vscode._checkbox.isEnabled() is supported
+            assert vscode._checkbox.isChecked() is supported
             assert ("extension" in state.components_to_install) is supported
             assert state.install_vscode_extension is supported
 
@@ -184,6 +182,6 @@ class TestInstallerStateNavigation:
         assert not (index > 0)
 
     def test_forward_from_last_page_closes(self) -> None:
-        pages_count = 10
+        pages_count = 7
         index = pages_count - 1
         assert index == pages_count - 1  # Should trigger close

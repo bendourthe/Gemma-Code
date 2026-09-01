@@ -9,6 +9,7 @@
  */
 
 import type { AgentActivity } from "../../components/agentState/mapping";
+import type { MessageTokenUsageV1, RequestTokenUsageV1 } from "../../../../core/chat/tokenUsage";
 
 export type ChatRole = "user" | "assistant" | "system";
 
@@ -55,6 +56,33 @@ export interface ChatMessage {
   reasoningTokens?: number | null;
   outputTokens?: number | null;
   tokensEstimated?: boolean;
+  /** Request-wide provider telemetry, never displayed on a message bubble. */
+  requestUsage?: RequestTokenUsageV1;
+  /** Usage attributable only to this visible message. */
+  messageUsage?: MessageTokenUsageV1;
+  /** Provider-exposed reasoning content only. Never inferred from ordinary output. */
+  reasoningText?: string | null;
+  /** v2.4.1 -- shared Image/Video runtime recovery state. */
+  mediaRecovery?: MediaRuntimeRecovery;
+  /** v2.4.2 Phase 3 -- SAM2 missing-weights recovery (install or paint a mask). */
+  sam2Recovery?: Sam2Recovery;
+}
+
+export interface MediaRuntimeRecovery {
+  readonly state: "repairable" | "repairing" | "failed";
+  readonly code: string;
+  readonly message: string;
+  readonly retryable: boolean;
+  readonly progress: number;
+  readonly details?: string;
+  readonly logPath?: string;
+}
+
+export interface Sam2Recovery {
+  readonly modelId: string;
+  readonly message: string;
+  readonly installing?: boolean;
+  readonly installed?: boolean;
 }
 
 export interface ChatMedia {

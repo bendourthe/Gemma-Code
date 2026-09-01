@@ -136,4 +136,19 @@ describe("video dispatcher", () => {
       buildVideoJobRequest("text2video", { modelId: "ltx-video" }, runtime),
     ).rejects.toThrow(/video runtime is not ready/);
   });
+
+  it("fails closed in one tick when SANA-Video returns no path", async () => {
+    const runtime = new InMemoryDiffusionRuntime();
+    runtime.setResponse("diffusion.video.sana.text2video", {
+      ok: false,
+      message: "video weights are not installed for sana-video-2b-720p",
+    });
+    await expect(
+      buildVideoJobRequest(
+        "text2video",
+        { modelId: "sana-video-2b-720p", prompt: "a puppy in grass" },
+        runtime,
+      ),
+    ).rejects.toThrow(/weights are not installed/);
+  });
 });

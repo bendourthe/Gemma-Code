@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from nexus_installer.engine.hf_auth import (
+    browser_login_for_repo,
     discover_hf_token,
     hf_cache_token_path,
     hf_token_from_cache,
@@ -17,6 +18,53 @@ from nexus_installer.engine.hf_auth import (
     validate_token_for_repo,
 )
 from nexus_installer.installer_state import InstallerState
+
+
+def test_browser_login_returns_repo_valid_cached_token() -> None:
+    opened: list[tuple[str, str]] = []
+    token = browser_login_for_repo(
+        "org/repo",
+        authorize=lambda url, code: opened.append((url, code)),
+        request_device_code=lambda: {
+            "verification_uri_complete": "https://example.test/device?code=ABCD",
+            "user_code": "ABCD",
+        },
+        poll_device_token=lambda info, **kw: {"access_token": "oauth-token"},
+        validate=lambda repo, value: repo == "org/repo" and value == "oauth-token",
+    )
+    assert token == "oauth-token"
+    assert opened == [("https://example.test/device?code=ABCD", "ABCD")]
+
+
+def test_browser_login_rejects_token_without_repo_access() -> None:
+    assert (
+        browser_login_for_repo(
+            "org/repo",
+            authorize=lambda url, code: None,
+            request_device_code=lambda: {
+                "verification_uri_complete": "https://example.test/device",
+                "user_code": "ABCD",
+            },
+            poll_device_token=lambda info, **kw: {"access_token": "oauth-token"},
+            validate=lambda repo, value: False,
+        )
+        is None
+    )
+
+
+def test_browser_login_uses_verification_uri_fallback() -> None:
+    opened: list[tuple[str, str]] = []
+    browser_login_for_repo(
+        "org/repo",
+        authorize=lambda url, code: opened.append((url, code)),
+        request_device_code=lambda: {
+            "verification_uri": "https://example.test/device",
+            "user_code": "WXYZ",
+        },
+        poll_device_token=lambda info, **kw: {"access_token": "oauth-token"},
+        validate=lambda repo, value: True,
+    )
+    assert opened == [("https://example.test/device", "WXYZ")]
 
 
 @pytest.fixture(autouse=True)

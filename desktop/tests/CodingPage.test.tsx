@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CodingPage } from "../src/modules/coding/CodingPage";
 import {
@@ -8,6 +8,7 @@ import {
 } from "../src/lib/ipc";
 import { createInMemoryDocumentClient } from "../src/modules/chat/documentClient";
 import { PERSISTENCE_KEYS } from "../src/lib/persistence";
+import { setWorkspaceDialogOverride } from "../src/lib/workspacePicker";
 
 interface InvokeArgs {
   method: string;
@@ -25,6 +26,9 @@ function makeFakeInvoke() {
       title: "Prior session",
       createdAt: "2026-05-17T10:00:00Z",
       messageCount: 4,
+      workspaceId: "ws-0123456789abcdef01234567",
+      workspaceRoots: ["C:\\work\\project"],
+      primaryRoot: "C:\\work\\project",
     },
     {
       sessionId: "missing-1",
@@ -33,6 +37,9 @@ function makeFakeInvoke() {
       title: "Missing session",
       createdAt: "2026-05-17T10:00:00Z",
       messageCount: 1,
+      workspaceId: "ws-0123456789abcdef01234567",
+      workspaceRoots: ["C:\\work\\project"],
+      primaryRoot: "C:\\work\\project",
     },
   ];
   transcripts.set("prev-1", [{ prompt: "Hello agent", assistantText: "ok" }]);
@@ -51,6 +58,9 @@ function makeFakeInvoke() {
             title: "Live session",
             createdAt: "2026-05-17T11:00:00Z",
             messageCount: 0,
+            workspaceId: "ws-0123456789abcdef01234567",
+            workspaceRoots: [...((a.params.workspaceRoots as string[]) ?? [String(a.params.workspacePath)])],
+            primaryRoot: String(a.params.primaryRoot ?? a.params.workspacePath),
           });
         }
         return {
@@ -58,6 +68,9 @@ function makeFakeInvoke() {
           modelId: (a.params.modelId as string) ?? "gemma4:e4b",
           family: "gemma",
           createdAt: "2026-05-17T11:00:00Z",
+          workspaceId: "ws-0123456789abcdef01234567",
+          workspaceRoots: [...((a.params.workspaceRoots as string[]) ?? [String(a.params.workspacePath)])],
+          primaryRoot: String(a.params.primaryRoot ?? a.params.workspacePath),
         };
       }
       case "coding.session.sendMessage": {
@@ -163,17 +176,22 @@ describe("CodingPage", () => {
   beforeEach(() => {
     window.localStorage.setItem(PERSISTENCE_KEYS.codingWorkspacePath, "C:\\work\\project");
     fake = makeFakeInvoke();
-    setInvokeOverride(async (_cmd, args) => fake.invoke("ipc_call", args ?? {}));
+    setInvokeOverride(async (cmd, args) => {
+      if (cmd === "canonicalize_workspace_roots") return args?.paths ?? [];
+      if (cmd === "default_workspace_root") return "C:\\Users\\tester";
+      return fake.invoke("ipc_call", args ?? {});
+    });
   });
 
   afterEach(() => {
     clearInvokeOverride();
+    setWorkspaceDialogOverride(null);
     window.localStorage.clear();
   });
 
-  it("renders the model selector and the chat empty state by default", () => {
+  it("renders the model selector and the chat empty state after live model hydration", async () => {
     render(<CodingPage />);
-    expect(screen.getByTestId("coding-model-select")).toBeInTheDocument();
+    expect(await screen.findByTestId("coding-model-select")).toBeInTheDocument();
     expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
     expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
@@ -190,29 +208,96 @@ describe("CodingPage", () => {
     expect(screen.getAllByTestId(/^message-tokens-/).length).toBeGreaterThanOrEqual(1);
     expect(fake.calls.find((call) => call.method === "coding.session.start")?.params).toMatchObject({
       workspacePath: "C:\\work\\project",
+      workspaceRoots: ["C:\\work\\project"],
+      primaryRoot: "C:\\work\\project",
     });
   });
 
-  it("refuses to start a session until a workspace is supplied", async () => {
+  it("defaults a first launch to the operating-system home directory", async () => {
     window.localStorage.removeItem(PERSISTENCE_KEYS.codingWorkspacePath);
+    window.localStorage.removeItem(PERSISTENCE_KEYS.codingWorkspace);
     render(<CodingPage />);
+    expect(await screen.findByTestId("coding-workspace-primary")).toHaveAttribute(
+      "title",
+      "C:\\Users\\tester",
+    );
     await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
     await userEvent.click(screen.getByTestId("coding-input-submit"));
-    expect(await screen.findByTestId("coding-error")).toHaveTextContent(
-      "Choose a workspace folder",
-    );
-    expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
+    await waitFor(() => expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(true));
+    expect(fake.calls.find((call) => call.method === "coding.session.start")?.params).toMatchObject({
+      workspaceRoots: ["C:\\Users\\tester"],
+      primaryRoot: "C:\\Users\\tester",
+    });
   });
 
-  it("persists and displays the selected workspace in the coding header", async () => {
+  it("replaces, adds, deduplicates, and persists folders selected through the native picker", async () => {
+    const picks = [["D:\\projects\\client"], ["D:\\projects\\client", "E:\\shared"]];
+    setWorkspaceDialogOverride(async () => picks.shift() ?? null);
     render(<CodingPage />);
-    const input = screen.getByTestId("coding-workspace-path") as HTMLInputElement;
-    expect(input.value).toBe("C:\\work\\project");
-    await userEvent.clear(input);
-    await userEvent.type(input, "D:\\projects\\client");
+    expect(screen.getByTestId("coding-workspace-primary")).toHaveAttribute("title", "C:\\work\\project");
+    await userEvent.click(screen.getByRole("button", { name: /Change primary folder/i }));
+    await waitFor(() => expect(screen.getByTestId("coding-workspace-primary")).toHaveAttribute("title", "D:\\projects\\client"));
+    await userEvent.click(screen.getByTestId("coding-workspace-add"));
+    await waitFor(() => expect(screen.getByTestId("coding-workspace-extra")).toHaveAttribute("title", "E:\\shared"));
     expect(window.localStorage.getItem(PERSISTENCE_KEYS.codingWorkspacePath)).toBe(
       "D:\\projects\\client",
     );
+    expect(JSON.parse(window.localStorage.getItem(PERSISTENCE_KEYS.codingWorkspace) ?? "{}")).toEqual({
+      roots: ["D:\\projects\\client", "E:\\shared"],
+      primaryRoot: "D:\\projects\\client",
+    });
+  });
+
+  it("restores persisted roots after restart and removes an extra folder", async () => {
+    window.localStorage.setItem(PERSISTENCE_KEYS.codingWorkspace, JSON.stringify({
+      roots: ["C:\\work\\project", "E:\\shared"],
+      primaryRoot: "C:\\work\\project",
+    }));
+    const first = render(<CodingPage />);
+    expect(await screen.findByTestId("coding-workspace-extra")).toHaveAttribute("title", "E:\\shared");
+    first.unmount();
+    render(<CodingPage />);
+    expect(screen.getByTestId("coding-workspace-primary")).toHaveAttribute("title", "C:\\work\\project");
+    expect(screen.getByTestId("coding-workspace-extra")).toHaveAttribute("title", "E:\\shared");
+    await userEvent.click(screen.getByRole("button", { name: "Remove folder shared" }));
+    await waitFor(() => expect(screen.queryByTestId("coding-workspace-extra")).toBeNull());
+  });
+
+  it("switches an idle session to a new workspace by resetting its transcript", async () => {
+    setWorkspaceDialogOverride(async () => ["E:\\shared"]);
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => expect(screen.getByTestId("coding-chat")).toHaveTextContent("ok"));
+    await userEvent.click(screen.getByTestId("coding-workspace-add"));
+    await waitFor(() => expect(screen.getByTestId("coding-workspace-extra")).toHaveAttribute("title", "E:\\shared"));
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
+    expect(fake.calls.some((call) => call.method === "coding.session.cancel")).toBe(true);
+  });
+
+  it("keeps a busy session fixed to its roots unless stop and switch is confirmed", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    setInvokeOverride(async (cmd, args) => {
+      if (cmd === "canonicalize_workspace_roots") return args?.paths ?? [];
+      const input = args as unknown as InvokeArgs;
+      if (input.method === "coding.session.sendMessage") await gate;
+      return fake.invoke("ipc_call", args ?? {});
+    });
+    setWorkspaceDialogOverride(async () => ["E:\\busy"]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Keep working");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    await screen.findByRole("img", { name: "Generating reply" });
+    await userEvent.click(screen.getByTestId("coding-workspace-add"));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    expect(screen.queryByTestId("coding-workspace-extra")).toBeNull();
+    confirm.mockReturnValue(true);
+    await userEvent.click(screen.getByTestId("coding-workspace-add"));
+    await waitFor(() => expect(screen.getByTestId("coding-workspace-extra")).toHaveAttribute("title", "E:\\busy"));
+    release();
+    confirm.mockRestore();
   });
 
   it("does not start or send until a conflicting active model switch is approved", async () => {
@@ -296,24 +381,48 @@ describe("CodingPage", () => {
     });
   });
 
-  it("renders the Trace panel when the Trace tab is selected", async () => {
+  it("migrates the Trace deep link to the Activity panel", async () => {
     render(<CodingPage initialTab="trace" />);
     await waitFor(() => {
       expect(screen.getByTestId("trace-panel")).toHaveTextContent("trace-summary");
     });
   });
 
-  it("renders the Sessions panel when the Sessions tab is selected", async () => {
+  it("migrates the removed Sessions deep link to Chat while keeping history available", async () => {
     render(<CodingPage initialTab="sessions" />);
     await waitFor(() => {
       expect(screen.getByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
     });
     expect(screen.getByTestId("coding-history-pane")).toBeInTheDocument();
-    expect(screen.getByTestId("sessions-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("coding-chat")).toBeInTheDocument();
+    expect(screen.queryByTestId("coding-tab-sessions")).toBeNull();
+  });
+
+  it("retries a failed workspace history load in place", async () => {
+    let failList = true;
+    setInvokeOverride(async (cmd, args) => {
+      if (cmd === "canonicalize_workspace_roots") return args?.paths ?? [];
+      const input = args as unknown as InvokeArgs;
+      if (input.method === "coding.sessions.list" && failList) {
+        throw new Error("history unavailable");
+      }
+      return fake.invoke("ipc_call", args ?? {});
+    });
+    render(<CodingPage />);
+    expect(await screen.findByTestId("folder-tree-error")).toHaveTextContent("history unavailable");
+    failList = false;
+    await userEvent.click(screen.getByTestId("folder-tree-retry"));
+    expect(await screen.findByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
   });
 
   it("model select changes the modelId before a session starts", async () => {
     const modelsClient = {
+      lastSelection: {
+        schemaVersion: 1 as const,
+        orderedIds: ["gemma4:e4b", "qwen2.5-coder:7b"],
+        recommendedByTask: { agentic: "qwen2.5-coder:7b" },
+        downloadedSinceInstall: [],
+      },
       async list() {
         return [
           {
@@ -323,6 +432,7 @@ describe("CodingPage", () => {
             installed: true,
             source: "registry" as const,
             contextWindow: 128000,
+            task: "chat",
             agentic: true,
           },
           {
@@ -332,20 +442,96 @@ describe("CodingPage", () => {
             installed: true,
             source: "registry" as const,
             contextWindow: 32768,
+            task: "chat",
             agentic: true,
           },
         ];
       },
     };
     render(<CodingPage modelsClient={modelsClient} />);
-    const select = screen.getByTestId("coding-model-select") as HTMLSelectElement;
     await waitFor(() => {
+      const select = screen.getByTestId("coding-model-select") as HTMLSelectElement;
       expect([...select.options].map((o) => o.value)).toContain("qwen2.5-coder:7b");
     });
+    const select = screen.getByTestId("coding-model-select") as HTMLSelectElement;
+    expect(select.value).toBe("qwen2.5-coder:7b");
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
     expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="coding-model-select"]')).toBeTruthy();
     await userEvent.selectOptions(select, "qwen2.5-coder:7b");
     expect(select.value).toBe("qwen2.5-coder:7b");
+  });
+
+  it("shows a loading placeholder until the installed model catalog resolves", async () => {
+    let resolveModels!: (models: readonly {
+      id: string;
+      displayName: string;
+      type: "llm";
+      installed: boolean;
+      source: "registry";
+      task: "chat";
+      agentic: boolean;
+    }[]) => void;
+    const modelsClient = {
+      lastSelection: null,
+      list: () => new Promise<readonly {
+        id: string;
+        displayName: string;
+        type: "llm";
+        installed: boolean;
+        source: "registry";
+        task: "chat";
+        agentic: boolean;
+      }[]>((resolve) => { resolveModels = resolve; }),
+    };
+    render(<CodingPage modelsClient={modelsClient} />);
+    expect(screen.getByTestId("coding-model-loading")).toHaveTextContent("Loading models");
+    expect(screen.queryByTestId("coding-model-select")).toBeNull();
+    await act(async () => {
+      resolveModels([{ id: "gemma4:e4b", displayName: "Gemma 4 E4B", type: "llm", installed: true, source: "registry", task: "chat", agentic: true }]);
+    });
+    expect(await screen.findByTestId("coding-model-select")).toHaveValue("gemma4:e4b");
+  });
+
+  it("falls back to the first ready installer-ranked model when the recommendation is unavailable", async () => {
+    const modelsClient = {
+      lastSelection: {
+        schemaVersion: 1 as const,
+        orderedIds: ["qwen2.5-coder:7b", "gemma4:e4b"],
+        recommendedByTask: { agentic: "missing:model" },
+        downloadedSinceInstall: [],
+      },
+      async list() {
+        return [
+          { id: "gemma4:e4b", displayName: "Gemma 4 E4B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+          { id: "qwen2.5-coder:7b", displayName: "Qwen 2.5 Coder 7B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+        ];
+      },
+    };
+    render(<CodingPage modelsClient={modelsClient} />);
+    expect(await screen.findByTestId("coding-model-select")).toHaveValue("qwen2.5-coder:7b");
+  });
+
+  it("ignores leftover favorite on an empty session and protects a manual choice from a later catalog refresh", async () => {
+    window.localStorage.setItem("nexus.ui.favoriteModel.agentic", "gemma4:e4b");
+    const models = [
+      { id: "qwen2.5-coder:7b", displayName: "Qwen 2.5 Coder 7B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+      { id: "gemma4:e4b", displayName: "Gemma 4 E4B", type: "llm" as const, installed: true, source: "registry" as const, task: "chat", agentic: true },
+    ];
+    const selection = {
+      schemaVersion: 1 as const,
+      orderedIds: ["qwen2.5-coder:7b", "gemma4:e4b"],
+      recommendedByTask: { agentic: "qwen2.5-coder:7b" },
+      downloadedSinceInstall: [],
+    };
+    const firstClient = { lastSelection: selection, async list() { return models; } };
+    const { rerender } = render(<CodingPage modelsClient={firstClient} />);
+    const select = await screen.findByTestId("coding-model-select") as HTMLSelectElement;
+    expect(select).toHaveValue("qwen2.5-coder:7b");
+    await userEvent.selectOptions(select, "gemma4:e4b");
+    const refreshedClient = { lastSelection: { ...selection, recommendedByTask: { agentic: "qwen2.5-coder:7b" } }, async list() { return models; } };
+    rerender(<CodingPage modelsClient={refreshedClient} />);
+    expect(await screen.findByTestId("coding-model-select")).toHaveValue("gemma4:e4b");
+    expect(window.localStorage.getItem("nexus.ui.favoriteModel.agentic")).toBe("gemma4:e4b");
   });
 
   it("shows an error banner when the IPC layer is unavailable", async () => {
@@ -358,12 +544,27 @@ describe("CodingPage", () => {
     });
   });
 
-  it("tab navigation switches between Chat / Memory / Trace / Sessions", async () => {
+  it("tab navigation switches between Chat, Memory, and Activity", async () => {
     render(<CodingPage />);
     await userEvent.click(screen.getByTestId("coding-tab-memory"));
     await waitFor(() => expect(screen.getByTestId("memory-panel")).toBeInTheDocument());
+    expect(screen.getByTestId("coding-memory")).toHaveTextContent("Knowledge saved or indexed for these workspace folders.");
     await userEvent.click(screen.getByTestId("coding-tab-chat"));
     expect(screen.getByTestId("coding-chat")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("coding-tab-activity"));
+    expect(await screen.findByTestId("coding-activity")).toHaveTextContent("Tools, approvals, and runtime events for this workspace.");
+    expect(screen.queryByTestId("coding-tab-sessions")).toBeNull();
+  });
+
+  it("keeps workspace controls and tabs on one header row without an in-pane History band", async () => {
+    render(<CodingPage />);
+    const header = screen.getByTestId("coding-workspace-header");
+    expect(header).toContainElement(screen.getByTestId("coding-workspace-controls"));
+    expect(header).toContainElement(screen.getByTestId("coding-tabs"));
+    expect(screen.getByTestId("coding-history-pane")).toBeInTheDocument();
+    expect(screen.queryByTestId("coding-history-collapse-toggle")).toBeNull();
+    expect(screen.queryByTestId("coding-history-content")).toBeNull();
+    expect(await screen.findByTestId("tree-row-chat-prev-1")).toBeInTheDocument();
   });
 
   it("does not show a pink Agentic AI Coding heading or harness badges", async () => {

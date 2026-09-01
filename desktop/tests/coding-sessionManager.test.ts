@@ -35,7 +35,7 @@ describe("CodingSessionManager", () => {
     expect(list.find((s) => s.sessionId === a.sessionId)?.title).toBe(
       "Refactor PromptBuilder",
     );
-    expect(list.find((s) => s.sessionId === b.sessionId)?.title).toMatch(/^Session /);
+    expect(list.find((s) => s.sessionId === b.sessionId)?.title).toBe("New chat");
   });
 
   it("sendMessage emits the full event union and increments messageCount", async () => {
@@ -172,8 +172,51 @@ describe("CodingSessionManager", () => {
       reasoningTokens: 2,
       outputTokens: 10,
       tokensEstimated: false,
+      requestUsage: {
+        version: 1,
+        inputTokens: 40,
+        reasoningTokens: 2,
+        outputTokens: 10,
+        provenance: { accuracy: "exact", source: "provider" },
+        raw: { inputTokens: 40, reasoningTokens: 2, outputTokens: 10 },
+      },
+      userMessageUsage: {
+        version: 1,
+        inputTokens: 1,
+        reasoningTokens: null,
+        outputTokens: null,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
+      assistantMessageUsage: {
+        version: 1,
+        inputTokens: null,
+        reasoningTokens: null,
+        outputTokens: 1,
+        provenance: { accuracy: "estimated", source: "estimate" },
+      },
       createdAt: "2026-05-17T11:00:00.000Z",
     });
+  });
+
+  it("persists redacted explicit reasoning separately from assistant output", async () => {
+    const mgr = new CodingSessionManager({
+      now: () => new Date("2026-05-17T11:00:00Z"),
+      idFactory: () => "sess-reasoning",
+      agentRunner: async () => [
+        {
+          kind: "reasoning_delta",
+          text: "Check " + ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join(""),
+        },
+        { kind: "token", text: "Safe answer" },
+        { kind: "done", finishReason: "stop", reasoningTokens: 4 },
+      ],
+    });
+    const { sessionId } = mgr.start({ modelId: "gemma4:e4b" });
+    await mgr.sendMessage(sessionId, "hi");
+    const turn = mgr.resume(sessionId).turns[0];
+    expect(turn?.assistantText).toBe("Safe answer");
+    expect(turn?.reasoningText).toContain("<redacted>");
+    expect(turn?.reasoningText).not.toContain("ghp_");
   });
 
   it("renames and deletes a session", async () => {
