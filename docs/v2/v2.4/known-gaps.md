@@ -6,7 +6,80 @@
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next plan ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md)
+Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md)
+
+## v2.4.4
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---:|---:|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 1 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 1 | 0 |
+| Missing tests / coverage gaps (MT) | 6 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phases 1-7 are implemented locally against packaged post-v2.4.3 screenshots 1-6. Every change is proven by automated tests; none of the six field symptoms has been re-observed on the packaged 16 GB NVIDIA host, because that requires a rebuilt installer this cycle did not produce. The Diffusers pin moved 0.34.0 to 0.36.0 on distribution evidence, and a live import plus a Wan and SDXL re-smoke on the new pin are the highest-value operator items.
+
+### Open Items
+
+##### MT-1 - Packaged transcript gutters and pill glow are not observed
+
+- **Source phase**: Phase 1 - Transcript Gutters and Thinking Pill
+- **Impact**: The gutter is proven as one `paddingInline` on the list with no downstream inset, and list, row, and pending are all overflow-visible. jsdom does not lay out a packaged transcript, so whether the glow is uncropped at 100% and 150% zoom is not observed here.
+- **Owner**: Operator, next packaged build
+- **Next step**: Operator item 1. Supersedes v2.4.3 MT-3, which stated the same limit against the 12px inset this phase deleted.
+
+##### MT-2 - Packaged hairline centering and title inset are not observed
+
+- **Source phase**: Phase 2 - History Hairline, Title Inset, and Bulk Actions
+- **Impact**: Tests pin one symmetric `marginBlock` on the rule, zero padding-top on the tree header, and a chat title as the first node after the selection rail. Pixel spacing in a packaged window is not observed here. Archive All and Delete All are proven against an in-memory client, including chats inside collapsed folders, but not against the real IPC store.
+- **Owner**: Operator, next packaged build
+- **Next step**: Operator item 2. Supersedes v2.4.3 MT-2.
+
+##### MT-3 - Packaged NVIDIA restyle identity is not observed
+
+- **Source phase**: Phase 3 - Image Restyle Identity on the GPU
+- **Impact**: Four contributors are fixed and each is pinned by a test: the parser accepts trailing punctuation, the send always resolves to img2img with the identity prompt or fails closed, strength 0 survives, the seed is forwarded, and a pipeline that echoes its source raises `unchanged-output`. Whether a real SANA/SDXL img2img at strength 0.85 produces black fur on this host is not observed here.
+- **Owner**: Operator, next packaged build
+- **Next step**: Operator item 3. Supersedes v2.4.3 MT-6; this is the third cycle to carry it.
+
+##### MT-4 - Live SANA import on the 0.36.0 pin is not observed
+
+- **Source phase**: Phase 4 - SANA Family Diffusers Pin
+- **Impact**: 0.36.0 was verified from published wheels to contain the SANA video pipeline modules and to export both class names, and to declare no torch or transformers upper bound. `from diffusers import SanaPipeline, SanaVideoPipeline` has not been executed in a provisioned venv, because Diffusers resolves pipelines lazily and the probe needs the full media runtime.
+- **Owner**: Operator, next packaged build
+- **Next step**: Operator item 4. Supersedes v2.4.3 MT-7.
+
+##### DF-1 - Wan and SDXL are not re-smoked on the new Diffusers pin
+
+- **Source phase**: Phase 4 - SANA Family Diffusers Pin
+- **Impact**: The pin change touches every Image and Video model on the host, not only SANA. Nothing in the automated suites exercises a real pipeline load, so a regression in Wan or SDXL under 0.36.0 would not be caught locally.
+- **Owner**: Operator, next packaged build
+- **Next step**: Operator item 4, second half. This is the highest-blast-radius unobserved change in the cycle.
+
+##### MT-5 - Packaged generation liveness is not observed
+
+- **Source phase**: Phase 5 - Generation Liveness and Studio Captions
+- **Impact**: The reader is proven to answer `health` while a job is inside its handler, heartbeats are proven to emit and stop, and a pending studio orb is proven unpaused. Whether the packaged freeze is fully explained by the blocked reader, or partly by GPU compositor starvation on a 16 GB laptop, is not established. No headroom value was changed, deliberately, because there is no evidence for choosing one.
+- **Owner**: Operator, next packaged build
+- **Next step**: Operator item 5. If the window still stalls with the reader unblocked, compositor VRAM is the remaining hypothesis and `workingMemReserveGB` becomes the next lever.
+
+##### MT-6 - Packaged Settings density is not observed
+
+- **Source phase**: Phase 6 - Settings Models Density and Details
+- **Impact**: Tests pin search inside the tab row container, a centered horizontal action row, no card min-height, split pill label/value colours, and Best for as bullets. Real-viewport card height and wrap behaviour at the packaged Settings width are not observed here.
+- **Owner**: Operator, next packaged build
+- **Next step**: Operator item 6. Supersedes v2.4.3 MT-4.
+
+##### WN-1 - Two pre-existing ruff F401 findings remain
+
+- **Source phase**: Phase 3 - Image Restyle Identity on the GPU (observed, not caused)
+- **Impact**: `runtimes/diffusion/vram_lifecycle.py:35` imports `typing.Any` unused and `tests/python/diffusion/test_registry.py:6` imports `sys` unused. Neither file was touched by this cycle, and every file that was touched passes ruff.
+- **Owner**: Next cleanup pass
+- **Next step**: Both are auto-fixable. Left alone here because they trace to no line in this plan.
 
 ## v2.4.3
 
@@ -244,6 +317,17 @@ Phases 1-6 of the generation-recovery plan are committed locally. Phase 7 proved
 
 - **Resolved**: 2026-08-30 in generation-recovery Phase 7.
 - **Evidence**: `python scripts/validate_unicode_safety.py --strict` now rejects BOMs and unsafe punctuation and can fix them. The same focused helper tests pass, and the Phase 7 text additions scanned with 21 files / 0 failures.
+
+### Reconciliation of Earlier Active Files (v2.4.4, 2026-08-31)
+
+Glob of 31 `docs/**/known-gaps.md` files. Files whose Status is `in-progress`, or whose Open Items remain, were each read against this cycle's observations:
+
+- `docs/v2/v2.4/known-gaps.md` (this file): v2.4.3 MT-2, MT-3, MT-4, MT-6, and MT-7 are each superseded by a v2.4.4 row that states the same unobserved limit against the new code. None is closed: this cycle produced no packaged observation, and the plan forbids closing them because a fix exists. v2.4.3 MT-1 (installer two-column, Unsloth lock) and MT-5 (picker order) are carried forward untouched - this screenshot set does not cover them.
+- `docs/v2/v2.3/known-gaps.md`: still in-progress. Nothing observed here bears on MT-1 or the v2.3.0 DF/QG rows. Unchanged.
+- `docs/v2/v2.0/known-gaps.md`: still in-progress with hardware and audio deferrals. No observation this cycle. Unchanged.
+- `docs/v1/v1.20/known-gaps.md`, `docs/v1/v1.19/known-gaps.md`: still in-progress. No v2.4.4 observation closes their DF rows. Unchanged.
+- `docs/v1/v1.3/known-gaps.md`, `docs/v1/v1.5/known-gaps.md`, `docs/v1/v1.8/known-gaps.md`: open or rehearsal-blocked historical carryforward. Unchanged.
+- `docs/v2/v2.1`, `docs/v2/v2.2`, and the remaining `docs/v1/**` and `docs/archive/**` ledgers: finalized. Left in place; no historical GPU or visual row was closed without new observation.
 
 ### Reconciliation of Earlier Active Files
 

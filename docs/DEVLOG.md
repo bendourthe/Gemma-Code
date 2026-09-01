@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-31] v2.4.4 - field chrome, restyle, SANA, and density (Phases 1-7)
+
+Index: [plan](v2/v2.4/plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.4-field-chrome.md), [gaps](v2/v2.4/known-gaps.md), histories [P1](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-1-transcript-gutters.md), [P2](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-2-history-chrome.md), [P3](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-3-image-restyle.md), [P4](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-4-sana-diffusers-pin.md), [P5](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-5-generation-liveness.md), [P6](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-6-settings-density.md), [P7](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-7-last-phase.md). Package remains **2.4.1** until release.
+
+### What Changed
+
+- Chat/Agents pending chrome takes its left offset from one transcript gutter on the message list; three stacked insets removed and `PENDING_PILL_INSET_PX` deleted.
+- The sidebar hairline owns its whole gap on both sides; chat titles sit against the selection rail; Archive All and Delete All act on the whole pillar tree behind one centered confirm each.
+- Image restyle always resolves to img2img with the identity prompt or fails closed; the parser accepts trailing punctuation, a strength of 0 survives, the seed is forwarded, and a source-identical output raises `unchanged-output`.
+- Diffusers pinned 0.34.0 to 0.36.0, the earliest release shipping both `SanaPipeline` and `SanaVideoPipeline`; a missing class is a typed `diffusers-missing` naming the class and installed version, on the image surface as well as video.
+- Diffusion job methods run off the JSON-RPC reader thread with a stdout lock and two-second progress heartbeats, so `health` answers mid-job; Image and Video pending rotate Creating / Crafting / Generating.
+- Settings Models puts tabs and search on one row, actions on one centered row so cards hug their copy, and Details is fact pills plus a Best for list.
+
+### Why It Changed
+
+Six packaged post-v2.4.3 operator screenshots showed the previous cycle's fixes had not landed in the field: the pill over-corrected right with a cropped glow, the hairline stayed uneven, restyle still reprinted, SANA-Video could not import from the pinned venv, Wan froze the shell, and Settings cards wasted a row.
+
+### Decisions Made
+
+- Diffusers 0.36.0 rather than the 0.37.1 the docs mention: wheel inspection showed 0.36.0 is the earliest release carrying both classes, and it is the smaller move on a pin every Image and Video model shares.
+- Python keeps its existing request/response contract; only the blocked reader was fixed, because the Node sidecar already returns a job envelope immediately.
+- Nothing closed in known gaps. v2.4.3 MT-2/3/4/6/7 are superseded by v2.4.4 rows stating the same unobserved limits; MT-1 and MT-5 carry forward untouched.
+- CI/CD comparison concluded **not PASS**: develop-targeted PRs run only commitlint (QG-5, proposed not applied), `ci.yml` has no aggregate required check and no top-level permissions block.
+- No push, pull request, or remote CI run occurred. Publication waits on explicit approval.
+
+---
+
 ## [2026-08-31] v2.4.3 - field density Phase 8 last-phase evidence
 
 Index: [plan](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md), [history](v2/v2.4/development/history/2026-08-31_v2.4.3-phase-8-last-phase.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.3-field-density.md), [gaps](v2/v2.4/known-gaps.md). Package remains **2.4.1** until release.
