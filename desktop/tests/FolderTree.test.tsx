@@ -543,3 +543,127 @@ function makeDt(): { effectAllowed: string; dropEffect: string; setData: (k: str
     getData: (k) => store.get(k) ?? "",
   };
 }
+
+/**
+ * v2.4.4 Phase 2 (T008) -- history chrome and whole-list actions.
+ *
+ * Field screenshot 2 showed three misses at once: the hairline sat closer to
+ * Videos than to Chats, selected chat titles were pushed a further 12px off
+ * the blue selection rail by a dummy chevron spacer, and there was no way to
+ * clear a pillar's history without deleting rows one at a time.
+ */
+describe("history chrome and bulk actions (v2.4.4 Phase 2)", () => {
+  let storage: Map<string, readonly string[]>;
+  const storageAdapter = {
+    read: () => storage.get("expanded") ?? [],
+    write: (ids: readonly string[]) => {
+      storage.set("expanded", ids);
+    },
+  };
+
+  beforeEach(() => {
+    storage = new Map();
+  });
+
+  function seed(count: number): InMemoryChatExplorerClient {
+    const client = new InMemoryChatExplorerClient();
+    for (let i = 0; i < count; i += 1) {
+      client.createChat({ folderId: null, title: `Chat ${i + 1}`, modelId: "m" });
+    }
+    return client;
+  }
+
+  it("gives the header no top padding so the hairline gap stays symmetric", () => {
+    render(<FolderTree client={seed(1)} storageAdapter={storageAdapter} />);
+    const header = screen.getByTestId("folder-tree").querySelector("header");
+    expect(header).not.toBeNull();
+    // The sidebar rule owns the whole gap on both of its sides. A second
+    // padding-top here is exactly what made the gap below the rule larger.
+    expect((header as HTMLElement).style.paddingTop).toBe("0px");
+  });
+
+  it("puts the chat title first after the rail, with no dummy chevron spacer", () => {
+    const client = seed(1);
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    const chatId = client.listTree().chats[0]!.id;
+    const row = screen.getByTestId(`tree-row-chat-${chatId}`);
+    // Chat rows have no chevron and are at depth 0, so nothing may sit
+    // between the 4px selection rail and the label.
+    expect(row.querySelectorAll("span").length).toBeGreaterThanOrEqual(1);
+    const first = row.firstElementChild as HTMLElement;
+    expect(first.textContent).toContain("Chat 1");
+    expect(row.style.borderLeft).toContain("4px");
+  });
+
+  it("keeps the folder chevron on folder rows", () => {
+    const client = new InMemoryChatExplorerClient();
+    client.createFolder({ parentId: null, name: "Work" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    const folderId = client.listTree().children[0]!.folder!.id;
+    const row = screen.getByTestId(`tree-row-folder-${folderId}`);
+    expect(row.querySelector("svg")).not.toBeNull();
+  });
+
+  it("archives every chat in the tree behind one confirm", async () => {
+    const client = seed(3);
+    const archive = vi.spyOn(client, "archiveChat");
+    const remove = vi.spyOn(client, "deleteChat");
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId("folder-tree-archive-all"));
+    const dialog = screen.getByTestId("folder-tree-confirm-bulk");
+    expect(dialog).toHaveAttribute("data-bulk-kind", "archive");
+    // Portaled to document.body like the per-row confirm, not nested in the row.
+    expect(dialog.parentElement).toBe(document.body);
+    expect(screen.getByTestId("folder-tree-confirm-bulk-question")).toHaveTextContent("3");
+    fireEvent.click(screen.getByTestId("confirm-bulk-ok"));
+    await waitFor(() => expect(client.listTree().chats).toHaveLength(0));
+    expect(archive).toHaveBeenCalledTimes(3);
+    // Archive All must not delete.
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("deletes every chat in the tree behind one confirm", async () => {
+    const client = seed(2);
+    const archive = vi.spyOn(client, "archiveChat");
+    const remove = vi.spyOn(client, "deleteChat");
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId("folder-tree-delete-all"));
+    expect(screen.getByTestId("folder-tree-confirm-bulk")).toHaveAttribute("data-bulk-kind", "delete");
+    fireEvent.click(screen.getByTestId("confirm-bulk-ok"));
+    await waitFor(() => expect(client.listTree().chats).toHaveLength(0));
+    expect(remove).toHaveBeenCalledTimes(2);
+    // Delete All must not quietly archive instead.
+    expect(archive).not.toHaveBeenCalled();
+  });
+
+  it("reaches chats inside collapsed folders, not only the visible rows", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    client.createChat({ folderId: folder.id, title: "Nested", modelId: "m" });
+    client.createChat({ folderId: null, title: "Root", modelId: "m" });
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    // The folder is collapsed, so "Nested" is not a rendered row.
+    expect(screen.queryByText("Nested")).toBeNull();
+    fireEvent.click(screen.getByTestId("folder-tree-delete-all"));
+    expect(screen.getByTestId("folder-tree-confirm-bulk-question")).toHaveTextContent("2");
+    fireEvent.click(screen.getByTestId("confirm-bulk-ok"));
+    await waitFor(() => expect(client.listTree().chats).toHaveLength(0));
+    expect(client.listTree().children[0]!.chats).toHaveLength(0);
+  });
+
+  it("cancel leaves the list untouched", async () => {
+    const client = seed(2);
+    render(<FolderTree client={client} storageAdapter={storageAdapter} />);
+    fireEvent.click(screen.getByTestId("folder-tree-delete-all"));
+    fireEvent.click(screen.getByTestId("confirm-bulk-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("folder-tree-confirm-bulk")).toBeNull());
+    expect(client.listTree().chats).toHaveLength(2);
+  });
+
+  it("offers no bulk actions when the list is empty", () => {
+    render(<FolderTree client={new InMemoryChatExplorerClient()} storageAdapter={storageAdapter} />);
+    // The empty state renders the toolbar; both whole-list actions are inert.
+    expect(screen.getByTestId("folder-tree-delete-all")).toBeDisabled();
+    expect(screen.getByTestId("folder-tree-archive-all")).toBeDisabled();
+  });
+});

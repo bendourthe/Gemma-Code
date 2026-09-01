@@ -23,6 +23,14 @@ import {
 } from "./SidebarHistoryHost";
 import { HISTORY_PANE_WIDTH } from "../shared/explorer/historyPaneLayout";
 
+/**
+ * v2.4.4 Phase 2.1 (T005) -- vertical gap on each side of the history
+ * hairline. Exported so the tree below the rule can assert it adds none of
+ * its own; the rule is the single source of that spacing.
+ */
+export const HISTORY_HAIRLINE_GAP = "var(--space-2)";
+
+
 interface NavEntry {
   id: ModuleId;
   label: string;
@@ -212,7 +220,13 @@ export function Sidebar({
           aria-hidden
           style={{
             height: 1,
-            margin: compact ? "var(--space-1) var(--space-2)" : "var(--space-1) 0",
+            // v2.4.4 Phase 2.1 (T005): the rule owns the whole gap on BOTH
+            // sides. Field screenshot 2 sat the line closer to Videos because
+            // this margin was `--space-1` while FolderTree's header added a
+            // second `--space-2` below it. One symmetric block margin here,
+            // zero top padding there, and the two gaps read equal.
+            marginBlock: HISTORY_HAIRLINE_GAP,
+            marginInline: compact ? "var(--space-2)" : 0,
             background:
               "color-mix(in srgb, var(--border-1, var(--fg-muted)) 55%, transparent)",
             flexShrink: 0,

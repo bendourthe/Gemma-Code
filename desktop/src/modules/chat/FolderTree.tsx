@@ -176,6 +176,17 @@ interface ConfirmArchiveState {
   label: string;
 }
 
+/**
+ * v2.4.4 Phase 2.3 (T007) -- whole-list header action.
+ *
+ * `ids` is captured when the dialog opens so a background refresh cannot
+ * silently widen a destructive confirm the operator already read.
+ */
+interface ConfirmBulkState {
+  kind: "archive" | "delete";
+  ids: string[];
+}
+
 interface FlatNode {
   depth: number;
   kind: "folder" | "chat";
@@ -254,6 +265,7 @@ export function FolderTree({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<ConfirmArchiveState | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState<ConfirmBulkState | null>(null);
   const [actionPending, setActionPending] = useState(false);
   const [revision, setRevision] = useState(0);
   const [multiKeys, setMultiKeys] = useState<Set<string>>(() => new Set());
@@ -262,17 +274,18 @@ export function FolderTree({
   const itemNoun = copy.itemNoun ?? "chat";
 
   useEffect(() => {
-    if (!confirmDelete && !confirmArchive) return;
+    if (!confirmDelete && !confirmArchive && !confirmBulk) return;
     const onKey = (event: globalThis.KeyboardEvent): void => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       if (actionPending) return;
       setConfirmDelete(null);
       setConfirmArchive(null);
+      setConfirmBulk(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [actionPending, confirmArchive, confirmDelete]);
+  }, [actionPending, confirmArchive, confirmBulk, confirmDelete]);
 
   useEffect(() => {
     if (confirmDelete || confirmArchive || renamingId !== null) return;
@@ -715,6 +728,63 @@ export function FolderTree({
       .finally(() => setActionPending(false));
   }, [actionPending, client, confirmArchive, onBeforeSessionDisposition, onSessionDisposition, refresh]);
 
+  /**
+   * Every chat in THIS pillar's tree, including chats inside collapsed
+   * folders. `flat` only carries what is currently visible, so using it would
+   * make "Delete All" quietly mean "delete what I can see".
+   */
+  const allChatIds = useMemo(() => {
+    const ids: string[] = [];
+    const walk = (node: FolderTreeNode): void => {
+      for (const chat of node.chats) ids.push(chat.id);
+      for (const child of node.children) walk(child);
+    };
+    walk(tree);
+    return ids;
+  }, [tree]);
+
+  const canArchive = typeof client.archiveChat === "function";
+
+  const confirmBulkNow = useCallback(() => {
+    if (!confirmBulk || actionPending) return;
+    const { kind, ids } = confirmBulk;
+    if (kind === "archive" && !client.archiveChat) {
+      setLoadError("Archive is unavailable.");
+      return;
+    }
+    setActionPending(true);
+    void (async () => {
+      // Sequential, not Promise.all: these run through the same store and a
+      // partial failure should stop at the first bad id rather than leaving
+      // an unknown subset applied.
+      for (const id of ids) {
+        if (kind === "archive") {
+          await Promise.resolve(onBeforeSessionDisposition?.(id, "archived"));
+          await Promise.resolve(client.archiveChat!(id));
+          await onSessionDisposition?.(id, "archived");
+        } else {
+          await Promise.resolve(onBeforeSessionDisposition?.(id, "deleted"));
+          await Promise.resolve(client.deleteChat(id));
+          await onSessionDisposition?.(id, "deleted");
+        }
+      }
+    })()
+      .then(() => {
+        setConfirmBulk(null);
+        setMultiKeys(new Set());
+        refresh();
+      })
+      .catch((err: unknown) => setLoadError(errorMessage(err)))
+      .finally(() => setActionPending(false));
+  }, [
+    actionPending,
+    client,
+    confirmBulk,
+    onBeforeSessionDisposition,
+    onSessionDisposition,
+    refresh,
+  ]);
+
   const toolbar = (
     <span
       style={{
@@ -751,6 +821,44 @@ export function FolderTree({
         style={iconButtonStyle}
       >
         <MessageCirclePlus size={14} aria-hidden />
+      </button>
+      {/*
+        v2.4.4 Phase 2.3 (T007): whole-list actions live on the header next to
+        the create actions. Both are disabled on an empty list, and each is
+        gated by one centered confirm portaled to document.body, the same
+        dialog host the per-row delete uses.
+      */}
+      {canArchive ? (
+        <button
+          type="button"
+          data-testid="folder-tree-archive-all"
+          aria-label="Archive all"
+          title="Archive all"
+          disabled={allChatIds.length === 0 || actionPending}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (allChatIds.length === 0) return;
+            setConfirmBulk({ kind: "archive", ids: allChatIds });
+          }}
+          style={iconButtonStyle}
+        >
+          <Archive size={14} aria-hidden />
+        </button>
+      ) : null}
+      <button
+        type="button"
+        data-testid="folder-tree-delete-all"
+        aria-label="Delete all"
+        title="Delete all"
+        disabled={allChatIds.length === 0 || actionPending}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (allChatIds.length === 0) return;
+          setConfirmBulk({ kind: "delete", ids: allChatIds });
+        }}
+        style={iconButtonStyle}
+      >
+        <Trash2 size={14} aria-hidden />
       </button>
     </span>
   );
@@ -833,7 +941,14 @@ export function FolderTree({
           flexDirection: collapsed ? "column" : "row",
           justifyContent: collapsed ? "flex-start" : "space-between",
           alignItems: "center",
-          padding: collapsed ? "var(--space-2) 0" : "var(--space-2) var(--space-3)",
+          padding: collapsed
+            ? "0 0 var(--space-2)"
+            : "0 var(--space-3) var(--space-2)",
+          // v2.4.4 Phase 2.1 (T005): no padding-top. The sidebar hairline's
+          // own symmetric margin is the whole gap above this header; adding
+          // one here doubled the space below the rule (field screenshot 2).
+          // Stated after the shorthand so it is the declaration that wins.
+          paddingTop: 0,
           gap: "var(--space-1)",
         }}
       >
@@ -915,16 +1030,16 @@ export function FolderTree({
                   </span>
                 ) : (
                   <>
-                <span style={{ width: node.depth * 12, display: "inline-block" }} />
+                {node.depth > 0 ? (
+                  <span style={{ width: node.depth * 12, display: "inline-block" }} />
+                ) : null}
                 {node.kind === "folder" ? (
                   expanded.has(node.id ?? "") ? (
                     <ChevronDown size={12} aria-hidden />
                   ) : (
                     <ChevronRight size={12} aria-hidden />
                   )
-                ) : (
-                  <span style={{ width: 12, display: "inline-block" }} />
-                )}
+                ) : null}
                 {isRenaming ? (
                   <input
                     autoFocus
@@ -1170,6 +1285,50 @@ export function FolderTree({
                 {confirmDelete.targets.every((target) => target.kind === "chat")
                   ? "Delete permanently"
                   : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>,
+      )}
+
+      {confirmBulk && portalToBody(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={confirmBulk.kind === "archive" ? "Confirm archive all" : "Confirm delete all"}
+          data-testid="folder-tree-confirm-bulk"
+          data-bulk-kind={confirmBulk.kind}
+          style={modalBackdropStyle}
+        >
+          <div style={modalCardStyle}>
+            <p data-testid="folder-tree-confirm-bulk-question" style={{ margin: 0, color: "var(--fg-0)" }}>
+              {confirmBulk.kind === "archive"
+                ? `Archive all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`
+                : `Delete all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`}
+            </p>
+            <p style={{ margin: "var(--space-2) 0 0", color: "var(--fg-muted)" }}>
+              {confirmBulk.kind === "archive"
+                ? "You can restore them from Settings."
+                : "This cannot be undone."}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
+              <button
+                type="button"
+                data-testid="confirm-bulk-cancel"
+                disabled={actionPending}
+                onClick={() => setConfirmBulk(null)}
+                style={quietCancelStyle}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-bulk-ok"
+                disabled={actionPending}
+                onClick={confirmBulkNow}
+                style={confirmBulk.kind === "archive" ? quietCancelStyle : quietDestructiveStyle}
+              >
+                {confirmBulk.kind === "archive" ? "Archive all" : "Delete all"}
               </button>
             </div>
           </div>

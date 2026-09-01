@@ -11,11 +11,11 @@ import { App } from "../src/App";
 import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
 import {
   longestPendingCaption,
-  PENDING_PILL_INSET_PX,
   pendingPillMinWidthExpr,
 } from "../src/components/agentState/captionRotator";
 import { ORB_SIZE_BUBBLE, rectFullyInside } from "../src/components/agentState/orbEngine";
 import { isSidebarHistoryRoute } from "../src/components/SidebarHistoryHost";
+import { HISTORY_HAIRLINE_GAP } from "../src/components/Sidebar";
 
 function renderApp(pathName: string) {
   return render(
@@ -121,6 +121,24 @@ describe("sidebar history host", () => {
       expect(screen.getByTestId("sidebar-history-spacer")).toBeInTheDocument();
     });
   });
+
+  /**
+   * v2.4.4 Phase 2.1 (T008): field screenshot 2 showed the rule sitting
+   * closer to Videos than to Chats. The rule now owns one symmetric block
+   * margin and the tree header below it contributes no top padding, so the
+   * two gaps come from the same single declaration.
+   */
+  it("centers the hairline with one symmetric gap on each side", async () => {
+    renderApp("/images");
+    const rule = await screen.findByTestId("sidebar-history-hairline");
+    expect(rule.style.marginBlock).toBe(HISTORY_HAIRLINE_GAP);
+    // No asymmetric shorthand may reintroduce the uneven gap.
+    expect(rule.style.marginTop).toBe(rule.style.marginBottom);
+    const header = screen
+      .getByTestId("sidebar-history-host")
+      .querySelector("header") as HTMLElement | null;
+    if (header) expect(header.style.paddingTop).toBe("0px");
+  });
 });
 
 describe("thinking pill crop", () => {
@@ -156,14 +174,14 @@ describe("thinking pill crop", () => {
     expect(rectFullyInside(canvas.getBoundingClientRect(), pill.getBoundingClientRect())).toBe(true);
   });
 
-  it("keeps a fixed min-width and left inset for rotating captions", () => {
+  it("keeps a fixed min-width and no second inset for rotating captions", () => {
     expect(longestPendingCaption()).toBe("Searching...");
-    expect(PENDING_PILL_INSET_PX).toBeGreaterThan(0);
     render(<AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />);
     const pill = screen.getByTestId("agent-state-orb");
     expect(pill.style.minWidth).toBe(pendingPillMinWidthExpr(ORB_SIZE_BUBBLE));
     expect(pill.style.minWidth).toContain(`${longestPendingCaption().length}ch`);
-    expect(pill.style.marginLeft).toBe(`${PENDING_PILL_INSET_PX}px`);
+    // v2.4.4 Phase 1.2: the list gutter is the only left offset.
+    expect(pill.style.marginLeft).toBe("");
     expect(pill.style.overflow).toBe("visible");
     const caption = screen.getByTestId("agent-state-orb-caption");
     expect(caption.style.minWidth).toBe(`${longestPendingCaption().length}ch`);
