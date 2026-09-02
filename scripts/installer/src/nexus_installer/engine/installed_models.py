@@ -240,6 +240,27 @@ def probe_installed_models(
     )
 
 
+def pending_download_gb(state: object) -> float:
+    """GB the install still has to fetch, given what is already on disk.
+
+    One helper so the install guard, the picker footer, and per-model
+    affordability cannot disagree about the size of a selection.
+
+    An installed-report with neither downloaded nor pending entries means the
+    probe never ran (a headless `--model` override, or a page order that skips
+    the picker). Unknown falls back to the full selection total -- the
+    pre-v2.4.5 behavior -- because the safe reading of unknown is "assume
+    nothing is present", never "assume nothing to download".
+    """
+    total = float(getattr(state, "selected_models_gb", 0.0) or 0.0)
+    report = getattr(state, "installed_report", None)
+    if report is None:
+        return total
+    if not report.downloaded and not report.pending:
+        return total
+    return float(report.pending_gb)
+
+
 __all__ = [
     "InstalledReport",
     "OLLAMA_PROBE_TIMEOUT_S",
@@ -247,5 +268,6 @@ __all__ = [
     "fetch_ollama_tags",
     "huggingface_model_present",
     "ollama_manifest_path",
+    "pending_download_gb",
     "probe_installed_models",
 ]

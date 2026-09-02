@@ -21,6 +21,7 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.engine.installed_models import pending_download_gb
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
@@ -84,9 +85,13 @@ class DiskAwareFooter(QWidget):
 
     def refresh(self) -> None:
         """Recompute the labels from the current installer state."""
+        # v2.4.5 Phase 4.2 (T016): the footer must agree with the install
+        # guard, which now sizes the remaining download. Showing the full
+        # selection here while the guard allowed the install would have made
+        # the wizard contradict itself on the same screen.
         free_text, selected_text, remaining_text, color = format_disk_footer_text(
             free_gb=self._state.free_disk_gb,
-            selected_gb=self._state.selected_models_gb,
+            selected_gb=pending_download_gb(self._state),
             reserve_gb=self._state.disk_reserve_gb,
         )
         self._free_label.setText(free_text)

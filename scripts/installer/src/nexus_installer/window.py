@@ -39,6 +39,7 @@ from nexus_installer.constants import (
     WINDOW_MIN_WIDTH,
 )
 from nexus_installer.engine.install_guard import evaluate_install_guard
+from nexus_installer.engine.installed_models import pending_download_gb
 from nexus_installer.installer_state import InstallerState
 from nexus_installer.theme import generate_stylesheet
 from nexus_installer.widgets.background import BackgroundWidget
@@ -540,9 +541,14 @@ class InstallerWindow(QMainWindow):
             self._state.apply_total_ram_gb(profile.total_ram_gb)
         except Exception:  # noqa: BLE001 -- probe is best-effort
             pass
+        # v2.4.5 Phase 4.1 (T015): size the REMAINING download. Passing the
+        # whole selection refused an install on a host that already held its
+        # models -- "need 204.4 GB free, have 201.0 GB" for bytes it was never
+        # going to fetch. `evaluate_install_guard` itself is unchanged, so its
+        # reserve arithmetic and its existing tests keep their meaning.
         result = evaluate_install_guard(
             free_disk_gb=free_disk_gb,
-            selection_gb=self._state.selected_models_gb,
+            selection_gb=pending_download_gb(self._state),
             reserve_gb=self._state.disk_reserve_gb,
         )
         if result.ok:

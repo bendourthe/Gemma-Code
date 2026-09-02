@@ -209,5 +209,13 @@ class InstallerState:
             # wizard does not lock the user out; the final Install-click
             # guard will re-check.
             return True
-        remaining = self.free_disk_gb - self.selected_models_gb - model_gb
+        # v2.4.5 Phase 4.2 (T016): charge only what is not already on disk.
+        # Charging the full selection here would let the picker refuse a model
+        # the install guard would then happily allow -- two answers to the same
+        # question on adjacent screens.
+        already = 0.0
+        report = self.installed_report
+        if report.downloaded or report.pending:
+            already = float(report.downloaded_gb)
+        remaining = self.free_disk_gb - (self.selected_models_gb - already) - model_gb
         return remaining >= self.disk_reserve_gb
