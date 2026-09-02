@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # pragma: no cover - annotation only
+    from nexus_installer.engine.installed_models import InstalledReport
 
 # v1.1.0 Phase 14.5 -- the 10 GB OS reserve floor used by the disk-aware
 # selection guard. Configurable via the `--disk-reserve-gb` CLI flag.
@@ -19,6 +22,12 @@ def _default_install_path() -> str:
     if sys.platform == "darwin":
         return "/Applications/NexusAI"
     return "/usr/local/share/nexus-ai"
+
+
+def _empty_installed_report() -> InstalledReport:
+    from nexus_installer.engine.installed_models import InstalledReport
+
+    return InstalledReport()
 
 
 @dataclass
@@ -84,6 +93,19 @@ class InstallerState:
     models_root: str = ""
     # v1.19.2 -- official precision-variant override (empty = hardware-aware default).
     weights_variant: str = ""
+
+    # v2.4.5 Phase 2 -- which selected models are already on disk. Populated by
+    # the picker via `engine.installed_models.probe_installed_models`. Kept as
+    # a field rather than recomputed per page so the filesystem is walked once
+    # per wizard session, not once per card. `selected_models_gb` deliberately
+    # stays the FULL selection total so no existing consumer changes meaning;
+    # `pending_models_gb` is the new quantity the disk guard should compare.
+    installed_report: InstalledReport = field(
+        # Imported lazily: `installed_models` reaches the weights puller, which
+        # imports this module back, so a module-level import here is a cycle.
+        default_factory=lambda: _empty_installed_report()
+    )
+    pending_models_gb: float = 0.0
 
     # v1.15.0 Phase 3 (Issue 2) -- post-install summary + retry surfaces.
     # `model_failures` maps a failed model id to its raw engine reason (mapped to

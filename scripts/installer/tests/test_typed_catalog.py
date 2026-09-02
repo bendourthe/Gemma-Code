@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from nexus_installer.engine.installed_models import InstalledReport
 from nexus_installer.installer_state import InstallerState
 from nexus_installer.pages.typed_catalog import (
     CATALOG_TYPE_TO_TAB,
@@ -504,10 +505,16 @@ class TestTypedSelection:
 
 class TestTypedCatalogPage:
     def _page(self, state: InstallerState, tmp_path: Path) -> TypedCatalogPage:
+        # v2.4.5: inject an empty installed-report probe. The default probe
+        # reads the real model stores under the user's home, so without this
+        # these assertions would pass or fail based on what the developer
+        # happens to have downloaded. Tests that care about detection inject
+        # their own report (see test_typed_catalog_downloaded.py).
         return TypedCatalogPage(
             state,
             catalog_path=_write_catalog(tmp_path),
             recommended_path=_write_recommended(tmp_path),
+            installed_probe=InstalledReport,
         )
 
     def test_all_sections(self, qt_app, tmp_path: Path) -> None:

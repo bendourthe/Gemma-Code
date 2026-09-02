@@ -82,6 +82,15 @@ from nexus_installer.constants import (
     provider_color,
     publisher_for_family,
 )
+from nexus_installer.engine.hf_weights_puller import resolve_models_root
+from nexus_installer.engine.installed_models import (
+    InstalledReport,
+    probe_installed_models,
+)
+from nexus_installer.engine.model_router import (
+    default_catalog_path,
+    load_catalog_index,
+)
 from nexus_installer.tier_defaults import (
     default_selection,
     load_tier_matrix,
@@ -657,6 +666,11 @@ class _ModelCardState:
     base_label: str = ""
     disabled_for_disk: bool = False
     over_budget: bool = False
+    # v2.4.5 Phase 2.2: mirrored from the card so callers (and tests) can ask
+    # about the downloaded state without holding a widget reference. Keeping a
+    # QWidget here outlived QApplication teardown and crashed the suite with a
+    # COM RPC_E_DISCONNECTED at interpreter shutdown.
+    downloaded: bool = False
 
 
 @dataclass
@@ -782,10 +796,12 @@ class _ModelCard(QWidget):
         host_ram_gb: int,
         gpu_vendor: str,
         accent: str = ACCENT,
+        downloaded: bool = False,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.model = model
+        self.downloaded = downloaded
         # Scoped selector + WA_StyledBackground: an unqualified stylesheet
         # would propagate the border to every child QLabel (each line
         # rendered as its own boxed pill -- the pre-Phase-5 look).
@@ -862,6 +878,15 @@ class _ModelCard(QWidget):
 
         size_label = _pill(f"{model.size_gb:.1f} GB", color=accent, border=accent)
         title_row.addWidget(size_label)
+
+        # v2.4.5 Phase 2.2 (T006): an ADDITIONAL pill, never a replacement for
+        # the status badge. Overloading `_card_status` would drop a hardware
+        # incompatibility warning on a model that happens to be downloaded --
+        # the one case where that warning matters most.
+        if downloaded:
+            downloaded_pill = _pill("Downloaded", color=SUCCESS, border=SUCCESS)
+            downloaded_pill.setObjectName("downloadedPill")
+            title_row.addWidget(downloaded_pill)
         layout.addLayout(title_row)
 
         # --- Incompatibility note (only when the model does not fit) ---
@@ -987,11 +1012,16 @@ class TypedCatalogPage(QWidget):
         catalog_path: Path | None = None,
         recommended_path: Path | None = None,
         on_selection_changed: Callable[[float], None] | None = None,
+        # v2.4.5 Phase 2.1: injectable so tests are deterministic. The default
+        # reads the real model stores under the user's home; a test that used
+        # it would pass or fail based on what the developer had downloaded.
+        installed_probe: Callable[[], InstalledReport] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._state = state
         self._on_selection_changed = on_selection_changed
+        self._installed_probe = installed_probe
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         catalog_path = catalog_path or _default_catalog_path()
@@ -1008,6 +1038,13 @@ class TypedCatalogPage(QWidget):
         # A pre-seeded selection (CLI --model override or back-navigation)
         # counts as user intent: defaults must not stomp it.
         self._user_touched = False
+        # v2.4.5 Phase 2: probe bookkeeping. `_probed_models_root` avoids
+        # re-walking the filesystem on every showEvent; `_downloaded_autoselected`
+        # keeps auto-selection a first-load action so it never re-checks a model
+        # the user deliberately deselected.
+        self._probed_models_root: str | None = None
+        self._downloaded_autoselected = False
+        self._catalog_entry_cache: dict[str, dict] | None = None
         # v1.11.0 Phase 6 (T603): a category is "decided" when it has a
         # selection OR was explicitly skipped OR has no models; the flow blocks
         # leaving the page until every category is decided.
@@ -1127,8 +1164,62 @@ class TypedCatalogPage(QWidget):
         """Recompute tier defaults + badges from the current installer state."""
         if not self._user_touched:
             self._selection.selected = set(self._current_defaults())
+        self._refresh_installed_report()
+        self._apply_downloaded_autoselect()
         self._rebuild_tabs()
         self._update_selection_state()
+
+    def _refresh_installed_report(self) -> None:
+        """Probe both model stores for what is already on disk.
+
+        Re-probed when `models_root` changes, because the install path moves
+        the weights destination with it. Never raises: `probe_installed_models`
+        fails open, and this wraps it once more so a page that cannot probe
+        still shows its cards.
+        """
+        root = str(getattr(self._state, "models_root", "") or "")
+        if root == self._probed_models_root and self._state.installed_report.downloaded:
+            return
+        try:
+            if self._installed_probe is not None:
+                report = self._installed_probe()
+            else:
+                report = probe_installed_models(
+                    selection=list(self._catalog),
+                    catalog=self._catalog_entries(),
+                    sizes_gb={mid: m.size_gb for mid, m in self._catalog.items()},
+                    models_root=resolve_models_root(self._state),
+                    ollama_url=getattr(self._state, "ollama_url", None),
+                )
+        except Exception:  # noqa: BLE001 - a probe must never break the picker
+            return
+        self._state.installed_report = report
+        self._probed_models_root = root
+
+    def _catalog_entries(self) -> dict[str, dict]:
+        """Raw catalog entries keyed by id, for protocol + pull-target routing."""
+        if self._catalog_entry_cache is None:
+            self._catalog_entry_cache = load_catalog_index(default_catalog_path())
+        return self._catalog_entry_cache
+
+    def _apply_downloaded_autoselect(self) -> None:
+        """Select already-downloaded models, once per wizard session.
+
+        Applied on the first population only. Re-applying on every rebuild
+        would silently re-check a model the user had just deselected to skip
+        its verification pass, which is a legitimate thing to want on a
+        reinstall.
+        """
+        # A user who has touched the selection owns it. Without this guard,
+        # deselecting an already-downloaded model to skip its verification pass
+        # would be silently undone by the next refresh.
+        if self._downloaded_autoselected or self._user_touched:
+            return
+        downloaded = self._state.installed_report.downloaded
+        if not downloaded:
+            return
+        self._selection.selected |= {mid for mid in downloaded if mid in self._catalog}
+        self._downloaded_autoselected = True
 
     def _on_refresh_clicked(self) -> None:
         """Reset the selection to the recommended set for the detected hardware.
@@ -1312,6 +1403,7 @@ class TypedCatalogPage(QWidget):
                     host_ram_gb=host_ram_gb,
                     gpu_vendor=gpu_vendor,
                     accent=provider_color(model.family),
+                    downloaded=self._state.installed_report.is_downloaded(model.id),
                 )
                 if card.fits and is_required_pick and not required_header_added:
                     layout.addWidget(_section_label("Required for this GPU"))
@@ -1341,6 +1433,7 @@ class TypedCatalogPage(QWidget):
                         checkbox=card.checkbox,
                         base_label=base_label,
                         over_budget=not card.fits,
+                        downloaded=card.downloaded,
                     )
                 )
                 layout.addWidget(card)
