@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-01] v2.4.5 - installer already-downloaded model detection (Phases 1-5)
+
+Index: [plan](v2/v2.4/plans/v2.4.5-installer-already-downloaded-models.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.5-installer-downloaded.md), [gaps](v2/v2.4/known-gaps.md), histories [P1](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-1-downloaded-probe.md), [P2](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-2-picker-marks.md), [P3](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-3-review-page.md), [P4](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-4-guard.md), [P5](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-5-last-phase.md). Package remains **2.4.1**; nothing in the 2.4 series is released.
+
+### What Changed
+
+- New `engine/installed_models.py`: a pure probe reporting which selected models are already on disk, across both stores (huggingface weights tree via the puller's own path helpers plus the `.nexus-model-id` marker; Ollama via `/api/tags` with an on-disk manifest fallback). Presence, not verification; fails open on every error.
+- Model picker marks already-downloaded models with a Downloaded pill and selects them on first load, deferring to any user edit. The probe is injectable so the suite is host-independent.
+- Review page renders models in two columns with a check for downloaded and a down-arrow for pending, and moves the disk estimate under the list, computed from pending only with the already-downloaded total stated beside it.
+- `pending_download_gb` feeds the install guard, the picker footer, and `can_select_model`, so all three agree.
+
+### Why It Changed
+
+The v2.4.4 installer rebuild could not be installed. The Review step refused with `Insufficient disk space (need 204.4 GB free, have 201.0 GB)` on a host already holding 176 GB of the selected models, because the guard sized the whole selection with no reference to the filesystem.
+
+### Decisions Made
+
+- Measured the store before writing code: 11 distinct model directories, each present once, empty `_tmp`. Nothing had been downloaded twice, which moved the defect from the downloader to the precheck.
+- Detection covers both protocols; a weights-tree-only check would have missed every Ollama chat model.
+- An unpopulated report means "unknown", which falls back to assuming nothing is present rather than nothing to download.
+- Found and disclosed: `build-vsix.ps1` rebuilds `better-sqlite3` for Electron (ABI 146), which breaks the Node test suite (ABI 137) until `npm rebuild`. This explains 495 root-vitest failures this cycle and the 33 seen at the start of v2.4.4.
+- No version bump, tag, or release. The cycle ends with an installer rebuild for field testing.
+
+---
+
 ## [2026-08-31] v2.4.4 - field chrome, restyle, SANA, and density (Phases 1-7)
 
 Index: [plan](v2/v2.4/plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.4-field-chrome.md), [gaps](v2/v2.4/known-gaps.md), histories [P1](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-1-transcript-gutters.md), [P2](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-2-history-chrome.md), [P3](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-3-image-restyle.md), [P4](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-4-sana-diffusers-pin.md), [P5](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-5-generation-liveness.md), [P6](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-6-settings-density.md), [P7](v2/v2.4/development/history/2026-08-31_v2.4.4-phase-7-last-phase.md). Package remains **2.4.1** until release.
