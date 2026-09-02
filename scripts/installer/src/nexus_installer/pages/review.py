@@ -28,6 +28,15 @@ _COMPONENT_LABELS: dict[str, str] = {
 }
 
 _NARROW_COLUMNS_PX = 560
+
+#: venv + extension overhead, unchanged from the pre-v2.4.5 estimate.
+_OVERHEAD_GB = 2.0
+
+#: One line so the two marks are self-explaining rather than decorative.
+_LEGEND_HTML = (
+    f'<span style="color:{SUCCESS};">✓</span> already downloaded'
+    f'&nbsp;&nbsp;<span style="color:{TEXT_SECONDARY};">↓</span> to download<br>'
+)
 _CARD_STYLE = (
     f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
     f"border-radius: 8px; padding: 16px; font-size: {FS_CAPTION}px;"
@@ -117,6 +126,64 @@ class ReviewPage(QWidget):
         self._split.addWidget(self._models_label, 0, 1)
         self._split.setColumnStretch(1, 1)
 
+    @staticmethod
+    def _counts_suffix(done: int, pending: int) -> str:
+        if not done:
+            return ""
+        return f" ({done} already downloaded, {pending} to download)"
+
+    @staticmethod
+    def _model_columns(model_ids: list[str], report) -> str:
+        """Two balanced columns of marked model rows.
+
+        Split down the middle rather than alternating, so each column reads
+        top-to-bottom in the order the engine will install them.
+        """
+        rows = [
+            (
+                f'<span style="color:{SUCCESS};">✓</span> {mid}'
+                if report.is_downloaded(mid)
+                else f'<span style="color:{TEXT_SECONDARY};">↓</span> {mid}'
+            )
+            for mid in model_ids
+        ]
+        half = (len(rows) + 1) // 2
+        left, right = rows[:half], rows[half:]
+        cells = []
+        for index in range(half):
+            left_cell = left[index] if index < len(left) else ""
+            right_cell = right[index] if index < len(right) else ""
+            cells.append(
+                f"<tr><td width='50%'>{left_cell}</td>"
+                f"<td width='50%'>{right_cell}</td></tr>"
+            )
+        return f"<table width='100%'>{''.join(cells)}</table>"
+
+    @staticmethod
+    def _estimate_html(pending_gb: float, already_gb: float) -> str:
+        """Disk + time estimate, keyed off what still has to be downloaded."""
+        estimated = pending_gb + _OVERHEAD_GB
+        if pending_gb >= 18:
+            time_est = "10-15 minutes"
+        elif pending_gb >= 8:
+            time_est = "5-10 minutes"
+        elif pending_gb > 0:
+            time_est = "3-5 minutes"
+        else:
+            # Nothing to fetch: the run verifies what is already there.
+            time_est = "under 5 minutes"
+        already = (
+            f'<br><span style="color:{TEXT_SECONDARY};">'
+            f"{already_gb:.1f} GB already downloaded</span>"
+            if already_gb > 0
+            else ""
+        )
+        return (
+            f"<br><b>Estimated disk usage:</b> ~{estimated:.0f} GB to download"
+            f"{already}"
+            f"<br><b>Estimated installation time:</b> {time_est}"
+        )
+
     def _summary_text(self) -> str:
         return f"{self._facts_label.text()}\n{self._models_label.text()}"
 
@@ -134,37 +201,60 @@ class ReviewPage(QWidget):
         # per-model size table is gone. A single `selected_model` (a headless
         # `--model` override that never runs the review page) still renders by
         # name; an empty selection reads as "none selected".
+        # v2.4.5 Phase 3 (T011/T012): size the REMAINING download, not the
+        # whole selection. A host that already holds its models was being told
+        # it needed 200+ GB free for an install that would fetch almost
+        # nothing, which is the field defect this cycle exists to fix.
+        report = s.installed_report
         if s.selected_model_ids:
-            model_size = s.selected_models_gb
+            pending_ids = [
+                mid for mid in s.selected_model_ids if not report.is_downloaded(mid)
+            ]
+            done_ids = [
+                mid for mid in s.selected_model_ids if report.is_downloaded(mid)
+            ]
+            if report.downloaded or report.pending:
+                pending_size = report.pending_gb
+                already_size = report.downloaded_gb
+            else:
+                # The probe never ran (headless `--model` override, or a page
+                # order that skips the picker). An unpopulated report means
+                # "unknown", and the safe reading of unknown is "nothing is
+                # downloaded" -- the pre-v2.4.5 behavior -- not "nothing to
+                # download", which would understate the disk requirement.
+                pending_size = s.selected_models_gb
+                already_size = 0.0
             models_html = (
-                f"<b>Models:</b> {len(s.selected_model_ids)} selected "
-                f"(~{model_size:.1f} GB download)<br>"
-                + "".join(f"{mid}<br>" for mid in s.selected_model_ids)
+                f"<b>Models:</b> {len(s.selected_model_ids)} selected"
+                f"{self._counts_suffix(len(done_ids), len(pending_ids))}<br>"
+                f"{_LEGEND_HTML}"
+                f"{self._model_columns(s.selected_model_ids, report)}"
+                f"{self._estimate_html(pending_size, already_size)}"
             )
         elif s.selected_model:
-            model_size = s.selected_models_gb
-            models_html = f"<b>Model:</b> {s.selected_model}"
+            pending_size = s.selected_models_gb
+            already_size = 0.0
+            models_html = (
+                f"<b>Model:</b> {s.selected_model}"
+                f"{self._estimate_html(pending_size, already_size)}"
+            )
         else:
-            model_size = 0.0
-            models_html = "<b>Models:</b> none selected"
-        estimated_disk = model_size + 2.0  # ~2 GB overhead for venv + extension
-
-        # Rough install time heuristic
-        if model_size >= 18:
-            time_est = "10-15 minutes"
-        elif model_size >= 8:
-            time_est = "5-10 minutes"
-        else:
-            time_est = "3-5 minutes"
+            pending_size = 0.0
+            already_size = 0.0
+            models_html = (
+                "<b>Models:</b> none selected"
+                f"{self._estimate_html(pending_size, already_size)}"
+            )
 
         vram_part = f" ({display_vram_gb(s.vram_mb)} GB VRAM)" if s.vram_mb else ""
 
+        # Estimated disk usage moved under the model list, where the operator
+        # asked for it: it is a statement about the models, not about the
+        # install path and components beside it.
         facts_html = (
             f"<b>Install path:</b> {s.install_path}<br><br>"
             f"<b>Components:</b><br>{components}<br>"
-            f"<b>GPU:</b> {s.gpu_name or 'None detected'}{vram_part}<br><br>"
-            f"<b>Estimated disk usage:</b> ~{estimated_disk:.0f} GB<br>"
-            f"<b>Estimated installation time:</b> {time_est}"
+            f"<b>GPU:</b> {s.gpu_name or 'None detected'}{vram_part}"
         )
         self._facts_label.setText(facts_html)
         self._models_label.setText(models_html)
