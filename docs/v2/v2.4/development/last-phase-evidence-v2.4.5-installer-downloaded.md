@@ -166,10 +166,54 @@ The cause is not a defect in this cycle's code. `scripts/build-vsix.ps1` rebuild
 
 ## Publication and integration
 
-*(Completed after this section was written; results quoted below once the required checks reached a terminal state.)*
+Published once, with the operator's `/implement in-full` instruction as the authorization, and integrated on green.
+
+```
+$ gh pr checks 61
+     42 pass
+      1 skipping     (init.ps1 (Windows) -- path-gated, not applicable)
+      0 fail
+      0 pending
+
+$ gh pr view 61 --json mergeable,mergeStateStatus
+MERGEABLE / CLEAN
+```
+
+**[PR 61](https://github.com/bendourthe/Nexus-AI/pull/61) passed all 42 checks on the first push.** No red check, so the reopen-and-reproduce loop was not exercised this cycle. That is a direct benefit of v2.4.4's QG-1 fix: a develop-targeted pull request now runs the full merge-result gate, so 42 checks are meaningful where the same PR would previously have run only commitlint.
+
+Merged into `develop` as `6fb7e1c2`.
 
 ---
 
 ## Installer rebuild
 
-*(Recorded after integration; the rebuild is the deliverable this cycle owes the operator.)*
+Rebuilt from the integrated branch, not from the feature branch, so the artifact is the merge result.
+
+| Fact | Value |
+|---|---|
+| Artifact | `dist\NexusSetup.exe` (unsigned) |
+| Size | 251,013,715 bytes (239.4 MB) |
+| SHA-256 | `4BC5AACB445251C06D46E50B1244FEEF276E34E3D608AC50E8E190BF63EA1F24` |
+| Source commit | `6fb7e1c2` (`develop`, merge of PR 61) |
+| Contains | v2.4.1 through v2.4.5 |
+
+Smoke passed all five assertions: single artifact, no leftover two-artifact wizard, and `--version` / `--check-registry` / `--check-desktop-payload` each exit 0.
+
+**Verified by extracting the embedded archive, not by grepping the exe.** The v2.4.4 lesson was that a byte-grep of a PyInstaller onefile finds nothing and proves nothing, because the payload is compressed. Two checks were run against the actual embedded content:
+
+```
+installer-build\versions.lock.json   ->  diffusers==0.36.0
+runtimes\diffusion\runtime-lock.json ->  diffusers==0.36.0
+
+PYZ modules: nexus_installer.engine.installed_models   (this cycle's probe)
+             nexus_installer.engine.install_guard
+```
+
+The lock files are CArchive data entries; the probe is Python bytecode inside `PYZ.pyz`, which is why a TOC-only search reported it missing before the PYZ was read. Both are present, so the artifact carries this cycle's fix and still carries v2.4.4's Diffusers pin.
+
+**No version bump, tag, or release.** The package version stays 2.4.1. Nothing in the 2.4 series releases until the operator confirms field testing passed, and this repository's semantic-release automation on `main` makes a manual bump actively harmful (see the v2.4.4 last-phase evidence for the measured 2.4.0-vs-2.4.1 conflict).
+
+Two build-time warnings, both pre-existing and by design:
+
+- **Hub catalog snapshot refused** -- local catalog tag 4.3.0 is not latest (v4.4.0). `build-windows.ps1` deliberately refuses to embed a stale snapshot; the installer syncs latest at install time.
+- **`sam2:hiera-tiny` remains an unpinned HF weight**, so that one download skips hash verification.
