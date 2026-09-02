@@ -6,7 +6,52 @@
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next plan ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md)
+Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [v2.4.5 installer already-downloaded models](plans/v2.4.5-installer-already-downloaded-models.md)
+
+## v2.4.5
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---:|---:|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 0 | 0 |
+| Bugs / regressions (BG) | 0 | 1 |
+| Warnings (WN) | 1 | 0 |
+| Missing tests / coverage gaps (MT) | 2 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phases 1-5 implemented against an operator screenshot of the v2.4.4 installer rebuild: the Review step refused to proceed with `Insufficient disk space (need 204.4 GB free, have 201.0 GB)` on a host already holding 176 GB of the selected models. Measuring the store first established there were no duplicate downloads, which relocated the defect from the downloader to the precheck. Every v2.4.4 open item carries forward unchanged, because this cycle's installer rebuild is the first opportunity to observe any of them.
+
+### Open Items
+
+##### MT-1 - Packaged installer behavior is not observed
+
+- **Source phase**: Phases 2-4
+- **Impact**: Tests pin the probe across both stores and every failure mode, the Downloaded pill, first-load auto-selection that defers to user edits, two-column Review with per-model marks, a pending-only estimate, and the guard passing the exact field reproduction while still blocking a 500 GB new selection. None of it has run in the packaged wizard.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Operator items 1-4 in `last-phase-evidence-v2.4.5-installer-downloaded.md`.
+
+##### MT-2 - Ollama API detection path is not exercised against a live daemon
+
+- **Source phase**: Phase 1 - Downloaded-model probe
+- **Impact**: The `/api/tags` branch is covered by an injected fake and the disk-manifest fallback by real fixture files. A live Ollama returning its real payload shape has not been probed. A response shape change would silently fall back to the manifest path, which is correct but slower and would log a `probe_errors` line.
+- **Owner**: Operator, next packaged run
+- **Next step**: Operator item 4 (chat models detected with Ollama running, and again with it stopped).
+
+##### WN-1 - Two pre-existing ruff F401 findings remain
+
+- **Source phase**: Carried from v2.4.4 WN-1; unchanged by this cycle
+- **Impact**: `runtimes/diffusion/vram_lifecycle.py:35` and `tests/python/diffusion/test_registry.py:6`. Neither file is touched by this plan.
+- **Owner**: Next cleanup pass
+- **Next step**: Both are auto-fixable; left alone because they trace to no line in this plan.
+
+### Resolved
+
+##### BG-1 - Installer refused an install for models already on disk (resolved)
+
+- **Resolved**: 2026-09-01 in Phases 1-4.
+- **Evidence**: The guard was handed `selected_models_gb`, a catalog-size sum with no filesystem reference. Measured host state showed 11 distinct model directories, each present once, empty `_tmp`, and `inkling-small` legitimately ~74.7 GB as a three-part GGUF split - so nothing had been downloaded twice and the downloader (`_install_file`, which skips verified files) was never at fault. `pending_download_gb` now sizes the remaining download for the guard, the picker footer, and `can_select_model` alike. `test_field_case_passes_the_guard` asserts 194.4 GB selected / 176.4 GB present / 201.0 GB free now passes, `test_the_same_selection_was_refused_before_the_fix` pins the old `204.4 GB` message, and `test_a_genuinely_oversized_new_selection_still_blocks` proves the guard was fixed rather than disabled. Packaged observation remains MT-1.
 
 ## v2.4.4
 
