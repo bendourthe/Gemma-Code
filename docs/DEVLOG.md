@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-02] v2.4.6 Phase 3 - Configuration, VS Code 1.136, and Review groups
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P3](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-3-configuration-review.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Unsloth is checked when the badge is Compatible; a user uncheck survives showEvent; Incompatible stays locked off.
+- VS Code extension is a Features checkbox, default-on for Microsoft stable 1.134, 1.135, or 1.136. Exclusive max is 1.137.0. Insiders, Cursor, and Windsurf stay unsupported.
+- Configuration no longer shows Gemma sampling bullets or a Video2X note.
+- Review groups selected models by catalog section and hugs the facts card to its content.
+
+### Why It Changed
+
+Screenshot 2 still showed Unsloth Compatible but unchecked, VS Code 1.136 disabled, and Gemma/Video2X copy. Screenshot 4 mixed image and chat ids in one uncategorized list.
+
+### Decisions Made
+
+- Electron rebuild pin stays 42.8.1 (WN-2: 1.136 ABI inferred from 1.134/1.135).
+- `engines.vscode` stays `^1.134.0` because vsce 2.24.0 rejects compound ranges.
+
+---
+
 ## [2026-09-02] v2.4.6 Phase 2 - installer Setup compactness
 
 Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P2](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-2-setup.md). Package remains **2.4.1**.

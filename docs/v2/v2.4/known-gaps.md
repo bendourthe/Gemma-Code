@@ -17,11 +17,11 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
-| Warnings (WN) | 1 | 0 |
-| Missing tests / coverage gaps (MT) | 2 | 0 |
+| Warnings (WN) | 2 | 0 |
+| Missing tests / coverage gaps (MT) | 3 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 2 of field-delivery is implemented locally. Packaged Setup compactness is not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
+Phase 3 of field-delivery is implemented locally. Packaged Configuration, Review groups, and a VSIX load on VS Code 1.136 are not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
 
 ### Open Items
 
@@ -39,12 +39,26 @@ Phase 2 of field-delivery is implemented locally. Packaged Setup compactness is 
 - **Reason**: Qt tests pin two-column prereqs, a title-row Re-check icon, one-line GPU text, worker replacement, elision, and no trailing stretch. None of it has run in a frozen NexusSetup.exe on the operator host.
 - **Suggested next step**: Phase 8 human item for Setup screenshot 1.
 
+##### MT-3 - Packaged Configuration, Review groups, and VS Code 1.136 VSIX load are not observed
+
+- **Source phase**: Phase 3 - Configuration, VS Code host, and Review groups
+- **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 3.1-3.4)
+- **Reason**: Tests pin Unsloth default-on when Compatible, 1.136 enabled and checked, absent Gemma/Video2X copy, and Review headings that keep juggernaut-xl-v9 under Image. None of it has run in a frozen NexusSetup.exe, and the VSIX has not been loaded in Microsoft VS Code 1.136.0 on the operator host.
+- **Suggested next step**: Phase 8 human items for screenshots 2-4 and a `code --install-extension` on 1.136.
+
 ##### WN-1 - Mtime freshness cannot catch a freshly copied stale NSIS
 
 - **Source phase**: Phase 1 - Packaged delivery and installer window
 - **Impact**: Staging compares desktop source mtimes to the bundle mtime. Last week's tauri output left in `desktop/src-tauri/target` fails as intended. An old NSIS copied onto disk *after* source last changed gets a new timestamp and can still freeze.
 - **Owner**: Phase 8 if field evidence shows a copied stale payload
 - **Next step**: Prefer `cd desktop; npm run build:shell` immediately before `build-windows.ps1`. A source-tree stamp from `build:shell` would close the hole.
+
+##### WN-2 - Electron ABI for VS Code 1.136 is inferred from 1.134/1.135
+
+- **Source phase**: Phase 3 - Configuration, VS Code host, and Review groups
+- **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-task 3.2)
+- **Reason**: vscode-versions listed 1.134.0 and 1.135.0 at Electron 42.8.1. 1.136.0 released 2026-09-02 and was not in that table at planning time. This phase kept the rebuild pin at 42.8.1 rather than claiming a new ABI.
+- **Suggested next step**: Confirm `process.versions.electron` on the operator 1.136.0 host before Phase 8 VSIX rebuild; if it is not 42.8.1, rebuild `better-sqlite3` for that Electron.
 
 ## v2.4.5
 

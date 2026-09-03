@@ -521,13 +521,19 @@ class TestConfigurationPage:
         page._desktop_toggle.setChecked(True)
         assert "desktop" in state.components_to_install
 
-    def test_video2x_note_is_not_an_install_toggle(self, qt_app: object) -> None:
+    def test_video2x_and_gemma_sampling_are_absent(self, qt_app: object) -> None:
+        from PyQt5.QtWidgets import QLabel
+
         from nexus_installer.pages.configuration import ConfigurationPage
-        from nexus_installer.video_enhancement_support import INSTALLER_NOTE
 
         page = ConfigurationPage(InstallerState())
-        assert page._video2x_note.text() == INSTALLER_NOTE
-        assert "never installed by this wizard" in page._video2x_note.text()
+        texts = " ".join(lbl.text() for lbl in page.findChildren(QLabel))
+        assert "Video2X" not in texts
+        assert "Temperature" not in texts
+        assert "Top-P" not in texts
+        assert "Top-K" not in texts
+        assert "VS Code Extension Settings" not in texts
+        assert not hasattr(page, "_video2x_note")
 
     def test_components_and_features_are_separate_columns(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
@@ -538,18 +544,20 @@ class TestConfigurationPage:
         assert page._components_col.parent() is not page._features_col
         assert page._ollama_toggle.parentWidget() is page._components_col
         assert page._unsloth.parentWidget().parentWidget() is page._features_col
+        assert page._vscode.parentWidget() is page._features_col
 
-    def test_unsloth_checkbox_is_off_and_sets_state(self, qt_app: object) -> None:
+    def test_unsloth_checkbox_defaults_on_when_compatible(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
 
         state = InstallerState(gpu_vendor="nvidia", vram_mb=16384)
         page = ConfigurationPage(state)
-        assert page._unsloth.isChecked() is False
-        assert state.install_unsloth is False
-        page._unsloth.setChecked(True)
+        assert page._unsloth.isChecked() is True
         assert state.install_unsloth is True
+        page._unsloth.setChecked(False)
+        assert state.install_unsloth is False
         assert "QLoRA" in page._unsloth.text()
         assert "LGPL" in page._unsloth_help.text()
+        assert "Off by default" not in page._unsloth_help.text()
 
     def test_unsloth_incompatible_cannot_be_checked(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
@@ -577,6 +585,20 @@ class TestConfigurationPage:
         page.showEvent(QShowEvent())
         assert page._unsloth_badge.text() == "Compatible"
         assert page._unsloth.isEnabled() is True
+        assert page._unsloth.isChecked() is True
+        assert state.install_unsloth is True
+
+    def test_unsloth_user_uncheck_survives_show(self, qt_app: object) -> None:
+        from PyQt5.QtGui import QShowEvent
+
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState(gpu_vendor="nvidia", vram_mb=16384)
+        page = ConfigurationPage(state)
+        page._unsloth.setChecked(False)
+        page.showEvent(QShowEvent())
+        assert page._unsloth.isChecked() is False
+        assert state.install_unsloth is False
 
     def test_unsloth_hides_warning_on_nvidia_16gb(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
@@ -598,6 +620,7 @@ class TestConfigurationPage:
         ok_page = ConfigurationPage(InstallerState(gpu_vendor="nvidia", vram_mb=16384))
         assert ok_page._unsloth_badge.text() == "Compatible"
         assert ok_page._unsloth.isEnabled() is True
+        assert ok_page._unsloth.isChecked() is True
 
     def test_narrow_width_stacks_config_columns(self, qt_app: object) -> None:
         from PyQt5.QtCore import QSize
@@ -615,6 +638,7 @@ class TestConfigurationPage:
         from nexus_installer.pages.configuration import ConfigurationPage
 
         page = ConfigurationPage(InstallerState())
+        assert page._vscode.parentWidget() is page._features_col
         assert page._vscode._checkbox.isHidden() is False
         assert page._vscode._checkbox.isEnabled() is False
         assert "not found" in page._vscode._detection_label.text().lower()

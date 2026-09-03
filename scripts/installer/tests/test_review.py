@@ -48,6 +48,27 @@ class TestReviewSummary:
         assert "Estimated disk usage" in text
         assert "~12 GB to download" in text
 
+    def test_models_group_by_catalog_section(self, qt_app) -> None:
+        from nexus_installer.pages.review import ReviewPage
+
+        state = InstallerState()
+        state.selected_model_ids = ["gemma4:e4b", "juggernaut-xl-v9"]
+        page = ReviewPage(state)
+        page._rebuild_summary()
+        text = page._summary_text()
+        assert "<b>Chat</b>" in text
+        assert "<b>Image</b>" in text
+        assert "<b>Video</b>" not in text
+        chat_at = text.index("<b>Chat</b>")
+        image_at = text.index("<b>Image</b>")
+        assert chat_at < image_at
+        chat_block = text[chat_at:image_at]
+        image_block = text[image_at:]
+        assert "gemma4:e4b" in chat_block
+        assert "juggernaut-xl-v9" not in chat_block
+        assert "juggernaut-xl-v9" in image_block
+        assert "gemma4:e4b" not in image_block
+
     def test_single_model_fallback_summary(self, qt_app) -> None:
         # v1.9.0 Phase 4 (T406): the legacy `_MODEL_SIZES` estimate table is
         # gone; a lone `selected_model` (a headless --model override) still

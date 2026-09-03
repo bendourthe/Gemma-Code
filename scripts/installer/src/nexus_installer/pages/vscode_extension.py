@@ -2,7 +2,7 @@
 
 After the model picker the wizard offers to install the Nexus Coding VS Code
 extension from the bundled VSIX. The checkbox stays visible. It is enabled
-when Microsoft stable `code` reports 1.134 or 1.135 (Electron 42.8.1).
+when Microsoft stable `code` reports 1.134, 1.135, or 1.136 (Electron 42.8.1).
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from nexus_installer.constants import (
 )
 from nexus_installer.engine.extension_installer import (
     SUPPORTED_ELECTRON_VERSION,
+    SUPPORTED_VSCODE_RANGE_COPY,
     VsCodeCliStatus,
     inspect_vscode_cli,
     installed_nexus_extension_id,
@@ -87,19 +88,21 @@ def _detection_text(status: VsCodeCliStatus) -> str:
     if status.reason == "unsupported-cli":
         return (
             f"Detected {status.cli_name} at {status.path}, but this release does "
-            "not support that editor. Microsoft VS Code 1.134 or 1.135 "
+            "not support that editor. Microsoft VS Code "
+            f"{SUPPORTED_VSCODE_RANGE_COPY} "
             f"(Electron {SUPPORTED_ELECTRON_VERSION}) is required."
         )
     if status.reason == "version-mismatch":
         return (
             f"Detected Microsoft VS Code {status.version}, but this extension "
-            "supports version 1.134 or 1.135 "
+            f"supports version {SUPPORTED_VSCODE_RANGE_COPY} "
             f"(Electron {SUPPORTED_ELECTRON_VERSION}). The option stays visible "
             "and unchecked."
         )
     return (
         "Microsoft stable VS Code was found, but its version could not be "
-        "verified as 1.134 or 1.135. The option stays visible and unchecked."
+        f"verified as {SUPPORTED_VSCODE_RANGE_COPY}. The option stays visible "
+        "and unchecked."
     )
 
 
@@ -143,7 +146,8 @@ class VsCodeExtensionPage(QWidget):
 
             intro = QLabel(
                 "Install the Nexus VS Code extension to use your local models for "
-                "agentic coding inside Microsoft Visual Studio Code 1.134 or 1.135 "
+                "agentic coding inside Microsoft Visual Studio Code "
+                f"{SUPPORTED_VSCODE_RANGE_COPY} "
                 f"(Electron {SUPPORTED_ELECTRON_VERSION}). This release does not "
                 "support VS Code Insiders, Cursor, Windsurf, or other VS Code versions."
             )
@@ -153,20 +157,12 @@ class VsCodeExtensionPage(QWidget):
             intro.setWordWrap(True)
             layout.addWidget(intro)
 
-        card = QWidget()
-        card.setStyleSheet(
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 16px;"
-        )
-        card_layout = QVBoxLayout(card)
-
         self._checkbox = QCheckBox(_INSTALL_LABEL)
         self._checkbox.setChecked(detected.supported)
         self._checkbox.setEnabled(detected.supported)
         self._checkbox.setVisible(True)
         self._checkbox.setStyleSheet(f"color: {TEXT_PRIMARY}; background: transparent;")
         self._checkbox.stateChanged.connect(self._on_toggled)
-        card_layout.addWidget(self._checkbox)
         self._apply_replace_label(detected.path)
 
         self._detection_label = QLabel(_detection_text(detected))
@@ -175,21 +171,31 @@ class VsCodeExtensionPage(QWidget):
             "font-size: 14px; background: transparent;"
         )
         self._detection_label.setWordWrap(True)
-        card_layout.addWidget(self._detection_label)
 
-        note = QLabel(
-            "The option is available when the Microsoft stable `code` CLI "
-            "reports version 1.134 or 1.135. If Nexus is already installed, "
-            "the control offers a replace with this installer's copy."
-        )
-        note.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 14px; background: transparent;"
-        )
-        note.setWordWrap(True)
-        card_layout.addWidget(note)
-
-        layout.addWidget(card)
-        if not compact:
+        if compact:
+            layout.addWidget(self._checkbox)
+            layout.addWidget(self._detection_label)
+        else:
+            card = QWidget()
+            card.setStyleSheet(
+                f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
+                f"border-radius: 8px; padding: 16px;"
+            )
+            card_layout = QVBoxLayout(card)
+            card_layout.addWidget(self._checkbox)
+            card_layout.addWidget(self._detection_label)
+            note = QLabel(
+                "The option is available when the Microsoft stable `code` CLI "
+                f"reports version {SUPPORTED_VSCODE_RANGE_COPY}. If Nexus is "
+                "already installed, the control offers a replace with this "
+                "installer's copy."
+            )
+            note.setStyleSheet(
+                f"color: {TEXT_SECONDARY}; font-size: 14px; background: transparent;"
+            )
+            note.setWordWrap(True)
+            card_layout.addWidget(note)
+            layout.addWidget(card)
             layout.addStretch()
 
     def showEvent(self, event: object) -> None:  # noqa: N802

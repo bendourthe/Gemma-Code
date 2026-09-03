@@ -316,7 +316,7 @@ v1.19.0 already shipped LFM2.5-2.6B as the low-VRAM Agentic pick. Known gaps sta
 
 ## Quick Start (developer workflow)
 
-End users: grab the Windows one-file installer from the [releases page](https://github.com/bendourthe/Nexus-AI/releases) and follow the [installation guide](docs/install.md) (including the unsigned-binary warning). macOS and Linux receive only the optional platform VSIX in v2.3.1. The extension requires Microsoft stable VS Code 1.134 or 1.135 (Electron 42.8.1); the Windows desktop application is not subject to this VS Code pin. Developers work against the source tree:
+End users: grab the Windows one-file installer from the [releases page](https://github.com/bendourthe/Nexus-AI/releases) and follow the [installation guide](docs/install.md) (including the unsigned-binary warning). macOS and Linux receive only the optional platform VSIX in v2.3.1. The extension requires Microsoft stable VS Code 1.134, 1.135, or 1.136 (Electron 42.8.1); the Windows desktop application is not subject to this VS Code pin. Developers work against the source tree:
 
 ```bash
 # Prereqs: Node 20+, Rust + Cargo (for Tauri core), Ollama for inference.

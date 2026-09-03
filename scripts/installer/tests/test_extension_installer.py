@@ -19,8 +19,9 @@ def test_vscode_version_is_supported() -> None:
     assert vscode_version_is_supported("1.134.0")
     assert vscode_version_is_supported("1.134.1")
     assert vscode_version_is_supported("1.135.0")
+    assert vscode_version_is_supported("1.136.0")
     assert not vscode_version_is_supported("1.133.9")
-    assert not vscode_version_is_supported("1.136.0")
+    assert not vscode_version_is_supported("1.137.0")
     assert not vscode_version_is_supported("not-a-version")
 
 
@@ -109,7 +110,7 @@ class TestExtensionInstaller:
             assert result is False
         assert state.step_failures and state.step_failures[0]["step"] == "extension"
 
-    @pytest.mark.parametrize("version", ["1.133.9", "1.136.0"])
+    @pytest.mark.parametrize("version", ["1.133.9", "1.137.0"])
     def test_recheck_skips_when_stable_version_changed(self, version: str) -> None:
         state = InstallerState(vscode_path="/usr/bin/code")
         log = MagicMock()

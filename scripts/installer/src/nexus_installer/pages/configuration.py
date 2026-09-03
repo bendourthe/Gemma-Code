@@ -15,15 +15,12 @@ from PyQt5.QtWidgets import (
 )
 
 from nexus_installer.constants import (
-    BG_CARD,
-    BORDER,
     FS_CAPTION,
     SUCCESS,
     TEXT_SECONDARY,
     WARNING,
 )
 from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
-from nexus_installer.video_enhancement_support import INSTALLER_NOTE
 from nexus_installer.vram_display import display_vram_gb
 
 if TYPE_CHECKING:
@@ -47,6 +44,7 @@ class ConfigurationPage(QWidget):
         super().__init__(parent)
         self._state = state
         self._narrow_columns = False
+        self._user_touched_unsloth = False
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
@@ -108,6 +106,15 @@ class ConfigurationPage(QWidget):
         features_label.setObjectName("sectionHead")
         features_layout.addWidget(features_label)
 
+        self._vscode = VsCodeExtensionPage(
+            state,
+            detect_fn=detect_fn,
+            inspect_fn=inspect_fn,
+            list_fn=list_fn,
+            compact=True,
+        )
+        features_layout.addWidget(self._vscode)
+
         self._thinking_toggle = QCheckBox(
             "Enable thinking mode (show the model's step-by-step reasoning)"
         )
@@ -146,11 +153,7 @@ class ConfigurationPage(QWidget):
         unsloth_layout.addWidget(self._unsloth_badge)
         features_layout.addWidget(unsloth_row)
 
-        self._unsloth_help = QLabel(
-            "For NVIDIA GPUs with 16 GB or more VRAM. unsloth is Apache-2.0; "
-            "unsloth-zoo is LGPL-3.0-or-later and is dynamically linked. "
-            "Off by default."
-        )
+        self._unsloth_help = QLabel("")
         self._unsloth_help.setWordWrap(True)
         self._unsloth_help.setStyleSheet(
             f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
@@ -192,48 +195,6 @@ class ConfigurationPage(QWidget):
         self._url_input = QLineEdit(state.ollama_url)
         self._url_input.textChanged.connect(lambda t: setattr(state, "ollama_url", t))
         layout.addWidget(self._url_input)
-
-        # Extension settings preview
-        settings_label = QLabel("VS Code Extension Settings")
-        settings_label.setObjectName("sectionHead")
-        layout.addWidget(settings_label)
-
-        self._vscode = VsCodeExtensionPage(
-            state,
-            detect_fn=detect_fn,
-            inspect_fn=inspect_fn,
-            list_fn=list_fn,
-            compact=True,
-        )
-        layout.addWidget(self._vscode)
-
-        model_name = state.selected_model or state.recommended_model or "gemma4:e4b"
-        settings_preview = QLabel(
-            f"\u2022 Model: {model_name}<br>"
-            f"\u2022 Temperature: 1.0<br>"
-            f"\u2022 Top-P: 0.95<br>"
-            f"\u2022 Top-K: 64"
-        )
-        settings_preview.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 12px;"
-        )
-        layout.addWidget(settings_preview)
-
-        video_label = QLabel("Optional video enhancement")
-        video_label.setObjectName("sectionHead")
-        layout.addWidget(video_label)
-
-        self._video2x_note = QLabel(INSTALLER_NOTE)
-        self._video2x_note.setWordWrap(True)
-        self._video2x_note.setObjectName("video2xOptionalNote")
-        self._video2x_note.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 12px;"
-        )
-        layout.addWidget(self._video2x_note)
 
         layout.addStretch()
 
@@ -281,10 +242,20 @@ class ConfigurationPage(QWidget):
             "background: transparent;"
         )
 
+    def _unsloth_help_text(self, *, compatible: bool) -> str:
+        base = (
+            "For NVIDIA GPUs with 16 GB or more VRAM. unsloth is Apache-2.0; "
+            "unsloth-zoo is LGPL-3.0-or-later and is dynamically linked."
+        )
+        if compatible:
+            return base
+        return f"{base} Off by default."
+
     def _apply_unsloth_host_lock(self) -> None:
         self._refresh_unsloth_badge()
         ok = self._unsloth_host_ok()
         self._unsloth.setEnabled(ok)
+        self._unsloth_help.setText(self._unsloth_help_text(compatible=ok))
         if not ok:
             self._unsloth.blockSignals(True)
             self._unsloth.setChecked(False)
@@ -293,6 +264,11 @@ class ConfigurationPage(QWidget):
             self._unsloth_warning.clear()
             self._unsloth_warning.setVisible(False)
             return
+        if not self._user_touched_unsloth:
+            self._unsloth.blockSignals(True)
+            self._unsloth.setChecked(True)
+            self._unsloth.blockSignals(False)
+            self._state.install_unsloth = True
         self._refresh_unsloth_warning()
 
     def _on_unsloth(self, state_value: int) -> None:
@@ -304,6 +280,7 @@ class ConfigurationPage(QWidget):
             self._unsloth_warning.clear()
             self._unsloth_warning.setVisible(False)
             return
+        self._user_touched_unsloth = True
         self._state.install_unsloth = self._unsloth.isChecked()
         self._refresh_unsloth_warning()
 
