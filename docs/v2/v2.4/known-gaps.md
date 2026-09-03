@@ -2,11 +2,44 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-31
+**Last updated**: 2026-09-02
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next plan ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [v2.4.5 installer already-downloaded models](plans/v2.4.5-installer-already-downloaded-models.md)
+Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [v2.4.5 installer already-downloaded models](plans/v2.4.5-installer-already-downloaded-models.md), [v2.4.6 field delivery, density, and session identity](plans/v2.4.6-field-delivery-density-and-session-identity.md)
+
+## v2.4.6
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---:|---:|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 0 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 1 | 0 |
+| Missing tests / coverage gaps (MT) | 1 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phase 1 of field-delivery is implemented locally. A rebuilt wizard is not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
+
+### Open Items
+
+##### MT-1 - Packaged payload fingerprint and maximized first show are not observed
+
+- **Source phase**: Phase 1 - Packaged delivery and installer window
+- **Impact**: Tests pin stale-bundle refusal, Settings fingerprint copy, and `present_installer_window` calling `showMaximized`. None of it has run in a frozen NexusSetup.exe on the operator host.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Phase 8 human items (1) and (5).
+
+##### WN-1 - Mtime freshness cannot catch a freshly copied stale NSIS
+
+- **Source phase**: Phase 1 - Packaged delivery and installer window
+- **Impact**: Staging compares desktop source mtimes to the bundle mtime. Last week's tauri output left in `desktop/src-tauri/target` fails as intended. An old NSIS copied onto disk *after* source last changed gets a new timestamp and can still freeze.
+- **Owner**: Phase 8 if field evidence shows a copied stale payload
+- **Next step**: Prefer `cd desktop; npm run build:shell` immediately before `build-windows.ps1`. A source-tree stamp from `build:shell` would close the hole.
+
+## v2.4.5
 
 ## v2.4.5
 

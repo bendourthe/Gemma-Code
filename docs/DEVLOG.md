@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-02] v2.4.6 Phase 1 - packaged delivery and installer window
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P1](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-1-delivery.md). Package remains **2.4.1**.
+
+### What Changed
+
+- `build-windows.ps1` stages the desktop NSIS bundle through `stage-desktop-payload.py`. A missing file, a filename that does not encode the product version, or a bundle older than desktop source files fails the freeze.
+- After install, `~/.nexus/desktop-payload.json` holds version + sha256. Settings shows that fingerprint or `Desktop payload unknown`.
+- The wizard's first presentation is `showMaximized`. Tray reattach still restores.
+
+### Why It Changed
+
+Rebuilding only PyInstaller could ship last week's desktop while package.json stayed 2.4.1. The operator then saw a new Review page and an old Settings card.
+
+### Decisions Made
+
+- Freshness is source mtime versus bundle mtime, not an automatic `npm run build:shell` (too slow for this gate). A freshly copied stale NSIS can still pass (WN-1).
+- Sidecar `runtime.desktopPayload` returns null when the file is missing; Settings never invents 2.4.1.
+
+---
+
 ## [2026-09-01] v2.4.5 - installer already-downloaded model detection (Phases 1-5)
 
 Index: [plan](v2/v2.4/plans/v2.4.5-installer-already-downloaded-models.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.5-installer-downloaded.md), [gaps](v2/v2.4/known-gaps.md), histories [P1](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-1-downloaded-probe.md), [P2](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-2-picker-marks.md), [P3](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-3-review-page.md), [P4](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-4-guard.md), [P5](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-5-last-phase.md). Package remains **2.4.1**; nothing in the 2.4 series is released.

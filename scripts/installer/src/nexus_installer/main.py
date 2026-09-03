@@ -29,6 +29,15 @@ if TYPE_CHECKING:
     from nexus_installer.window import InstallerWindow
 
 
+def present_installer_window(window: InstallerWindow) -> None:
+    """First presentation of a fresh wizard: maximized (v2.4.6 Phase 1).
+
+    Tray reattach and single-instance handoff keep using ``show_and_raise``,
+    which restores rather than forcing maximize over a user restore.
+    """
+    window.showMaximized()
+
+
 def _prompt_resume() -> bool:
     """Ask whether to resume an interrupted run or start over (T704).
 
@@ -611,7 +620,7 @@ def main() -> None:
     else:
         window.show_first_page()
 
-    window.show()
+    present_installer_window(window)
     sys.exit(app.exec())
 
 

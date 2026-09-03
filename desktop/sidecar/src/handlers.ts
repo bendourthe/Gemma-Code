@@ -133,6 +133,7 @@ import {
   NotImplementedError,
   PingResponse,
   PingResponseT,
+  DesktopPayloadResponse,
   isMethod,
   type Method,
 } from "./protocol.js";
@@ -149,6 +150,7 @@ import {
   hubLayoutDir,
   nexusHome,
 } from "../../../core/storage/paths.js";
+import { readDesktopPayloadIdentity } from "../../../core/storage/desktopPayload.js";
 import { createWorkspaceScope } from "../../../core/project/WorkspaceScope.js";
 import { WorkspaceScopeStore } from "../../../core/project/WorkspaceScopeStore.js";
 import {
@@ -946,6 +948,22 @@ export const handlers: Record<Method, HandlerFn> = {
       platform: ctx.platform,
     };
     PingResponse.parse(response);
+    return response;
+  },
+  "runtime.desktopPayload": async (_params) => {
+    const identity = readDesktopPayloadIdentity();
+    const response = {
+      identity: identity
+        ? {
+            version: identity.version,
+            sha256: identity.sha256,
+            ...(identity.originalName
+              ? { originalName: identity.originalName }
+              : {}),
+          }
+        : null,
+    };
+    DesktopPayloadResponse.parse(response);
     return response;
   },
   "models.list": async (_params, ctx) => {

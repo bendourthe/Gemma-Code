@@ -34,6 +34,17 @@ describe("sidecar handlers", () => {
     });
   });
 
+  it("runtime.desktopPayload returns an identity object or null", async () => {
+    const reply = (await dispatch("runtime.desktopPayload", {}, makeCtx())) as {
+      identity: { version: string; sha256: string } | null;
+    };
+    expect(reply).toHaveProperty("identity");
+    if (reply.identity !== null) {
+      expect(reply.identity.version.length).toBeGreaterThan(0);
+      expect(reply.identity.sha256.length).toBeGreaterThan(0);
+    }
+  });
+
   it("rejects unknown methods", async () => {
     await expect(dispatch("not.a.method", {}, makeCtx())).rejects.toThrow(/UnknownMethod/);
   });
@@ -44,6 +55,7 @@ describe("sidecar handlers", () => {
       (m) =>
         ![
           "ping",
+          "runtime.desktopPayload",
           // v1.15.0 Phase 4 wired the Settings > Models registry surface.
           "models.list",
           "models.install",
