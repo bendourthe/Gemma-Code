@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-02] v2.4.6 Phase 2 - installer Setup compactness
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P2](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-2-setup.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Compact Setup puts VS Code + Python and Disk + Ollama in two columns, stacking under 520 px.
+- Re-check is a title-row refresh icon with accessible name `Re-check`, not a full-width button.
+- GPU name, vendor, and VRAM share one eliding line. No GPU hides the empty card.
+- Setup spacing is 6 px with no trailing stretch. Install path and available-space stay.
+
+### Why It Changed
+
+Screenshot 1 still showed one-column prereqs, a full-width Re-check bar, and a tall empty GPU/path stack after v2.4.5 tests were green.
+
+### Decisions Made
+
+- Compact mode hides the recommended-model callout; Configuration still owns the model choice.
+- Elide only when the GPU label is at least 80 px wide so unshown widgets keep a testable full string.
+
+---
+
 ## [2026-09-02] v2.4.6 Phase 1 - packaged delivery and installer window
 
 Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P1](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-1-delivery.md). Package remains **2.4.1**.

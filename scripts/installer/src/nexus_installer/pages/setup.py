@@ -29,7 +29,7 @@ class SetupPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(6)
 
         title = QLabel("Set up this machine")
         title.setObjectName("pageTitle")
@@ -50,7 +50,6 @@ class SetupPage(QWidget):
         layout.addWidget(self._prereq)
         layout.addWidget(self._gpu)
         layout.addWidget(self._path)
-        layout.addStretch()
 
     def validate(self) -> tuple[bool, str]:
         """Next requires every nested panel to accept the current state."""

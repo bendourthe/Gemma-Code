@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 1 | 0 |
-| Missing tests / coverage gaps (MT) | 1 | 0 |
+| Missing tests / coverage gaps (MT) | 2 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 1 of field-delivery is implemented locally. A rebuilt wizard is not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
+Phase 2 of field-delivery is implemented locally. Packaged Setup compactness is not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
 
 ### Open Items
 
@@ -31,6 +31,13 @@ Phase 1 of field-delivery is implemented locally. A rebuilt wizard is not yet ob
 - **Impact**: Tests pin stale-bundle refusal, Settings fingerprint copy, and `present_installer_window` calling `showMaximized`. None of it has run in a frozen NexusSetup.exe on the operator host.
 - **Owner**: Operator, this cycle's installer rebuild
 - **Next step**: Phase 8 human items (1) and (5).
+
+##### MT-2 - Packaged Setup compactness is not observed
+
+- **Source phase**: Phase 2 - Installer Setup compactness
+- **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 2.1-2.3)
+- **Reason**: Qt tests pin two-column prereqs, a title-row Re-check icon, one-line GPU text, worker replacement, elision, and no trailing stretch. None of it has run in a frozen NexusSetup.exe on the operator host.
+- **Suggested next step**: Phase 8 human item for Setup screenshot 1.
 
 ##### WN-1 - Mtime freshness cannot catch a freshly copied stale NSIS
 

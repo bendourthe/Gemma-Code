@@ -153,6 +153,85 @@ class TestPrerequisitesPage:
             ok, _ = page.validate()
             assert ok is True
 
+    def test_compact_recheck_is_icon_not_button(self, qt_app: object) -> None:
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from PyQt5.QtWidgets import QPushButton, QToolButton
+
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
+
+            page = PrerequisitesPage(InstallerState(), compact=True)
+            assert not any(
+                btn.text() == "Re-check" for btn in page.findChildren(QPushButton)
+            )
+            tools = [
+                t
+                for t in page.findChildren(QToolButton)
+                if t.accessibleName() == "Re-check"
+            ]
+            assert len(tools) == 1
+
+    def test_compact_recheck_replaces_inflight_worker(self, qt_app: object) -> None:
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from unittest.mock import MagicMock
+
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
+
+            page = PrerequisitesPage(InstallerState(), compact=True)
+            first = MagicMock()
+            first.isRunning.return_value = True
+            page._worker = first
+            page._run_detection()
+            first.vscode_result.disconnect.assert_called()
+            first.quit.assert_called()
+            first.wait.assert_called()
+
+    def test_compact_prereqs_two_columns_then_stack(self, qt_app: object) -> None:
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from PyQt5.QtCore import QSize
+            from PyQt5.QtGui import QResizeEvent
+
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
+
+            page = PrerequisitesPage(InstallerState(), compact=True)
+            page.resizeEvent(QResizeEvent(QSize(800, 400), QSize(800, 400)))
+            grid = page._grid
+            assert grid is not None
+            assert grid.itemAtPosition(0, 0).widget() is page._vscode_row
+            assert grid.itemAtPosition(0, 1).widget() is page._python_row
+            assert grid.itemAtPosition(1, 0).widget() is page._disk_row
+            assert grid.itemAtPosition(1, 1).widget() is page._ollama_row
+            page.resizeEvent(QResizeEvent(QSize(400, 400), QSize(800, 400)))
+            assert grid.itemAtPosition(0, 0).widget() is page._vscode_row
+            assert grid.itemAtPosition(1, 0).widget() is page._python_row
+            empty = grid.itemAtPosition(0, 1)
+            assert empty is None or empty.widget() is None
+
+    def test_compact_prereq_callbacks_and_row_states(self, qt_app: object) -> None:
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
+
+            page = PrerequisitesPage(InstallerState(), compact=True)
+            page._on_vscode("")
+            assert page._vscode_found is False
+            page._on_vscode(r"C:\VSCode\code.cmd")
+            assert page._vscode_found is True
+            page._on_python("", "")
+            page._on_python(r"C:\Python\python.exe", "3.12.3")
+            page._on_ollama(False, "")
+            page._on_ollama(True, "0.11.0")
+            page._on_disk(3.0)
+            page._on_disk(7.0)
+            page._on_disk(80.0)
+            page._vscode_row.set_found("ok")
+            page._vscode_row.set_missing("no")
+            page._vscode_row.set_warning("warn")
+            saved = page._grid
+            page._grid = None
+            page._place_prereq_grid(two_columns=True)
+            page._grid = saved
+            ok, _ = page.validate()
+            assert ok is True
+
 
 class TestGpuDetectionPage:
     def test_creates_without_crash(self, qt_app: object) -> None:
@@ -196,6 +275,96 @@ class TestGpuDetectionPage:
             page._on_detection_complete("RTX 3080", "nvidia", 15360)
             assert "16 GB VRAM" in page._gpu_detail_label.text()
             assert "15360" not in page._gpu_detail_label.text()
+
+    def test_compact_gpu_name_vendor_vram_one_label(self, qt_app: object) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            page = GpuDetectionPage(InstallerState(), compact=True)
+            page._on_detection_complete(
+                "NVIDIA GeForce RTX 3080 Ti Laptop GPU", "nvidia", 16384
+            )
+            assert page._gpu_detail_label.isHidden()
+            line = page._gpu_name_label.text()
+            assert "Vendor: Nvidia" in line
+            assert "16 GB VRAM" in line
+            assert "NVIDIA GeForce RTX 3080 Ti Laptop GPU" in line
+            assert "|" in line
+
+    def test_compact_no_gpu_hides_card_keeps_warning(self, qt_app: object) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=16,
+            ),
+        ):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            page = GpuDetectionPage(InstallerState(), compact=True)
+            page._on_detection_complete("", "none", 0)
+            assert page._gpu_card.isHidden()
+            assert "No dedicated GPU" in page._status_label.text()
+
+    def test_compact_gpu_elides_long_name(self, qt_app: object) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            from PyQt5.QtCore import QSize
+            from PyQt5.QtGui import QResizeEvent, QShowEvent
+
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            page = GpuDetectionPage(InstallerState(), compact=True)
+            long_name = "NVIDIA GeForce " + ("RTX 3080 Ti Laptop GPU " * 8)
+            page._on_detection_complete(long_name, "nvidia", 16384)
+            page._gpu_name_label.setFixedWidth(100)
+            page.showEvent(QShowEvent())
+            page.resizeEvent(QResizeEvent(QSize(200, 80), QSize(400, 80)))
+            shown = page._gpu_name_label.text()
+            assert shown != page._gpu_line_full
+            assert "\u2026" in shown or shown.endswith("...")
+            assert page._gpu_name_label.toolTip() == page._gpu_line_full
+
+    def test_compact_gpu_elide_keeps_full_text_when_narrow(
+        self, qt_app: object
+    ) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            page = GpuDetectionPage(InstallerState(), compact=True)
+            page._on_detection_complete("RTX 3080 Ti", "nvidia", 16384)
+            page._gpu_name_label.setFixedWidth(40)
+            page._apply_gpu_elide()
+            assert page._gpu_name_label.text() == page._gpu_line_full
+            ok, _ = page.validate()
+            assert ok is True
+
+    def test_gpu_validate_blocks_until_detection(self, qt_app: object) -> None:
+        with patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            page = GpuDetectionPage(InstallerState())
+            ok, msg = page.validate()
+            assert ok is False
+            assert "detecting" in msg.lower()
+            page._apply_gpu_elide()
 
 
 class TestInstallPathPage:
@@ -301,6 +470,21 @@ class TestSetupPage:
             page._gpu._on_detection_complete("RTX 3080 Ti", "nvidia", 16384)
             ok, msg = page.validate()
             assert ok is True, msg
+
+    def test_setup_packs_without_trailing_stretch(self, qt_app: object) -> None:
+        from nexus_installer.pages.setup import SetupPage
+
+        with (
+            patch("nexus_installer.pages.prerequisites._DetectionWorker.start"),
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+        ):
+            page = SetupPage(InstallerState())
+            layout = page.layout()
+            assert layout is not None
+            last = layout.itemAt(layout.count() - 1)
+            assert last is not None
+            assert last.spacerItem() is None
+            assert last.widget() is page._path
 
 
 class TestConfigurationPage:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import subprocess
@@ -9,7 +10,14 @@ import sys
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import (
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from nexus_installer.constants import (
     BG_CARD,
@@ -265,8 +273,13 @@ class PrerequisitesPage(QWidget):
     ) -> None:
         super().__init__(parent)
         self._state = state
+        self._compact = compact
         self._vscode_found = False
         self._disk_ok = False
+        self._worker: _DetectionWorker | None = None
+        self._grid: QGridLayout | None = None
+        self._two_columns: bool | None = None
+        self._recheck_btn: QToolButton | SecondaryButton
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -279,7 +292,6 @@ class PrerequisitesPage(QWidget):
             )
         else:
             title.setObjectName("pageTitle")
-        layout.addWidget(title)
 
         # Card container
         card = QWidget()
@@ -296,26 +308,89 @@ class PrerequisitesPage(QWidget):
         self._disk_row = _PrereqRow("Disk Space")
         self._ollama_row = _PrereqRow("Ollama")
 
-        card_layout.addWidget(self._vscode_row)
-        card_layout.addWidget(self._python_row)
-        card_layout.addWidget(self._disk_row)
-        card_layout.addWidget(self._ollama_row)
-
-        layout.addWidget(card)
-
-        # Re-check button
-        recheck_btn = SecondaryButton("Re-check")
-        recheck_btn.clicked.connect(self._run_detection)
-        layout.addWidget(recheck_btn)
-
-        if not compact:
+        if compact:
+            title_row = QHBoxLayout()
+            title_row.setContentsMargins(0, 0, 0, 0)
+            title_row.addWidget(title, stretch=1)
+            recheck_btn = QToolButton()
+            recheck_btn.setText("\u21bb")
+            recheck_btn.setAccessibleName("Re-check")
+            recheck_btn.setToolTip("Re-check")
+            recheck_btn.setAutoRaise(True)
+            recheck_btn.clicked.connect(self._run_detection)
+            title_row.addWidget(recheck_btn)
+            layout.addLayout(title_row)
+            self._recheck_btn = recheck_btn
+            self._grid = QGridLayout()
+            self._grid.setContentsMargins(0, 0, 0, 0)
+            self._grid.setSpacing(0)
+            card_layout.addLayout(self._grid)
+            self._two_columns = True
+            self._place_prereq_grid(two_columns=True)
+        else:
+            layout.addWidget(title)
+            card_layout.addWidget(self._vscode_row)
+            card_layout.addWidget(self._python_row)
+            card_layout.addWidget(self._disk_row)
+            card_layout.addWidget(self._ollama_row)
+            recheck_btn = SecondaryButton("Re-check")
+            recheck_btn.clicked.connect(self._run_detection)
+            layout.addWidget(card)
+            layout.addWidget(recheck_btn)
+            self._recheck_btn = recheck_btn
             layout.addStretch()
 
-        # Run initial detection
-        self._worker: _DetectionWorker | None = None
+        if compact:
+            layout.addWidget(card)
+
         self._run_detection()
 
+    def _place_prereq_grid(self, *, two_columns: bool) -> None:
+        if self._grid is None:
+            return
+        while self._grid.count():
+            item = self._grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(self._grid.parentWidget())
+        rows = [
+            self._vscode_row,
+            self._python_row,
+            self._disk_row,
+            self._ollama_row,
+        ]
+        if two_columns:
+            self._grid.addWidget(self._vscode_row, 0, 0)
+            self._grid.addWidget(self._python_row, 0, 1)
+            self._grid.addWidget(self._disk_row, 1, 0)
+            self._grid.addWidget(self._ollama_row, 1, 1)
+        else:
+            for index, row in enumerate(rows):
+                self._grid.addWidget(row, index, 0)
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802
+        super().resizeEvent(event)  # type: ignore[misc]
+        if self._compact and self._grid is not None:
+            size = getattr(event, "size", None)
+            width = size().width() if callable(size) else self.width()
+            two_columns = width >= 520
+            if two_columns != self._two_columns:
+                self._two_columns = two_columns
+                self._place_prereq_grid(two_columns=two_columns)
+
     def _run_detection(self) -> None:
+        previous = self._worker
+        if previous is not None:
+            for signal in (
+                previous.vscode_result,
+                previous.python_result,
+                previous.ollama_result,
+                previous.disk_result,
+            ):
+                with contextlib.suppress(TypeError):
+                    signal.disconnect()
+            previous.quit()
+            previous.wait(1000)
         self._worker = _DetectionWorker(self._state.install_path)
         self._worker.vscode_result.connect(self._on_vscode)
         self._worker.python_result.connect(self._on_python)
