@@ -1,4 +1,4 @@
-# Docs cleanup report - v2.4.6 Phase 7
+# Docs cleanup report - v2.4.6 Phase 8
 
 **Mode**: audit (no files moved)
 **Date**: 2026-09-03
@@ -8,16 +8,14 @@
 
 | Path | Category | Disposition |
 |---|---|---|
-| `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` | Cat 4 active | Keep; T032-T041 and T051 marked complete |
-| `docs/v2/v2.4/development/history/2026-09-02_v2.4.6-phase-7-runtime.md` | Cat 4 active | Session history for this phase |
-| `docs/v2/v2.4/known-gaps.md` | Cat 4 active | Appended MT-7 |
-| `docs/DEVLOG.md` | Cat 4 living | Phase 7 entry |
-| `docs/install.md` | Cat 4 living | Desktop four-tab picker allowlist |
-| `README.md` | Cat 4 living | Chat/Agents/Image/Video this-install pickers |
+| `docs/v2/v2.4/development/last-phase-evidence-v2.4.6-field-delivery.md` | Cat 4 active | Last-phase evidence |
+| `docs/v2/v2.4/development/history/2026-09-02_v2.4.6-phase-8-evidence.md` | Cat 4 active | Session history |
+| `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` | Cat 4 active | T042-T049 ticked; T050 open |
+| `docs/DEVLOG.md` | Cat 4 living | Phase 8 entry |
 | `docs/v2/v2.4/docs-cleanup-report.md` | Cat 4 active | This audit |
 
-No Cat 1 deletes. No Cat 2 archive moves. Scratch docs were not created.
+No Cat 1 deletes. No Cat 2 archive moves.
 
-## CI impact (Phase 7)
+## CI impact (Phase 8)
 
-New and updated tests live under existing `desktop/tests/**/*.test.{ts,tsx}` and `desktop/sidecar/src/**/*.ts` include globs (`owned-picker-allowlist.test.tsx`, `gpu-runtime.test.ts`, plus Chat/Agents/Image/Video/telemetry fixtures). `npm run test:shell` / CI job "Desktop vitest (Node 22)" already covers those paths. No new workflow, script command, runtime env var, dependency, or artifact. No pipeline file changed. No remote CI run.
+No new commands, dependencies, env vars, test paths, or artifacts. No pipeline file changed. No remote CI run.

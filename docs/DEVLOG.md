@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-03] v2.4.6 Phase 8 - Last-phase evidence (publication pending)
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.6-field-delivery.md), history [P8](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-8-evidence.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Quoted empty-directory scan, handbooks check, release-preconditions output, and a CI conformance re-check with no `.github` diff versus `develop`.
+- Goal-vs-codebase review: every Goal slice has a source artifact; packaged observation stays MT-1 through MT-7.
+- Publication, integration PR, installer rebuild, and `/update release` are not started.
+
+### Why It Changed
+
+The last phase must quote proving scans before anything leaves the machine.
+
+### Decisions Made
+
+- No layout moves. No pipeline edits without explicit approval of the carried aggregate-check and permissions findings.
+- Installer rebuild waits for a green merge, then a fresh `desktop` `npm run build:shell`.
+
+---
+
 ## [2026-09-03] v2.4.6 Phase 7 - Four-tab runtime chrome
 
 Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P7](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-7-runtime.md). Package remains **2.4.1**.
