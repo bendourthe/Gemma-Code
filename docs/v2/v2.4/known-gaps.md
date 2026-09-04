@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 2 | 0 |
-| Missing tests / coverage gaps (MT) | 5 | 0 |
+| Missing tests / coverage gaps (MT) | 6 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 5 of field-delivery is implemented locally. Empty and filled history panes show Sessions History with left-aligned create actions. The Chatbot tab label is unchanged. Packaged Configuration, Review, a VSIX load on VS Code 1.136, the new picker on a frozen VSIX, and the new sidebar chrome on a frozen desktop are not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
+Phase 6 of field-delivery is implemented locally. Settings model cards have no Details accordion. Packaged Configuration, Review, a VSIX load on VS Code 1.136, the new picker on a frozen VSIX, Sessions History, and the compact Settings card on a frozen desktop are not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
 
 ### Open Items
 
@@ -59,6 +59,13 @@ Phase 5 of field-delivery is implemented locally. Empty and filled history panes
 - **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 5.1-5.4)
 - **Reason**: Desktop tests pin the empty header, left-aligned create actions, `HISTORY_HAIRLINE_GAP` on both sides of the rule, Session copy, and the unchanged Chatbot tab label. None of it has run in a frozen desktop from this cycle's installer on the operator host.
 - **Suggested next step**: Phase 8 human item (6): empty and filled Sessions History, centered hairline, Session copy, Chatbot tab unchanged.
+
+##### MT-6 - Packaged Settings compact cards are not observed
+
+- **Source phase**: Phase 6 - Settings model cards
+- **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 6.1-6.2)
+- **Reason**: Desktop tests fail if Details, Best for, Why this one, `Also agentic`, `Backend model:`, or `ID:` return, and they pin the Gemma 4 12B three-line card plus a centered action row. None of it has run in a frozen desktop from this cycle's installer on the operator host.
+- **Suggested next step**: Phase 8 human item (7): Settings Gemma card matches the three-line spec, no Details.
 
 ##### WN-1 - Mtime freshness cannot catch a freshly copied stale NSIS
 

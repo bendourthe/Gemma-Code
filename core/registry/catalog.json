@@ -728,7 +728,7 @@
       "displayName": "Gemma 4 12B",
       "origin": "USA",
       "agentic": true,
-      "description": "Google's Gemma 4 12B is a mid-size chat model from the USA that also understands images. It reads book-length material in one go and runs on 12 GB VRAM and up.",
+      "description": "Google's Gemma 4 12B is a mid-size multimodal agentic model from the USA that can read both text and images. It also has a large enough context window to hold book-length material in a single session.",
       "strengths": [
         "Multimodal input: text and images in one chat",
         "256K context window for whole-project or book-length material",

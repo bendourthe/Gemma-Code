@@ -81,7 +81,9 @@ export type PillSource = Pick<
 >;
 
 /** `Released: May 2026` from ISO `YYYY-MM[-DD]` (en-US month names, ASCII). */
-export function formatReleasedPill(releaseDate: string | undefined): string | null {
+export function formatReleasedPill(
+  releaseDate: string | undefined,
+): string | null {
   const parts = (releaseDate ?? "").trim().split("-");
   const year = Number(parts[0]);
   const month = Number(parts[1]);
@@ -115,18 +117,28 @@ function positive(value: number | null | undefined): number {
 /** The ordered name-row pills for one catalog row (locked v2.2.9 grammar). */
 export function buildModelPills(model: PillSource): string[] {
   const pills: string[] = [];
-  const publisher = model.family ? FAMILY_TO_PUBLISHER[model.family] : undefined;
-  if (publisher && publisher !== "Community") pills.push(`Company: ${publisher}`);
+  const publisher = model.family
+    ? FAMILY_TO_PUBLISHER[model.family]
+    : undefined;
+  if (publisher && publisher !== "Community")
+    pills.push(`Company: ${publisher}`);
   if (model.origin) pills.push(`Country: ${model.origin}`);
-  if (model.task === "chat" || model.task === "agentic" || model.type === "llm") {
+  if (
+    model.task === "chat" ||
+    model.task === "agentic" ||
+    model.type === "llm"
+  ) {
     pills.push(`Agentic: ${model.agentic ? "Yes" : "No"}`);
   }
   const tokens =
-    positive(model.contextWindowIn) || positive(model.contextWindow) || positive(model.contextWindowOut);
+    positive(model.contextWindowIn) ||
+    positive(model.contextWindow) ||
+    positive(model.contextWindowOut);
   const contextPill = formatContextWindowPill(tokens);
   if (contextPill) pills.push(contextPill);
   const multimodal = multimodalPillValue(model.modalities, model.vision);
-  if (multimodal !== null) pills.push(`Multimodal: ${multimodal ? "Yes" : "No"}`);
+  if (multimodal !== null)
+    pills.push(`Multimodal: ${multimodal ? "Yes" : "No"}`);
   if (model.uncensored === true) pills.push("Guardrails: Uncensored");
   else if (model.uncensored === false) pills.push("Guardrails: Censored");
   if (model.license) pills.push(`License: ${model.license}`);
@@ -148,6 +160,41 @@ export function buildModelPills(model: PillSource): string[] {
 export interface SplitPill {
   readonly label: string | null;
   readonly value: string;
+}
+
+export function compactRequirementFacts(
+  model: PillSource & {
+    sizeBytes?: number;
+    vramGB?: number;
+    storageLabel?: string | null;
+  },
+): string[] {
+  const parts: string[] = [];
+  if (model.storageLabel) parts.push(`Storage (${model.storageLabel})`);
+  if (typeof model.vramGB === "number") parts.push(`VRAM (${model.vramGB} GB)`);
+  const publisher = model.family
+    ? FAMILY_TO_PUBLISHER[model.family]
+    : undefined;
+  if (publisher && publisher !== "Community")
+    parts.push(`Company: ${publisher}`);
+  if (model.origin) parts.push(`Country: ${model.origin}`);
+  const released = formatReleasedPill(model.releaseDate);
+  if (released) parts.push(released);
+  return parts;
+}
+
+const CAPABILITY_PREFIXES = [
+  "Agentic:",
+  "Context window:",
+  "Multimodal:",
+  "Guardrails:",
+  "License:",
+] as const;
+
+export function compactCapabilityFacts(model: PillSource): string[] {
+  return buildModelPills(model).filter((pill) =>
+    CAPABILITY_PREFIXES.some((prefix) => pill.startsWith(prefix)),
+  );
 }
 
 export function splitModelPill(pill: string): SplitPill {
