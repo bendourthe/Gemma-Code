@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 2 | 0 |
-| Missing tests / coverage gaps (MT) | 6 | 0 |
+| Missing tests / coverage gaps (MT) | 7 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 6 of field-delivery is implemented locally. Settings model cards have no Details accordion. Packaged Configuration, Review, a VSIX load on VS Code 1.136, the new picker on a frozen VSIX, Sessions History, and the compact Settings card on a frozen desktop are not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
+Phase 7 of field-delivery is implemented locally. Chat, Agents, Image, and Video pickers fail closed on the this-install allowlist, recommend order, Stop, studio captions without Shaping, Advanced on the context row, RealVis default when owned, and GPU busy while a scheduler job is active. Packaged four-tab chrome is not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
 
 ### Open Items
 
@@ -66,6 +66,13 @@ Phase 6 of field-delivery is implemented locally. Settings model cards have no D
 - **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 6.1-6.2)
 - **Reason**: Desktop tests fail if Details, Best for, Why this one, `Also agentic`, `Backend model:`, or `ID:` return, and they pin the Gemma 4 12B three-line card plus a centered action row. None of it has run in a frozen desktop from this cycle's installer on the operator host.
 - **Suggested next step**: Phase 8 human item (7): Settings Gemma card matches the three-line spec, no Details.
+
+##### MT-7 - Packaged four-tab runtime chrome is not observed
+
+- **Source phase**: Phase 7 - Four-tab runtime chrome
+- **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 7.1-7.4)
+- **Reason**: Desktop vitest pins leftover exclusion on Chat/Agents/Image/Video, Gemma 4 12B before LFM and gpt-oss among owned ids, RealVis default when owned, Stop replacing Send while streaming, Creating/Generating labels (orb state remains shaping), Advanced in `composer-advanced-slot`, and GPU not Idle at 0% while a job is active. None of it has run in a frozen desktop from this cycle's installer on the operator host.
+- **Suggested next step**: Phase 8 human items for Chat tokens/Stop, Agents recommend order, Image RealVis plus captions, Video Generating, leftover absence, and GPU busy during a live turn.
 
 ##### WN-1 - Mtime freshness cannot catch a freshly copied stale NSIS
 

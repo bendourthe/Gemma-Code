@@ -53,6 +53,7 @@ import {
   ownedIdSet,
   recommendOrderForTask,
   resolveDefaultId,
+  snapshotForOwnedIds,
   writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
@@ -366,6 +367,11 @@ export function ImageStudioPage({
             // ipc-unavailable (Vite / Vitest): keep a local fallback so the
             // composer still has a model id, without claiming none-installed.
             setModels([FALLBACK_MODEL]);
+            setSelection(
+              snapshotForOwnedIds([FALLBACK_MODEL.id], {
+                image: FALLBACK_MODEL.id,
+              }),
+            );
             setNoneInstalled(false);
             setListFailure(null);
           }
@@ -414,6 +420,15 @@ export function ImageStudioPage({
     },
     [backendDown, studioClient],
   );
+
+  const handleStopGeneration = useCallback((): void => {
+    if (!activeJob) return;
+    const { jobId, messageId } = activeJob;
+    void queueClient.cancel(jobId);
+    patchMessage(messageId, { pending: false, content: "Stopped." });
+    persistTurn({ role: "assistant", content: "Stopped." });
+    setActiveJob(null);
+  }, [activeJob, patchMessage, persistTurn, queueClient]);
 
   const ensureSession = useCallback(
     async (prompt: string): Promise<string | null> => {
@@ -1423,121 +1438,12 @@ export function ImageStudioPage({
             gap: "var(--space-2)",
           }}
         >
-          <div>
-            <Button
-              type="button"
-              variant="ghost"
-              testId="image-advanced-settings"
-              aria-expanded={advancedOpen}
-              onClick={() => setAdvancedOpen((v) => !v)}
-            >
-              Advanced settings
-            </Button>
-            {advancedOpen ? (
-              <div style={{ marginTop: "var(--space-2)" }}>
-                <ImagePromptForm
-                  key={formEpoch}
-                  initial={values}
-                  availableModels={models.map((m) => ({
-                    id: m.id,
-                    displayName: m.displayName,
-                  }))}
-                  availableLoras={DEFAULT_LORAS}
-                  availableControlNets={DEFAULT_CONTROLNETS}
-                  onChange={setValues}
-                  disabled={isGenerating}
-                  diffusionTier={diffusionTier}
-                />
-                {seededAttachment ? (
-                  <div data-testid="image-mask-layer">
-                    <p
-                      style={{
-                        color: "var(--fg-muted)",
-                        fontSize: "var(--text-xs)",
-                      }}
-                    >
-                      Paint a mask on the source image (Advanced). The next
-                      Generate uses inpaint.
-                    </p>
-                    <MaskEditor
-                      sourceImage={seededAttachment}
-                      width={values.width}
-                      height={values.height}
-                      onMaskChange={setPaintedMask}
-                    />
-                  </div>
-                ) : null}
-                {pendingReplace ? (
-                  <div
-                    data-testid="image-sam-candidates"
-                    style={{
-                      display: "flex",
-                      gap: "var(--space-2)",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {pendingReplace.candidates.map((c) => (
-                      <Button
-                        key={c.label}
-                        type="button"
-                        variant="ghost"
-                        testId={`image-sam-candidate-${c.label}`}
-                        disabled={isGenerating}
-                        onClick={() => void pickCandidate(c.maskPngBase64)}
-                      >
-                        {c.label}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
-                <Button
-                  type="button"
-                  testId="image-seed-sweep"
-                  disabled={isGenerating}
-                  onClick={() => {
-                    void queueClient
-                      .enqueue({
-                        pillar: "image",
-                        jobType: "txt2img",
-                        parameters: {
-                          ...values,
-                          prompt: values.prompt || "batch",
-                        },
-                        priority: "batch",
-                        batchSpec: {
-                          kind: "seed-range",
-                          start: values.seed,
-                          end: values.seed + 2,
-                        },
-                      })
-                      .then((jobs) =>
-                        setQueueJobs((prev) => [...prev, ...jobs]),
-                      );
-                  }}
-                >
-                  Queue seed sweep
-                </Button>
-                <GenerationQueueBar
-                  jobs={queueJobs}
-                  onCancel={(id) => {
-                    void queueClient
-                      .cancel(id)
-                      .then(() => queueClient.list().then(setQueueJobs));
-                  }}
-                  onReorder={(ids) => {
-                    void queueClient
-                      .reorder(ids)
-                      .then(() => queueClient.list().then(setQueueJobs));
-                  }}
-                />
-              </div>
-            ) : null}
-          </div>
           <MediaComposer
             disabled={isGenerating}
             onSubmit={(text, attachments) =>
               void handleSubmit(text, attachments)
             }
+            onStop={handleStopGeneration}
             submitAccentVar="--accent-image"
             submitLabel="Generate"
             seededAttachment={seededAttachment}
@@ -1546,6 +1452,17 @@ export function ImageStudioPage({
           <ComposerContextRow
             usage={contextUsage}
             onStartNewSession={() => void startFreshStudioSession()}
+            trailing={
+              <Button
+                type="button"
+                variant="ghost"
+                testId="image-advanced-settings"
+                aria-expanded={advancedOpen}
+                onClick={() => setAdvancedOpen((v) => !v)}
+              >
+                Advanced settings
+              </Button>
+            }
           >
             <QuickModelSwitcher
               testId="image-model-select"
@@ -1564,6 +1481,103 @@ export function ImageStudioPage({
               disabled={isGenerating}
             />
           </ComposerContextRow>
+          {advancedOpen ? (
+            <div style={{ marginTop: "var(--space-2)" }}>
+              <ImagePromptForm
+                key={formEpoch}
+                initial={values}
+                availableModels={models.map((m) => ({
+                  id: m.id,
+                  displayName: m.displayName,
+                }))}
+                availableLoras={DEFAULT_LORAS}
+                availableControlNets={DEFAULT_CONTROLNETS}
+                onChange={setValues}
+                disabled={isGenerating}
+                diffusionTier={diffusionTier}
+              />
+              {seededAttachment ? (
+                <div data-testid="image-mask-layer">
+                  <p
+                    style={{
+                      color: "var(--fg-muted)",
+                      fontSize: "var(--text-xs)",
+                    }}
+                  >
+                    Paint a mask on the source image (Advanced). The next
+                    Generate uses inpaint.
+                  </p>
+                  <MaskEditor
+                    sourceImage={seededAttachment}
+                    width={values.width}
+                    height={values.height}
+                    onMaskChange={setPaintedMask}
+                  />
+                </div>
+              ) : null}
+              {pendingReplace ? (
+                <div
+                  data-testid="image-sam-candidates"
+                  style={{
+                    display: "flex",
+                    gap: "var(--space-2)",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {pendingReplace.candidates.map((c) => (
+                    <Button
+                      key={c.label}
+                      type="button"
+                      variant="ghost"
+                      testId={`image-sam-candidate-${c.label}`}
+                      disabled={isGenerating}
+                      onClick={() => void pickCandidate(c.maskPngBase64)}
+                    >
+                      {c.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              <Button
+                type="button"
+                testId="image-seed-sweep"
+                disabled={isGenerating}
+                onClick={() => {
+                  void queueClient
+                    .enqueue({
+                      pillar: "image",
+                      jobType: "txt2img",
+                      parameters: {
+                        ...values,
+                        prompt: values.prompt || "batch",
+                      },
+                      priority: "batch",
+                      batchSpec: {
+                        kind: "seed-range",
+                        start: values.seed,
+                        end: values.seed + 2,
+                      },
+                    })
+                    .then((jobs) => setQueueJobs((prev) => [...prev, ...jobs]));
+                }}
+              >
+                Queue seed sweep
+              </Button>
+              <GenerationQueueBar
+                jobs={queueJobs}
+                onCancel={(id) => {
+                  void queueClient
+                    .cancel(id)
+                    .then(() => queueClient.list().then(setQueueJobs));
+                }}
+                onReorder={(ids) => {
+                  void queueClient
+                    .reorder(ids)
+                    .then(() => queueClient.list().then(setQueueJobs));
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

@@ -18,22 +18,38 @@ import { InMemoryStudioExplorerClient } from "../src/shared/explorer/studioExplo
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 import { RESTYLE_IMG2IMG_STRENGTH } from "../src/modules/image/followUpSource";
 import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRotator";
+import { GET_MORE_MODELS_ID } from "../src/shared/models/installedFeed";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
 
-function imageModels(): { list: () => Promise<ListedModelDto[]> } {
+function imageModels(): {
+  lastSelection: {
+    schemaVersion: 1;
+    orderedIds: string[];
+    recommendedByTask: { image: string };
+    downloadedSinceInstall: string[];
+  };
+  list: () => Promise<ListedModelDto[]>;
+} {
+  const models: ListedModelDto[] = [
+    {
+      id: "sana-1.6b-1024",
+      displayName: "SANA 1.5 1.6B",
+      type: "image",
+      installed: true,
+      source: "registry",
+      vramGB: 3.2,
+      visualTokenBudget: { maxImages: 4 },
+    },
+  ];
   return {
-    list: async () => [
-      {
-        id: "sana-1.6b-1024",
-        displayName: "SANA 1.5 1.6B",
-        type: "image",
-        installed: true,
-        source: "registry",
-        vramGB: 3.2,
-        visualTokenBudget: { maxImages: 4 },
-      },
-    ],
+    lastSelection: {
+      schemaVersion: 1,
+      orderedIds: ["sana-1.6b-1024"],
+      recommendedByTask: { image: "sana-1.6b-1024" },
+      downloadedSinceInstall: [],
+    },
+    list: async () => models,
   };
 }
 
@@ -63,6 +79,11 @@ describe("ImageStudioPage (chat)", () => {
     expect(screen.getByTestId("image-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("image-advanced-settings")).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("composer-advanced-slot")
+        .querySelector('[data-testid="image-advanced-settings"]'),
+    ).toBeTruthy();
     expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
   });
 
@@ -374,7 +395,7 @@ describe("ImageStudioPage (chat)", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
-    const orb = await screen.findByRole("img", { name: /agent shaping/i });
+    const orb = await screen.findByRole("img", { name: /generating media/i });
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     // v2.4.4 Phase 5.3: one of Creating / Crafting / Generating, never Shaping.
@@ -546,6 +567,12 @@ describe("ImageStudioPage (chat)", () => {
       <ImageStudioPage
         client={new InMemoryDiffusionClient()}
         modelsClient={{
+          lastSelection: {
+            schemaVersion: 1 as const,
+            orderedIds: ["sana-1.6b-1024", "sam2:hiera-tiny"],
+            recommendedByTask: { image: "sana-1.6b-1024" },
+            downloadedSinceInstall: [] as string[],
+          },
           list: async () => [
             {
               id: "sana-1.6b-1024",
@@ -1122,5 +1149,52 @@ describe("ImageStudioPage (chat)", () => {
     });
     fireEvent.click(await screen.findByTestId("sam2-retry"));
     await waitFor(() => expect(client.lastRequest?.mode).toBe("inpaint"));
+  });
+
+  it("defaults a 16 GB snapshot to realvisxl-v5 when that id is owned", async () => {
+    render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        hostVramGB={16}
+        modelsClient={{
+          lastSelection: {
+            schemaVersion: 1 as const,
+            orderedIds: ["juggernaut-xl-v9", "realvisxl-v5"],
+            recommendedByTask: { image: "realvisxl-v5" },
+            downloadedSinceInstall: [],
+          },
+          list: async () => [
+            {
+              id: "juggernaut-xl-v9",
+              displayName: "Juggernaut XL v9",
+              type: "image" as const,
+              installed: true,
+              source: "registry" as const,
+              vramGB: 8,
+            },
+            {
+              id: "realvisxl-v5",
+              displayName: "RealVisXL V5",
+              type: "image" as const,
+              installed: true,
+              source: "registry" as const,
+              vramGB: 6,
+            },
+          ],
+        }}
+        drainIntervalMs={20}
+      />,
+    );
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("image-model-select") as HTMLSelectElement).value,
+      ).toBe("realvisxl-v5");
+    });
+    expect(
+      [
+        ...(screen.getByTestId("image-model-select") as HTMLSelectElement)
+          .options,
+      ].map((option) => option.value),
+    ).toEqual(["realvisxl-v5", "juggernaut-xl-v9", GET_MORE_MODELS_ID]);
   });
 });

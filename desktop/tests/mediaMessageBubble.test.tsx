@@ -31,15 +31,19 @@ describe("MessageBubble media", () => {
       media: { kind: "image", src: "data:image/png;base64,BBB" },
     };
     render(<MessageBubble message={msg} />);
-    expect((screen.getByTestId("message-media-a1") as HTMLImageElement).getAttribute("src")).toBe(
-      "data:image/png;base64,BBB",
-    );
+    expect(
+      (screen.getByTestId("message-media-a1") as HTMLImageElement).getAttribute(
+        "src",
+      ),
+    ).toBe("data:image/png;base64,BBB");
     expect(screen.getByTestId("message-media-a1")).toHaveStyle({
       display: "block",
       maxHeight: "40vh",
       objectFit: "contain",
     });
-    expect(screen.getByTestId("message-media-a1").getAttribute("style") ?? "").not.toMatch(/min-height:\s*8rem/);
+    expect(
+      screen.getByTestId("message-media-a1").getAttribute("style") ?? "",
+    ).not.toMatch(/min-height:\s*8rem/);
     expect(screen.getByTestId("message-bubble-a1")).toHaveStyle({
       width: "fit-content",
     });
@@ -60,9 +64,13 @@ describe("MessageBubble media", () => {
     expect(orb).toHaveAttribute("data-orb-size", "bubble");
     expect(orb).toHaveAttribute("data-orb-pill", "true");
     expect(orb.querySelector("canvas")?.style.height).toBe("48px");
-    expect(screen.getByTestId("message-pending-a2")).toHaveStyle({ width: "fit-content" });
+    expect(screen.getByTestId("message-pending-a2")).toHaveStyle({
+      width: "fit-content",
+    });
     expect(screen.queryByTestId("message-bubble-a2")).toBeNull();
-    expect(screen.getByText(/^(Thinking|Searching|Working|Solving)\.\.\.$/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/^(Thinking|Searching|Working|Solving)\.\.\.$/),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
   });
 
@@ -75,17 +83,23 @@ describe("MessageBubble media", () => {
       activity: "image-generation",
     };
     render(<MessageBubble message={msg} />);
-    expect(screen.getByRole("img", { name: /agent shaping/i })).toHaveAttribute("data-orb-size", "hero");
+    expect(
+      screen.getByRole("img", { name: /generating media/i }),
+    ).toHaveAttribute("data-orb-size", "hero");
     // v2.4.4 Phase 5.3: studio pending rotates Creating / Crafting /
     // Generating; the single static "Shaping" read as a stuck word.
     expect(screen.queryByText("Shaping...")).toBeNull();
     expect(STUDIO_PENDING_CAPTIONS).toContain(
       screen.getByTestId("agent-state-orb-caption").textContent,
     );
-    expect(screen.getByTestId("message-pending-studio-pending").getAttribute("style")).toContain(
-      "min-height: 12rem",
-    );
-    expect(screen.getByTestId("message-pending-studio-pending")).toHaveStyle({ width: "100%" });
+    expect(
+      screen
+        .getByTestId("message-pending-studio-pending")
+        .getAttribute("style"),
+    ).toContain("min-height: 12rem");
+    expect(screen.getByTestId("message-pending-studio-pending")).toHaveStyle({
+      width: "100%",
+    });
     expect(screen.queryByTestId("message-bubble-studio-pending")).toBeNull();
   });
 
@@ -99,7 +113,11 @@ describe("MessageBubble media", () => {
     };
     render(<MessageBubble message={msg} onMediaError={onMediaError} />);
     fireEvent.error(screen.getByTestId("message-media-bad-media"));
-    expect(screen.getByText(/Generation failed: generated image could not be displayed/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Generation failed: generated image could not be displayed/,
+      ),
+    ).toBeInTheDocument();
     expect(onMediaError).toHaveBeenCalledWith(msg);
   });
 
@@ -109,7 +127,9 @@ describe("MessageBubble media", () => {
     expect(screen.getByText("hello")).toBeInTheDocument();
     expect(screen.queryByTestId("message-media-t1")).toBeNull();
     expect(screen.queryByTestId("message-pending-t1")).toBeNull();
-    expect(screen.getByTestId("message-bubble-t1")).toHaveStyle({ width: "fit-content" });
+    expect(screen.getByTestId("message-bubble-t1")).toHaveStyle({
+      width: "fit-content",
+    });
   });
 
   it("opens a preview dialog from compact media and closes it", () => {
@@ -121,7 +141,9 @@ describe("MessageBubble media", () => {
     };
     render(<MessageBubble message={msg} />);
     fireEvent.click(screen.getByTestId("message-media-preview-1"));
-    expect(screen.getByTestId("message-media-dialog-preview-1")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("message-media-dialog-preview-1"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("message-media-close-preview-1"));
     expect(screen.queryByTestId("message-media-dialog-preview-1")).toBeNull();
   });

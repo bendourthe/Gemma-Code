@@ -16,7 +16,9 @@ const SNAPSHOT: SelectionSnapshot = {
   downloadedSinceInstall: ["qwen2.5-coder:7b"],
 };
 
-function model(partial: Partial<ListedModelDto> & Pick<ListedModelDto, "id">): ListedModelDto {
+function model(
+  partial: Partial<ListedModelDto> & Pick<ListedModelDto, "id">,
+): ListedModelDto {
   return {
     displayName: partial.id,
     type: "llm",
@@ -33,10 +35,9 @@ describe("selectionPolicy", () => {
       model({ id: "lfm2.5:1.2b", type: "llm" }),
       model({ id: "qwen2.5-coder:7b", type: "llm" }),
     ];
-    expect(installedForTask(models, "chat", SNAPSHOT).map((m) => m.id)).toEqual([
-      "lfm2.5:1.2b",
-      "qwen2.5-coder:7b",
-    ]);
+    expect(installedForTask(models, "chat", SNAPSHOT).map((m) => m.id)).toEqual(
+      ["lfm2.5:1.2b", "qwen2.5-coder:7b"],
+    );
   });
 
   it("preserves installer order then in-app downloads", () => {
@@ -44,25 +45,31 @@ describe("selectionPolicy", () => {
       model({ id: "qwen2.5-coder:7b" }),
       model({ id: "lfm2.5:1.2b" }),
     ];
-    expect(installedForTask(models, "chat", SNAPSHOT).map((m) => m.id)).toEqual([
-      "lfm2.5:1.2b",
-      "qwen2.5-coder:7b",
-    ]);
+    expect(installedForTask(models, "chat", SNAPSHOT).map((m) => m.id)).toEqual(
+      ["lfm2.5:1.2b", "qwen2.5-coder:7b"],
+    );
   });
 
-  it("without a snapshot, keeps the probe installed set (migration window)", () => {
+  it("without a snapshot, keeps the picker empty (fail closed)", () => {
     const models = [model({ id: "gemma4:e4b" }), model({ id: "lfm2.5:1.2b" })];
-    expect(installedForTask(models, "chat", null).map((m) => m.id)).toEqual([
-      "gemma4:e4b",
-      "lfm2.5:1.2b",
-    ]);
+    expect(installedForTask(models, "chat", null).map((m) => m.id)).toEqual([]);
   });
 
   it("prefers recommended over leftover favorite unless applyFavorite is set", () => {
     const ready = [model({ id: "a" }), model({ id: "b" }), model({ id: "c" })];
-    expect(resolveDefaultId(ready, { favorite: "c", recommended: "b" })).toBe("b");
-    expect(resolveDefaultId(ready, { favorite: "c", recommended: "b", applyFavorite: true })).toBe("c");
-    expect(resolveDefaultId(ready, { favorite: "missing", recommended: "b" })).toBe("b");
+    expect(resolveDefaultId(ready, { favorite: "c", recommended: "b" })).toBe(
+      "b",
+    );
+    expect(
+      resolveDefaultId(ready, {
+        favorite: "c",
+        recommended: "b",
+        applyFavorite: true,
+      }),
+    ).toBe("c");
+    expect(
+      resolveDefaultId(ready, { favorite: "missing", recommended: "b" }),
+    ).toBe("b");
     expect(resolveDefaultId(ready, {})).toBe("a");
     expect(resolveDefaultId([], {})).toBe("");
   });
@@ -85,7 +92,9 @@ describe("selectionPolicy", () => {
         recommended: snap.recommendedByTask.agentic,
       }),
     ).toBe("gemma-4-12b-it-gguf");
-    expect(recommendOrderForTask(snap, "agentic")[0]).toBe("gemma-4-12b-it-gguf");
+    expect(recommendOrderForTask(snap, "agentic")[0]).toBe(
+      "gemma-4-12b-it-gguf",
+    );
   });
 
   it("orders chat, image, and video recommend ids first", () => {
@@ -104,8 +113,12 @@ describe("selectionPolicy", () => {
     expect(recommendOrderForTask(snap, "video")[0]).toBe("wan2.1-t2v-1.3b");
   });
 
-  it("ownedIdSet is null when no snapshot so callers can skip the intersect", () => {
-    expect(ownedIdSet(null)).toBeNull();
-    expect([...ownedIdSet(SNAPSHOT)!]).toEqual(["lfm2.5:1.2b", "sana-1.5-1.6b", "qwen2.5-coder:7b"]);
+  it("ownedIdSet is empty when no snapshot so leftovers cannot leak", () => {
+    expect([...ownedIdSet(null)]).toEqual([]);
+    expect([...ownedIdSet(SNAPSHOT)]).toEqual([
+      "lfm2.5:1.2b",
+      "sana-1.5-1.6b",
+      "qwen2.5-coder:7b",
+    ]);
   });
 });

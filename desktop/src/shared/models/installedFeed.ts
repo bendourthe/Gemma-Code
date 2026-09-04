@@ -7,7 +7,10 @@
  * provides the pure filter + the deep-link path so both studios share one rule.
  */
 
-import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
+import type {
+  ListedModelDto,
+  ModelType,
+} from "../../pages/settings/modelsTypes";
 
 /** Deep-link that opens Settings on the Models tab (the studios' "Get more models"). */
 export const SETTINGS_MODELS_PATH = "/settings?tab=models";
@@ -29,11 +32,12 @@ export function installedModelsForType(
   type: ModelType,
   ownedIds?: ReadonlySet<string> | null,
 ): ListedModelDto[] {
+  const owned = ownedIds ?? new Set<string>();
   return models.filter(
     (m) =>
       m.installed &&
       m.source !== "catalog-only" &&
       m.type === type &&
-      (!ownedIds || ownedIds.has(m.id)),
+      owned.has(m.id),
   );
 }

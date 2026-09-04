@@ -10,17 +10,27 @@ import { ContextUsageBar } from "./ContextUsageBar";
 export interface ComposerContextRowProps {
   readonly usage: SessionContextUsage;
   readonly onStartNewSession?: () => void;
+  /** Image / Video park Advanced settings on this row (Context | Model | Advanced). */
+  readonly trailing?: ReactNode;
   readonly children: ReactNode;
 }
 
 export function ComposerContextRow({
   usage,
   onStartNewSession,
+  trailing,
   children,
 }: ComposerContextRowProps): JSX.Element {
   const showBar = usage.percent !== null && usage.denominatorKind !== "none";
   return (
-    <div data-testid="composer-context-row" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+    <div
+      data-testid="composer-context-row"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-2)",
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -42,12 +52,25 @@ export function ComposerContextRow({
           data-testid="composer-picker-slot"
           style={
             showBar
-              ? { minWidth: "14rem", maxWidth: "30%", flex: "0 1 30%", overflow: "hidden" }
+              ? {
+                  minWidth: "14rem",
+                  maxWidth: "30%",
+                  flex: "0 1 30%",
+                  overflow: "hidden",
+                }
               : { minWidth: 0, flex: "1 1 auto" }
           }
         >
           {children}
         </div>
+        {trailing ? (
+          <div
+            data-testid="composer-advanced-slot"
+            style={{ flex: "0 0 auto" }}
+          >
+            {trailing}
+          </div>
+        ) : null}
       </div>
       {usage.atOrAbove80 && onStartNewSession ? (
         <div
@@ -55,7 +78,9 @@ export function ComposerContextRow({
           role="status"
           style={{ fontSize: "var(--text-xs)", color: "var(--status-warn)" }}
         >
-          This session is at {Math.floor(Math.max(0, usage.percent ?? 0) + 1e-9)}% of context. Starting a new session keeps this transcript.
+          This session is at{" "}
+          {Math.floor(Math.max(0, usage.percent ?? 0) + 1e-9)}% of context.
+          Starting a new session keeps this transcript.
           <button
             type="button"
             data-testid="context-usage-new-session"

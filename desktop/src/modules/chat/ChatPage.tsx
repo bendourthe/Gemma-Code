@@ -101,6 +101,7 @@ import {
   ownedIdSet,
   recommendOrderForTask,
   resolveDefaultId,
+  snapshotForOwnedIds,
   writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
@@ -266,6 +267,7 @@ export function ChatPage({
     useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const ttsAbortRef = useRef<AbortController | null>(null);
+  const chatTurnEpochRef = useRef(0);
   const voiceMicRef = useRef<MicRecorder | null>(voiceMicRecorder ?? null);
   const [documentModelInstalled, setDocumentModelInstalled] = useState<
     boolean | null
@@ -311,7 +313,12 @@ export function ChatPage({
         }
       },
       () => {
-        // Keep the catalog fallback; the switcher still has something to show.
+        if (cancelled) return;
+        setSelection(
+          snapshotForOwnedIds(
+            FALLBACK_LLMS.filter((m) => m.installed).map((m) => m.id),
+          ),
+        );
       },
     );
     return () => {
@@ -473,6 +480,12 @@ export function ChatPage({
               ? { outputTokens: message.outputTokens }
               : {}),
             ...(message.tokensEstimated ? { tokensEstimated: true } : {}),
+            ...(message.requestUsage
+              ? { requestUsage: message.requestUsage }
+              : {}),
+            ...(message.messageUsage
+              ? { messageUsage: message.messageUsage }
+              : {}),
           }),
         );
         setTranscriptError(null);
@@ -514,6 +527,26 @@ export function ChatPage({
     [],
   );
 
+  const handleStopTurn = useCallback((): void => {
+    chatTurnEpochRef.current += 1;
+    const chatId = activeChat?.id;
+    if (!chatId) return;
+    const pending = [...(messagesByChatRef.current.get(chatId) ?? [])]
+      .reverse()
+      .find((m) => m.pending && m.role === "assistant");
+    if (!pending) return;
+    const stopped = {
+      pending: false,
+      content: pending.content.trim().length > 0 ? pending.content : "Stopped.",
+      messageUsage: estimatedMessageUsage(
+        "assistant",
+        pending.content.trim().length > 0 ? pending.content : "Stopped.",
+      ),
+    };
+    patchMessage(chatId, pending.id, stopped);
+    void persistMessage(chatId, { ...pending, ...stopped });
+  }, [activeChat, patchMessage, persistMessage]);
+
   const sendChatTurn = useCallback(
     async (
       chatId: string,
@@ -522,6 +555,7 @@ export function ChatPage({
       images: readonly string[] = [],
     ): Promise<string> => {
       const assistantId = `${baseId}-assistant`;
+      const turn = ++chatTurnEpochRef.current;
       appendMessage(chatId, {
         id: assistantId,
         role: "assistant",
@@ -595,6 +629,7 @@ export function ChatPage({
       } catch (err) {
         content = formatChatTurnError(err);
       }
+      if (turn !== chatTurnEpochRef.current) return "";
       const requestUsage = {
         version: 1 as const,
         ...usage,
@@ -605,11 +640,21 @@ export function ChatPage({
           outputTokens: usage.outputTokens,
         },
       };
-      const messageUsage = estimatedMessageUsage(
+      const estimated = estimatedMessageUsage(
         "assistant",
         content,
         reasoningText,
       );
+      const messageUsage = {
+        version: 1 as const,
+        inputTokens: null as number | null,
+        reasoningTokens: usage.reasoningTokens ?? estimated.reasoningTokens,
+        outputTokens: usage.outputTokens ?? estimated.outputTokens,
+        provenance:
+          usage.outputTokens !== null
+            ? { accuracy: "exact" as const, source: "provider" as const }
+            : estimated.provenance,
+      };
       patchMessage(chatId, assistantId, {
         content,
         pending: false,
@@ -1372,6 +1417,7 @@ export function ChatPage({
             onSubmit={(text, attachments) =>
               void handleSubmit(text, attachments)
             }
+            onStop={handleStopTurn}
             submitAccentVar="--accent-chatbot"
             voiceModes={voiceModes}
             // v2.2.9 Phase 1.1 (T001): Persona lives in the composer

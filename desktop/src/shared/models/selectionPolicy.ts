@@ -6,13 +6,18 @@
  * arrays are placeholders with `installed: false`, not a second feed.
  *
  * A picker row is eligible when it is installed, not catalog-only, matches
- * the tab's model type, and (when a snapshot exists) is in this install's
- * ordered id list or was downloaded later in Settings.
+ * the tab's model type, and is in this install's ordered id list or was
+ * downloaded later in Settings. A missing snapshot is an empty allowlist,
+ * never every model on disk.
  */
 
-import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
+import type {
+  ListedModelDto,
+  ModelType,
+} from "../../pages/settings/modelsTypes";
 
-export type TaskKey = "chat" | "agentic" | "image" | "video" | "audio" | "document";
+export type TaskKey =
+  "chat" | "agentic" | "image" | "video" | "audio" | "document";
 
 export interface SelectionSnapshot {
   schemaVersion: 1;
@@ -35,9 +40,24 @@ export function modelTypeForTask(task: TaskKey): ModelType {
   return "llm";
 }
 
-export function ownedIdSet(snapshot: SelectionSnapshot | null | undefined): Set<string> | null {
-  if (!snapshot) return null;
+export function ownedIdSet(
+  snapshot: SelectionSnapshot | null | undefined,
+): Set<string> {
+  if (!snapshot) return new Set();
   return new Set([...snapshot.orderedIds, ...snapshot.downloadedSinceInstall]);
+}
+
+/** Offline / ipc-unavailable fallback so a sentinel model can still be selected. */
+export function snapshotForOwnedIds(
+  ids: readonly string[],
+  recommendedByTask: SelectionSnapshot["recommendedByTask"] = {},
+): SelectionSnapshot {
+  return {
+    schemaVersion: 1,
+    orderedIds: [...ids],
+    recommendedByTask,
+    downloadedSinceInstall: [],
+  };
 }
 
 export function installedForTask(
@@ -48,7 +68,11 @@ export function installedForTask(
   const type = modelTypeForTask(task);
   const owned = ownedIdSet(snapshot);
   const ready = models.filter(
-    (m) => m.installed && m.source !== "catalog-only" && m.type === type && (!owned || owned.has(m.id)),
+    (m) =>
+      m.installed &&
+      m.source !== "catalog-only" &&
+      m.type === type &&
+      owned.has(m.id),
   );
   if (!snapshot) return ready;
   const rank = new Map<string, number>();
@@ -56,18 +80,29 @@ export function installedForTask(
   snapshot.downloadedSinceInstall.forEach((id, i) => {
     if (!rank.has(id)) rank.set(id, snapshot.orderedIds.length + i);
   });
-  return [...ready].sort((a, b) => (rank.get(a.id) ?? 10_000) - (rank.get(b.id) ?? 10_000));
+  return [...ready].sort(
+    (a, b) => (rank.get(a.id) ?? 10_000) - (rank.get(b.id) ?? 10_000),
+  );
 }
 
 export function resolveDefaultId(
   ready: readonly ListedModelDto[],
-  opts: { favorite?: string | null; recommended?: string | null; applyFavorite?: boolean } = {},
+  opts: {
+    favorite?: string | null;
+    recommended?: string | null;
+    applyFavorite?: boolean;
+  } = {},
 ): string {
   if (ready.length === 0) return "";
-  if (opts.applyFavorite === true && opts.favorite && ready.some((m) => m.id === opts.favorite)) {
+  if (
+    opts.applyFavorite === true &&
+    opts.favorite &&
+    ready.some((m) => m.id === opts.favorite)
+  ) {
     return opts.favorite;
   }
-  if (opts.recommended && ready.some((m) => m.id === opts.recommended)) return opts.recommended;
+  if (opts.recommended && ready.some((m) => m.id === opts.recommended))
+    return opts.recommended;
   return ready[0]?.id ?? "";
 }
 
@@ -82,10 +117,16 @@ export function recommendOrderForTask(
   for (const id of snapshot?.orderedIds ?? []) {
     if (!ids.includes(id)) ids.push(id);
   }
+  for (const id of snapshot?.downloadedSinceInstall ?? []) {
+    if (!ids.includes(id)) ids.push(id);
+  }
   return ids;
 }
 
-export function readFavorite(task: TaskKey, storage: Pick<Storage, "getItem"> | null = defaultStorage()): string | null {
+export function readFavorite(
+  task: TaskKey,
+  storage: Pick<Storage, "getItem"> | null = defaultStorage(),
+): string | null {
   if (!storage) return null;
   try {
     return storage.getItem(favoriteStorageKey(task));
@@ -97,7 +138,10 @@ export function readFavorite(task: TaskKey, storage: Pick<Storage, "getItem"> | 
 export function writeFavorite(
   task: TaskKey,
   id: string | null,
-  storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null = defaultStorage(),
+  storage: Pick<
+    Storage,
+    "getItem" | "setItem" | "removeItem"
+  > | null = defaultStorage(),
 ): void {
   if (!storage) return;
   try {
@@ -109,7 +153,10 @@ export function writeFavorite(
   }
 }
 
-function defaultStorage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null {
+function defaultStorage(): Pick<
+  Storage,
+  "getItem" | "setItem" | "removeItem"
+> | null {
   try {
     if (typeof window === "undefined") return null;
     return window.localStorage;

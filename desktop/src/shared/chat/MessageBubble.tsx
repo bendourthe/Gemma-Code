@@ -15,7 +15,10 @@ import {
   parseMessageTime,
 } from "./transcriptChrome";
 import { ReasoningDisclosure } from "./ReasoningDisclosure";
-import { MediaRuntimeRecoveryCard, Sam2RecoveryCard } from "../../components/GenerationCanvas";
+import {
+  MediaRuntimeRecoveryCard,
+  Sam2RecoveryCard,
+} from "../../components/GenerationCanvas";
 
 const COMPACT_MEDIA_STYLE: CSSProperties = {
   display: "block",
@@ -80,9 +83,9 @@ export function MessageBubble({
   const caption = captionFor(message);
   const purePending = Boolean(
     message.pending &&
-      !message.content &&
-      !message.media &&
-      (!message.toolCards || message.toolCards.length === 0),
+    !message.content &&
+    !message.media &&
+    (!message.toolCards || message.toolCards.length === 0),
   );
   if (purePending) {
     return <PendingMessage message={message} studioPending={studioPending} />;
@@ -105,141 +108,171 @@ export function MessageBubble({
         />
       ) : null}
       <article
-      data-testid={`message-bubble-${message.id}`}
-      data-role={message.role}
-      style={bubbleStyle(message)}
-    >
-      {message.pending ? null : <BubbleMeta message={message} locale={locale} />}
-      {message.mediaRecovery ? (
-        <MediaRuntimeRecoveryCard
-          {...message.mediaRecovery}
-          onRepair={() => onRepairMediaRuntime?.(message)}
-          onCancel={() => onCancelMediaRepair?.(message)}
-          onOpenLog={() => onOpenMediaRepairLog?.(message)}
-        />
-      ) : null}
-      {message.sam2Recovery ? (
-        <Sam2RecoveryCard
-          {...message.sam2Recovery}
-          installDisabled={sam2InstallDisabled}
-          onInstall={() => onInstallSam2?.(message)}
-          onPaintMask={() => onPaintSam2Mask?.(message)}
-          onOpenSettings={() => onOpenSam2Settings?.(message)}
-          onRetry={() => onRetrySam2?.(message)}
-        />
-      ) : null}
-      {caption}
-      {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
-      {message.attachments && message.attachments.length > 0 && (
-        <div
-          data-testid={`message-attachments-${message.id}`}
-          style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)", marginTop: "var(--space-2)" }}
-        >
-          {message.attachments.map((src, i) => (
-            <img
-              key={i}
-              src={src}
-              alt="Attachment"
-              data-testid={`message-attachment-${message.id}-${i}`}
-              style={{ maxWidth: 96, maxHeight: 96, borderRadius: "var(--radius-sm)", objectFit: "cover" }}
-            />
-          ))}
-        </div>
-      )}
-      {message.pending && (
-        <div
-          data-testid={`message-pending-${message.id}`}
-          style={{
-            marginTop: studioPending ? 0 : "var(--space-2)",
-            color: "var(--fg-muted)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: studioPending ? "center" : "flex-start",
-            justifyContent: "center",
-            gap: "var(--space-2)",
-            width: studioPending ? "100%" : "fit-content",
-            overflow: "visible",
-            // v2.4.4 Phase 1.1: the transcript gutter on MessageList is the
-            // only left offset. Adding one here again is what pushed the pill
-            // inches into the pane.
-            paddingLeft: 0,
-            minHeight: studioPending ? "12rem" : "5.5rem",
-          }}
-        >
-          {/* v2.2.9 Phase 2.1 (T006): chat/agents pending is a dark pill that
+        data-testid={`message-bubble-${message.id}`}
+        data-role={message.role}
+        style={bubbleStyle(message)}
+      >
+        {message.pending ? null : (
+          <BubbleMeta message={message} locale={locale} />
+        )}
+        {message.mediaRecovery ? (
+          <MediaRuntimeRecoveryCard
+            {...message.mediaRecovery}
+            onRepair={() => onRepairMediaRuntime?.(message)}
+            onCancel={() => onCancelMediaRepair?.(message)}
+            onOpenLog={() => onOpenMediaRepairLog?.(message)}
+          />
+        ) : null}
+        {message.sam2Recovery ? (
+          <Sam2RecoveryCard
+            {...message.sam2Recovery}
+            installDisabled={sam2InstallDisabled}
+            onInstall={() => onInstallSam2?.(message)}
+            onPaintMask={() => onPaintSam2Mask?.(message)}
+            onOpenSettings={() => onOpenSam2Settings?.(message)}
+            onRetry={() => onRetrySam2?.(message)}
+          />
+        ) : null}
+        {caption}
+        {message.content && (
+          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>
+        )}
+        {message.attachments && message.attachments.length > 0 && (
+          <div
+            data-testid={`message-attachments-${message.id}`}
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "var(--space-1)",
+              marginTop: "var(--space-2)",
+            }}
+          >
+            {message.attachments.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                alt="Attachment"
+                data-testid={`message-attachment-${message.id}-${i}`}
+                style={{
+                  maxWidth: 96,
+                  maxHeight: 96,
+                  borderRadius: "var(--radius-sm)",
+                  objectFit: "cover",
+                }}
+              />
+            ))}
+          </div>
+        )}
+        {message.pending && (
+          <div
+            data-testid={`message-pending-${message.id}`}
+            style={{
+              marginTop: studioPending ? 0 : "var(--space-2)",
+              color: "var(--fg-muted)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: studioPending ? "center" : "flex-start",
+              justifyContent: "center",
+              gap: "var(--space-2)",
+              width: studioPending ? "100%" : "fit-content",
+              overflow: "visible",
+              // v2.4.4 Phase 1.1: the transcript gutter on MessageList is the
+              // only left offset. Adding one here again is what pushed the pill
+              // inches into the pane.
+              paddingLeft: 0,
+              minHeight: studioPending ? "12rem" : "5.5rem",
+            }}
+          >
+            {/* v2.2.9 Phase 2.1 (T006): chat/agents pending is a dark pill that
               cycles Thinking / Searching / Working / Solving with one stable
               accessible name. Image/Video pending stays the hero orb. */}
-          <AgentStateOrb
-            activity={message.activity ?? "chat-streaming"}
-            size={studioPending ? "hero" : "bubble"}
-            showCaption
-            rotateCaptions={!studioPending}
-            accessibleName={studioPending ? undefined : "Generating reply"}
-            surfaceId={`message-${message.id}`}
-          />
-          {message.progress && message.progress.total > 0 && (
-            <progress value={message.progress.step} max={message.progress.total} />
-          )}
-        </div>
-      )}
-      {mediaFailed ? (
-        <p data-testid={`message-media-error-${message.id}`} style={{ color: "var(--danger, #f87171)", margin: 0 }}>
-          Generation failed: generated {message.media?.kind ?? "media"} could not be displayed.
-        </p>
-      ) : message.media ? (
-        <>
-          {message.media.kind === "image" ? (
-            <img
-              data-testid={`message-media-${message.id}`}
-              src={message.media.src}
-              alt={message.content || "Generated image"}
-              onClick={(event) => {
-                event.stopPropagation();
-                setPreviewOpen(true);
-              }}
-              onError={() => {
-                setMediaFailed(true);
-                onMediaError?.(message);
-              }}
-              style={COMPACT_MEDIA_STYLE}
+            <AgentStateOrb
+              activity={message.activity ?? "chat-streaming"}
+              size={studioPending ? "hero" : "bubble"}
+              showCaption
+              rotateCaptions={!studioPending}
+              accessibleName={
+                studioPending ? "Generating media" : "Generating reply"
+              }
+              surfaceId={`message-${message.id}`}
             />
-          ) : (
-            <video
-              data-testid={`message-media-${message.id}`}
-              src={message.media.src}
-              controls
-              onClick={(event) => {
-                event.stopPropagation();
-                setPreviewOpen(true);
-              }}
-              onError={() => {
-                setMediaFailed(true);
-                onMediaError?.(message);
-              }}
-              style={COMPACT_MEDIA_STYLE}
-            />
-          )}
-          {previewOpen ? (
-            <MediaLightbox
-              message={message}
-              extra={renderPreviewExtra?.(message)}
-              onClose={() => setPreviewOpen(false)}
-            />
-          ) : null}
-        </>
-      ) : null}
-      {enableTools && message.toolCards && message.toolCards.length > 0 && (
-        <ul
-          data-testid={`message-bubble-tools-${message.id}`}
-          style={{ listStyle: "none", padding: 0, margin: "var(--space-2) 0 0", display: "flex", flexDirection: "column", gap: "var(--space-1)" }}
-        >
-          {message.toolCards.map((card) => (
-            <li key={card.callId}>
-              <ToolCardView card={card} />
-            </li>
-          ))}
-        </ul>
-      )}
+            {message.progress && message.progress.total > 0 && (
+              <progress
+                value={message.progress.step}
+                max={message.progress.total}
+              />
+            )}
+          </div>
+        )}
+        {mediaFailed ? (
+          <p
+            data-testid={`message-media-error-${message.id}`}
+            style={{ color: "var(--danger, #f87171)", margin: 0 }}
+          >
+            Generation failed: generated {message.media?.kind ?? "media"} could
+            not be displayed.
+          </p>
+        ) : message.media ? (
+          <>
+            {message.media.kind === "image" ? (
+              <img
+                data-testid={`message-media-${message.id}`}
+                src={message.media.src}
+                alt={message.content || "Generated image"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPreviewOpen(true);
+                }}
+                onError={() => {
+                  setMediaFailed(true);
+                  onMediaError?.(message);
+                }}
+                style={COMPACT_MEDIA_STYLE}
+              />
+            ) : (
+              <video
+                data-testid={`message-media-${message.id}`}
+                src={message.media.src}
+                controls
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPreviewOpen(true);
+                }}
+                onError={() => {
+                  setMediaFailed(true);
+                  onMediaError?.(message);
+                }}
+                style={COMPACT_MEDIA_STYLE}
+              />
+            )}
+            {previewOpen ? (
+              <MediaLightbox
+                message={message}
+                extra={renderPreviewExtra?.(message)}
+                onClose={() => setPreviewOpen(false)}
+              />
+            ) : null}
+          </>
+        ) : null}
+        {enableTools && message.toolCards && message.toolCards.length > 0 && (
+          <ul
+            data-testid={`message-bubble-tools-${message.id}`}
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: "var(--space-2) 0 0",
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-1)",
+            }}
+          >
+            {message.toolCards.map((card) => (
+              <li key={card.callId}>
+                <ToolCardView card={card} />
+              </li>
+            ))}
+          </ul>
+        )}
       </article>
     </div>
   );
@@ -280,7 +313,7 @@ function PendingMessage({
         size={studioPending ? "hero" : "bubble"}
         showCaption
         rotateCaptions={!studioPending}
-        accessibleName={studioPending ? undefined : "Generating reply"}
+        accessibleName={studioPending ? "Generating media" : "Generating reply"}
         surfaceId={`message-${message.id}`}
       />
       {message.progress && message.progress.total > 0 ? (
@@ -371,14 +404,23 @@ function ToolCardView({ card }: { card: ToolCard }): JSX.Element {
 function captionFor(message: ChatMessage): ReactNode {
   if (message.role === "system") {
     return (
-      <header style={{ marginBottom: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+      <header
+        style={{
+          marginBottom: "var(--space-1)",
+          color: "var(--fg-muted)",
+          fontSize: "var(--text-xs)",
+        }}
+      >
         System
       </header>
     );
   }
   if (message.origin === "stt_transcript") {
     return (
-      <span data-testid={`message-origin-${message.id}`} style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+      <span
+        data-testid={`message-origin-${message.id}`}
+        style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}
+      >
         origin:stt_transcript
       </span>
     );
@@ -435,7 +477,11 @@ function MediaLightbox({
             }}
             src={media.src}
             alt={message.content || "Generated image"}
-            style={{ maxWidth: "90vw", maxHeight: "70vh", objectFit: "contain" }}
+            style={{
+              maxWidth: "90vw",
+              maxHeight: "70vh",
+              objectFit: "contain",
+            }}
           />
         ) : media ? (
           <video
@@ -448,12 +494,17 @@ function MediaLightbox({
             style={{ maxWidth: "90vw", maxHeight: "70vh" }}
           />
         ) : null}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}
+        >
           <button
             type="button"
             data-testid={`message-media-fullscreen-${message.id}`}
             onClick={() => {
-              if (previewNode && typeof previewNode.requestFullscreen === "function") {
+              if (
+                previewNode &&
+                typeof previewNode.requestFullscreen === "function"
+              ) {
                 void previewNode.requestFullscreen();
               }
             }}
@@ -463,7 +514,11 @@ function MediaLightbox({
           <a
             data-testid={`message-media-download-${message.id}`}
             href={media?.src}
-            download={media?.kind === "video" ? `nexus-${message.id}.mp4` : `nexus-${message.id}.png`}
+            download={
+              media?.kind === "video"
+                ? `nexus-${message.id}.mp4`
+                : `nexus-${message.id}.png`
+            }
           >
             Download
           </a>
@@ -477,7 +532,11 @@ function MediaLightbox({
             </button>
           ) : null}
           {extra}
-          <button type="button" data-testid={`message-media-close-${message.id}`} onClick={onClose}>
+          <button
+            type="button"
+            data-testid={`message-media-close-${message.id}`}
+            onClick={onClose}
+          >
             Close
           </button>
         </div>
@@ -489,9 +548,16 @@ function MediaLightbox({
 async function copyImageSrc(src: string): Promise<void> {
   try {
     const blob = await (await fetch(src)).blob();
-    const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
-    if (clipboard && typeof ClipboardItem !== "undefined" && typeof clipboard.write === "function") {
-      await clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+    const clipboard =
+      typeof navigator !== "undefined" ? navigator.clipboard : undefined;
+    if (
+      clipboard &&
+      typeof ClipboardItem !== "undefined" &&
+      typeof clipboard.write === "function"
+    ) {
+      await clipboard.write([
+        new ClipboardItem({ [blob.type || "image/png"]: blob }),
+      ]);
       return;
     }
     if (clipboard && typeof clipboard.writeText === "function") {
@@ -505,7 +571,8 @@ async function copyImageSrc(src: string): Promise<void> {
 function isStudioPending(message: ChatMessage): boolean {
   return Boolean(
     message.pending &&
-      (message.activity === "image-generation" || message.activity === "video-generation"),
+    (message.activity === "image-generation" ||
+      message.activity === "video-generation"),
   );
 }
 

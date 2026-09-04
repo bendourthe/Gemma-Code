@@ -58,6 +58,7 @@ import {
   ownedIdSet,
   recommendOrderForTask,
   resolveDefaultId,
+  snapshotForOwnedIds,
   writeFavorite,
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
@@ -392,6 +393,11 @@ export function VideoLabPage({
             setListFailure(message);
           } else {
             setModels([FALLBACK_MODEL]);
+            setSelection(
+              snapshotForOwnedIds([FALLBACK_MODEL.id], {
+                video: FALLBACK_MODEL.id,
+              }),
+            );
             setNoneInstalled(false);
             setListFailure(null);
           }
@@ -444,6 +450,15 @@ export function VideoLabPage({
     },
     [backendDown, studioClient],
   );
+
+  const handleStopGeneration = useCallback((): void => {
+    if (!activeJob) return;
+    const { jobId, messageId } = activeJob;
+    void queueClient.cancel(jobId);
+    patchMessage(messageId, { pending: false, content: "Stopped." });
+    persistTurn({ role: "assistant", content: "Stopped." });
+    setActiveJob(null);
+  }, [activeJob, patchMessage, persistTurn, queueClient]);
 
   const ensureSession = useCallback(
     async (prompt: string): Promise<string | null> => {
@@ -1695,48 +1710,6 @@ export function VideoLabPage({
             gap: "var(--space-2)",
           }}
         >
-          <div>
-            <Button
-              type="button"
-              variant="ghost"
-              testId="video-advanced-settings"
-              aria-expanded={advancedOpen}
-              onClick={() => setAdvancedOpen((v) => !v)}
-            >
-              Advanced settings
-            </Button>
-            {advancedOpen ? (
-              <div style={{ marginTop: "var(--space-2)" }}>
-                <VideoPromptForm
-                  key={formEpoch}
-                  initial={values}
-                  availableModels={models.map((m) => ({
-                    id: m.id,
-                    displayName: m.displayName,
-                    mode: "text2video" as const,
-                  }))}
-                  onChange={setValues}
-                  disabled={isGenerating}
-                  hideMode
-                  avatarAvailable={canAvatar}
-                  diffusionTier={diffusionTier}
-                />
-                <GenerationQueueBar
-                  jobs={queueJobs}
-                  onCancel={(id) => {
-                    void queueClient
-                      .cancel(id)
-                      .then(() => queueClient.list().then(setQueueJobs));
-                  }}
-                  onReorder={(ids) => {
-                    void queueClient
-                      .reorder(ids)
-                      .then(() => queueClient.list().then(setQueueJobs));
-                  }}
-                />
-              </div>
-            ) : null}
-          </div>
           <MediaComposer
             disabled={isGenerating}
             placeholder={
@@ -1747,6 +1720,7 @@ export function VideoLabPage({
             onSubmit={(text, attachments) =>
               void handleSubmit(text, attachments)
             }
+            onStop={handleStopGeneration}
             submitAccentVar="--accent-video"
             submitLabel="Generate"
             seededAttachment={seededAttachment}
@@ -1762,6 +1736,17 @@ export function VideoLabPage({
           <ComposerContextRow
             usage={contextUsage}
             onStartNewSession={() => void startFreshStudioSession()}
+            trailing={
+              <Button
+                type="button"
+                variant="ghost"
+                testId="video-advanced-settings"
+                aria-expanded={advancedOpen}
+                onClick={() => setAdvancedOpen((v) => !v)}
+              >
+                Advanced settings
+              </Button>
+            }
           >
             <QuickModelSwitcher
               testId="video-model-select"
@@ -1780,6 +1765,37 @@ export function VideoLabPage({
               disabled={isGenerating}
             />
           </ComposerContextRow>
+          {advancedOpen ? (
+            <div style={{ marginTop: "var(--space-2)" }}>
+              <VideoPromptForm
+                key={formEpoch}
+                initial={values}
+                availableModels={models.map((m) => ({
+                  id: m.id,
+                  displayName: m.displayName,
+                  mode: "text2video" as const,
+                }))}
+                onChange={setValues}
+                disabled={isGenerating}
+                hideMode
+                avatarAvailable={canAvatar}
+                diffusionTier={diffusionTier}
+              />
+              <GenerationQueueBar
+                jobs={queueJobs}
+                onCancel={(id) => {
+                  void queueClient
+                    .cancel(id)
+                    .then(() => queueClient.list().then(setQueueJobs));
+                }}
+                onReorder={(ids) => {
+                  void queueClient
+                    .reorder(ids)
+                    .then(() => queueClient.list().then(setQueueJobs));
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

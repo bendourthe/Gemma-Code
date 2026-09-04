@@ -319,6 +319,10 @@ export class CodingSessionManager {
     };
   }
 
+  peekModelId(sessionId: string): string | undefined {
+    return this._sessions.get(sessionId)?.model.id;
+  }
+
   async sendMessage(
     sessionId: string,
     message: string,

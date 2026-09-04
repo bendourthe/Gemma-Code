@@ -32,6 +32,18 @@ const TEXT_ONLY: ListedModelDto = {
   modalities: ["text"],
 };
 
+function ownedModelsClient(model: ListedModelDto) {
+  return {
+    lastSelection: {
+      schemaVersion: 1 as const,
+      orderedIds: [model.id],
+      recommendedByTask: { chat: model.id },
+      downloadedSinceInstall: [] as string[],
+    },
+    list: async () => [model],
+  };
+}
+
 function png(): File {
   const bytes = new Uint8Array(createMinimalPng());
   return new File([bytes], "cat.png", { type: "image/png" });
@@ -48,7 +60,11 @@ describe("ChatPage vision routing", () => {
     });
     const sent: Array<{ message: string; images?: readonly string[] }> = [];
     const chatSession: ChatSessionClient = {
-      start: async () => ({ sessionId: "s1", modelId: VISION.id, createdAt: "t" }),
+      start: async () => ({
+        sessionId: "s1",
+        modelId: VISION.id,
+        createdAt: "t",
+      }),
       sendMessage: async (input) => {
         sent.push({ message: input.message, images: input.images });
         return {
@@ -65,16 +81,23 @@ describe("ChatPage vision routing", () => {
       <ChatPage
         client={client}
         chatSession={chatSession}
-        modelsClient={{ list: async () => [VISION] }}
+        modelsClient={ownedModelsClient(VISION)}
       />,
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await waitFor(() =>
-      expect(screen.getByTestId("media-composer-add")).toHaveAttribute("data-image-enabled", "true"),
+      expect(screen.getByTestId("media-composer-add")).toHaveAttribute(
+        "data-image-enabled",
+        "true",
+      ),
     );
-    fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [png()] } });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-file"), {
+      target: { files: [png()] },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
     fireEvent.change(screen.getByTestId("media-composer-textarea"), {
       target: { value: "what is this?" },
     });
@@ -99,13 +122,17 @@ describe("ChatPage vision routing", () => {
       <ChatPage
         client={client}
         chatSession={{
-          start: async () => ({ sessionId: "s1", modelId: TEXT_ONLY.id, createdAt: "t" }),
+          start: async () => ({
+            sessionId: "s1",
+            modelId: TEXT_ONLY.id,
+            createdAt: "t",
+          }),
           sendMessage: async (input) => {
             sent.push({ message: input.message, images: input.images });
             return { sessionId: "s1", events: [] };
           },
         }}
-        modelsClient={{ list: async () => [TEXT_ONLY] }}
+        modelsClient={ownedModelsClient(TEXT_ONLY)}
         documentClient={createInMemoryDocumentClient({
           result: {
             engine: "rapidocr",
@@ -120,11 +147,20 @@ describe("ChatPage vision routing", () => {
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await waitFor(() =>
-      expect(screen.getByTestId("media-composer-add")).toHaveAttribute("data-image-enabled", "false"),
+      expect(screen.getByTestId("media-composer-add")).toHaveAttribute(
+        "data-image-enabled",
+        "false",
+      ),
     );
-    fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [png()] } });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "read this" } });
+    fireEvent.change(screen.getByTestId("media-composer-file"), {
+      target: { files: [png()] },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "read this" },
+    });
     fireEvent.click(screen.getByTestId("media-composer-submit"));
     expect(await screen.findByText(/screenshot words/)).toBeInTheDocument();
     expect(sent).toHaveLength(0);
@@ -145,7 +181,11 @@ describe("ChatPage vision routing", () => {
       <ChatPage
         client={client}
         chatSession={{
-          start: async () => ({ sessionId: "s1", modelId: VISION.id, createdAt: "t" }),
+          start: async () => ({
+            sessionId: "s1",
+            modelId: VISION.id,
+            createdAt: "t",
+          }),
           sendMessage: async (input) => {
             sent.push({ message: input.message, images: input.images });
             return {
@@ -157,7 +197,7 @@ describe("ChatPage vision routing", () => {
             };
           },
         }}
-        modelsClient={{ list: async () => [VISION] }}
+        modelsClient={ownedModelsClient(VISION)}
         sampleVideoFrames={async () => ({
           frames: [`data:image/png;base64,${pngB64}`],
           notice: "Sampled 1 of 24 video frames (max 8).",
@@ -167,11 +207,18 @@ describe("ChatPage vision routing", () => {
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await waitFor(() =>
-      expect(screen.getByTestId("media-composer-add")).toHaveAttribute("data-image-enabled", "true"),
+      expect(screen.getByTestId("media-composer-add")).toHaveAttribute(
+        "data-image-enabled",
+        "true",
+      ),
     );
     const clip = new File(["mp4"], "clip.mp4", { type: "video/mp4" });
-    fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [clip] } });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-file"), {
+      target: { files: [clip] },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
     fireEvent.change(screen.getByTestId("media-composer-textarea"), {
       target: { value: "what is moving?" },
     });
@@ -195,32 +242,46 @@ describe("ChatPage vision routing", () => {
       <ChatPage
         client={client}
         chatSession={{
-          start: async () => ({ sessionId: "s1", modelId: VISION.id, createdAt: "t" }),
+          start: async () => ({
+            sessionId: "s1",
+            modelId: VISION.id,
+            createdAt: "t",
+          }),
           sendMessage: async (input) => {
             sent.push({ images: input.images });
             return {
               sessionId: "s1",
-              events: [{ kind: "token", text: "ok" }, { kind: "done", finishReason: "stop" }],
+              events: [
+                { kind: "token", text: "ok" },
+                { kind: "done", finishReason: "stop" },
+              ],
             };
           },
         }}
-        modelsClient={{ list: async () => [VISION] }}
+        modelsClient={ownedModelsClient(VISION)}
       />,
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await waitFor(() =>
-      expect(screen.getByTestId("media-composer-add")).toHaveAttribute("data-image-enabled", "true"),
+      expect(screen.getByTestId("media-composer-add")).toHaveAttribute(
+        "data-image-enabled",
+        "true",
+      ),
     );
     fireEvent.change(screen.getByTestId("media-composer-file"), {
       target: { files: [new File(["mp4"], "clip.mp4", { type: "video/mp4" })] },
     });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
     fireEvent.change(screen.getByTestId("media-composer-textarea"), {
       target: { value: "describe this" },
     });
     fireEvent.click(screen.getByTestId("media-composer-submit"));
-    expect(await screen.findByText(/frame sampling is unavailable/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/frame sampling is unavailable/i),
+    ).toBeInTheDocument();
     expect(sent[0]?.images ?? []).toHaveLength(0);
   });
 
@@ -238,27 +299,41 @@ describe("ChatPage vision routing", () => {
       <ChatPage
         client={client}
         chatSession={{
-          start: async () => ({ sessionId: "s1", modelId: VISION.id, createdAt: "t" }),
+          start: async () => ({
+            sessionId: "s1",
+            modelId: VISION.id,
+            createdAt: "t",
+          }),
           sendMessage: async (input) => {
             sent.push({ images: input.images });
             return {
               sessionId: "s1",
-              events: [{ kind: "token", text: "text only" }, { kind: "done", finishReason: "stop" }],
+              events: [
+                { kind: "token", text: "text only" },
+                { kind: "done", finishReason: "stop" },
+              ],
             };
           },
         }}
-        modelsClient={{ list: async () => [VISION] }}
+        modelsClient={ownedModelsClient(VISION)}
       />,
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await waitFor(() =>
-      expect(screen.getByTestId("media-composer-add")).toHaveAttribute("data-image-enabled", "true"),
+      expect(screen.getByTestId("media-composer-add")).toHaveAttribute(
+        "data-image-enabled",
+        "true",
+      ),
     );
     fireEvent.change(screen.getByTestId("media-composer-file"), {
-      target: { files: [new File(["not-a-png!"], "bad.png", { type: "image/png" })] },
+      target: {
+        files: [new File(["not-a-png!"], "bad.png", { type: "image/png" })],
+      },
     });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
     fireEvent.change(screen.getByTestId("media-composer-textarea"), {
       target: { value: "what is this?" },
     });

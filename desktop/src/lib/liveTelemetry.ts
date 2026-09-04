@@ -14,8 +14,13 @@
  */
 
 import { ipcCall } from "./ipc";
-import { createTelemetryStream, type RawGpuSample } from "./telemetryStream";
+import {
+  createTelemetryStream,
+  type RawGpuSample,
+  type SchedulerSnapshotForWidget,
+} from "./telemetryStream";
 import type { TelemetryStream } from "../components/LocalModelStatus.types";
+import { fetchSchedulerSnapshot } from "../shared/models/schedulerResidency";
 
 export const DEFAULT_POLL_MS = 2000;
 /** A sample older than this is surfaced as stale rather than as current. */
@@ -30,6 +35,8 @@ export interface LiveTelemetryOptions {
   staleAfterMs?: number;
   /** Test seam: one poll. Resolves null when no sample is available. */
   fetchSample?: () => Promise<RawGpuSample | null>;
+  /** Scheduler occupancy. Defaults to the sidecar snapshot. */
+  fetchScheduler?: () => Promise<SchedulerSnapshotForWidget>;
   now?: () => number;
 }
 
@@ -47,6 +54,24 @@ export interface LiveTelemetryStream extends TelemetryStream {
   isStale(): boolean;
 }
 
+export async function fetchSchedulerForWidget(): Promise<SchedulerSnapshotForWidget> {
+  try {
+    const snapshot = await fetchSchedulerSnapshot();
+    return {
+      active: snapshot?.active ?? null,
+      queued: (snapshot?.queued ?? []).map((job) => ({
+        id: job.id,
+        moduleId: job.moduleId,
+        jobType: job.jobType,
+        modelId: job.modelId,
+        estimatedVramGB: job.estimatedVramGB,
+      })),
+    };
+  } catch {
+    return { active: null, queued: [] };
+  }
+}
+
 /**
  * Build a polling telemetry stream. Polling starts on first subscribe and
  * stops when the last subscriber leaves, so a route that never renders the
@@ -59,19 +84,29 @@ export function createLiveTelemetryStream(
     intervalMs = DEFAULT_POLL_MS,
     staleAfterMs = DEFAULT_STALE_AFTER_MS,
     fetchSample = fetchGpuSample,
+    fetchScheduler = fetchSchedulerForWidget,
     now = () => Date.now(),
   } = options;
 
   let unavailable = true;
   let lastSampleAt: number | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let latestScheduler: SchedulerSnapshotForWidget = {
+    active: null,
+    queued: [],
+  };
 
   const inner = createTelemetryStream({
+    scheduler: () => latestScheduler,
     source: (emit) => {
       let cancelled = false;
       const poll = async (): Promise<void> => {
-        const sample = await fetchSample();
+        const [sample, snap] = await Promise.all([
+          fetchSample(),
+          fetchScheduler(),
+        ]);
         if (cancelled) return;
+        latestScheduler = snap;
         if (sample === null) {
           unavailable = true;
           return;

@@ -1133,6 +1133,7 @@ export function CodingPage({
               disabled={busy}
               streaming={busy}
               onSubmit={handleSubmit}
+              onStop={() => void handleCancel()}
             />
             <ComposerContextRow
               usage={contextUsage}

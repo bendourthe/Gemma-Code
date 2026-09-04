@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-03] v2.4.6 Phase 7 - Four-tab runtime chrome
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P7](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-7-runtime.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Chat, Agents, Image, and Video pickers list installer ticks union Settings downloads only. A missing snapshot is an empty allowlist plus Get more models.
+- Recommend order puts the task recommended id first (Gemma 4 12B on 16 GB agentic/chat among owned ids; RealVis before Juggernaut on Image when both are owned).
+- Assistant token counts persist on explorer records. Stop replaces Send while a turn or job is in flight. Studio captions are Creating/Generating, not Shaping. Advanced sits on the Context | Model row.
+- Chat and Agents token jobs enqueue on the studio scheduler so the GPU footer is Busy even at 0% utilization. Windows nvidia-smi falls back to System32.
+
+### Why It Changed
+
+Packaged Chat/Agents/Image/Video still showed leftover Ollama or Hugging Face ids, Idle 0% during a request, and Image defaulting to Juggernaut when RealVis was the 16 GB recommendation.
+
+### Decisions Made
+
+- `ownedIdSet(null)` is empty, matching VS Code Phase 4. Settings > Models still shows unowned catalog cards.
+- Image empty-session default uses `recommendedByTask.image` and does not apply a leftover localStorage favorite.
+- Juggernaut is catalog id `juggernaut-xl-v9`. The wizard can auto-tick it because the weights are already on disk. That is not a ghost picker row.
+- Video Lab still takes host VRAM as `vramGB`. QuickModelSwitcher no longer shuffles owned rows by missing `hostVramGB`.
+
+---
+
 ## [2026-09-03] v2.4.6 Phase 4 - VS Code owned agentic models
 
 Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P4](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-4-vscode-models.md). Package remains **2.4.1**.
