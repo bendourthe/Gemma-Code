@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-03] v2.4.6 Phase 4 - VS Code owned agentic models
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P4](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-4-vscode-models.md). Package remains **2.4.1**.
+
+### What Changed
+
+- VS Code coding model enum is installer ticks union Settings downloads, intersected with catalog agentic and on-disk presence.
+- Status bar, `nexus.coding.selectModel`, and `/model` share that list. Empty snapshot shows a Settings message instead of every Ollama tag.
+- Switching the owned id keeps AgentLoop tools, skills, hooks, and ConfirmationGate.
+
+### Why It Changed
+
+`/model` listed `ollama list`, so leftover tags from a previous install appeared. The operator bar is the same allowlist the desktop Phase 7 pickers will use.
+
+### Decisions Made
+
+- Missing snapshot is empty, not pass-through. Desktop `ownedIdSet(null)` stays leaky until Phase 7.
+- Hub skills and hooks already load in the extension host; this phase did not start a second agent runtime.
+- After a VSIX rebuild, rebuild `better-sqlite3` for the Node ABI before running extension tests (v2.4.5 footgun).
+
+---
+
 ## [2026-09-02] v2.4.6 Phase 3 - Configuration, VS Code 1.136, and Review groups
 
 Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P3](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-3-configuration-review.md). Package remains **2.4.1**.

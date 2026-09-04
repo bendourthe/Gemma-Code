@@ -4,6 +4,13 @@ import type { PromptStyle } from "../chat/PromptBuilder.types.js";
 import type { HardwareTierId } from "./HardwareTier.types.js";
 import { SettingsCompat } from "./SettingsCompat.js";
 
+export {
+  enumerateOwnedAgenticModels,
+  defaultOwnedAgenticId,
+  resolveOwnedAgenticId,
+  resolveCodingModelSelection,
+} from "../../../core/registry/ownedAgentic.js";
+
 export type ToolConfirmationMode = "always" | "ask" | "never";
 
 /**
@@ -53,7 +60,10 @@ export interface NexusSettings {
   terminalEnvScrubAllowlist: string[];
   operationLogEnabled: boolean;
   memoryAutoArchive: "off" | "weekly" | "monthly";
-  contextLimitsPerModel: Record<string, { maxTokens?: number; minContextLimit?: number }>;
+  contextLimitsPerModel: Record<
+    string,
+    { maxTokens?: number; minContextLimit?: number }
+  >;
   compactionProtectedTools: string[];
   compactionErrorPurgeTurns: number;
   compactionProtectedFilePatterns: string[];
@@ -147,7 +157,9 @@ function getCompat(): SettingsCompat {
 /**
  * Test-only hook used by unit tests that swap the global compat instance.
  */
-export function _setSettingsCompatForTesting(compat: SettingsCompat | null): void {
+export function _setSettingsCompatForTesting(
+  compat: SettingsCompat | null,
+): void {
   _compat = compat;
 }
 
@@ -156,6 +168,7 @@ export function getSettings(): NexusSettings {
   const gpuTier = c.get<number | null>("nexus.gpuTierOverride", null);
   return {
     ollamaUrl: c.get<string>("nexus.llm.ollamaUrl", "http://localhost:11434"),
+    // v2.4.6 Phase 4: activation and /model keep this on the owned agentic allowlist.
     modelName: c.get<string>("nexus.llm.modelName", "gemma4:e4b"),
     maxTokens: c.get<number>("nexus.llm.maxTokens", 131072),
     temperature: c.get<number>("nexus.llm.temperature", 1.0),
@@ -174,13 +187,19 @@ export function getSettings(): NexusSettings {
       "nexus.coding.systemPromptBudgetPercent",
       10,
     ),
-    compactionKeepRecent: c.get<number>("nexus.coding.compactionKeepRecent", 10),
+    compactionKeepRecent: c.get<number>(
+      "nexus.coding.compactionKeepRecent",
+      10,
+    ),
     compactionToolResultsKeep: c.get<number>(
       "nexus.coding.compactionToolResultsKeep",
       8,
     ),
     memoryEnabled: c.get<boolean>("nexus.memory.enabled", true),
-    embeddingModel: c.get<string>("nexus.memory.embeddingModel", "embeddinggemma"),
+    embeddingModel: c.get<string>(
+      "nexus.memory.embeddingModel",
+      "embeddinggemma",
+    ),
     memoryMaxEntries: c.get<number>("nexus.memory.maxEntries", 10000),
     memoryCorroborationThreshold: clamp(
       c.get<number>("nexus.memory.corroborationThreshold", 2),
@@ -204,13 +223,23 @@ export function getSettings(): NexusSettings {
       "list_directory",
       "grep_codebase",
     ]),
-    verificationEnabled: c.get<boolean>("nexus.coding.verificationEnabled", true),
-    verificationThreshold: c.get<number>("nexus.coding.verificationThreshold", 3),
-    subAgentMaxIterations: c.get<number>("nexus.coding.subAgentMaxIterations", 10),
+    verificationEnabled: c.get<boolean>(
+      "nexus.coding.verificationEnabled",
+      true,
+    ),
+    verificationThreshold: c.get<number>(
+      "nexus.coding.verificationThreshold",
+      3,
+    ),
+    subAgentMaxIterations: c.get<number>(
+      "nexus.coding.subAgentMaxIterations",
+      10,
+    ),
     autoDetectGpu: c.get<boolean>("nexus.autoDetectGpu", true),
-    gpuTierOverride: gpuTier === 1 || gpuTier === 2 || gpuTier === 3
-      ? (gpuTier as HardwareTierId)
-      : null,
+    gpuTierOverride:
+      gpuTier === 1 || gpuTier === 2 || gpuTier === 3
+        ? (gpuTier as HardwareTierId)
+        : null,
     permissionOverrides: c.get<Record<string, number>>(
       "nexus.coding.permissionOverrides",
       {},
@@ -236,17 +265,20 @@ export function getSettings(): NexusSettings {
     contextLimitsPerModel: c.get<
       Record<string, { maxTokens?: number; minContextLimit?: number }>
     >("nexus.coding.contextLimitsPerModel", {}),
-    compactionProtectedTools: c.get<string[]>("nexus.coding.compactionProtectedTools", [
-      "compress_range",
-      "compress_message",
-      "verify",
-      "research",
-      "memory",
-      "write_file",
-      "edit_file",
-      "create_file",
-      "delete_file",
-    ]),
+    compactionProtectedTools: c.get<string[]>(
+      "nexus.coding.compactionProtectedTools",
+      [
+        "compress_range",
+        "compress_message",
+        "verify",
+        "research",
+        "memory",
+        "write_file",
+        "edit_file",
+        "create_file",
+        "delete_file",
+      ],
+    ),
     compactionErrorPurgeTurns: clamp(
       c.get<number>("nexus.coding.compactionErrorPurgeTurns", 4),
       1,
@@ -266,8 +298,14 @@ export function getSettings(): NexusSettings {
       1_000_000,
     ),
     auditWorkerEnabled: c.get<boolean>("nexus.workers.audit.enabled", false),
-    testgapsWorkerEnabled: c.get<boolean>("nexus.workers.testgaps.enabled", false),
-    curatorWorkerEnabled: c.get<boolean>("nexus.workers.curator.enabled", false),
+    testgapsWorkerEnabled: c.get<boolean>(
+      "nexus.workers.testgaps.enabled",
+      false,
+    ),
+    curatorWorkerEnabled: c.get<boolean>(
+      "nexus.workers.curator.enabled",
+      false,
+    ),
     preToolCompression: c.get<boolean>("nexus.coding.preToolCompression", true),
     passStateGating: c.get<boolean>("nexus.coding.passStateGating", true),
     passStateSubAgentCredit: c.get<boolean>(
@@ -275,7 +313,10 @@ export function getSettings(): NexusSettings {
       true,
     ),
     hooksScanInjection: c.get<boolean>("nexus.hooks.scanInjection", true),
-    parseDocumentEnabled: c.get<boolean>("nexus.coding.parseDocument.enabled", false),
+    parseDocumentEnabled: c.get<boolean>(
+      "nexus.coding.parseDocument.enabled",
+      false,
+    ),
     parseDocumentMemoryIngestEnabled: c.get<boolean>(
       "nexus.coding.parseDocument.memoryIngest.enabled",
       false,
@@ -326,7 +367,10 @@ export function getSettings(): NexusSettings {
         ? raw.trim()
         : "ollama";
     })(),
-    lmStudioBaseUrl: c.get<string>("nexus.llm.lmstudio.baseUrl", "http://127.0.0.1:1234"),
+    lmStudioBaseUrl: c.get<string>(
+      "nexus.llm.lmstudio.baseUrl",
+      "http://127.0.0.1:1234",
+    ),
     localAdapters: c.get<unknown[]>("nexus.llm.localAdapters", []),
     thinkingModePreset: (() => {
       const raw = c.get<string>("nexus.coding.thinkingModePreset", "nothink");
@@ -340,7 +384,10 @@ export function getSettings(): NexusSettings {
       const raw = c.get<string>("nexus.memory.scoringDefault", "hybrid");
       return raw === "legacy" ? "legacy" : "hybrid";
     })(),
-    memoryAnticipatoryCache: c.get<boolean>("nexus.memory.anticipatoryCache", false),
+    memoryAnticipatoryCache: c.get<boolean>(
+      "nexus.memory.anticipatoryCache",
+      false,
+    ),
     reflectWorkerEnabled: c.get<boolean>("nexus.workers.reflect.enabled", true),
     traceAutoEnable: c.get<boolean>("nexus.trace.autoEnable", false),
   };
@@ -360,7 +407,10 @@ export function onSettingsChange(
   callback: (settings: NexusSettings) => void,
 ): vscode.Disposable {
   return vscode.workspace.onDidChangeConfiguration((event) => {
-    if (event.affectsConfiguration("nexus") || event.affectsConfiguration("gemma-code")) {
+    if (
+      event.affectsConfiguration("nexus") ||
+      event.affectsConfiguration("gemma-code")
+    ) {
       callback(getSettings());
     }
   });

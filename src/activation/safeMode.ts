@@ -25,6 +25,7 @@ export const DECLARED_COMMAND_IDS: ReadonlyArray<string> = Object.freeze([
   "nexus.coding.openSession",
   "nexus.coding.detectGpu",
   "nexus.coding.hooks.editPlanModeHook",
+  "nexus.coding.selectModel",
 ]);
 
 /** Every webview view id declared in package.json's `contributes.views`. */

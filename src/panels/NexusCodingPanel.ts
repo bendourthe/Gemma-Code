@@ -17,10 +17,16 @@ import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
-import { getSettings, type GemmaCodeSettings } from "../../modules/coding/config/settings.js";
+import {
+  getSettings,
+  type GemmaCodeSettings,
+} from "../../modules/coding/config/settings.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
 import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTier.types.js";
-import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
+import {
+  BudgetMiddleware,
+  createSessionBudget,
+} from "../tools/BudgetMiddleware.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import type { NexusCodingRuntime } from "../../modules/coding/runtime/NexusCodingRuntime.js";
@@ -191,6 +197,14 @@ export class NexusCodingPanel implements vscode.WebviewViewProvider {
     ) {
       this._operationLog?.setEnabled(this._getSettings().operationLogEnabled);
     }
+    if (
+      event.affectsConfiguration("nexus.llm.modelName") ||
+      event.affectsConfiguration("gemma-code.modelName")
+    ) {
+      const name = this._getSettings().modelName;
+      this._agentLoop.setModelName(name);
+      bootstrapped.pipeline.setModelName(name);
+    }
   }
 
   resolveWebviewView(
@@ -207,7 +221,9 @@ export class NexusCodingPanel implements vscode.WebviewViewProvider {
    */
   updateTierConfig(tierConfig: HardwareTierConfig): void {
     this._tierConfig = tierConfig;
-    const prompt = this._promptBuilder.build(this._toolActivation.buildPromptContext());
+    const prompt = this._promptBuilder.build(
+      this._toolActivation.buildPromptContext(),
+    );
     this._manager.rebuildSystemPrompt(prompt);
     const budget = createSessionBudget(tierConfig.id, tierConfig.contextWindow);
     this._agentLoop.setBudgetMiddleware(new BudgetMiddleware(budget));
@@ -217,7 +233,9 @@ export class NexusCodingPanel implements vscode.WebviewViewProvider {
   async setOllamaReachable(reachable: boolean): Promise<void> {
     if (this._ollamaReachable === reachable) return;
     this._ollamaReachable = reachable;
-    const prompt = this._promptBuilder.build(this._toolActivation.buildPromptContext());
+    const prompt = this._promptBuilder.build(
+      this._toolActivation.buildPromptContext(),
+    );
     this._manager.rebuildSystemPrompt(prompt);
   }
 
@@ -256,8 +274,7 @@ export class NexusCodingPanel implements vscode.WebviewViewProvider {
 
   private _resetSessionScopedToolState(): void {
     const webSearch = this._registry.get("web_search") as unknown as
-      | { resetSession?: () => void }
-      | undefined;
+      { resetSession?: () => void } | undefined;
     if (webSearch && typeof webSearch.resetSession === "function") {
       webSearch.resetSession();
     }
@@ -312,7 +329,9 @@ export class NexusCodingPanel implements vscode.WebviewViewProvider {
 
   // Legacy webview-message hook retained for callers that simulate a message
   // bus directly (e.g. integration tests). Routes through the new dispatcher.
-  private async _handleMessage(message: WebviewToExtensionMessage): Promise<void> {
+  private async _handleMessage(
+    message: WebviewToExtensionMessage,
+  ): Promise<void> {
     await this._messageRouter.handle(message);
   }
 

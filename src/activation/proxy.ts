@@ -28,12 +28,10 @@
 
 import * as vscode from "vscode";
 import type { DaemonDiscoveryResult } from "../desktop/daemonDiscovery.js";
-import {
-  NoopIpcClient,
-  type IpcClient,
-} from "../desktop/ipcClient.js";
+import { NoopIpcClient, type IpcClient } from "../desktop/ipcClient.js";
+import { registerOwnedAgenticModelSurface } from "./ownedAgenticPicker.js";
 
-const PROXIED_COMMAND_IDS: ReadonlyArray<string> = Object.freeze([
+export const PROXIED_COMMAND_IDS: ReadonlyArray<string> = Object.freeze([
   "nexus.coding.ping",
   "nexus.coding.newChat",
   "nexus.coding.focusSidebar",
@@ -56,10 +54,10 @@ export const PHASE_11_VIEW_IDS: ReadonlyArray<string> = Object.freeze([
 ]);
 
 const PROXY_PLACEHOLDER_HTML =
-  "<!doctype html><html><body style=\"font-family:sans-serif;padding:12px;color:var(--vscode-foreground)\">" +
+  '<!doctype html><html><body style="font-family:sans-serif;padding:12px;color:var(--vscode-foreground)">' +
   "<h3>Nexus Code</h3>" +
   "<p>Connected to the Nexus desktop daemon. Open the Nexus desktop window for the full agentic surface.</p>" +
-  "<p style=\"font-size:0.85em;opacity:0.75\">The daemon IPC client is wired by the upstream Phase 2 sidecar widening (v1.1.0 known-gap 10.1.P1.Z); this panel will switch to the live Phase 11 surfaces once that client lands.</p>" +
+  '<p style="font-size:0.85em;opacity:0.75">The daemon IPC client is wired by the upstream Phase 2 sidecar widening (v1.1.0 known-gap 10.1.P1.Z); this panel will switch to the live Phase 11 surfaces once that client lands.</p>' +
   "</body></html>";
 
 class ProxyPlaceholderViewProvider implements vscode.WebviewViewProvider {
@@ -133,6 +131,9 @@ export function activateProxy(
   statusBarItem.command = "nexus.coding.focusSidebar";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
+
+  // Snapshot lives on disk either way; the picker does not need the daemon.
+  registerOwnedAgenticModelSurface(context);
 
   for (const commandId of PROXIED_COMMAND_IDS) {
     const disposable = vscode.commands.registerCommand(commandId, async () => {

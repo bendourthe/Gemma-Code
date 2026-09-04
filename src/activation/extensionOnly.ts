@@ -19,17 +19,30 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { NexusCodingPanel } from "../panels/NexusCodingPanel.js";
-import { SessionListPanel, SESSION_VIEW_ID } from "../panels/SessionListPanel.js";
+import {
+  SessionListPanel,
+  SESSION_VIEW_ID,
+} from "../panels/SessionListPanel.js";
 import { getGpuDetector } from "../../modules/coding/config/GpuDetector.js";
-import { classifyTier, getTierConfig } from "../../modules/coding/config/HardwareTier.js";
+import {
+  classifyTier,
+  getTierConfig,
+} from "../../modules/coding/config/HardwareTier.js";
 import type { HardwareTierId } from "../../modules/coding/config/HardwareTier.types.js";
 import { TraceStore } from "../../modules/coding/observability/TraceStore.js";
 import { MetricsCollector } from "../../modules/coding/observability/MetricsCollector.js";
-import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "../panels/TraceDashboardPanel.js";
+import {
+  TraceDashboardPanel,
+  TRACE_DASHBOARD_VIEW_ID,
+} from "../panels/TraceDashboardPanel.js";
 import { MemoryPanel, MEMORY_PANEL_VIEW_ID } from "../panels/MemoryPanel.js";
-import { OtlpExporter, parseOtlpHeaders } from "../../modules/coding/observability/OtlpExporter.js";
+import {
+  OtlpExporter,
+  parseOtlpHeaders,
+} from "../../modules/coding/observability/OtlpExporter.js";
 import { NexusCodingRuntime } from "../../modules/coding/runtime/NexusCodingRuntime.js";
 import { hookFilePath } from "../../modules/coding/chat/ImprovementHook.js";
+import { registerOwnedAgenticModelSurface } from "./ownedAgenticPicker.js";
 
 // Fast cadence while the server is unreachable so the UI reconnects quickly.
 const OLLAMA_POLL_FAST_MS = 5_000;
@@ -53,13 +66,15 @@ function startOllamaPoller(
 
     if (healthy && !ollamaWasReachable) {
       ollamaWasReachable = true;
-      channel.appendLine("[Nexus Code] Ollama is now reachable -- resuming normal operation.");
+      channel.appendLine(
+        "[Nexus Code] Ollama is now reachable -- resuming normal operation.",
+      );
       panel.postStatus("idle");
     } else if (!healthy && ollamaWasReachable) {
       ollamaWasReachable = false;
       channel.appendLine("[Nexus Code] Ollama became unreachable.");
       panel.postError(
-        "Ollama is not reachable. Make sure `ollama serve` is running, then it will reconnect automatically."
+        "Ollama is not reachable. Make sure `ollama serve` is running, then it will reconnect automatically.",
       );
     }
 
@@ -98,27 +113,36 @@ export function activateExtensionOnly(
       const healthy = await client.checkHealth().catch(() => false);
       if (!healthy) {
         channel.appendLine(
-          "[Nexus Code] ERROR: Ollama is not reachable. Make sure `ollama serve` is running."
+          "[Nexus Code] ERROR: Ollama is not reachable. Make sure `ollama serve` is running.",
         );
-        void vscode.window.showErrorMessage(
-          "Nexus Code: Ollama is not reachable. Run `ollama serve` and try again.",
-          "Open Ollama docs"
-        ).then((choice) => {
-          if (choice === "Open Ollama docs") {
-            void vscode.env.openExternal(vscode.Uri.parse("https://ollama.com/download"));
-          }
-        });
+        void vscode.window
+          .showErrorMessage(
+            "Nexus Code: Ollama is not reachable. Run `ollama serve` and try again.",
+            "Open Ollama docs",
+          )
+          .then((choice) => {
+            if (choice === "Open Ollama docs") {
+              void vscode.env.openExternal(
+                vscode.Uri.parse("https://ollama.com/download"),
+              );
+            }
+          });
         return;
       }
 
-      channel.appendLine("[Nexus Code] Ollama is healthy. Streaming test message...\n");
+      channel.appendLine(
+        "[Nexus Code] Ollama is healthy. Streaming test message...\n",
+      );
 
       try {
         const stream = client.streamChat({
           model: settings.modelName,
           messages: [{ role: "user", content: "Say hello briefly." }],
           stream: true,
-          options: { num_ctx: settings.maxTokens, temperature: settings.temperature },
+          options: {
+            num_ctx: settings.maxTokens,
+            temperature: settings.temperature,
+          },
         });
 
         for await (const chunk of stream) {
@@ -132,19 +156,23 @@ export function activateExtensionOnly(
         channel.appendLine(`[Nexus Code] ERROR: ${msg}`);
 
         if (msg.includes("not found") || msg.includes("model")) {
-          void vscode.window.showErrorMessage(
-            `Nexus Code: Model "${settings.modelName}" not found. Run: ollama pull ${settings.modelName}`,
-            "Pull model"
-          ).then((choice) => {
-            if (choice === "Pull model") {
-              const terminal = vscode.window.createTerminal("Nexus Code -- Model Pull");
-              terminal.sendText(`ollama pull ${settings.modelName}`);
-              terminal.show();
-            }
-          });
+          void vscode.window
+            .showErrorMessage(
+              `Nexus Code: Model "${settings.modelName}" not found. Run: ollama pull ${settings.modelName}`,
+              "Pull model",
+            )
+            .then((choice) => {
+              if (choice === "Pull model") {
+                const terminal = vscode.window.createTerminal(
+                  "Nexus Code -- Model Pull",
+                );
+                terminal.sendText(`ollama pull ${settings.modelName}`);
+                terminal.show();
+              }
+            });
         }
       }
-    }
+    },
   );
   context.subscriptions.push(pingCommand);
 
@@ -157,11 +185,17 @@ export function activateExtensionOnly(
   );
 
   // ── GPU detection and tier classification ──────────────────────────────
-  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  const statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100,
+  );
   statusBarItem.text = "$(circuit-board) Detecting GPU...";
   statusBarItem.command = "nexus.coding.detectGpu";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
+
+  // v2.4.6 Phase 4 -- owned agentic picker (AD-13 allowlist, not ollama list).
+  registerOwnedAgenticModelSurface(context);
 
   if (settings.autoDetectGpu) {
     void (async () => {
@@ -169,12 +203,14 @@ export function activateExtensionOnly(
         const detector = getGpuDetector();
         const result = await detector.detect();
         const vramMb = result.primaryGpu?.totalVramMb ?? 0;
-        const tierId: HardwareTierId = (settings.gpuTierOverride as HardwareTierId | null) ?? classifyTier(vramMb);
+        const tierId: HardwareTierId =
+          (settings.gpuTierOverride as HardwareTierId | null) ??
+          classifyTier(vramMb);
         const tierConfig = getTierConfig(tierId);
 
         channel.appendLine(
           `[Nexus Code] GPU detected: ${result.primaryGpu?.name ?? "none"}, ` +
-          `VRAM: ${vramMb} MB, Tier: ${tierId} (${tierConfig.name})`
+            `VRAM: ${vramMb} MB, Tier: ${tierId} (${tierConfig.name})`,
         );
 
         chatPanel.updateTierConfig(tierConfig);
@@ -210,9 +246,9 @@ export function activateExtensionOnly(
       statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
 
       void vscode.window.showInformationMessage(
-        `Nexus Code: ${result.primaryGpu?.name ?? "No GPU"}, ${vramMb} MB VRAM -- Tier ${tierId} (${tierConfig.name})`
+        `Nexus Code: ${result.primaryGpu?.name ?? "No GPU"}, ${vramMb} MB VRAM -- Tier ${tierId} (${tierConfig.name})`,
       );
-    }
+    },
   );
   context.subscriptions.push(detectGpuCommand);
 
@@ -231,7 +267,7 @@ export function activateExtensionOnly(
         enableScripts: true,
         retainContextWhenHidden: false,
         localResourceRoots: [context.extensionUri],
-      }
+      },
     );
 
     chatColumn = panel.viewColumn;
@@ -242,7 +278,11 @@ export function activateExtensionOnly(
       // Don't clear chatColumn -- next panel should reuse the same column.
     });
 
-    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "assets", "icon.png");
+    panel.iconPath = vscode.Uri.joinPath(
+      context.extensionUri,
+      "assets",
+      "icon.png",
+    );
     chatPanel.attachToWebviewPanel(panel);
   }
 
@@ -260,7 +300,10 @@ export function activateExtensionOnly(
     },
   );
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(SESSION_VIEW_ID, sessionListPanel),
+    vscode.window.registerWebviewViewProvider(
+      SESSION_VIEW_ID,
+      sessionListPanel,
+    ),
   );
 
   // ── Observability: TraceStore, Tracer, Trace Dashboard ────────────────────
@@ -281,11 +324,17 @@ export function activateExtensionOnly(
       });
       tracer.setExporter(otlpExporter);
       context.subscriptions.push({ dispose: () => otlpExporter.dispose() });
-      channel.appendLine(`[Nexus Code] OTLP export enabled -> ${settings.otlpEndpoint}`);
+      channel.appendLine(
+        `[Nexus Code] OTLP export enabled -> ${settings.otlpEndpoint}`,
+      );
     }
 
     channel.appendLine("[Nexus Code] Trace store initialized.");
-    context.subscriptions.push({ dispose: () => { traceStore?.close(); } });
+    context.subscriptions.push({
+      dispose: () => {
+        traceStore?.close();
+      },
+    });
   } catch (err) {
     const msg = formatForUser(err);
     channel.appendLine(`[Nexus Code] Trace store init failed: ${msg}`);
@@ -301,7 +350,10 @@ export function activateExtensionOnly(
     },
   );
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(TRACE_DASHBOARD_VIEW_ID, traceDashboardPanel),
+    vscode.window.registerWebviewViewProvider(
+      TRACE_DASHBOARD_VIEW_ID,
+      traceDashboardPanel,
+    ),
   );
 
   // v0.7.0 Phase 5: Memory panel webview.
@@ -310,7 +362,10 @@ export function activateExtensionOnly(
     getMemoryStore: () => chatPanel.getMemoryStore(),
   });
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(MEMORY_PANEL_VIEW_ID, memoryPanel),
+    vscode.window.registerWebviewViewProvider(
+      MEMORY_PANEL_VIEW_ID,
+      memoryPanel,
+    ),
   );
 
   context.subscriptions.push(chatPanel);
@@ -332,43 +387,49 @@ export function activateExtensionOnly(
 
   // ── Open session command ─────────────────────────────────────────────────
   context.subscriptions.push(
-    vscode.commands.registerCommand("nexus.coding.openSession", (sessionId?: string) => {
-      if (sessionId) {
-        chatPanel.loadSession(sessionId);
-      }
-      openChatEditorPanel();
-    }),
+    vscode.commands.registerCommand(
+      "nexus.coding.openSession",
+      (sessionId?: string) => {
+        if (sessionId) {
+          chatPanel.loadSession(sessionId);
+        }
+        openChatEditorPanel();
+      },
+    ),
   );
 
   // ── v0.8.0 Phase 3.4: open the plan-mode improvement-hook file ───────────
   context.subscriptions.push(
-    vscode.commands.registerCommand("nexus.coding.hooks.editPlanModeHook", async () => {
-      const filePath = hookFilePath("enterplanmode-improve");
-      try {
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        if (!fs.existsSync(filePath)) {
-          fs.writeFileSync(
-            filePath,
-            "# Plan-mode improvement rules\n\n" +
-              "Add user-supplied rules below. Lines are appended verbatim to the prompt as a system message after the plan-mode addendum and capabilities reminder.\n\n" +
-              "Examples:\n" +
-              "- When the plan touches the storage layer, always include a migration step.\n" +
-              "- When the plan involves git operations, always include a backup checkpoint.\n",
-            "utf8",
+    vscode.commands.registerCommand(
+      "nexus.coding.hooks.editPlanModeHook",
+      async () => {
+        const filePath = hookFilePath("enterplanmode-improve");
+        try {
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+          if (!fs.existsSync(filePath)) {
+            fs.writeFileSync(
+              filePath,
+              "# Plan-mode improvement rules\n\n" +
+                "Add user-supplied rules below. Lines are appended verbatim to the prompt as a system message after the plan-mode addendum and capabilities reminder.\n\n" +
+                "Examples:\n" +
+                "- When the plan touches the storage layer, always include a migration step.\n" +
+                "- When the plan involves git operations, always include a backup checkpoint.\n",
+              "utf8",
+            );
+          }
+          const doc = await vscode.workspace.openTextDocument(filePath);
+          await vscode.window.showTextDocument(doc, { preview: false });
+        } catch (err) {
+          const message = formatForUser(err);
+          channel.appendLine(
+            `[Nexus Code] Failed to open plan-mode hook ${filePath}: ${message}`,
+          );
+          void vscode.window.showErrorMessage(
+            `Failed to open plan-mode improvement-hook file: ${message}`,
           );
         }
-        const doc = await vscode.workspace.openTextDocument(filePath);
-        await vscode.window.showTextDocument(doc, { preview: false });
-      } catch (err) {
-        const message = formatForUser(err);
-        channel.appendLine(
-          `[Nexus Code] Failed to open plan-mode hook ${filePath}: ${message}`,
-        );
-        void vscode.window.showErrorMessage(
-          `Failed to open plan-mode improvement-hook file: ${message}`,
-        );
-      }
-    }),
+      },
+    ),
   );
 
   // ── Ollama availability poller ────────────────────────────────────────────
@@ -388,13 +449,15 @@ export function activateExtensionOnly(
       void chatPanel.setOllamaReachable(healthy);
       if (!healthy) {
         channel.appendLine(
-          "[Nexus Code] Ollama is not reachable at startup. Polling for availability..."
+          "[Nexus Code] Ollama is not reachable at startup. Polling for availability...",
         );
         chatPanel.postError(
-          "Ollama is not reachable. Start it with `ollama serve`. Nexus Code will reconnect automatically."
+          "Ollama is not reachable. Start it with `ollama serve`. Nexus Code will reconnect automatically.",
         );
       } else {
-        channel.appendLine("[Nexus Code] Ollama is reachable. Extension ready.");
+        channel.appendLine(
+          "[Nexus Code] Ollama is reachable. Extension ready.",
+        );
       }
     })
     .catch(() => {

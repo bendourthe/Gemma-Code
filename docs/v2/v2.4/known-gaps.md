@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-09-02
+**Last updated**: 2026-09-03
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next plan ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -18,10 +18,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Deferred (DF) | 0 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 2 | 0 |
-| Missing tests / coverage gaps (MT) | 3 | 0 |
+| Missing tests / coverage gaps (MT) | 4 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Phase 3 of field-delivery is implemented locally. Packaged Configuration, Review groups, and a VSIX load on VS Code 1.136 are not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
+Phase 4 of field-delivery is implemented locally. The VS Code picker and `/model` use the installer-or-Settings-owned agentic allowlist. Packaged Configuration, Review, a VSIX load on VS Code 1.136, and the new picker on a frozen VSIX are not yet observed. Every earlier v2.4.5 / v2.4.4 open item carries forward.
 
 ### Open Items
 
@@ -45,6 +45,13 @@ Phase 3 of field-delivery is implemented locally. Packaged Configuration, Review
 - **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 3.1-3.4)
 - **Reason**: Tests pin Unsloth default-on when Compatible, 1.136 enabled and checked, absent Gemma/Video2X copy, and Review headings that keep juggernaut-xl-v9 under Image. None of it has run in a frozen NexusSetup.exe, and the VSIX has not been loaded in Microsoft VS Code 1.136.0 on the operator host.
 - **Suggested next step**: Phase 8 human items for screenshots 2-4 and a `code --install-extension` on 1.136.
+
+##### MT-4 - Packaged VS Code owned-agentic picker is not observed
+
+- **Source phase**: Phase 4 - VS Code Agentic Model Surface
+- **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-tasks 4.1-4.4)
+- **Reason**: Unit tests pin the AD-13 allowlist, empty-snapshot fail-closed, leftover installed ids absent, default `gemma-4-12b-it-gguf` when owned, and tool dispatch plus ConfirmationGate after a model switch. The command, status bar, and `/model` have not been clicked in a VSIX loaded on Microsoft VS Code 1.136.0.
+- **Suggested next step**: Phase 8 human item: install the rebuilt VSIX, open Select Agentic Model, confirm leftover Ollama tags are absent.
 
 ##### WN-1 - Mtime freshness cannot catch a freshly copied stale NSIS
 

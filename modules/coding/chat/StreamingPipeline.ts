@@ -1,4 +1,9 @@
-import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../llm/types.js";
+import type {
+  OllamaClient,
+  OllamaMessage,
+  OllamaOptions,
+  OllamaToolDefinition,
+} from "../llm/types.js";
 import { OllamaError } from "../llm/types.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
@@ -32,8 +37,10 @@ export class StreamingPipeline {
   constructor(
     private readonly _client: OllamaClient,
     private readonly _manager: ConversationManager,
-    private readonly _modelName: string,
-    private readonly _runAgentLoop?: (postMessage: PostMessageFn) => Promise<void>,
+    private _modelName: string,
+    private readonly _runAgentLoop?: (
+      postMessage: PostMessageFn,
+    ) => Promise<void>,
     private readonly _ollamaOptions?: OllamaOptions,
     private readonly _tools?: OllamaToolDefinition[],
     resolveKeepAlive?: KeepAliveResolver | null,
@@ -44,6 +51,14 @@ export class StreamingPipeline {
   /** Abort any in-flight stream request. */
   cancel(): void {
     this._abortController?.abort();
+  }
+
+  /**
+   * v2.4.6 Phase 4 -- follow the coding model picker without rebuilding the
+   * pipeline graph (skills, hooks, and the agent loop stay attached).
+   */
+  setModelName(modelName: string): void {
+    this._modelName = modelName;
   }
 
   /**
@@ -124,7 +139,10 @@ export class StreamingPipeline {
           ...(this._tools ? { tools: this._tools } : {}),
           ...(keepAlive !== null ? { keep_alive: keepAlive } : {}),
         };
-        const stream = this._client.streamChat(request, this._abortController.signal);
+        const stream = this._client.streamChat(
+          request,
+          this._abortController.signal,
+        );
 
         for await (const chunk of stream) {
           const token = chunk.message.content;
@@ -144,7 +162,8 @@ export class StreamingPipeline {
         }
 
         const memTail = scrubber.flush();
-        const channelTail = channelScrubber.feed(memTail) + channelScrubber.flush();
+        const channelTail =
+          channelScrubber.feed(memTail) + channelScrubber.flush();
         const tailEvents = [
           ...toolCallParser.feed(channelTail),
           ...toolCallParser.flush(),
@@ -160,7 +179,11 @@ export class StreamingPipeline {
         const visible = parseChannel(accumulated).visible || accumulated;
         const msg = this._manager.addAssistantMessage(visible);
         // renderedHtml is populated by NexusCodingPanel's postMessage interceptor.
-        postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
+        postMessage({
+          type: "messageComplete",
+          messageId: msg.id,
+          renderedHtml: "",
+        });
         return;
       } catch (err) {
         if (this._abortController.signal.aborted) {
@@ -192,9 +215,7 @@ export class StreamingPipeline {
         );
       }
       if (err.statusCode === 0 || err.message.toLowerCase().includes("fetch")) {
-        return (
-          "Cannot reach Ollama. Make sure `ollama serve` is running on your machine."
-        );
+        return "Cannot reach Ollama. Make sure `ollama serve` is running on your machine.";
       }
       return `Ollama error (${err.statusCode}): ${err.message}`;
     }

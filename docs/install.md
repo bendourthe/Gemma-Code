@@ -71,7 +71,7 @@ Everything lands under your user account (no admin rights needed for the wizard 
 
 ## After you install (v2.3.1)
 
-- **VS Code extension**: optional. The wizard enables the Features checkbox for Microsoft stable 1.134, 1.135, or 1.136. 1.137+, Insiders, Cursor, and Windsurf stay visible and disabled. Replace uses `--force` only when `nexus-coding.nexus-coding` or `gemma-code.gemma-code` is already listed.
+- **VS Code extension**: optional. The wizard enables the Features checkbox for Microsoft stable 1.134, 1.135, or 1.136. 1.137+, Insiders, Cursor, and Windsurf stay visible and disabled. Replace uses `--force` only when `nexus-coding.nexus-coding` or `gemma-code.gemma-code` is already listed. After install, **Nexus Code: Select Agentic Model** (status bar and `/model`) lists only models from this install's `selected-models.json` that are agentic and present on disk, not every Ollama tag.
 - **Unsloth Core**: Configuration Features, on by default when Compatible (NVIDIA 16 GB+ VRAM). Not a VS Code option.
 - **Embedder**: Nomic is required. EmbeddingGemma 300M is opt-in and does not reindex existing memory.
 
