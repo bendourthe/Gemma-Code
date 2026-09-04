@@ -6,13 +6,16 @@ import { describe, expect, it } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
-  desktopPayloadPath,
   formatDesktopPayloadLabel,
   parseDesktopPayloadIdentity,
-  readDesktopPayloadIdentity,
 } from "../../../../core/storage/desktopPayload.js";
+import {
+  desktopPayloadPath,
+  readDesktopPayloadIdentity,
+} from "../../../../core/storage/desktopPayloadFs.js";
 
 describe("desktopPayloadPath", () => {
   it("resolves under ~/.nexus/desktop-payload.json", () => {
@@ -71,5 +74,19 @@ describe("readDesktopPayloadIdentity", () => {
 
   it("rejects a body without sha256", () => {
     expect(parseDesktopPayloadIdentity({ version: "2.4.1" })).toBeNull();
+  });
+});
+
+describe("desktopPayload.ts browser boundary", () => {
+  it("keeps parse and format free of node:fs for the Vite renderer", () => {
+    const src = fs.readFileSync(
+      path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "../../../../core/storage/desktopPayload.ts",
+      ),
+      "utf8",
+    );
+    expect(src).not.toMatch(/node:fs/);
+    expect(src).not.toMatch(/readFileSync/);
   });
 });

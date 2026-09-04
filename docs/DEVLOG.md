@@ -4,6 +4,21 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-04] v2.4.6 Phase 8 - Integration PR and merge-result fixes
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.6-field-delivery.md), PR [62](https://github.com/bendourthe/Nexus-AI/pull/62). Package remains **2.4.1**.
+
+### What Changed
+
+- Opened the develop integration PR. The first merge-result run failed installer GPU elision, Vite `node:fs` in Settings, and production `qs` / `fast-uri` advisories. All three were reproduced locally and fixed in source (name-only GPU elide, `desktopPayloadFs.ts`, in-range overrides).
+- Merge, installer rebuild, and `/update release` still wait on a green re-run plus operator approval.
+
+### Why It Changed
+
+A red required check reopens the last phase. Re-running without a local reproduction is a guess.
+
+---
+
 ## [2026-09-03] v2.4.6 Phase 8 - Last-phase evidence (publication pending)
 
 Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.6-field-delivery.md), history [P8](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-8-evidence.md). Package remains **2.4.1**.

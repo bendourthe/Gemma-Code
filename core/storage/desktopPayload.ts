@@ -6,13 +6,9 @@
  * so an operator can tell the running app matches the installer they just
  * ran. A missing or unreadable file is "unknown", never a guessed 2.4.1.
  *
- * This module performs filesystem I/O; the home path helper is `nexusHome()`.
+ * This module is browser-safe (parse + format only). Node filesystem reads
+ * live in `desktopPayloadFs.ts` and are used by the sidecar.
  */
-
-import { readFileSync } from "node:fs";
-import * as path from "node:path";
-
-import { nexusHome } from "./paths.js";
 
 export const DESKTOP_PAYLOAD_FILENAME = "desktop-payload.json";
 
@@ -20,10 +16,6 @@ export interface DesktopPayloadIdentity {
   version: string;
   sha256: string;
   originalName?: string;
-}
-
-export function desktopPayloadPath(homeDirFn?: () => string): string {
-  return path.join(nexusHome(homeDirFn), DESKTOP_PAYLOAD_FILENAME);
 }
 
 export function formatDesktopPayloadLabel(
@@ -52,16 +44,4 @@ export function parseDesktopPayloadIdentity(
         ? record.originalName
         : undefined;
   return { version, sha256: sha256.toLowerCase(), originalName };
-}
-
-/** Tolerant read: null when the file is absent, unreadable, or malformed. */
-export function readDesktopPayloadIdentity(
-  filePath: string = desktopPayloadPath(),
-): DesktopPayloadIdentity | null {
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(filePath, "utf8"));
-    return parseDesktopPayloadIdentity(parsed);
-  } catch {
-    return null;
-  }
 }

@@ -150,7 +150,7 @@ import {
   hubLayoutDir,
   nexusHome,
 } from "../../../core/storage/paths.js";
-import { readDesktopPayloadIdentity } from "../../../core/storage/desktopPayload.js";
+import { readDesktopPayloadIdentity } from "../../../core/storage/desktopPayloadFs.js";
 import { createWorkspaceScope } from "../../../core/project/WorkspaceScope.js";
 import { WorkspaceScopeStore } from "../../../core/project/WorkspaceScopeStore.js";
 import {

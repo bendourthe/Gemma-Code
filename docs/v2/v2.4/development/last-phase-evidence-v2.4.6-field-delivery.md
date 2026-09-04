@@ -209,4 +209,12 @@ Installer and extension suites were green at their phase commits (`fb7d8ddd` thr
 
 ## Publication and integration
 
-Not started. Non-final phases did not push. This section waits on explicit approval to publish `feat/v2.4.6-field-delivery-density-and-session-identity` once, open the integration PR against `develop`, wait for required checks on the merge result, and merge only on green. `/update release` is held until that merge is green. The installer rebuild uses a fresh `desktop` `npm run build:shell` after merge, not from an unintegrated feature tip.
+PR: https://github.com/bendourthe/Nexus-AI/pull/62 against `develop` (opened 2026-09-04). Branch published. Package remains 2.4.1. `/update release` and the installer rebuild are held until this PR is green and merged.
+
+First merge-result run was red on three checks. Each was reproduced locally before any re-push:
+
+1. `Installer tests + lint + smoke` -- `test_compact_gpu_name_vendor_vram_one_label` saw `'16 GB VRAM' in 'NVIDIA GeForce RTX 3080 Ti Laptop GPU | Vendor: Nvidia | 16 G…'`. Compact elide now shortens the GPU name and keeps the vendor + VRAM suffix. Local: `uv run pytest tests/test_pages_qt.py::TestGpuDetectionPage` 9 passed.
+2. `Shell ubuntu-latest` -- `vite build` failed on `core/storage/desktopPayload.ts` `readFileSync` (`node:fs` is not a browser export). Parse/format stay in `desktopPayload.ts`; Node reads moved to `desktopPayloadFs.ts`. Local: `desktop` `npm run build:web` succeeded (1792 modules).
+3. `npm audit (production deps)` -- 2 non-allowlisted advisories: `qs` CVE-2026-82562 (patched 6.16.0) and `fast-uri` GHSA-qw65-cvwx-89v3 (patched 3.1.7 on the 3.x line). Overrides bumped in-range. Local: `npm run check:audit-prod` OK (0 blocking).
+
+Merge still waits on a green re-run and explicit operator approval. Do not rebuild `NexusSetup.exe` from this feature tip.

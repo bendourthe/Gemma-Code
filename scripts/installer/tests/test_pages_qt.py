@@ -291,10 +291,14 @@ class TestGpuDetectionPage:
                 "NVIDIA GeForce RTX 3080 Ti Laptop GPU", "nvidia", 16384
             )
             assert page._gpu_detail_label.isHidden()
+            full = page._gpu_line_full
+            assert full == (
+                "NVIDIA GeForce RTX 3080 Ti Laptop GPU | Vendor: Nvidia | 16 GB VRAM"
+            )
             line = page._gpu_name_label.text()
             assert "Vendor: Nvidia" in line
             assert "16 GB VRAM" in line
-            assert "NVIDIA GeForce RTX 3080 Ti Laptop GPU" in line
+            assert "NVIDIA GeForce RTX 3080 Ti Laptop GPU" in full
             assert "|" in line
 
     def test_compact_no_gpu_hides_card_keeps_warning(self, qt_app: object) -> None:
@@ -334,6 +338,29 @@ class TestGpuDetectionPage:
             shown = page._gpu_name_label.text()
             assert shown != page._gpu_line_full
             assert "\u2026" in shown or shown.endswith("...")
+            assert page._gpu_name_label.toolTip() == page._gpu_line_full
+
+    def test_compact_gpu_elide_keeps_vram_when_name_is_long(
+        self, qt_app: object
+    ) -> None:
+        with (
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+            patch(
+                "nexus_installer.pages.gpu_detection.detect_total_ram_gb",
+                return_value=32,
+            ),
+        ):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+
+            page = GpuDetectionPage(InstallerState(), compact=True)
+            page._on_detection_complete(
+                "NVIDIA GeForce RTX 3080 Ti Laptop GPU", "nvidia", 16384
+            )
+            page._gpu_name_label.setFixedWidth(420)
+            page._apply_gpu_elide()
+            shown = page._gpu_name_label.text()
+            assert "16 GB VRAM" in shown
+            assert "Vendor: Nvidia" in shown
             assert page._gpu_name_label.toolTip() == page._gpu_line_full
 
     def test_compact_gpu_elide_keeps_full_text_when_narrow(

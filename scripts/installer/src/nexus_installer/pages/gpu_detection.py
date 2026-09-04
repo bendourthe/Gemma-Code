@@ -340,6 +340,8 @@ class GpuDetectionPage(QWidget):
 
         self._gpu_name_label = QLabel("")
         self._gpu_line_full = ""
+        self._gpu_line_name = ""
+        self._gpu_line_suffix = ""
         name_px = FS_H3 if compact else FS_H2
         self._gpu_name_label.setStyleSheet(
             f"font-size: {name_px}px; font-weight: bold; background: transparent;"
@@ -402,9 +404,11 @@ class GpuDetectionPage(QWidget):
             shown_gb = display_vram_gb(vram_mb)
             vendor_txt = vendor.capitalize() if vendor else "Unknown"
             if self._compact:
-                self._gpu_line_full = (
-                    f"{name} | Vendor: {vendor_txt} | {shown_gb} GB VRAM"
+                self._gpu_line_name = name
+                self._gpu_line_suffix = (
+                    f" | Vendor: {vendor_txt} | {shown_gb} GB VRAM"
                 )
+                self._gpu_line_full = f"{name}{self._gpu_line_suffix}"
                 self._gpu_name_label.setText(self._gpu_line_full)
                 self._apply_gpu_elide()
                 self._gpu_detail_label.setVisible(False)
@@ -453,9 +457,20 @@ class GpuDetectionPage(QWidget):
             self._gpu_name_label.setText(self._gpu_line_full)
             return
         metrics = QFontMetrics(self._gpu_name_label.font())
-        self._gpu_name_label.setText(
-            metrics.elidedText(self._gpu_line_full, Qt.TextElideMode.ElideRight, width)
+        suffix = self._gpu_line_suffix
+        suffix_w = metrics.horizontalAdvance(suffix) if suffix else 0
+        if not suffix or suffix_w + 24 > width:
+            self._gpu_name_label.setText(
+                metrics.elidedText(
+                    self._gpu_line_full, Qt.TextElideMode.ElideRight, width
+                )
+            )
+            return
+        name_w = max(24, width - suffix_w)
+        elided_name = metrics.elidedText(
+            self._gpu_line_name, Qt.TextElideMode.ElideRight, name_w
         )
+        self._gpu_name_label.setText(f"{elided_name}{suffix}")
 
     def validate(self) -> tuple[bool, str]:
         """Block Next until the GPU probe has finished (CPU-only is a result)."""
