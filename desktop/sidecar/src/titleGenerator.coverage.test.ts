@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { fallbackTitle, generateChatTitle, sanitizeTitle } from "./chat/titleGenerator";
+import {
+  fallbackTitle,
+  generateChatTitle,
+  sanitizeTitle,
+} from "./chat/titleGenerator";
 
 describe("fallbackTitle", () => {
-  it("uses the first words of the prompt, or New chat when empty", () => {
-    expect(fallbackTitle("   ")).toBe("New chat");
-    expect(fallbackTitle("one two three four five six seven")).toBe("one two three four five six");
+  it("uses the first words of the prompt, or New session when empty", () => {
+    expect(fallbackTitle("   ")).toBe("New session");
+    expect(fallbackTitle("one two three four five six seven")).toBe(
+      "one two three four five six",
+    );
   });
 });
 
 describe("sanitizeTitle", () => {
   it("strips quotes, a Title prefix, and trailing punctuation", () => {
-    expect(sanitizeTitle('Title: "Collapse the rail"')).toBe("Collapse the rail");
+    expect(sanitizeTitle('Title: "Collapse the rail"')).toBe(
+      "Collapse the rail",
+    );
   });
 });
 

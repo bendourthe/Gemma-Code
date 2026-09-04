@@ -6,16 +6,22 @@
  * may replace it unless the user already renamed.
  */
 
-import { fallbackTitle } from "../../../sidecar/src/chat/titleGenerator";
+import {
+  DEFAULT_SESSION_TITLE,
+  fallbackTitle,
+} from "../../../sidecar/src/chat/titleGenerator";
 import { ipc } from "../../lib/ipc";
 
-export const DEFAULT_SESSION_TITLE = "New chat";
+export { DEFAULT_SESSION_TITLE };
 
 export function isUntitledSession(
   title: string | null | undefined,
   userRenamed?: boolean,
 ): boolean {
-  return userRenamed !== true && (title ?? DEFAULT_SESSION_TITLE) === DEFAULT_SESSION_TITLE;
+  return (
+    userRenamed !== true &&
+    (title ?? DEFAULT_SESSION_TITLE) === DEFAULT_SESSION_TITLE
+  );
 }
 
 export function shouldTitleOnFirstSend(opts: {
@@ -36,12 +42,19 @@ export async function applyImmediateFallbackTitle(opts: {
   readonly currentTitle?: string;
   readonly rename: (id: string, title: string, byUser?: boolean) => unknown;
 }): Promise<string> {
-  if (!isUntitledSession(opts.currentTitle ?? DEFAULT_SESSION_TITLE, opts.userRenamed)) {
+  if (
+    !isUntitledSession(
+      opts.currentTitle ?? DEFAULT_SESSION_TITLE,
+      opts.userRenamed,
+    )
+  ) {
     return opts.currentTitle ?? DEFAULT_SESSION_TITLE;
   }
   const immediate = fallbackTitle(opts.prompt);
   if (immediate === DEFAULT_SESSION_TITLE) return immediate;
-  await Promise.resolve(opts.rename(opts.sessionId, immediate, false)).catch(() => undefined);
+  await Promise.resolve(opts.rename(opts.sessionId, immediate, false)).catch(
+    () => undefined,
+  );
   return immediate;
 }
 
@@ -69,9 +82,13 @@ export async function refineGeneratedTitle(opts: {
   try {
     const result = await generate(opts.sessionId, opts.prompt);
     if (!result?.title) return;
-    const stillAuto = opts.isStillAutoTitle ? await opts.isStillAutoTitle() : true;
+    const stillAuto = opts.isStillAutoTitle
+      ? await opts.isStillAutoTitle()
+      : true;
     if (!stillAuto) return;
-    await Promise.resolve(opts.rename(opts.sessionId, result.title, false)).catch(() => undefined);
+    await Promise.resolve(
+      opts.rename(opts.sessionId, result.title, false),
+    ).catch(() => undefined);
   } catch {
     // Titling is a convenience.
   }

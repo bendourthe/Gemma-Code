@@ -10,12 +10,12 @@ import type { StudioTurn } from "../../../../core/generations/StudioSessionStore
 import { isoTimestampFromMillis } from "../chat/transcriptChrome";
 
 export const MISSING_OUTPUT_TEXT = "output missing on disk";
-export const UNREADABLE_OUTPUT_TEXT = "Last output is unreadable; cannot edit it.";
+export const UNREADABLE_OUTPUT_TEXT =
+  "Last output is unreadable; cannot edit it.";
 
 export function sessionTitleFromPrompt(text: string): string {
   const trimmed = text.trim().replace(/\s+/g, " ");
-  // v2.2.9 Phase 3.1 (T007): Chatbot copy -- the studio rail is "Chats" now.
-  if (!trimmed) return "New chat";
+  if (!trimmed) return "New session";
   return trimmed.length > 48 ? `${trimmed.slice(0, 45)}...` : trimmed;
 }
 
@@ -34,7 +34,9 @@ export function isUsablePathRef(
   return true;
 }
 
-export function lastAssistantMediaRef(turns: readonly StudioTurn[]): string | null {
+export function lastAssistantMediaRef(
+  turns: readonly StudioTurn[],
+): string | null {
   for (let i = turns.length - 1; i >= 0; i -= 1) {
     const turn = turns[i];
     if (turn?.role === "assistant" && turn.mediaRef) return turn.mediaRef;
@@ -87,7 +89,7 @@ export function studioTurnsToChatMessages(
       id: turn.id,
       role: "assistant" as const,
       content: turn.content,
-        timestamp: isoTimestampFromMillis(turn.createdAt),
+      timestamp: isoTimestampFromMillis(turn.createdAt),
       inputTokens: turn.inputTokens ?? null,
       reasoningTokens: turn.reasoningTokens ?? null,
       reasoningText: turn.reasoningText ?? null,

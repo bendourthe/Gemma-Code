@@ -7,7 +7,10 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { useEffect } from "react";
 
-import { SESSION_VISUAL_CAP_DEFAULT, sessionContextUsage } from "../../core/chat/sessionContextUsage";
+import {
+  SESSION_VISUAL_CAP_DEFAULT,
+  sessionContextUsage,
+} from "../../core/chat/sessionContextUsage";
 import { fallbackTitle } from "../sidecar/src/chat/titleGenerator";
 import { useStickToBottom } from "../src/shared/chat/useStickToBottom";
 import { sessionTitleFromPrompt } from "../src/shared/explorer/studioSessionMemory";
@@ -17,7 +20,10 @@ import {
   refineGeneratedTitle,
   shouldTitleOnFirstSend,
 } from "../src/shared/explorer/scheduleFirstPromptTitle";
-import { deleteConfirmCopy, rangeSelectKeys } from "../src/modules/chat/folderTreeDeleteCopy";
+import {
+  deleteConfirmCopy,
+  rangeSelectKeys,
+} from "../src/modules/chat/folderTreeDeleteCopy";
 
 describe("useStickToBottom", () => {
   it("composer stickNow jumps to the bottom after the user has scrolled up", () => {
@@ -33,8 +39,14 @@ describe("useStickToBottom", () => {
           ref={(el) => {
             scrollRef.current = el;
             if (!el) return;
-            Object.defineProperty(el, "scrollHeight", { configurable: true, value: 900 });
-            Object.defineProperty(el, "clientHeight", { configurable: true, value: 200 });
+            Object.defineProperty(el, "scrollHeight", {
+              configurable: true,
+              value: 900,
+            });
+            Object.defineProperty(el, "clientHeight", {
+              configurable: true,
+              value: 200,
+            });
           }}
           onScroll={onScroll}
         />
@@ -88,16 +100,21 @@ describe("session visual footer cap", () => {
 describe("generic delete copy", () => {
   it("never interpolates a title", () => {
     const copy = deleteConfirmCopy([{ kind: "chat", id: "c1" }]);
-    expect(copy.question).toBe("Delete the selected chat?");
+    expect(copy.question).toBe("Delete the selected session?");
     expect(copy.irreversible).toBe("This action cannot be undone.");
     expect(copy.question).not.toMatch(/puppy|prompt/i);
   });
 
   it("uses chats / folder / items wording", () => {
-    expect(deleteConfirmCopy([{ kind: "chat", id: "a" }, { kind: "chat", id: "b" }]).question).toBe(
-      "Delete the selected chats?",
+    expect(
+      deleteConfirmCopy([
+        { kind: "chat", id: "a" },
+        { kind: "chat", id: "b" },
+      ]).question,
+    ).toBe("Delete the selected sessions?");
+    expect(deleteConfirmCopy([{ kind: "folder", id: "f" }]).question).toBe(
+      "Delete the selected folder?",
     );
-    expect(deleteConfirmCopy([{ kind: "folder", id: "f" }]).question).toBe("Delete the selected folder?");
     expect(
       deleteConfirmCopy([
         { kind: "chat", id: "a" },
@@ -107,7 +124,11 @@ describe("generic delete copy", () => {
   });
 
   it("range-selects contiguous keys", () => {
-    expect(rangeSelectKeys(["a", "b", "c", "d"], 1, 3)).toEqual(["b", "c", "d"]);
+    expect(rangeSelectKeys(["a", "b", "c", "d"], 1, 3)).toEqual([
+      "b",
+      "c",
+      "d",
+    ]);
   });
 });
 

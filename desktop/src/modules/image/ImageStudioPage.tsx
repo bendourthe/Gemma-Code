@@ -34,7 +34,15 @@ import {
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
 
-import { ComposerContextRow, MediaComposer, MessageList, composerSessionUsage, useStickToBottom, withLiveTimestamp, type ChatMessage } from "../../shared/chat";
+import {
+  ComposerContextRow,
+  MediaComposer,
+  MessageList,
+  composerSessionUsage,
+  useStickToBottom,
+  withLiveTimestamp,
+  type ChatMessage,
+} from "../../shared/chat";
 import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import {
@@ -49,7 +57,10 @@ import {
   type SelectionSnapshot,
 } from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
-import type { ListedModelDto, InstallProgressDto } from "../../pages/settings/modelsTypes";
+import type {
+  ListedModelDto,
+  InstallProgressDto,
+} from "../../pages/settings/modelsTypes";
 import type { InstallHandle } from "../../pages/settings/ModelsSettings";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import {
@@ -60,7 +71,12 @@ import {
 } from "./ImagePromptForm";
 import { inferImageIntent } from "./intent";
 import { MaskEditor } from "./MaskEditor";
-import { parseReplaceIntent, inpaintPromptFor, restylePromptFor, usesSegment } from "../../../../core/image/replaceIntent";
+import {
+  parseReplaceIntent,
+  inpaintPromptFor,
+  restylePromptFor,
+  usesSegment,
+} from "../../../../core/image/replaceIntent";
 import {
   FOLLOWUP_IMG2IMG_STRENGTH,
   MISSING_RESTYLE_SOURCE_TEXT,
@@ -75,7 +91,11 @@ import {
   type ProgressEvent,
   createIpcDiffusionClient,
 } from "./diffusionClient";
-import { RecallActions, applyImageRecall, type RecallMode } from "../../shared/studio/RecallActions";
+import {
+  RecallActions,
+  applyImageRecall,
+  type RecallMode,
+} from "../../shared/studio/RecallActions";
 import { GenerationQueueBar } from "../../shared/studio/GenerationQueueBar";
 import {
   createIpcGenerationQueueClient,
@@ -176,7 +196,9 @@ function nextId(prefix: string): string {
   return `${prefix}-${messageSeq}`;
 }
 
-function imageRecoveryState(state: MediaRuntimeState): ChatMessage["mediaRecovery"] {
+function imageRecoveryState(
+  state: MediaRuntimeState,
+): ChatMessage["mediaRecovery"] {
   if (state.state === "ready") return undefined;
   return {
     state: state.state,
@@ -206,14 +228,18 @@ export function ImageStudioPage({
   outputExists,
   mediaRuntimeClient: mediaRuntimeOverride,
 }: ImageStudioPageProps = {}): JSX.Element {
-  const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
+  const [client] = useState<DiffusionClient>(
+    () => clientOverride ?? createIpcDiffusionClient(),
+  );
   const [queueClient] = useState<GenerationQueueClient>(
     () => queueOverride ?? createIpcGenerationQueueClient(),
   );
   const [mediaRuntimeClient] = useState<MediaRuntimeClient>(
     () => mediaRuntimeOverride ?? createIpcMediaRuntimeClient(),
   );
-  const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
+  const [models, setModels] = useState<readonly ListedModelDto[]>([
+    FALLBACK_MODEL,
+  ]);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const userChangedModelRef = useRef(false);
   const [noneInstalled, setNoneInstalled] = useState(false);
@@ -226,7 +252,10 @@ export function ImageStudioPage({
   const residency = useModelResidency({ rememberedPairs: residencyMemory });
   // Holds the prompt whose submit opened the confirm dialog, so answering
   // "Switch now" resumes the SAME request instead of losing it.
-  const pendingPromptRef = useRef<{ text: string; attachments: readonly string[] }>({
+  const pendingPromptRef = useRef<{
+    text: string;
+    attachments: readonly string[];
+  }>({
     text: "",
     attachments: [],
   });
@@ -238,10 +267,13 @@ export function ImageStudioPage({
   const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
   const studioClient = useMemo(() => {
     if (explorerClientOverride) return explorerClientOverride;
-    if (backendDown || !tauriAvailable()) return new InMemoryStudioExplorerClient("image");
+    if (backendDown || !tauriAvailable())
+      return new InMemoryStudioExplorerClient("image");
     return createIpcStudioExplorerClient("image");
   }, [explorerClientOverride, backendDown]);
-  const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
+  const [selectedModelId, setSelectedModelId] = useState<string>(
+    FALLBACK_MODEL.id,
+  );
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const lastStudioMessage = messages[messages.length - 1];
@@ -259,13 +291,19 @@ export function ImageStudioPage({
   }, []);
   const lastOutputRef = useRef<string | null>(null);
   const lastPngB64Ref = useRef<string | null>(null);
-  const modelsSourceRef = useRef<ImageStudioPageProps["modelsClient"]>(modelsClient);
+  const modelsSourceRef =
+    useRef<ImageStudioPageProps["modelsClient"]>(modelsClient);
   const [historyEpoch, setHistoryEpoch] = useState(0);
-  const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
+  const [activeJob, setActiveJob] = useState<{
+    jobId: string;
+    messageId: string;
+  } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
   const [formEpoch, setFormEpoch] = useState(0);
   const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
-  const [workflowByMessage, setWorkflowByMessage] = useState<Record<string, Record<string, unknown>>>({});
+  const [workflowByMessage, setWorkflowByMessage] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
   const [paintedMask, setPaintedMask] = useState<string | null>(null);
   const [pendingReplace, setPendingReplace] = useState<{
     assistantId: string;
@@ -293,9 +331,11 @@ export function ImageStudioPage({
       try {
         const all = await source.list();
         const snap = source.lastSelection ?? null;
-        const image = installedModelsForType(all, "image", ownedIdSet(snap)).filter(
-          (m) => !m.tags?.includes("utility"),
-        );
+        const image = installedModelsForType(
+          all,
+          "image",
+          ownedIdSet(snap),
+        ).filter((m) => !m.tags?.includes("utility"));
         if (cancelled) return;
         setSelection(snap);
         const first = image[0];
@@ -304,7 +344,8 @@ export function ImageStudioPage({
           const next = resolveDefaultId(image, {
             recommended: snap?.recommendedByTask.image ?? null,
           });
-          if (!userChangedModelRef.current) setSelectedModelId(next || first.id);
+          if (!userChangedModelRef.current)
+            setSelectedModelId(next || first.id);
           setNoneInstalled(false);
           setListFailure(null);
         } else {
@@ -336,12 +377,21 @@ export function ImageStudioPage({
     };
   }, [modelsClient]);
 
-  const patchMessage = useCallback((id: string, patch: Partial<ChatMessage>): void => {
-    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-  }, []);
+  const patchMessage = useCallback(
+    (id: string, patch: Partial<ChatMessage>): void => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      );
+    },
+    [],
+  );
 
   const persistTurn = useCallback(
-    (input: { role: "user" | "assistant"; content: string; mediaRef?: string | null }): void => {
+    (input: {
+      role: "user" | "assistant";
+      content: string;
+      mediaRef?: string | null;
+    }): void => {
       if (backendDown) return;
       const sessionId = activeSessionIdRef.current;
       if (!sessionId || !studioClient.appendTurn) return;
@@ -354,7 +404,10 @@ export function ImageStudioPage({
             mediaRef: input.mediaRef ?? null,
             ...studioPersistUsage(input),
           }),
-        ).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+        ).then(
+          () => setHistoryEpoch((n) => n + 1),
+          () => undefined,
+        );
       } catch {
         // Do not claim saved.
       }
@@ -365,7 +418,11 @@ export function ImageStudioPage({
   const ensureSession = useCallback(
     async (prompt: string): Promise<string | null> => {
       if (backendDown) return null;
-      const scheduleTitle = (sessionId: string, title: string, turnCount: number): void => {
+      const scheduleTitle = (
+        sessionId: string,
+        title: string,
+        turnCount: number,
+      ): void => {
         if (!shouldTitleOnFirstSend({ title, turnCount, prompt })) return;
         titleJobRef.current = { id: sessionId, prompt };
         void applyImmediateFallbackTitle({
@@ -373,12 +430,17 @@ export function ImageStudioPage({
           prompt,
           currentTitle: title,
           rename: (id, nextTitle) => studioClient.renameSession(id, nextTitle),
-        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+        }).then(
+          () => setHistoryEpoch((n) => n + 1),
+          () => undefined,
+        );
       };
       if (activeSessionIdRef.current) {
         const existingId = activeSessionIdRef.current;
         try {
-          const session = await Promise.resolve(studioClient.getSession(existingId));
+          const session = await Promise.resolve(
+            studioClient.getSession(existingId),
+          );
           scheduleTitle(
             existingId,
             session?.title ?? DEFAULT_SESSION_TITLE,
@@ -410,7 +472,10 @@ export function ImageStudioPage({
 
   const hydrateSession = useCallback(
     (sessionId: string): void => {
-      const apply = (turns: readonly StudioTurn[], lastRef: string | null): void => {
+      const apply = (
+        turns: readonly StudioTurn[],
+        lastRef: string | null,
+      ): void => {
         setActiveSession(sessionId);
         lastOutputRef.current = lastRef;
         lastPngB64Ref.current = lastRef?.toLowerCase().startsWith("data:")
@@ -421,21 +486,29 @@ export function ImageStudioPage({
       const turnsMaybe = studioClient.listTurns?.(sessionId) ?? [];
       const sessionMaybe = studioClient.getSession(sessionId);
       const isThenable = (value: unknown): value is Promise<unknown> =>
-        typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
+        typeof value === "object" &&
+        value !== null &&
+        typeof (value as { then?: unknown }).then === "function";
       if (!isThenable(turnsMaybe) && !isThenable(sessionMaybe)) {
         const turns = turnsMaybe as readonly StudioTurn[];
-        apply(turns, (sessionMaybe as { lastOutputRef?: string | null } | null)?.lastOutputRef ?? lastAssistantMediaRef(turns));
+        apply(
+          turns,
+          (sessionMaybe as { lastOutputRef?: string | null } | null)
+            ?.lastOutputRef ?? lastAssistantMediaRef(turns),
+        );
         return;
       }
-      void Promise.all([Promise.resolve(turnsMaybe), Promise.resolve(sessionMaybe)]).then(
-        ([turns, session]) => {
-          const list = (turns ?? []) as readonly StudioTurn[];
-          apply(
-            list,
-            (session as { lastOutputRef?: string | null } | null)?.lastOutputRef ?? lastAssistantMediaRef(list),
-          );
-        },
-      );
+      void Promise.all([
+        Promise.resolve(turnsMaybe),
+        Promise.resolve(sessionMaybe),
+      ]).then(([turns, session]) => {
+        const list = (turns ?? []) as readonly StudioTurn[];
+        apply(
+          list,
+          (session as { lastOutputRef?: string | null } | null)
+            ?.lastOutputRef ?? lastAssistantMediaRef(list),
+        );
+      });
     },
     [studioClient, outputExists, setActiveSession],
   );
@@ -450,7 +523,7 @@ export function ImageStudioPage({
       const session = await Promise.resolve(
         studioClient.createSession({
           folderId: null,
-          title: "New chat",
+          title: DEFAULT_SESSION_TITLE,
           modelId: selectedModelId,
         }),
       );
@@ -467,7 +540,10 @@ export function ImageStudioPage({
   }, [initialSessionId, hydrateSession]);
 
   const advanceFromEvents = useCallback(
-    (events: readonly ProgressEvent[], messageId: string): { done: boolean } => {
+    (
+      events: readonly ProgressEvent[],
+      messageId: string,
+    ): { done: boolean } => {
       let done = false;
       for (const event of events) {
         if (event.kind === "progress") {
@@ -488,11 +564,13 @@ export function ImageStudioPage({
               pending: false,
               progress: undefined,
               media: undefined,
-              content: "Generation failed: image generation completed without image bytes.",
+              content:
+                "Generation failed: image generation completed without image bytes.",
             });
             persistTurn({
               role: "assistant",
-              content: "Generation failed: image generation completed without image bytes.",
+              content:
+                "Generation failed: image generation completed without image bytes.",
             });
             continue;
           }
@@ -605,11 +683,17 @@ export function ImageStudioPage({
 
   useEffect(() => {
     let cancelled = false;
-    const timer = setInterval(() => {
-      void queueClient.list().then((jobs) => {
-        if (!cancelled) setQueueJobs(jobs);
-      }).catch(() => undefined);
-    }, Math.max(drainIntervalMs, 200));
+    const timer = setInterval(
+      () => {
+        void queueClient
+          .list()
+          .then((jobs) => {
+            if (!cancelled) setQueueJobs(jobs);
+          })
+          .catch(() => undefined);
+      },
+      Math.max(drainIntervalMs, 200),
+    );
     return () => {
       cancelled = true;
       clearInterval(timer);
@@ -698,10 +782,17 @@ export function ImageStudioPage({
           role: "assistant",
           content: MISSING_RESTYLE_SOURCE_TEXT,
         };
-        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        setMessages((prev) => [
+          ...prev,
+          withLiveTimestamp(userMsg),
+          withLiveTimestamp(assistantMsg),
+        ]);
         await ensureSession(text);
         persistTurn({ role: "user", content: text });
-        persistTurn({ role: "assistant", content: MISSING_RESTYLE_SOURCE_TEXT });
+        persistTurn({
+          role: "assistant",
+          content: MISSING_RESTYLE_SOURCE_TEXT,
+        });
         return;
       }
       if (
@@ -721,7 +812,11 @@ export function ImageStudioPage({
           role: "assistant",
           content: UNREADABLE_OUTPUT_TEXT,
         };
-        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        setMessages((prev) => [
+          ...prev,
+          withLiveTimestamp(userMsg),
+          withLiveTimestamp(assistantMsg),
+        ]);
         await ensureSession(text);
         persistTurn({ role: "user", content: text });
         persistTurn({ role: "assistant", content: UNREADABLE_OUTPUT_TEXT });
@@ -756,22 +851,32 @@ export function ImageStudioPage({
           activity: "image-generation",
         });
       } else {
-        setMessages((prev) => [...prev, withLiveTimestamp(userMsg), withLiveTimestamp(assistantMsg)]);
+        setMessages((prev) => [
+          ...prev,
+          withLiveTimestamp(userMsg),
+          withLiveTimestamp(assistantMsg),
+        ]);
         await ensureSession(text);
         persistTurn({ role: "user", content: text });
       }
-      mediaRetryRef.current = { assistantId, text, attachments: [...attachments] };
+      mediaRetryRef.current = {
+        assistantId,
+        text,
+        attachments: [...attachments],
+      };
 
       const base = valuesToBaseRequest(values, {
-        prompt: restyle && replace
-          ? restylePromptFor(replace)
-          : objectEdit && replace
-            ? inpaintPromptFor(replace)
-            : intent.prompt,
+        prompt:
+          restyle && replace
+            ? restylePromptFor(replace)
+            : objectEdit && replace
+              ? inpaintPromptFor(replace)
+              : intent.prompt,
         modelId: selectedModelId,
       }) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
       const segmentSource = attachments[0] ?? implicitSource;
-      const followUpImg2img = Boolean(implicitSource) && attachments.length === 0;
+      const followUpImg2img =
+        Boolean(implicitSource) && attachments.length === 0;
 
       try {
         if (objectEdit && replace && segmentSource) {
@@ -841,7 +946,10 @@ export function ImageStudioPage({
             pending: false,
             content: MISSING_RESTYLE_SOURCE_TEXT,
           });
-          persistTurn({ role: "assistant", content: MISSING_RESTYLE_SOURCE_TEXT });
+          persistTurn({
+            role: "assistant",
+            content: MISSING_RESTYLE_SOURCE_TEXT,
+          });
           return;
         }
         if (restylePlan) {
@@ -895,16 +1003,35 @@ export function ImageStudioPage({
           prompt: titleJob.prompt,
           rename: (id, title) => studioClient.renameSession(id, title),
           generateTitle: async (id, prompt) => {
-            const reply = await ipc.call<{ title: string }>("chat.generateTitle", {
-              chatId: id,
-              firstMessage: prompt,
-            });
+            const reply = await ipc.call<{ title: string }>(
+              "chat.generateTitle",
+              {
+                chatId: id,
+                firstMessage: prompt,
+              },
+            );
             return reply.ok ? reply.value : null;
           },
-        }).then(() => setHistoryEpoch((n) => n + 1), () => undefined);
+        }).then(
+          () => setHistoryEpoch((n) => n + 1),
+          () => undefined,
+        );
       }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask, persistTurn, ensureSession, outputExists, markMediaRuntimeFailure, stickNow, studioClient],
+    [
+      isGenerating,
+      values,
+      selectedModelId,
+      client,
+      patchMessage,
+      paintedMask,
+      persistTurn,
+      ensureSession,
+      outputExists,
+      markMediaRuntimeFailure,
+      stickNow,
+      studioClient,
+    ],
   );
 
   const repairMediaRuntime = useCallback(
@@ -919,7 +1046,12 @@ export function ImageStudioPage({
       const pending = mediaRetryRef.current;
       if (state.state === "ready" && pending?.assistantId === message.id) {
         mediaRetryRef.current = null;
-        await handleSubmit(pending.text, pending.attachments, true, pending.assistantId);
+        await handleSubmit(
+          pending.text,
+          pending.attachments,
+          true,
+          pending.assistantId,
+        );
       }
     },
     [handleSubmit, mediaRuntimeClient, patchMessage],
@@ -968,7 +1100,9 @@ export function ImageStudioPage({
       lastOutputRef: lastOutputRef.current,
     });
     if (src) {
-      setSeededAttachment(src.toLowerCase().startsWith("data:") ? src : pngToDataUrl(src));
+      setSeededAttachment(
+        src.toLowerCase().startsWith("data:") ? src : pngToDataUrl(src),
+      );
     }
     setAdvancedOpen(true);
   }, []);
@@ -977,7 +1111,12 @@ export function ImageStudioPage({
     async (message: ChatMessage): Promise<void> => {
       const parked = mediaRetryRef.current;
       if (!parked || parked.assistantId !== message.id) return;
-      await handleSubmit(parked.text, parked.attachments, true, parked.assistantId);
+      await handleSubmit(
+        parked.text,
+        parked.attachments,
+        true,
+        parked.assistantId,
+      );
     },
     [handleSubmit],
   );
@@ -991,7 +1130,10 @@ export function ImageStudioPage({
         mask: maskPngBase64,
       });
       patchMessage(pendingReplace.assistantId, { pending: true, content: "" });
-      setActiveJob({ jobId: accepted.jobId, messageId: pendingReplace.assistantId });
+      setActiveJob({
+        jobId: accepted.jobId,
+        messageId: pendingReplace.assistantId,
+      });
       setPendingReplace(null);
     },
     [client, pendingReplace, patchMessage],
@@ -1003,7 +1145,9 @@ export function ImageStudioPage({
     try {
       const workflow = await client.extractWorkflow(png);
       if (!workflow) return;
-      const adapter = clipboard ?? (typeof navigator !== "undefined" ? navigator.clipboard : null);
+      const adapter =
+        clipboard ??
+        (typeof navigator !== "undefined" ? navigator.clipboard : null);
       if (adapter && typeof adapter.writeText === "function") {
         await adapter.writeText(JSON.stringify(workflow, null, 2));
       }
@@ -1016,7 +1160,9 @@ export function ImageStudioPage({
     const png = outputs.current.get(messageId);
     if (!png) return;
     const src = `data:image/png;base64,${png}`;
-    const adapter = clipboard ?? (typeof navigator !== "undefined" ? navigator.clipboard : null);
+    const adapter =
+      clipboard ??
+      (typeof navigator !== "undefined" ? navigator.clipboard : null);
     try {
       if (adapter && typeof adapter.writeText === "function") {
         await adapter.writeText(src);
@@ -1059,7 +1205,13 @@ export function ImageStudioPage({
   return (
     <section
       data-testid="image-studio-page"
-      style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, color: "var(--fg-0)" }}
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        color: "var(--fg-0)",
+      }}
     >
       {/* v2.2.9 Phase 3.1 (T007): the header only exists when it has a visible
           child. When models are installed it would be an empty padded bar
@@ -1079,13 +1231,22 @@ export function ImageStudioPage({
             type="button"
             data-testid="image-get-more-models"
             onClick={() => onGetMoreModels?.()}
-            style={{ background: "transparent", color: "var(--accent-image)", border: "none", cursor: "pointer" }}
+            style={{
+              background: "transparent",
+              color: "var(--accent-image)",
+              border: "none",
+              cursor: "pointer",
+            }}
           >
             No image models installed - get more models
           </button>
         </header>
       )}
-      <a data-testid="image-settings-link" href={SETTINGS_MODELS_PATH} style={{ display: "none" }}>
+      <a
+        data-testid="image-settings-link"
+        href={SETTINGS_MODELS_PATH}
+        style={{ display: "none" }}
+      >
         models settings
       </a>
       {residency.pending && (
@@ -1139,206 +1300,271 @@ export function ImageStudioPage({
           setFormEpoch((value) => value + 1);
         }}
       />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div
-        data-testid="image-history"
-        ref={scrollRef}
-        onScroll={onScroll}
-        style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
       >
-        {messages.length === 0 ? (
-          <p data-testid="image-empty" style={{ color: "var(--fg-muted)" }}>
-            Describe an image to generate it, or drop an image and ask to edit, extend, or vary it.
-          </p>
-        ) : (
-          <MessageList
-            messages={messages}
-            enableTools={false}
-            onMediaError={handleMediaError}
-            renderAfter={(m) =>
-              m.role === "assistant" && m.media ? (
-                <div
-                  data-testid={`image-actions-${m.id}`}
-                  style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
-                >
-                  <button
-                    type="button"
-                    className="nx-icon-btn"
-                    aria-label="Download"
-                    title="Download"
-                    data-testid={`image-download-${m.id}`}
-                    onClick={() => downloadImage(m.id)}
+        <div
+          data-testid="image-history"
+          ref={scrollRef}
+          onScroll={onScroll}
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "var(--space-4)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-3)",
+          }}
+        >
+          {messages.length === 0 ? (
+            <p data-testid="image-empty" style={{ color: "var(--fg-muted)" }}>
+              Describe an image to generate it, or drop an image and ask to
+              edit, extend, or vary it.
+            </p>
+          ) : (
+            <MessageList
+              messages={messages}
+              enableTools={false}
+              onMediaError={handleMediaError}
+              renderAfter={(m) =>
+                m.role === "assistant" && m.media ? (
+                  <div
+                    data-testid={`image-actions-${m.id}`}
+                    style={{
+                      display: "flex",
+                      gap: "var(--space-2)",
+                      marginTop: "var(--space-1)",
+                    }}
                   >
-                    <Download size={16} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="nx-icon-btn"
-                    aria-label="Copy image"
-                    title="Copy image"
-                    data-testid={`image-copyimage-${m.id}`}
-                    onClick={() => void copyImage(m.id)}
-                  >
-                    <Copy size={16} aria-hidden="true" />
-                  </button>
-                </div>
-              ) : null
-            }
-            renderPreviewExtra={(m) =>
-              m.role === "assistant" && m.media ? (
-                <>
-                  <button
-                    type="button"
-                    className="nx-icon-btn"
-                    aria-label="Copy Workflow"
-                    title="Copy Workflow"
-                    data-testid={`image-copyworkflow-${m.id}`}
-                    onClick={() => void copyWorkflow(m.id)}
-                  >
-                    <FileJson size={16} aria-hidden="true" />
-                  </button>
-                  <RecallActions
-                    messageId={m.id}
-                    testIdPrefix="image"
-                    hasWorkflow={Boolean(workflowByMessage[m.id])}
-                    onRecall={(mode) => recall(m.id, mode)}
-                  />
-                  <button
-                    type="button"
-                    className="nx-icon-btn"
-                    aria-label="Use as Source"
-                    title="Use as Source"
-                    data-testid={`image-usesource-${m.id}`}
-                    onClick={() => useAsSource(m.id)}
-                  >
-                    <ImagePlus size={16} aria-hidden="true" />
-                  </button>
-                </>
-              ) : null
-            }
-            onRepairMediaRuntime={(message) => void repairMediaRuntime(message)}
-            onCancelMediaRepair={(message) => void cancelMediaRepair(message)}
-            onOpenMediaRepairLog={() => void mediaRuntimeClient.openLogLocation()}
-            onInstallSam2={(message) => void installSam2(message)}
-            onPaintSam2Mask={paintSam2Mask}
-            onOpenSam2Settings={onGetMoreModels ? () => onGetMoreModels() : undefined}
-            onRetrySam2={(message) => void retrySam2(message)}
-            sam2InstallDisabled={backendDown}
-          />
-        )}
-      </div>
-
-      <div style={{ padding: "var(--space-3) var(--space-4)", borderTop: "1px solid var(--border-1)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <div>
-          <Button
-            type="button"
-            variant="ghost"
-            testId="image-advanced-settings"
-            aria-expanded={advancedOpen}
-            onClick={() => setAdvancedOpen((v) => !v)}
-          >
-            Advanced settings
-          </Button>
-          {advancedOpen ? (
-          <div style={{ marginTop: "var(--space-2)" }}>
-            <ImagePromptForm
-              key={formEpoch}
-              initial={values}
-              availableModels={models.map((m) => ({ id: m.id, displayName: m.displayName }))}
-              availableLoras={DEFAULT_LORAS}
-              availableControlNets={DEFAULT_CONTROLNETS}
-              onChange={setValues}
-              disabled={isGenerating}
-              diffusionTier={diffusionTier}
+                    <button
+                      type="button"
+                      className="nx-icon-btn"
+                      aria-label="Download"
+                      title="Download"
+                      data-testid={`image-download-${m.id}`}
+                      onClick={() => downloadImage(m.id)}
+                    >
+                      <Download size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="nx-icon-btn"
+                      aria-label="Copy image"
+                      title="Copy image"
+                      data-testid={`image-copyimage-${m.id}`}
+                      onClick={() => void copyImage(m.id)}
+                    >
+                      <Copy size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : null
+              }
+              renderPreviewExtra={(m) =>
+                m.role === "assistant" && m.media ? (
+                  <>
+                    <button
+                      type="button"
+                      className="nx-icon-btn"
+                      aria-label="Copy Workflow"
+                      title="Copy Workflow"
+                      data-testid={`image-copyworkflow-${m.id}`}
+                      onClick={() => void copyWorkflow(m.id)}
+                    >
+                      <FileJson size={16} aria-hidden="true" />
+                    </button>
+                    <RecallActions
+                      messageId={m.id}
+                      testIdPrefix="image"
+                      hasWorkflow={Boolean(workflowByMessage[m.id])}
+                      onRecall={(mode) => recall(m.id, mode)}
+                    />
+                    <button
+                      type="button"
+                      className="nx-icon-btn"
+                      aria-label="Use as Source"
+                      title="Use as Source"
+                      data-testid={`image-usesource-${m.id}`}
+                      onClick={() => useAsSource(m.id)}
+                    >
+                      <ImagePlus size={16} aria-hidden="true" />
+                    </button>
+                  </>
+                ) : null
+              }
+              onRepairMediaRuntime={(message) =>
+                void repairMediaRuntime(message)
+              }
+              onCancelMediaRepair={(message) => void cancelMediaRepair(message)}
+              onOpenMediaRepairLog={() =>
+                void mediaRuntimeClient.openLogLocation()
+              }
+              onInstallSam2={(message) => void installSam2(message)}
+              onPaintSam2Mask={paintSam2Mask}
+              onOpenSam2Settings={
+                onGetMoreModels ? () => onGetMoreModels() : undefined
+              }
+              onRetrySam2={(message) => void retrySam2(message)}
+              sam2InstallDisabled={backendDown}
             />
-            {seededAttachment ? (
-              <div data-testid="image-mask-layer">
-                <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
-                  Paint a mask on the source image (Advanced). The next Generate uses inpaint.
-                </p>
-                <MaskEditor
-                  sourceImage={seededAttachment}
-                  width={values.width}
-                  height={values.height}
-                  onMaskChange={setPaintedMask}
+          )}
+        </div>
+
+        <div
+          style={{
+            padding: "var(--space-3) var(--space-4)",
+            borderTop: "1px solid var(--border-1)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-2)",
+          }}
+        >
+          <div>
+            <Button
+              type="button"
+              variant="ghost"
+              testId="image-advanced-settings"
+              aria-expanded={advancedOpen}
+              onClick={() => setAdvancedOpen((v) => !v)}
+            >
+              Advanced settings
+            </Button>
+            {advancedOpen ? (
+              <div style={{ marginTop: "var(--space-2)" }}>
+                <ImagePromptForm
+                  key={formEpoch}
+                  initial={values}
+                  availableModels={models.map((m) => ({
+                    id: m.id,
+                    displayName: m.displayName,
+                  }))}
+                  availableLoras={DEFAULT_LORAS}
+                  availableControlNets={DEFAULT_CONTROLNETS}
+                  onChange={setValues}
+                  disabled={isGenerating}
+                  diffusionTier={diffusionTier}
+                />
+                {seededAttachment ? (
+                  <div data-testid="image-mask-layer">
+                    <p
+                      style={{
+                        color: "var(--fg-muted)",
+                        fontSize: "var(--text-xs)",
+                      }}
+                    >
+                      Paint a mask on the source image (Advanced). The next
+                      Generate uses inpaint.
+                    </p>
+                    <MaskEditor
+                      sourceImage={seededAttachment}
+                      width={values.width}
+                      height={values.height}
+                      onMaskChange={setPaintedMask}
+                    />
+                  </div>
+                ) : null}
+                {pendingReplace ? (
+                  <div
+                    data-testid="image-sam-candidates"
+                    style={{
+                      display: "flex",
+                      gap: "var(--space-2)",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {pendingReplace.candidates.map((c) => (
+                      <Button
+                        key={c.label}
+                        type="button"
+                        variant="ghost"
+                        testId={`image-sam-candidate-${c.label}`}
+                        disabled={isGenerating}
+                        onClick={() => void pickCandidate(c.maskPngBase64)}
+                      >
+                        {c.label}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  testId="image-seed-sweep"
+                  disabled={isGenerating}
+                  onClick={() => {
+                    void queueClient
+                      .enqueue({
+                        pillar: "image",
+                        jobType: "txt2img",
+                        parameters: {
+                          ...values,
+                          prompt: values.prompt || "batch",
+                        },
+                        priority: "batch",
+                        batchSpec: {
+                          kind: "seed-range",
+                          start: values.seed,
+                          end: values.seed + 2,
+                        },
+                      })
+                      .then((jobs) =>
+                        setQueueJobs((prev) => [...prev, ...jobs]),
+                      );
+                  }}
+                >
+                  Queue seed sweep
+                </Button>
+                <GenerationQueueBar
+                  jobs={queueJobs}
+                  onCancel={(id) => {
+                    void queueClient
+                      .cancel(id)
+                      .then(() => queueClient.list().then(setQueueJobs));
+                  }}
+                  onReorder={(ids) => {
+                    void queueClient
+                      .reorder(ids)
+                      .then(() => queueClient.list().then(setQueueJobs));
+                  }}
                 />
               </div>
             ) : null}
-            {pendingReplace ? (
-              <div data-testid="image-sam-candidates" style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-                {pendingReplace.candidates.map((c) => (
-                  <Button
-                    key={c.label}
-                    type="button"
-                    variant="ghost"
-                    testId={`image-sam-candidate-${c.label}`}
-                    disabled={isGenerating}
-                    onClick={() => void pickCandidate(c.maskPngBase64)}
-                  >
-                    {c.label}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-            <Button
-              type="button"
-              testId="image-seed-sweep"
-              disabled={isGenerating}
-              onClick={() => {
-                void queueClient.enqueue({
-                  pillar: "image",
-                  jobType: "txt2img",
-                  parameters: { ...values, prompt: values.prompt || "batch" },
-                  priority: "batch",
-                  batchSpec: { kind: "seed-range", start: values.seed, end: values.seed + 2 },
-                }).then((jobs) => setQueueJobs((prev) => [...prev, ...jobs]));
-              }}
-            >
-              Queue seed sweep
-            </Button>
-            <GenerationQueueBar
-              jobs={queueJobs}
-              onCancel={(id) => {
-                void queueClient.cancel(id).then(() =>
-                  queueClient.list().then(setQueueJobs),
-                );
-              }}
-              onReorder={(ids) => {
-                void queueClient.reorder(ids).then(() =>
-                  queueClient.list().then(setQueueJobs),
-                );
-              }}
-            />
           </div>
-          ) : null}
-        </div>
-        <MediaComposer
-          disabled={isGenerating}
-          onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
-          submitAccentVar="--accent-image"
-          submitLabel="Generate"
-          seededAttachment={seededAttachment}
-          streaming={isGenerating}
-        />
-        <ComposerContextRow usage={contextUsage} onStartNewSession={() => void startFreshStudioSession()}>
-          <QuickModelSwitcher
-            testId="image-model-select"
-            models={models}
-            taskType="image"
-            value={selectedModelId}
-            hostVramGB={hostVramGB}
-            recommendOrder={recommendOrderForTask(selection, "image")}
-            ownedIds={ownedIdSet(selection)}
-            onChange={(nextModelId) => {
-              userChangedModelRef.current = true;
-              setSelectedModelId(nextModelId);
-              writeFavorite("image", nextModelId);
-            }}
-            onGetMoreModels={onGetMoreModels}
+          <MediaComposer
             disabled={isGenerating}
+            onSubmit={(text, attachments) =>
+              void handleSubmit(text, attachments)
+            }
+            submitAccentVar="--accent-image"
+            submitLabel="Generate"
+            seededAttachment={seededAttachment}
+            streaming={isGenerating}
           />
-        </ComposerContextRow>
-      </div>
+          <ComposerContextRow
+            usage={contextUsage}
+            onStartNewSession={() => void startFreshStudioSession()}
+          >
+            <QuickModelSwitcher
+              testId="image-model-select"
+              models={models}
+              taskType="image"
+              value={selectedModelId}
+              hostVramGB={hostVramGB}
+              recommendOrder={recommendOrderForTask(selection, "image")}
+              ownedIds={ownedIdSet(selection)}
+              onChange={(nextModelId) => {
+                userChangedModelRef.current = true;
+                setSelectedModelId(nextModelId);
+                writeFavorite("image", nextModelId);
+              }}
+              onGetMoreModels={onGetMoreModels}
+              disabled={isGenerating}
+            />
+          </ComposerContextRow>
+        </div>
       </div>
     </section>
   );

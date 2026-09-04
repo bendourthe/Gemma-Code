@@ -23,6 +23,7 @@ import type {
   CodingSessionSummaryT,
 } from "../../../sidecar/src/protocol";
 import type { CodingWorkspaceSelection } from "../../lib/persistence";
+import { DEFAULT_SESSION_TITLE } from "./scheduleFirstPromptTitle";
 
 export const CODING_FOLDER_OVERLAY_KEY = "nexus.coding.explorerFolders";
 
@@ -160,7 +161,9 @@ function readOverlay(key: string): FolderOverlay {
       userRenamed:
         parsed.userRenamed && typeof parsed.userRenamed === "object"
           ? Object.fromEntries(
-              Object.entries(parsed.userRenamed).filter((entry) => entry[1] === true),
+              Object.entries(parsed.userRenamed).filter(
+                (entry) => entry[1] === true,
+              ),
             )
           : {},
     };
@@ -478,7 +481,7 @@ export function createCodingSessionsAsChatExplorer(
           "Choose a workspace folder before starting a coding session.",
         );
       }
-      const title = input.title.trim() || "New chat";
+      const title = input.title.trim() || DEFAULT_SESSION_TITLE;
       const started = await opts.backend.startSession({
         title,
         modelId: input.modelId || opts.getModelId(),

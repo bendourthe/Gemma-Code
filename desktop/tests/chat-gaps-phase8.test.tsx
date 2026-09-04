@@ -31,7 +31,11 @@ describe("DF-12: chats do not require a folder", () => {
 
   it("the store has always accepted a root chat", () => {
     const client = new InMemoryChatExplorerClient();
-    const chat = client.createChat({ folderId: null, title: "New chat", modelId: "m" });
+    const chat = client.createChat({
+      folderId: null,
+      title: "New chat",
+      modelId: "m",
+    });
     // Only the button insisted on a folder; this path was never blocked.
     expect(chat.folderId).toBeNull();
   });
@@ -51,7 +55,7 @@ describe("DF-13: first message names the chat", () => {
     // Re-titling on every send, or re-titling a chat the user named, would
     // fight the user's own rename.
     expect(source).toContain("chat.messageCount === 0");
-    expect(source).toContain('chat.title === "New chat"');
+    expect(source).toContain("chat.title === DEFAULT_SESSION_TITLE");
   });
 
   it("survives a titling failure instead of failing the send", () => {
@@ -68,9 +72,11 @@ describe("DF-13: first message names the chat", () => {
 
   it("refreshes the rail so the new name is visible", async () => {
     const client = new InMemoryChatExplorerClient();
-    client.createChat({ folderId: null, title: "New chat", modelId: "m" });
-    const { rerender } = render(<FolderTree client={client} refreshToken={0} />);
-    expect(screen.getByText("New chat")).toBeTruthy();
+    client.createChat({ folderId: null, title: "New session", modelId: "m" });
+    const { rerender } = render(
+      <FolderTree client={client} refreshToken={0} />,
+    );
+    expect(screen.getByText("New session")).toBeTruthy();
 
     const chat = client.listTree().chats[0];
     expect(chat).toBeDefined();
@@ -83,12 +89,14 @@ describe("DF-13: first message names the chat", () => {
 });
 
 describe("DF-orphans: components this cycle retired are gone", () => {
-  it.each(["src/components/LocalModelStatusDock.tsx", "src/pages/ModulePlaceholder.tsx"])(
-    "%s no longer exists",
-    (rel) => {
-      expect(() => readFileSync(path.resolve(__dirname, "..", rel), "utf8")).toThrow();
-    },
-  );
+  it.each([
+    "src/components/LocalModelStatusDock.tsx",
+    "src/pages/ModulePlaceholder.tsx",
+  ])("%s no longer exists", (rel) => {
+    expect(() =>
+      readFileSync(path.resolve(__dirname, "..", rel), "utf8"),
+    ).toThrow();
+  });
 
   it("nothing imports them", () => {
     const app = readFileSync(path.resolve(__dirname, "../src/App.tsx"), "utf8");

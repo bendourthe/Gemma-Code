@@ -40,13 +40,19 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { resolveMaybe, type AsyncChatExplorerClient } from "./chatExplorerClient";
+import {
+  resolveMaybe,
+  type AsyncChatExplorerClient,
+} from "./chatExplorerClient";
 import type { Chat, Folder, FolderTreeNode } from "./types";
-import { deleteConfirmCopy, parseTreeNodeKey, rangeSelectKeys } from "./folderTreeDeleteCopy";
+import {
+  deleteConfirmCopy,
+  parseTreeNodeKey,
+  rangeSelectKeys,
+} from "./folderTreeDeleteCopy";
 
 export type SelectedNode =
-  | { kind: "folder"; id: string | null }
-  | { kind: "chat"; id: string };
+  { kind: "folder"; id: string | null } | { kind: "chat"; id: string };
 
 export interface FolderTreeProps {
   /**
@@ -60,7 +66,7 @@ export interface FolderTreeProps {
   /**
    * Bump to force a re-read of the store. Needed when something OUTSIDE the
    * tree changes a row: v2.2.0 auto-titling renames a chat from the message
-   * pane, and the rail would otherwise keep showing "New chat" until the next
+   * pane, and the rail would otherwise keep showing "New session" until the next
    * local edit. (DF-13)
    */
   refreshToken?: number;
@@ -78,11 +84,11 @@ export interface FolderTreeProps {
    * to avoid touching real localStorage.
    */
   storageAdapter?: ExpandedStorageAdapter;
-  /** Default model id used for the "New Chat" context-menu entry. */
+  /** Default model id used for the "New session" context-menu entry. */
   defaultModelId?: string;
   /**
-   * v2.2.6: Image/Video reuse this tree with session copy. Chatbot keeps
-   * the default strings so existing tests stay stable.
+   * v2.4.6 Phase 5: every history pane uses Sessions History copy. The Chatbot
+   * tab label stays Chatbot; this tree does not own that string.
    */
   copy?: FolderTreeCopy;
   /** localStorage key for expanded folders. Defaults to `nexus.chat.expanded`. */
@@ -93,9 +99,15 @@ export interface FolderTreeProps {
    */
   collapsed?: boolean;
   /** Called after durable archive/delete succeeds so an active transcript can reset. */
-  onSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
+  onSessionDisposition?: (
+    id: string,
+    disposition: "archived" | "deleted",
+  ) => void | Promise<void>;
   /** May cancel active work; rejection prevents the storage mutation. */
-  onBeforeSessionDisposition?: (id: string, disposition: "archived" | "deleted") => void | Promise<void>;
+  onBeforeSessionDisposition?: (
+    id: string,
+    disposition: "archived" | "deleted",
+  ) => void | Promise<void>;
   /** Workspace-backed trees use folders as immutable scope containers. */
   readOnlyFolders?: boolean;
   /** Optional richer hover text for synthetic folders. */
@@ -113,18 +125,18 @@ export interface FolderTreeCopy {
   treeAria: string;
   loadError: string;
   emptyHint: string;
-  /** Used when a delete target has no title. Chatbot: "chat"; studio/Agents: "session". */
+  /** Used when a delete target has no title. History chrome: "session". */
   itemNoun?: string;
 }
 
 export const CHAT_FOLDER_TREE_COPY: FolderTreeCopy = {
-  paneTitle: "Chats",
-  newItem: "New chat",
-  emptyCta: "Start a new chat",
-  treeAria: "Chat folders",
-  loadError: "Could not load chats",
-  emptyHint: "No chats yet.",
-  itemNoun: "chat",
+  paneTitle: "Sessions History",
+  newItem: "New session",
+  emptyCta: "Start a new session",
+  treeAria: "Session folders",
+  loadError: "Could not load sessions",
+  emptyHint: "No sessions yet.",
+  itemNoun: "session",
 };
 
 export interface ExpandedStorageAdapter {
@@ -142,7 +154,10 @@ function makeDefaultStorage(key: string): ExpandedStorageAdapter {
         const raw = window.localStorage.getItem(key);
         if (!raw) return [];
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
+        if (
+          Array.isArray(parsed) &&
+          parsed.every((x) => typeof x === "string")
+        ) {
           return parsed as string[];
         }
         return [];
@@ -222,7 +237,13 @@ function flattenTree(
     flattenTree(childFolder, expanded, nextDepth, acc);
   }
   for (const chat of tree.chats) {
-    acc.push({ depth: nextDepth, kind: "chat", id: chat.id, label: chat.title, chat });
+    acc.push({
+      depth: nextDepth,
+      kind: "chat",
+      id: chat.id,
+      label: chat.title,
+      chat,
+    });
   }
   return acc;
 }
@@ -259,19 +280,24 @@ export function FolderTree({
   retryLoadError = false,
 }: FolderTreeProps): JSX.Element {
   const storage = storageAdapter ?? makeDefaultStorage(storageKey);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(storage.read()));
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(storage.read()),
+  );
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState | null>(null);
-  const [confirmArchive, setConfirmArchive] = useState<ConfirmArchiveState | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState | null>(
+    null,
+  );
+  const [confirmArchive, setConfirmArchive] =
+    useState<ConfirmArchiveState | null>(null);
   const [confirmBulk, setConfirmBulk] = useState<ConfirmBulkState | null>(null);
   const [actionPending, setActionPending] = useState(false);
   const [revision, setRevision] = useState(0);
   const [multiKeys, setMultiKeys] = useState<Set<string>>(() => new Set());
   const dragSourceRef = useRef<SelectedNode[] | null>(null);
   const selectionAnchorIdxRef = useRef<number | null>(null);
-  const itemNoun = copy.itemNoun ?? "chat";
+  const itemNoun = copy.itemNoun ?? "session";
 
   useEffect(() => {
     if (!confirmDelete && !confirmArchive && !confirmBulk) return;
@@ -383,7 +409,9 @@ export function FolderTree({
 
   const requestDelete = useCallback((targets: readonly SelectedNode[]) => {
     const usable = targets.filter(
-      (target) => target.kind === "chat" || (target.kind === "folder" && target.id !== null),
+      (target) =>
+        target.kind === "chat" ||
+        (target.kind === "folder" && target.id !== null),
     );
     if (usable.length === 0) return;
     setConfirmDelete({ targets: usable });
@@ -392,7 +420,10 @@ export function FolderTree({
   const selectedSetTargets = useCallback((): SelectedNode[] => {
     const fromMulti = [...multiKeys]
       .map(parseTreeNodeKey)
-      .filter((target): target is SelectedNode => target !== null && !(target.kind === "folder" && target.id === null));
+      .filter(
+        (target): target is SelectedNode =>
+          target !== null && !(target.kind === "folder" && target.id === null),
+      );
     return fromMulti;
   }, [multiKeys]);
 
@@ -432,7 +463,8 @@ export function FolderTree({
         return;
       }
       if (!node.chat) return;
-      const alreadySelected = selected?.kind === "chat" && selected.id === node.chat.id;
+      const alreadySelected =
+        selected?.kind === "chat" && selected.id === node.chat.id;
       if (alreadySelected && renamingId === null && multiKeys.size <= 1) {
         startRename(node);
         return;
@@ -505,10 +537,18 @@ export function FolderTree({
         e.preventDefault();
         const prev = flat[idx - 1];
         if (prev) focusNode(prev);
-      } else if (e.key === "ArrowRight" && node.kind === "folder" && node.id !== null) {
+      } else if (
+        e.key === "ArrowRight" &&
+        node.kind === "folder" &&
+        node.id !== null
+      ) {
         e.preventDefault();
         setExpanded((prev) => new Set(prev).add(node.id!));
-      } else if (e.key === "ArrowLeft" && node.kind === "folder" && node.id !== null) {
+      } else if (
+        e.key === "ArrowLeft" &&
+        node.kind === "folder" &&
+        node.id !== null
+      ) {
         e.preventDefault();
         setExpanded((prev) => {
           const next = new Set(prev);
@@ -538,11 +578,24 @@ export function FolderTree({
         }
       }
     },
-    [flat, handleClick, handleDoubleClick, multiKeys, nodeAsTarget, readOnlyFolders, renamingId, requestDelete, selectedSetTargets],
+    [
+      flat,
+      handleClick,
+      handleDoubleClick,
+      multiKeys,
+      nodeAsTarget,
+      readOnlyFolders,
+      renamingId,
+      requestDelete,
+      selectedSetTargets,
+    ],
   );
 
   const focusNode = useCallback((node: FlatNode) => {
-    const key = node.kind === "folder" ? `folder:${node.id ?? "ROOT"}` : `chat:${node.id}`;
+    const key =
+      node.kind === "folder"
+        ? `folder:${node.id ?? "ROOT"}`
+        : `chat:${node.id}`;
     const el = document.querySelector<HTMLElement>(`[data-tree-key="${key}"]`);
     el?.focus();
   }, []);
@@ -561,27 +614,36 @@ export function FolderTree({
     [readOnlyFolders, selectNode],
   );
 
-  const handleDragStart = useCallback((e: DragEvent<HTMLLIElement>, node: FlatNode) => {
-    if (readOnlyFolders) {
-      e.preventDefault();
-      return;
-    }
-    const target = nodeAsTarget(node);
-    const key = nodeKey(target);
-    const setTargets = selectedSetTargets();
-    const moving =
-      setTargets.length > 1 && multiKeys.has(key) ? setTargets : [target];
-    dragSourceRef.current = moving;
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("application/x-nexus-node", moving.map(nodeKey).join(","));
-  }, [multiKeys, nodeAsTarget, readOnlyFolders, selectedSetTargets]);
+  const handleDragStart = useCallback(
+    (e: DragEvent<HTMLLIElement>, node: FlatNode) => {
+      if (readOnlyFolders) {
+        e.preventDefault();
+        return;
+      }
+      const target = nodeAsTarget(node);
+      const key = nodeKey(target);
+      const setTargets = selectedSetTargets();
+      const moving =
+        setTargets.length > 1 && multiKeys.has(key) ? setTargets : [target];
+      dragSourceRef.current = moving;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData(
+        "application/x-nexus-node",
+        moving.map(nodeKey).join(","),
+      );
+    },
+    [multiKeys, nodeAsTarget, readOnlyFolders, selectedSetTargets],
+  );
 
-  const handleDragOver = useCallback((e: DragEvent<HTMLLIElement>, node: FlatNode) => {
-    if (readOnlyFolders) return;
-    if (node.kind !== "folder") return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }, [readOnlyFolders]);
+  const handleDragOver = useCallback(
+    (e: DragEvent<HTMLLIElement>, node: FlatNode) => {
+      if (readOnlyFolders) return;
+      if (node.kind !== "folder") return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    },
+    [readOnlyFolders],
+  );
 
   const handleDrop = useCallback(
     (e: DragEvent<HTMLLIElement>, node: FlatNode) => {
@@ -621,7 +683,8 @@ export function FolderTree({
           refresh();
           setRenamingId(folder.id);
           setRenameValue(folder.name);
-          if (parentId !== null) setExpanded((prev) => new Set(prev).add(parentId));
+          if (parentId !== null)
+            setExpanded((prev) => new Set(prev).add(parentId));
         },
         (err) => setLoadError(errorMessage(err)),
       );
@@ -643,13 +706,22 @@ export function FolderTree({
           refresh();
           selectNode({ kind: "chat", id: chat.id });
           onOpenChat?.(chat);
-          if (folderId !== null) setExpanded((prev) => new Set(prev).add(folderId));
+          if (folderId !== null)
+            setExpanded((prev) => new Set(prev).add(folderId));
         },
         (err) => setLoadError(errorMessage(err)),
       );
       closeContextMenu();
     },
-    [client, closeContextMenu, copy.newItem, defaultModelId, onOpenChat, refresh, selectNode],
+    [
+      client,
+      closeContextMenu,
+      copy.newItem,
+      defaultModelId,
+      onOpenChat,
+      refresh,
+      selectNode,
+    ],
   );
 
   const onChangeColor = useCallback(
@@ -692,7 +764,9 @@ export function FolderTree({
     void (async () => {
       for (const target of targets) {
         if (target.kind === "chat") {
-          await Promise.resolve(onBeforeSessionDisposition?.(target.id, "deleted"));
+          await Promise.resolve(
+            onBeforeSessionDisposition?.(target.id, "deleted"),
+          );
           await Promise.resolve(client.deleteChat(target.id));
           await onSessionDisposition?.(target.id, "deleted");
         } else if (target.id !== null) {
@@ -707,7 +781,14 @@ export function FolderTree({
       })
       .catch((err: unknown) => setLoadError(errorMessage(err)))
       .finally(() => setActionPending(false));
-  }, [actionPending, client, confirmDelete, onBeforeSessionDisposition, onSessionDisposition, refresh]);
+  }, [
+    actionPending,
+    client,
+    confirmDelete,
+    onBeforeSessionDisposition,
+    onSessionDisposition,
+    refresh,
+  ]);
 
   const confirmArchiveNow = useCallback(() => {
     if (!confirmArchive || actionPending) return;
@@ -726,7 +807,14 @@ export function FolderTree({
       })
       .catch((err: unknown) => setLoadError(errorMessage(err)))
       .finally(() => setActionPending(false));
-  }, [actionPending, client, confirmArchive, onBeforeSessionDisposition, onSessionDisposition, refresh]);
+  }, [
+    actionPending,
+    client,
+    confirmArchive,
+    onBeforeSessionDisposition,
+    onSessionDisposition,
+    refresh,
+  ]);
 
   /**
    * Every chat in THIS pillar's tree, including chats inside collapsed
@@ -863,68 +951,126 @@ export function FolderTree({
     </span>
   );
 
+  // v2.4.6 Phase 5: empty and filled trees share this header so the hairline
+  // always sits above "Sessions History". Create actions sit after the title
+  // (flex-start), not flush right. Compact rail hides the text, not the icons.
+  // paddingTop stays 0: HISTORY_HAIRLINE_GAP on the sidebar rule is the only
+  // vertical gap between Videos and this title.
+  const header = (
+    <header
+      data-testid="folder-tree-header"
+      style={{
+        display: "flex",
+        flexDirection: collapsed ? "column" : "row",
+        justifyContent: "flex-start",
+        alignItems: "center",
+        padding: collapsed
+          ? "0 0 var(--space-2)"
+          : "0 var(--space-3) var(--space-2)",
+        paddingTop: 0,
+        gap: "var(--space-1)",
+      }}
+    >
+      {collapsed ? null : (
+        <span
+          data-testid="folder-tree-title"
+          style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}
+        >
+          {copy.paneTitle}
+        </span>
+      )}
+      {toolbar}
+    </header>
+  );
+
   const isEmpty = tree.children.length === 0 && tree.chats.length === 0;
   if (isEmpty) {
     return (
       <div
         data-testid="folder-tree-empty"
+        data-collapsed={collapsed ? "true" : "false"}
+        onClick={closeContextMenu}
         style={{
-          padding: collapsed ? "var(--space-2)" : "var(--space-4)",
           display: "flex",
           flexDirection: "column",
-          gap: "var(--space-2)",
-          alignItems: collapsed ? "center" : "flex-start",
+          alignItems: collapsed ? "center" : "stretch",
         }}
       >
-        {toolbar}
-        {loadError !== null ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-            <p
-              data-testid="folder-tree-error"
-              role="status"
-              style={{ margin: 0, color: "var(--status-err, #d33)", fontSize: "var(--text-sm)" }}
+        {header}
+        <div
+          style={{
+            padding: collapsed
+              ? "0 var(--space-2) var(--space-2)"
+              : "0 var(--space-3) var(--space-4)",
+            paddingTop: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-2)",
+            alignItems: collapsed ? "center" : "flex-start",
+          }}
+        >
+          {loadError !== null ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-2)",
+              }}
             >
-              {copy.loadError}: {loadError}
-            </p>
-            {retryLoadError ? (
-              <button
-                type="button"
-                data-testid="folder-tree-retry"
-                onClick={() => refresh()}
-                style={{ ...iconButtonStyle, alignSelf: "flex-start" }}
+              <p
+                data-testid="folder-tree-error"
+                role="status"
+                style={{
+                  margin: 0,
+                  color: "var(--status-err, #d33)",
+                  fontSize: "var(--text-sm)",
+                }}
               >
-                Retry
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {collapsed ? null : (
-          <>
-            <p style={{ margin: 0, color: "var(--fg-muted)" }}>{copy.emptyHint}</p>
-            {/*
+                {copy.loadError}: {loadError}
+              </p>
+              {retryLoadError ? (
+                <button
+                  type="button"
+                  data-testid="folder-tree-retry"
+                  onClick={() => refresh()}
+                  style={{ ...iconButtonStyle, alignSelf: "flex-start" }}
+                >
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {collapsed ? null : (
+            <>
+              <p style={{ margin: 0, color: "var(--fg-muted)" }}>
+                {copy.emptyHint}
+              </p>
+              {/*
               v2.2.0 Phase 8 (DF-12): this used to read "Create your first folder",
               which is why the module appeared to require a folder before it would
               let you talk to anything. The store has always supported chats with
               `folderId: null`; only this button insisted otherwise. Folders remain
               available for organising later, from the header and context menu.
             */}
-            <button
-              type="button"
-              data-testid="folder-tree-empty-cta"
-              onClick={() => onCreateChat(null)}
-              style={{
-                backgroundColor: "var(--accent-chatbot, var(--accent-coding))",
-                color: "var(--bg-0)",
-                border: "none",
-                padding: "var(--space-2) var(--space-3)",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-              }}
-            >
-              {copy.emptyCta}
-            </button>
-          </>
-        )}
+              <button
+                type="button"
+                data-testid="folder-tree-empty-cta"
+                onClick={() => onCreateChat(null)}
+                style={{
+                  backgroundColor:
+                    "var(--accent-chatbot, var(--accent-coding))",
+                  color: "var(--bg-0)",
+                  border: "none",
+                  padding: "var(--space-2) var(--space-3)",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                }}
+              >
+                {copy.emptyCta}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -935,30 +1081,7 @@ export function FolderTree({
       data-collapsed={collapsed ? "true" : "false"}
       onClick={closeContextMenu}
     >
-      <header
-        style={{
-          display: "flex",
-          flexDirection: collapsed ? "column" : "row",
-          justifyContent: collapsed ? "flex-start" : "space-between",
-          alignItems: "center",
-          padding: collapsed
-            ? "0 0 var(--space-2)"
-            : "0 var(--space-3) var(--space-2)",
-          // v2.4.4 Phase 2.1 (T005): no padding-top. The sidebar hairline's
-          // own symmetric margin is the whole gap above this header; adding
-          // one here doubled the space below the rule (field screenshot 2).
-          // Stated after the shorthand so it is the declaration that wins.
-          paddingTop: 0,
-          gap: "var(--space-1)",
-        }}
-      >
-        {collapsed ? null : (
-          <span style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-            {copy.paneTitle}
-          </span>
-        )}
-        {toolbar}
-      </header>
+      {header}
 
       {loadError !== null ? (
         <p
@@ -981,155 +1104,184 @@ export function FolderTree({
         style={{ listStyle: "none", padding: 0, margin: 0 }}
       >
         {flat.map((node, idx) => {
-            const key =
-              node.kind === "folder" ? `folder:${node.id ?? "ROOT"}` : `chat:${node.id}`;
-            const isSelected =
-              multiKeys.has(key) || (selected ? nodeKey(selected) === key : false);
-            const isRenaming = renamingId === node.id && !collapsed;
-            const mark = node.label.trim().charAt(0).toUpperCase() || (node.kind === "folder" ? "F" : "S");
-            return (
-              <li
-                key={key}
-                data-tree-key={key}
-                data-testid={`tree-row-${node.kind}-${node.id ?? "root"}`}
-                role="treeitem"
-                aria-selected={isSelected}
-                aria-label={node.label}
-                title={node.kind === "folder" && node.folder && getFolderTitle ? getFolderTitle(node.folder) : node.label}
-                tabIndex={isSelected ? 0 : -1}
-                draggable={!isRenaming && !readOnlyFolders}
-                onDragStart={(e) => handleDragStart(e, node)}
-                onDragOver={(e) => handleDragOver(e, node)}
-                onDrop={(e) => handleDrop(e, node)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClick(node, idx, e);
-                }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  if (!collapsed) handleDoubleClick(node);
-                }}
-                onContextMenu={(e) => handleContextMenu(e, node)}
-                onKeyDown={(e) => handleKeyDown(e, idx, node)}
-                style={rowStyle(node, isSelected, collapsed)}
-              >
-                {collapsed ? (
-                  <span
-                    data-testid={
-                      node.kind === "chat" && node.chat
-                        ? `history-rail-mark-${node.chat.id}`
-                        : `history-rail-folder-${node.id ?? "root"}`
-                    }
-                    style={railMarkStyle(isSelected)}
-                  >
-                    {node.kind === "folder" ? (
-                      <FolderIcon size={14} aria-hidden />
-                    ) : (
-                      mark
-                    )}
-                  </span>
-                ) : (
-                  <>
-                {node.depth > 0 ? (
-                  <span style={{ width: node.depth * 12, display: "inline-block" }} />
-                ) : null}
-                {node.kind === "folder" ? (
-                  expanded.has(node.id ?? "") ? (
-                    <ChevronDown size={12} aria-hidden />
+          const key =
+            node.kind === "folder"
+              ? `folder:${node.id ?? "ROOT"}`
+              : `chat:${node.id}`;
+          const isSelected =
+            multiKeys.has(key) ||
+            (selected ? nodeKey(selected) === key : false);
+          const isRenaming = renamingId === node.id && !collapsed;
+          const mark =
+            node.label.trim().charAt(0).toUpperCase() ||
+            (node.kind === "folder" ? "F" : "S");
+          return (
+            <li
+              key={key}
+              data-tree-key={key}
+              data-testid={`tree-row-${node.kind}-${node.id ?? "root"}`}
+              role="treeitem"
+              aria-selected={isSelected}
+              aria-label={node.label}
+              title={
+                node.kind === "folder" && node.folder && getFolderTitle
+                  ? getFolderTitle(node.folder)
+                  : node.label
+              }
+              tabIndex={isSelected ? 0 : -1}
+              draggable={!isRenaming && !readOnlyFolders}
+              onDragStart={(e) => handleDragStart(e, node)}
+              onDragOver={(e) => handleDragOver(e, node)}
+              onDrop={(e) => handleDrop(e, node)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClick(node, idx, e);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                if (!collapsed) handleDoubleClick(node);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, node)}
+              onKeyDown={(e) => handleKeyDown(e, idx, node)}
+              style={rowStyle(node, isSelected, collapsed)}
+            >
+              {collapsed ? (
+                <span
+                  data-testid={
+                    node.kind === "chat" && node.chat
+                      ? `history-rail-mark-${node.chat.id}`
+                      : `history-rail-folder-${node.id ?? "root"}`
+                  }
+                  style={railMarkStyle(isSelected)}
+                >
+                  {node.kind === "folder" ? (
+                    <FolderIcon size={14} aria-hidden />
                   ) : (
-                    <ChevronRight size={12} aria-hidden />
-                  )
-                ) : null}
-                {isRenaming ? (
-                  <input
-                    autoFocus
-                    data-testid={`tree-rename-input-${node.id ?? "root"}`}
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={() => commitRename(node)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        commitRename(node);
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        setRenamingId(null);
-                        setRenameValue("");
-                      }
-                      e.stopPropagation();
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: "0 var(--space-1)",
-                      backgroundColor: "var(--bg-1)",
-                      color: "var(--fg-0)",
-                      border: "1px solid var(--accent-coding)",
-                      borderRadius: "var(--radius-sm)",
-                    }}
-                  />
-                ) : (
-                  <span style={{ flex: 1, color: "var(--fg-1)" }}>{node.label}</span>
-                )}
-                {node.kind === "chat" && node.chat && !isRenaming ? (
-                  <span
-                    style={{ display: "inline-flex", gap: 2, flex: "0 0 auto" }}
-                    onClick={(e) => e.stopPropagation()}
-                    onDoubleClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      data-testid={`tree-archive-${node.chat.id}`}
-                      aria-label={`Archive ${node.label}`}
-                      title="Archive"
-                      disabled={actionPending || !client.archiveChat}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmArchive({ id: node.chat!.id, label: node.label });
+                    mark
+                  )}
+                </span>
+              ) : (
+                <>
+                  {node.depth > 0 ? (
+                    <span
+                      style={{
+                        width: node.depth * 12,
+                        display: "inline-block",
                       }}
-                      style={iconButtonStyle}
-                    >
-                      <Archive size={12} aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      data-testid={`tree-rename-${node.chat.id}`}
-                      aria-label={`Rename ${node.label}`}
-                      title="Rename"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startRename(node);
-                      }}
-                      style={iconButtonStyle}
-                    >
-                      <Pencil size={12} aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      data-testid={`tree-delete-${node.chat.id}`}
-                      aria-label={`Delete ${node.label}`}
-                      title="Delete"
-                      disabled={actionPending}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const target: SelectedNode = { kind: "chat", id: node.id ?? "" };
-                        const setTargets = selectedSetTargets();
-                        if (setTargets.length > 1 && multiKeys.has(nodeKey(target))) {
-                          requestDelete(setTargets);
-                          return;
+                    />
+                  ) : null}
+                  {node.kind === "folder" ? (
+                    expanded.has(node.id ?? "") ? (
+                      <ChevronDown size={12} aria-hidden />
+                    ) : (
+                      <ChevronRight size={12} aria-hidden />
+                    )
+                  ) : null}
+                  {isRenaming ? (
+                    <input
+                      autoFocus
+                      data-testid={`tree-rename-input-${node.id ?? "root"}`}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => commitRename(node)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitRename(node);
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setRenamingId(null);
+                          setRenameValue("");
                         }
-                        requestDelete([target]);
+                        e.stopPropagation();
                       }}
-                      style={iconButtonStyle}
+                      style={{
+                        flex: 1,
+                        padding: "0 var(--space-1)",
+                        backgroundColor: "var(--bg-1)",
+                        color: "var(--fg-0)",
+                        border: "1px solid var(--accent-coding)",
+                        borderRadius: "var(--radius-sm)",
+                      }}
+                    />
+                  ) : (
+                    <span style={{ flex: 1, color: "var(--fg-1)" }}>
+                      {node.label}
+                    </span>
+                  )}
+                  {node.kind === "chat" && node.chat && !isRenaming ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        gap: 2,
+                        flex: "0 0 auto",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => e.stopPropagation()}
                     >
-                      <Trash2 size={12} aria-hidden />
-                    </button>
-                  </span>
-                ) : null}
-                  </>
-                )}
-              </li>
-            );
-          })}
+                      <button
+                        type="button"
+                        data-testid={`tree-archive-${node.chat.id}`}
+                        aria-label={`Archive ${node.label}`}
+                        title="Archive"
+                        disabled={actionPending || !client.archiveChat}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmArchive({
+                            id: node.chat!.id,
+                            label: node.label,
+                          });
+                        }}
+                        style={iconButtonStyle}
+                      >
+                        <Archive size={12} aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`tree-rename-${node.chat.id}`}
+                        aria-label={`Rename ${node.label}`}
+                        title="Rename"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startRename(node);
+                        }}
+                        style={iconButtonStyle}
+                      >
+                        <Pencil size={12} aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`tree-delete-${node.chat.id}`}
+                        aria-label={`Delete ${node.label}`}
+                        title="Delete"
+                        disabled={actionPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const target: SelectedNode = {
+                            kind: "chat",
+                            id: node.id ?? "",
+                          };
+                          const setTargets = selectedSetTargets();
+                          if (
+                            setTargets.length > 1 &&
+                            multiKeys.has(nodeKey(target))
+                          ) {
+                            requestDelete(setTargets);
+                            return;
+                          }
+                          requestDelete([target]);
+                        }}
+                        style={iconButtonStyle}
+                      >
+                        <Trash2 size={12} aria-hidden />
+                      </button>
+                    </span>
+                  ) : null}
+                </>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {contextMenu && (
@@ -1216,148 +1368,227 @@ export function FolderTree({
               Delete
             </button>
           </li>
-          {contextMenu.target.kind === "folder" && contextMenu.target.id !== null && (
-            <li>
-              <button
-                type="button"
-                data-testid="ctx-change-color"
-                onClick={() => onChangeColor(contextMenu.target.id, "#9b5de5")}
-                style={ctxButtonStyle}
-              >
-                Change color
-              </button>
-            </li>
-          )}
+          {contextMenu.target.kind === "folder" &&
+            contextMenu.target.id !== null && (
+              <li>
+                <button
+                  type="button"
+                  data-testid="ctx-change-color"
+                  onClick={() =>
+                    onChangeColor(contextMenu.target.id, "#9b5de5")
+                  }
+                  style={ctxButtonStyle}
+                >
+                  Change color
+                </button>
+              </li>
+            )}
         </ul>
       )}
 
-      {confirmDelete && portalToBody(
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm delete"
-          data-testid="folder-tree-confirm-delete"
-          style={modalBackdropStyle}
-        >
-          <div style={modalCardStyle}>
-            <p data-testid="folder-tree-confirm-delete-question" style={{ margin: 0, color: "var(--fg-0)" }}>
-              {deleteConfirmCopy(confirmDelete.targets, itemNoun).question}
-            </p>
-            {deleteConfirmCopy(confirmDelete.targets, itemNoun).folderWarning ? (
-              <p style={{ margin: "var(--space-2) 0 0", color: "var(--fg-1)" }}>
-                {deleteConfirmCopy(confirmDelete.targets, itemNoun).folderWarning}
+      {confirmDelete &&
+        portalToBody(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm delete"
+            data-testid="folder-tree-confirm-delete"
+            style={modalBackdropStyle}
+          >
+            <div style={modalCardStyle}>
+              <p
+                data-testid="folder-tree-confirm-delete-question"
+                style={{ margin: 0, color: "var(--fg-0)" }}
+              >
+                {deleteConfirmCopy(confirmDelete.targets, itemNoun).question}
               </p>
-            ) : null}
-            <p style={{ margin: "var(--space-2) 0 0", color: "var(--fg-muted)" }}>
-              {deleteConfirmCopy(confirmDelete.targets, itemNoun).irreversible}
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
-              {confirmDelete.targets.length === 1 && confirmDelete.targets[0]?.kind === "chat" ? (
+              {deleteConfirmCopy(confirmDelete.targets, itemNoun)
+                .folderWarning ? (
+                <p
+                  style={{ margin: "var(--space-2) 0 0", color: "var(--fg-1)" }}
+                >
+                  {
+                    deleteConfirmCopy(confirmDelete.targets, itemNoun)
+                      .folderWarning
+                  }
+                </p>
+              ) : null}
+              <p
+                style={{
+                  margin: "var(--space-2) 0 0",
+                  color: "var(--fg-muted)",
+                }}
+              >
+                {
+                  deleteConfirmCopy(confirmDelete.targets, itemNoun)
+                    .irreversible
+                }
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "var(--space-2)",
+                  marginTop: "var(--space-3)",
+                }}
+              >
+                {confirmDelete.targets.length === 1 &&
+                confirmDelete.targets[0]?.kind === "chat" ? (
+                  <button
+                    type="button"
+                    data-testid="confirm-delete-archive-instead"
+                    disabled={actionPending || !client.archiveChat}
+                    onClick={() => {
+                      const id = confirmDelete.targets[0]?.id ?? "";
+                      setConfirmArchive({ id, label: itemNoun });
+                      setConfirmDelete(null);
+                    }}
+                    style={quietCancelStyle}
+                  >
+                    Archive instead
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  data-testid="confirm-delete-archive-instead"
-                  disabled={actionPending || !client.archiveChat}
-                  onClick={() => {
-                    const id = confirmDelete.targets[0]?.id ?? "";
-                    setConfirmArchive({ id, label: itemNoun });
-                    setConfirmDelete(null);
-                  }}
+                  data-testid="confirm-delete-cancel"
+                  disabled={actionPending}
+                  onClick={() => setConfirmDelete(null)}
                   style={quietCancelStyle}
                 >
-                  Archive instead
+                  Cancel
                 </button>
-              ) : null}
-              <button
-                type="button"
-                data-testid="confirm-delete-cancel"
-                disabled={actionPending}
-                onClick={() => setConfirmDelete(null)}
-                style={quietCancelStyle}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                data-testid="confirm-delete-ok"
-                onClick={confirmDeleteNow}
-                style={quietDestructiveStyle}
-              >
-                {confirmDelete.targets.every((target) => target.kind === "chat")
-                  ? "Delete permanently"
-                  : "Delete"}
-              </button>
+                <button
+                  type="button"
+                  data-testid="confirm-delete-ok"
+                  onClick={confirmDeleteNow}
+                  style={quietDestructiveStyle}
+                >
+                  {confirmDelete.targets.every(
+                    (target) => target.kind === "chat",
+                  )
+                    ? "Delete permanently"
+                    : "Delete"}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>,
-      )}
+          </div>,
+        )}
 
-      {confirmBulk && portalToBody(
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={confirmBulk.kind === "archive" ? "Confirm archive all" : "Confirm delete all"}
-          data-testid="folder-tree-confirm-bulk"
-          data-bulk-kind={confirmBulk.kind}
-          style={modalBackdropStyle}
-        >
-          <div style={modalCardStyle}>
-            <p data-testid="folder-tree-confirm-bulk-question" style={{ margin: 0, color: "var(--fg-0)" }}>
-              {confirmBulk.kind === "archive"
-                ? `Archive all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`
-                : `Delete all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`}
-            </p>
-            <p style={{ margin: "var(--space-2) 0 0", color: "var(--fg-muted)" }}>
-              {confirmBulk.kind === "archive"
-                ? "You can restore them from Settings."
-                : "This cannot be undone."}
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
-              <button
-                type="button"
-                data-testid="confirm-bulk-cancel"
-                disabled={actionPending}
-                onClick={() => setConfirmBulk(null)}
-                style={quietCancelStyle}
+      {confirmBulk &&
+        portalToBody(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={
+              confirmBulk.kind === "archive"
+                ? "Confirm archive all"
+                : "Confirm delete all"
+            }
+            data-testid="folder-tree-confirm-bulk"
+            data-bulk-kind={confirmBulk.kind}
+            style={modalBackdropStyle}
+          >
+            <div style={modalCardStyle}>
+              <p
+                data-testid="folder-tree-confirm-bulk-question"
+                style={{ margin: 0, color: "var(--fg-0)" }}
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                data-testid="confirm-bulk-ok"
-                disabled={actionPending}
-                onClick={confirmBulkNow}
-                style={confirmBulk.kind === "archive" ? quietCancelStyle : quietDestructiveStyle}
+                {confirmBulk.kind === "archive"
+                  ? `Archive all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`
+                  : `Delete all ${confirmBulk.ids.length} ${itemNoun}${confirmBulk.ids.length === 1 ? "" : "s"}?`}
+              </p>
+              <p
+                style={{
+                  margin: "var(--space-2) 0 0",
+                  color: "var(--fg-muted)",
+                }}
               >
-                {confirmBulk.kind === "archive" ? "Archive all" : "Delete all"}
-              </button>
+                {confirmBulk.kind === "archive"
+                  ? "You can restore them from Settings."
+                  : "This cannot be undone."}
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "var(--space-2)",
+                  marginTop: "var(--space-3)",
+                }}
+              >
+                <button
+                  type="button"
+                  data-testid="confirm-bulk-cancel"
+                  disabled={actionPending}
+                  onClick={() => setConfirmBulk(null)}
+                  style={quietCancelStyle}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="confirm-bulk-ok"
+                  disabled={actionPending}
+                  onClick={confirmBulkNow}
+                  style={
+                    confirmBulk.kind === "archive"
+                      ? quietCancelStyle
+                      : quietDestructiveStyle
+                  }
+                >
+                  {confirmBulk.kind === "archive"
+                    ? "Archive all"
+                    : "Delete all"}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>,
-      )}
+          </div>,
+        )}
 
-      {confirmArchive && portalToBody(
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm archive"
-          data-testid="folder-tree-confirm-archive"
-          style={modalBackdropStyle}
-        >
-          <div style={modalCardStyle}>
-            <p style={{ margin: 0, color: "var(--fg-0)" }}>
-              Archive <strong>{confirmArchive.label.trim() || `this ${itemNoun}`}</strong>? You can restore it from Settings.
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
-              <button type="button" disabled={actionPending} onClick={() => setConfirmArchive(null)} style={quietCancelStyle}>
-                Cancel
-              </button>
-              <button type="button" data-testid="confirm-archive-ok" disabled={actionPending} onClick={confirmArchiveNow} style={quietCancelStyle}>
-                {actionPending ? "Archiving..." : "Archive"}
-              </button>
+      {confirmArchive &&
+        portalToBody(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm archive"
+            data-testid="folder-tree-confirm-archive"
+            style={modalBackdropStyle}
+          >
+            <div style={modalCardStyle}>
+              <p style={{ margin: 0, color: "var(--fg-0)" }}>
+                Archive{" "}
+                <strong>
+                  {confirmArchive.label.trim() || `this ${itemNoun}`}
+                </strong>
+                ? You can restore it from Settings.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "var(--space-2)",
+                }}
+              >
+                <button
+                  type="button"
+                  disabled={actionPending}
+                  onClick={() => setConfirmArchive(null)}
+                  style={quietCancelStyle}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="confirm-archive-ok"
+                  disabled={actionPending}
+                  onClick={confirmArchiveNow}
+                  style={quietCancelStyle}
+                >
+                  {actionPending ? "Archiving..." : "Archive"}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>,
-      )}
+          </div>,
+        )}
     </div>
   );
 }
@@ -1375,7 +1606,11 @@ const iconButtonStyle: CSSProperties = {
   padding: "var(--space-1)",
 };
 
-function rowStyle(node: FlatNode, selected: boolean, collapsed = false): CSSProperties {
+function rowStyle(
+  node: FlatNode,
+  selected: boolean,
+  collapsed = false,
+): CSSProperties {
   if (collapsed) {
     return {
       display: "flex",
@@ -1474,7 +1709,8 @@ const modalCardStyle: CSSProperties = {
   flexDirection: "column",
   gap: "var(--space-3)",
   color: "var(--fg-0)",
-  boxShadow: "inset 0 1px 0 color-mix(in srgb, white 8%, transparent), var(--shadow-md)",
+  boxShadow:
+    "inset 0 1px 0 color-mix(in srgb, white 8%, transparent), var(--shadow-md)",
   backdropFilter: "blur(16px)",
 };
 
@@ -1491,7 +1727,8 @@ const quietCancelStyle: CSSProperties = {
 const quietDestructiveStyle: CSSProperties = {
   padding: "var(--space-2) var(--space-3)",
   borderRadius: "var(--radius-md)",
-  border: "1px solid color-mix(in srgb, var(--status-err, #d33) 40%, transparent)",
+  border:
+    "1px solid color-mix(in srgb, var(--status-err, #d33) 40%, transparent)",
   background: "color-mix(in srgb, var(--status-err, #d33) 16%, transparent)",
   color: "var(--fg-0)",
   cursor: "pointer",

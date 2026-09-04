@@ -15,7 +15,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FolderTree, type SelectedNode } from "./FolderTree";
+import {
+  FolderTree,
+  CHAT_FOLDER_TREE_COPY,
+  type SelectedNode,
+} from "./FolderTree";
 import {
   SidebarHistorySlot,
   SIDEBAR_COMPACT_STORAGE_KEY,
@@ -26,9 +30,7 @@ import {
   createIpcChatExplorerAdapter,
   tauriAvailable,
 } from "./ipcChatExplorerClient";
-import type {
-  AsyncChatExplorerClient,
-} from "./chatExplorerClient";
+import type { AsyncChatExplorerClient } from "./chatExplorerClient";
 import {
   createChatIpcClient,
   joinChatReasoning,
@@ -61,24 +63,30 @@ import {
   resolveVisualTokenBudget,
 } from "../../../../core/chat/vision";
 import { estimateTokens } from "../../../../core/chat/sessionContextUsage";
-import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visualBudget";
+import {
+  enforceVisualBudget,
+  capVideoFrames,
+} from "../../../../core/chat/visualBudget";
 import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
 import type { EpisodicMemory } from "../../../../core/memory/MemoryHub";
 import { redactSecrets } from "../../../../core/observability/redactSecrets";
 import { estimatedMessageUsage } from "../../../../core/chat/tokenUsage";
 import { foldModelId } from "../../../../core/registry/modelAliases";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
+import { createIpcDocumentClient, type DocumentClient } from "./documentClient";
+import { createIpcAudioClient, type AudioClient } from "./audioClient";
 import {
-  createIpcDocumentClient,
-  type DocumentClient,
-} from "./documentClient";
+  createBrowserMicRecorder,
+  type MicRecorder,
+} from "../../shared/chat/micRecorder";
 import {
-  createIpcAudioClient,
-  type AudioClient,
-} from "./audioClient";
-import { createBrowserMicRecorder, type MicRecorder } from "../../shared/chat/micRecorder";
-import { fallbackTitle } from "../../../sidecar/src/chat/titleGenerator";
-import { labelSttTranscript, STT_TRANSCRIPT_ORIGIN } from "./transcriptProvenance";
+  fallbackTitle,
+  DEFAULT_SESSION_TITLE,
+} from "../../../sidecar/src/chat/titleGenerator";
+import {
+  labelSttTranscript,
+  STT_TRANSCRIPT_ORIGIN,
+} from "./transcriptProvenance";
 import {
   INITIAL_VOICE_LOOP,
   reduceVoiceLoop,
@@ -99,7 +107,10 @@ import {
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
-import { useSidecarStatus, type UseSidecarStatusOptions } from "../../lib/sidecarStatus";
+import {
+  useSidecarStatus,
+  type UseSidecarStatusOptions,
+} from "../../lib/sidecarStatus";
 import { useModelResidency } from "../../shared/models/useModelResidency";
 import { ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
 import {
@@ -150,7 +161,9 @@ export interface ChatPageProps {
    * a stub; production can wire ffmpeg. Missing sampler skips the video
    * with a notice rather than sending container bytes to the model.
    */
-  sampleVideoFrames?: (dataUrl: string) => Promise<{ frames: string[]; notice?: string }>;
+  sampleVideoFrames?: (
+    dataUrl: string,
+  ) => Promise<{ frames: string[]; notice?: string }>;
   /**
    * v2.1.0 Phase 4 -- optional episodic hub so non-text turns are indexed by
    * a redacted caption surrogate. Tests inject InMemoryMemoryHub.
@@ -225,12 +238,15 @@ export function ChatPage({
   // Bumped when something outside the rail renames a chat (auto-titling).
   const [treeVersion, setTreeVersion] = useState(0);
   const [modelId, setModelId] = useState<string>(defaultModelId);
-  const [messagesByChat, setMessagesByChat] = useState<Map<string, ChatMessage[]>>(
-    () => new Map(),
-  );
+  const [messagesByChat, setMessagesByChat] = useState<
+    Map<string, ChatMessage[]>
+  >(() => new Map());
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const residency = useModelResidency({ rememberedPairs: residencyMemory });
-  const pendingPromptRef = useRef<{ text: string; attachments: readonly string[] }>({
+  const pendingPromptRef = useRef<{
+    text: string;
+    attachments: readonly string[];
+  }>({
     text: "",
     attachments: [],
   });
@@ -241,17 +257,23 @@ export function ChatPage({
   const [audioClient] = useState<AudioClient>(
     () => audioClientOverride ?? createIpcAudioClient(),
   );
-  const [personaByChat, setPersonaByChat] = useState<Record<string, string>>({});
+  const [personaByChat, setPersonaByChat] = useState<Record<string, string>>(
+    {},
+  );
   // v2.2.7 Phase 3: persona is a text control under the composer, not a header gear.
   const [personaOpen, setPersonaOpen] = useState(false);
-  const [voiceLoop, setVoiceLoop] = useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
+  const [voiceLoop, setVoiceLoop] =
+    useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const ttsAbortRef = useRef<AbortController | null>(null);
   const voiceMicRef = useRef<MicRecorder | null>(voiceMicRecorder ?? null);
-  const [documentModelInstalled, setDocumentModelInstalled] = useState<boolean | null>(null);
+  const [documentModelInstalled, setDocumentModelInstalled] = useState<
+    boolean | null
+  >(null);
   // v1.16.0 Phase 5 (A4) -- compact switcher feed. Falls back to the catalog
   // projection when `models.list` is unavailable (tests, sidecar down).
-  const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
+  const [listedModels, setListedModels] =
+    useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const userChangedModelRef = useRef(false);
 
@@ -335,16 +357,19 @@ export function ChatPage({
   const imageGate = imageAttachmentAffordance(selectedListedModel);
   const audioHint = audioAttachmentCopy(selectedListedModel);
 
-  const dispatchVoice = useCallback((event: Parameters<typeof reduceVoiceLoop>[1]) => {
-    setVoiceLoop((prev) => {
-      const next = reduceVoiceLoop(prev, event);
-      if (shouldStopTts(prev, next)) {
-        ttsAbortRef.current?.abort();
-        ttsAbortRef.current = null;
-      }
-      return next;
-    });
-  }, []);
+  const dispatchVoice = useCallback(
+    (event: Parameters<typeof reduceVoiceLoop>[1]) => {
+      setVoiceLoop((prev) => {
+        const next = reduceVoiceLoop(prev, event);
+        if (shouldStopTts(prev, next)) {
+          ttsAbortRef.current?.abort();
+          ttsAbortRef.current = null;
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const playReply = useCallback(
     async (text: string) => {
@@ -389,36 +414,39 @@ export function ChatPage({
     setSelected(node);
   }, []);
 
-  const handleOpenChat = useCallback((chat: Chat) => {
-    setActiveChat(chat);
-    setSelected({ kind: "chat", id: chat.id });
-    if (!client.listMessages) return;
+  const handleOpenChat = useCallback(
+    (chat: Chat) => {
+      setActiveChat(chat);
+      setSelected({ kind: "chat", id: chat.id });
+      if (!client.listMessages) return;
 
-    const version = (hydrationVersionRef.current.get(chat.id) ?? 0) + 1;
-    hydrationVersionRef.current.set(chat.id, version);
-    const hydration = Promise.resolve(client.listMessages(chat.id, 500)).then(
-      (records) => {
-        if (hydrationVersionRef.current.get(chat.id) !== version) return;
-        const hydrated = records.map(chatMessageFromRecord);
-        const next = new Map(messagesByChatRef.current);
-        next.set(chat.id, hydrated);
-        messagesByChatRef.current = next;
-        setMessagesByChat(next);
-        setTranscriptError(null);
-      },
-      (err: unknown) => {
-        setTranscriptError(
-          `Chat history could not be loaded: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      },
-    );
-    hydrationPromisesRef.current.set(chat.id, hydration);
-    void hydration.finally(() => {
-      if (hydrationPromisesRef.current.get(chat.id) === hydration) {
-        hydrationPromisesRef.current.delete(chat.id);
-      }
-    });
-  }, [client]);
+      const version = (hydrationVersionRef.current.get(chat.id) ?? 0) + 1;
+      hydrationVersionRef.current.set(chat.id, version);
+      const hydration = Promise.resolve(client.listMessages(chat.id, 500)).then(
+        (records) => {
+          if (hydrationVersionRef.current.get(chat.id) !== version) return;
+          const hydrated = records.map(chatMessageFromRecord);
+          const next = new Map(messagesByChatRef.current);
+          next.set(chat.id, hydrated);
+          messagesByChatRef.current = next;
+          setMessagesByChat(next);
+          setTranscriptError(null);
+        },
+        (err: unknown) => {
+          setTranscriptError(
+            `Chat history could not be loaded: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        },
+      );
+      hydrationPromisesRef.current.set(chat.id, hydration);
+      void hydration.finally(() => {
+        if (hydrationPromisesRef.current.get(chat.id) === hydration) {
+          hydrationPromisesRef.current.delete(chat.id);
+        }
+      });
+    },
+    [client],
+  );
 
   const persistMessage = useCallback(
     async (chatId: string, message: ChatMessage): Promise<void> => {
@@ -429,15 +457,21 @@ export function ChatPage({
             chatId,
             role: message.role === "user" ? "user" : "assistant",
             content: message.content,
-            ...(message.attachments ? { attachments: message.attachments } : {}),
-            ...(message.inputTokens !== undefined ? { inputTokens: message.inputTokens } : {}),
+            ...(message.attachments
+              ? { attachments: message.attachments }
+              : {}),
+            ...(message.inputTokens !== undefined
+              ? { inputTokens: message.inputTokens }
+              : {}),
             ...(message.reasoningTokens !== undefined
               ? { reasoningTokens: message.reasoningTokens }
               : {}),
             ...(message.reasoningText !== undefined
               ? { reasoningText: message.reasoningText }
               : {}),
-            ...(message.outputTokens !== undefined ? { outputTokens: message.outputTokens } : {}),
+            ...(message.outputTokens !== undefined
+              ? { outputTokens: message.outputTokens }
+              : {}),
             ...(message.tokensEstimated ? { tokensEstimated: true } : {}),
           }),
         );
@@ -470,7 +504,9 @@ export function ChatPage({
       const next = new Map(messagesByChatRef.current);
       next.set(
         chatId,
-        (next.get(chatId) ?? []).map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
+        (next.get(chatId) ?? []).map((m) =>
+          m.id === messageId ? { ...m, ...patch } : m,
+        ),
       );
       messagesByChatRef.current = next;
       setMessagesByChat(next);
@@ -494,7 +530,11 @@ export function ChatPage({
         activity: "chat-streaming",
       });
       let content: string;
-      let usage = { inputTokens: null as number | null, reasoningTokens: null as number | null, outputTokens: null as number | null };
+      let usage = {
+        inputTokens: null as number | null,
+        reasoningTokens: null as number | null,
+        outputTokens: null as number | null,
+      };
       let reasoningText: string | null = null;
       try {
         const chat = activeChat;
@@ -503,7 +543,10 @@ export function ChatPage({
           const started = await chatSession.start({
             modelId: foldModelId(chat?.modelId ?? modelId),
             title: chat?.title,
-            history: replayHistory(messagesByChatRef.current.get(chatId) ?? [], `${baseId}-user`),
+            history: replayHistory(
+              messagesByChatRef.current.get(chatId) ?? [],
+              `${baseId}-user`,
+            ),
           });
           sessionId = started.sessionId;
           sessionIdsRef.current.set(chatId, sessionId);
@@ -522,7 +565,9 @@ export function ChatPage({
           reply = await chatSession.sendMessage({
             sessionId,
             message: outbound,
-            ...(images.length > 0 ? { images: images.map(stripDataUrlPrefix) } : {}),
+            ...(images.length > 0
+              ? { images: images.map(stripDataUrlPrefix) }
+              : {}),
           });
         } catch (err) {
           if (!isUnknownChatSessionError(err)) throw err;
@@ -530,13 +575,18 @@ export function ChatPage({
           const restarted = await chatSession.start({
             modelId: foldModelId(chat?.modelId ?? modelId),
             title: chat?.title,
-            history: replayHistory(messagesByChatRef.current.get(chatId) ?? [], `${baseId}-user`),
+            history: replayHistory(
+              messagesByChatRef.current.get(chatId) ?? [],
+              `${baseId}-user`,
+            ),
           });
           sessionIdsRef.current.set(chatId, restarted.sessionId);
           reply = await chatSession.sendMessage({
             sessionId: restarted.sessionId,
             message: outbound,
-            ...(images.length > 0 ? { images: images.map(stripDataUrlPrefix) } : {}),
+            ...(images.length > 0
+              ? { images: images.map(stripDataUrlPrefix) }
+              : {}),
           });
         }
         content = joinChatReply(reply.events) || "(no reply)";
@@ -555,7 +605,11 @@ export function ChatPage({
           outputTokens: usage.outputTokens,
         },
       };
-      const messageUsage = estimatedMessageUsage("assistant", content, reasoningText);
+      const messageUsage = estimatedMessageUsage(
+        "assistant",
+        content,
+        reasoningText,
+      );
       patchMessage(chatId, assistantId, {
         content,
         pending: false,
@@ -573,7 +627,15 @@ export function ChatPage({
       });
       return content;
     },
-    [activeChat, appendMessage, chatSession, modelId, patchMessage, persistMessage, personaByChat],
+    [
+      activeChat,
+      appendMessage,
+      chatSession,
+      modelId,
+      patchMessage,
+      persistMessage,
+      personaByChat,
+    ],
   );
 
   /**
@@ -587,7 +649,12 @@ export function ChatPage({
    * prompt.
    */
   const handleParseDocument = useCallback(
-    async (chatId: string, baseId: string, attachment: string, note: string) => {
+    async (
+      chatId: string,
+      baseId: string,
+      attachment: string,
+      note: string,
+    ) => {
       const messageId = `${baseId}-parse`;
       appendMessage(chatId, {
         id: messageId,
@@ -597,26 +664,36 @@ export function ChatPage({
         activity: "document-parse",
       });
       try {
-        const handle = documentClient.parse(attachment, ({ page, totalPages }) => {
-          patchMessage(chatId, messageId, {
-            content:
-              totalPages > 0
-                ? `Reading document... page ${page} of ${totalPages}`
-                : "Reading document...",
-          });
-        });
+        const handle = documentClient.parse(
+          attachment,
+          ({ page, totalPages }) => {
+            patchMessage(chatId, messageId, {
+              content:
+                totalPages > 0
+                  ? `Reading document... page ${page} of ${totalPages}`
+                  : "Reading document...",
+            });
+          },
+        );
         const result = await handle.done;
         const body = (result.markdown ?? result.text).trim();
         const header =
           result.pageCount > 1
             ? `Parsed ${result.pageCount} pages with ${result.engine}:`
             : `Parsed with ${result.engine}:`;
-        const content = body.length > 0 ? `${header}\n\n${body}` : `${header}\n\n(no text found)`;
+        const content =
+          body.length > 0
+            ? `${header}\n\n${body}`
+            : `${header}\n\n(no text found)`;
         patchMessage(chatId, messageId, {
           content,
           pending: false,
         });
-        void persistMessage(chatId, { id: messageId, role: "assistant", content });
+        void persistMessage(chatId, {
+          id: messageId,
+          role: "assistant",
+          content,
+        });
       } catch (err) {
         const content = `Could not parse the document: ${
           err instanceof Error ? err.message : String(err)
@@ -625,14 +702,19 @@ export function ChatPage({
           content,
           pending: false,
         });
-        void persistMessage(chatId, { id: messageId, role: "assistant", content });
+        void persistMessage(chatId, {
+          id: messageId,
+          role: "assistant",
+          content,
+        });
       }
       if (note.trim().length > 0) {
         // The user typed alongside the attachment; keep their note visible.
         appendMessage(chatId, {
           id: `${baseId}-note`,
           role: "assistant",
-          content: "Ask a follow-up question about the parsed text above to send it to the model.",
+          content:
+            "Ask a follow-up question about the parsed text above to send it to the model.",
         });
       }
     },
@@ -650,7 +732,7 @@ export function ChatPage({
       if (!chat) {
         const created = client.createChat({
           folderId: null,
-          title: "New chat",
+          title: DEFAULT_SESSION_TITLE,
           modelId,
         });
         chat = await Promise.resolve(created);
@@ -664,7 +746,9 @@ export function ChatPage({
       // Document parse does not load the chat LLM. Gate residency only when
       // this turn will actually start or send to the selected chat model.
       if (!residencyApproved && groups.documents.length === 0) {
-        const selectedModel = listedModels.find((candidate) => candidate.id === modelId);
+        const selectedModel = listedModels.find(
+          (candidate) => candidate.id === modelId,
+        );
         const verdict = residency.request({
           targetModelId: modelId,
           targetVramGB: modelVramEstimate(selectedModel?.vramGB),
@@ -713,7 +797,9 @@ export function ChatPage({
         }
         const labelled = labelSttTranscript(parts.join("\n"));
         origin = STT_TRANSCRIPT_ORIGIN;
-        prompt = [text, labelled].filter((part) => part.trim().length > 0).join("\n\n");
+        prompt = [text, labelled]
+          .filter((part) => part.trim().length > 0)
+          .join("\n\n");
         if (memoryHub) {
           void memoryHub.episodic
             .record({
@@ -735,7 +821,9 @@ export function ChatPage({
         id: `${baseId}-user`,
         role: "user",
         content: userContent,
-        ...(displayAttachments.length > 0 ? { attachments: displayAttachments } : {}),
+        ...(displayAttachments.length > 0
+          ? { attachments: displayAttachments }
+          : {}),
         ...(origin ? { origin } : {}),
         ...estimatedUserUsage(userContent),
       });
@@ -743,23 +831,25 @@ export function ChatPage({
       // its first prompt AND persist it. Fire only on the first message of a
       // still-default chat: a chat the user already named must never be
       // renamed out from under them, and re-titling on every send would fight
-      // the user's own rename. An empty prompt keeps "New chat".
+      // the user's own rename. An empty prompt keeps "New session".
       const isFirstTitledSend =
         chat.messageCount === 0 &&
-        chat.title === "New chat" &&
+        chat.title === DEFAULT_SESSION_TITLE &&
         chat.userRenamed !== true &&
         prompt.trim().length > 0;
       if (isFirstTitledSend) {
         // Immediate prompt-derived fallback through the explorer rename
-        // (byUser false), so the rail never sits on "New chat" waiting for
+        // (byUser false), so the rail never sits on "New session" waiting for
         // the 5s title RPC that contends with the live turn.
         const immediate = fallbackTitle(prompt);
-        if (immediate !== "New chat") {
+        if (immediate !== DEFAULT_SESSION_TITLE) {
           const chatId = chat.id;
           void Promise.resolve(client.renameChat(chatId, immediate, false))
             .then(() => {
               setActiveChat((prev) =>
-                prev && prev.id === chatId ? { ...prev, title: immediate } : prev,
+                prev && prev.id === chatId
+                  ? { ...prev, title: immediate }
+                  : prev,
               );
               setTreeVersion((v) => v + 1);
             })
@@ -770,7 +860,9 @@ export function ChatPage({
       } else {
         // Async-safe touch: the IPC adapter rejects when the sidecar is down,
         // and an unhandled rejection here must never take the send down.
-        void Promise.resolve(client.renameChat(chat.id, chat.title)).catch(() => undefined);
+        void Promise.resolve(client.renameChat(chat.id, chat.title)).catch(
+          () => undefined,
+        );
       }
 
       if (memoryHub && attachments.length > 0) {
@@ -802,7 +894,9 @@ export function ChatPage({
           await handleParseDocument(chat.id, baseId, first, prompt);
           return;
         }
-        const alt = listedModels.find((m) => m.installed && modelAcceptsVision(m));
+        const alt = listedModels.find(
+          (m) => m.installed && modelAcceptsVision(m),
+        );
         appendMessage(chat.id, {
           id: `${baseId}-assistant`,
           role: "assistant",
@@ -816,7 +910,9 @@ export function ChatPage({
       const budget = resolveVisualTokenBudget(selectedListedModel);
       for (const clip of groups.video) {
         if (!sampleVideoFrames) {
-          notices.push("Video was not sent: frame sampling is unavailable. Attach a still image instead.");
+          notices.push(
+            "Video was not sent: frame sampling is unavailable. Attach a still image instead.",
+          );
           continue;
         }
         const sampled = await sampleVideoFrames(clip);
@@ -845,11 +941,20 @@ export function ChatPage({
         });
       }
 
-      if (sendImages.length === 0 && rawImages.length > 0 && prompt.trim().length === 0) {
+      if (
+        sendImages.length === 0 &&
+        rawImages.length > 0 &&
+        prompt.trim().length === 0
+      ) {
         return;
       }
 
-      const reply = await sendChatTurn(chat.id, baseId, prompt, imageGate.enabled ? sendImages : []);
+      const reply = await sendChatTurn(
+        chat.id,
+        baseId,
+        prompt,
+        imageGate.enabled ? sendImages : [],
+      );
       // v2.2.9 Phase 1.5 (T005): refine the fallback title with the model
       // AFTER the first assistant turn completes, so the title RPC never
       // contends with the live reply. The sidecar persists the generated
@@ -860,13 +965,19 @@ export function ChatPage({
         void client
           .generateTitle(chat.id, prompt)
           .then(async (result: { title: string }) => {
-            const current = await Promise.resolve(client.getChat(chatId)).catch(() => null);
+            const current = await Promise.resolve(client.getChat(chatId)).catch(
+              () => null,
+            );
             if (current?.userRenamed === true) return;
             if (!current || current.title !== result.title) {
-              await Promise.resolve(client.renameChat(chatId, result.title, false));
+              await Promise.resolve(
+                client.renameChat(chatId, result.title, false),
+              );
             }
             setActiveChat((prev) =>
-              prev && prev.id === chatId ? { ...prev, title: result.title } : prev,
+              prev && prev.id === chatId
+                ? { ...prev, title: result.title }
+                : prev,
             );
             setTreeVersion((v) => v + 1);
           })
@@ -909,7 +1020,7 @@ export function ChatPage({
   const handleStartNewSession = useCallback(async (): Promise<void> => {
     const created = client.createChat({
       folderId: activeChat?.folderId ?? null,
-      title: "New chat",
+      title: DEFAULT_SESSION_TITLE,
       modelId,
     });
     const chat = await Promise.resolve(created);
@@ -996,7 +1107,10 @@ export function ChatPage({
         // Selecting this arms push-to-talk; the composer's mic button is then
         // the hold target, which is why the old dedicated "Hold to talk"
         // button is no longer needed.
-        label: voiceLoop.mode === "ptt" && voiceLoop.phase === "recording" ? "Release to send" : "Push to talk",
+        label:
+          voiceLoop.mode === "ptt" && voiceLoop.phase === "recording"
+            ? "Release to send"
+            : "Push to talk",
         active: voiceEnabled && voiceLoop.mode === "ptt",
         onSelect: () => {
           if (voiceLoop.mode !== "ptt") {
@@ -1010,18 +1124,31 @@ export function ChatPage({
       {
         id: "vad",
         label:
-          voiceLoop.mode === "vad" && voiceLoop.phase === "recording" ? "Stop VAD" : "Start VAD",
+          voiceLoop.mode === "vad" && voiceLoop.phase === "recording"
+            ? "Stop VAD"
+            : "Start VAD",
         active: voiceEnabled && voiceLoop.mode === "vad",
         onSelect: () => {
           if (voiceLoop.mode !== "vad") {
-            dispatchVoice({ type: "set-mode", mode: "vad" as VoiceCaptureMode });
+            dispatchVoice({
+              type: "set-mode",
+              mode: "vad" as VoiceCaptureMode,
+            });
             return;
           }
           onVadToggle();
         },
       },
     ],
-    [voiceEnabled, voiceLoop.mode, voiceLoop.phase, dispatchVoice, onVadToggle, onPttDown, onPttUp],
+    [
+      voiceEnabled,
+      voiceLoop.mode,
+      voiceLoop.phase,
+      dispatchVoice,
+      onVadToggle,
+      onPttDown,
+      onPttUp,
+    ],
   );
 
   return (
@@ -1039,9 +1166,14 @@ export function ChatPage({
       <SidebarHistorySlot>
         <div
           data-testid="chats-pane"
-          aria-label="Chats"
+          aria-label={CHAT_FOLDER_TREE_COPY.paneTitle}
           data-history-collapsed={chatsCollapsed ? "true" : "false"}
-          style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
         >
           <FolderTree
             client={client}
@@ -1065,7 +1197,16 @@ export function ChatPage({
           />
         </div>
       </SidebarHistorySlot>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, padding: "var(--space-4)", gap: "var(--space-3)" }}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          padding: "var(--space-4)",
+          gap: "var(--space-3)",
+        }}
+      >
         {sidecar.isDown && (
           <SidecarDownBanner
             status={sidecar.status}
@@ -1111,145 +1252,175 @@ export function ChatPage({
             style={{ flex: 1, overflowY: "auto", minWidth: 0 }}
           >
             {activeChat ? (
-              <MessageList
-                messages={messages}
-                enableTools={true}
-              />
+              <MessageList messages={messages} enableTools={true} />
             ) : (
-              <p data-testid="chat-page-empty" style={{ color: "var(--fg-muted)" }}>
+              <p
+                data-testid="chat-page-empty"
+                style={{ color: "var(--fg-muted)" }}
+              >
                 Type a message to start a chat. Folders are optional.
               </p>
             )}
           </div>
         </div>
 
-        <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", position: "relative" }}>
-            {/*
+        <footer
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-2)",
+            position: "relative",
+          }}
+        >
+          {/*
               v1.20.0 Phase 2: RapidOCR remains required for PDF/image. Native
               Office parse does not, so the composer stays usable when this
               banner is showing.
             */}
-            {documentModelInstalled === false ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <button
-                  type="button"
-                  data-testid="chat-get-more-models"
-                  onClick={() => onGetMoreModels?.()}
-                  style={getMoreModelsStyle}
-                >
-                  No document model installed - get more models
-                </button>
-                <a
-                  data-testid="chat-settings-link"
-                  href={SETTINGS_MODELS_PATH}
-                  style={{ display: "none" }}
-                >
-                  Settings
-                </a>
-              </div>
-            ) : null}
-            {/*
+          {documentModelInstalled === false ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)",
+              }}
+            >
+              <button
+                type="button"
+                data-testid="chat-get-more-models"
+                onClick={() => onGetMoreModels?.()}
+                style={getMoreModelsStyle}
+              >
+                No document model installed - get more models
+              </button>
+              <a
+                data-testid="chat-settings-link"
+                href={SETTINGS_MODELS_PATH}
+                style={{ display: "none" }}
+              >
+                Settings
+              </a>
+            </div>
+          ) : null}
+          {/*
               v2.2.9 Phase 1.1 (T001): the indicator renders ONLY while the
               microphone is actually open. The idle composer shows no "Mic
               closed" leftover (screenshot 1).
             */}
-            {voiceLoop.captureVisible ? (
-              <span
-                data-testid="chat-voice-capture-indicator"
-                data-visible="true"
-                role="status"
-                aria-live="polite"
-                style={{
-                  fontSize: "var(--text-xs)",
-                  color: "var(--accent-chatbot)",
-                }}
+          {voiceLoop.captureVisible ? (
+            <span
+              data-testid="chat-voice-capture-indicator"
+              data-visible="true"
+              role="status"
+              aria-live="polite"
+              style={{
+                fontSize: "var(--text-xs)",
+                color: "var(--accent-chatbot)",
+              }}
+            >
+              Recording -- microphone is open
+            </span>
+          ) : null}
+          {personaOpen && activeChat ? (
+            <div
+              data-testid="chat-persona-popover"
+              style={{
+                position: "absolute",
+                left: 0,
+                bottom: "100%",
+                zIndex: 30,
+                width: "22rem",
+                marginBottom: "var(--space-2)",
+                padding: "var(--space-3)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-subtle, #2a2a2a)",
+                background: "var(--bg-elevated, #1b1b1b)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-2)",
+              }}
+            >
+              <label
+                style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}
               >
-                Recording -- microphone is open
-              </span>
-            ) : null}
-            {personaOpen && activeChat ? (
-              <div
-                data-testid="chat-persona-popover"
+                Persona for this chat
+              </label>
+              <textarea
+                data-testid="chat-persona"
+                rows={3}
+                value={personaByChat[activeChat.id] ?? ""}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setPersonaByChat((prev) => ({
+                    ...prev,
+                    [activeChat.id]: next,
+                  }));
+                  void client
+                    .setPersona?.(activeChat.id, next.trim() ? next : null)
+                    .catch(() => undefined);
+                }}
+                placeholder="Optional system prompt for this chat"
                 style={{
-                  position: "absolute",
-                  left: 0,
-                  bottom: "100%",
-                  zIndex: 30,
-                  width: "22rem",
-                  marginBottom: "var(--space-2)",
-                  padding: "var(--space-3)",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-subtle, #2a2a2a)",
-                  background: "var(--bg-elevated, #1b1b1b)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--space-2)",
+                  resize: "vertical",
+                  width: "100%",
+                  boxSizing: "border-box",
                 }}
-              >
-                <label style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
-                  Persona for this chat
-                </label>
-                <textarea
-                  data-testid="chat-persona"
-                  rows={3}
-                  value={personaByChat[activeChat.id] ?? ""}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setPersonaByChat((prev) => ({ ...prev, [activeChat.id]: next }));
-                    void client
-                      .setPersona?.(activeChat.id, next.trim() ? next : null)
-                      .catch(() => undefined);
-                  }}
-                  placeholder="Optional system prompt for this chat"
-                  style={{ resize: "vertical", width: "100%", boxSizing: "border-box" }}
-                />
-              </div>
-            ) : null}
-            <MediaComposer
-              onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
-              submitAccentVar="--accent-chatbot"
-              voiceModes={voiceModes}
-              // v2.2.9 Phase 1.1 (T001): Persona lives in the composer
-              // overflow, not as an always-visible footer label.
-              overflowActions={
-                activeChat
-                  ? [
-                      {
-                        id: "persona",
-                        label: "Persona",
-                        active: personaOpen,
-                        testId: "chat-persona-toggle",
-                        onSelect: () => setPersonaOpen((v) => !v),
-                      },
-                    ]
-                  : []
-              }
-              accept={chatComposerAccept({ allowImages: imageGate.enabled, allowAudio: true })}
-              placeholder="Type a message, attach a document, or record audio to transcribe locally."
-              streaming={messages.some((m) => m.pending)}
-              imageEnabled={imageGate.enabled}
-              imageDisabledReason={imageGate.tooltip}
-              audioEnabled
-              audioHint={audioHint}
-            />
-            <ComposerContextRow usage={contextUsage} onStartNewSession={() => void handleStartNewSession()}>
-              <QuickModelSwitcher
-                testId="chat-model-select"
-                models={listedModels}
-                taskType="llm"
-                ownedIds={ownedIdSet(selection)}
-                hostVramGB={hostVramGB}
-                recommendOrder={recommendOrderForTask(selection, "chat")}
-                value={modelId}
-                onChange={(nextModelId) => {
-                  userChangedModelRef.current = true;
-                  setModelId(nextModelId);
-                  writeFavorite("chat", nextModelId);
-                }}
-                onGetMoreModels={onGetMoreModels}
-                disabled={Boolean(activeChat)}
               />
-            </ComposerContextRow>
+            </div>
+          ) : null}
+          <MediaComposer
+            onSubmit={(text, attachments) =>
+              void handleSubmit(text, attachments)
+            }
+            submitAccentVar="--accent-chatbot"
+            voiceModes={voiceModes}
+            // v2.2.9 Phase 1.1 (T001): Persona lives in the composer
+            // overflow, not as an always-visible footer label.
+            overflowActions={
+              activeChat
+                ? [
+                    {
+                      id: "persona",
+                      label: "Persona",
+                      active: personaOpen,
+                      testId: "chat-persona-toggle",
+                      onSelect: () => setPersonaOpen((v) => !v),
+                    },
+                  ]
+                : []
+            }
+            accept={chatComposerAccept({
+              allowImages: imageGate.enabled,
+              allowAudio: true,
+            })}
+            placeholder="Type a message, attach a document, or record audio to transcribe locally."
+            streaming={messages.some((m) => m.pending)}
+            imageEnabled={imageGate.enabled}
+            imageDisabledReason={imageGate.tooltip}
+            audioEnabled
+            audioHint={audioHint}
+          />
+          <ComposerContextRow
+            usage={contextUsage}
+            onStartNewSession={() => void handleStartNewSession()}
+          >
+            <QuickModelSwitcher
+              testId="chat-model-select"
+              models={listedModels}
+              taskType="llm"
+              ownedIds={ownedIdSet(selection)}
+              hostVramGB={hostVramGB}
+              recommendOrder={recommendOrderForTask(selection, "chat")}
+              value={modelId}
+              onChange={(nextModelId) => {
+                userChangedModelRef.current = true;
+                setModelId(nextModelId);
+                writeFavorite("chat", nextModelId);
+              }}
+              onGetMoreModels={onGetMoreModels}
+              disabled={Boolean(activeChat)}
+            />
+          </ComposerContextRow>
         </footer>
       </div>
     </section>
@@ -1257,9 +1428,9 @@ export function ChatPage({
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
-
   const b64 = stripDataUrlPrefix(dataUrl);
-  if (typeof Buffer !== "undefined") return new Uint8Array(Buffer.from(b64, "base64"));
+  if (typeof Buffer !== "undefined")
+    return new Uint8Array(Buffer.from(b64, "base64"));
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
@@ -1302,7 +1473,9 @@ function replayHistory(
   return messages
     .filter(
       (message): message is ChatMessage & { role: "user" | "assistant" } =>
-        !message.pending && message.id !== currentUserId && message.role !== "system",
+        !message.pending &&
+        message.id !== currentUserId &&
+        message.role !== "system",
     )
     .slice(-500)
     .map((message) => ({ role: message.role, content: message.content }));
@@ -1313,7 +1486,8 @@ function isUnknownChatSessionError(err: unknown): boolean {
 }
 
 function uint8ToBase64(bytes: Uint8Array): string {
-  if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
+  if (typeof Buffer !== "undefined")
+    return Buffer.from(bytes).toString("base64");
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s);

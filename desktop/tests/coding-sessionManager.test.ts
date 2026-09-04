@@ -24,18 +24,25 @@ describe("CodingSessionManager", () => {
 
   it("rejects unknown model ids", () => {
     const mgr = makeMgr();
-    expect(() => mgr.start({ modelId: "totally-fake" })).toThrow(/Unknown model id/);
+    expect(() => mgr.start({ modelId: "totally-fake" })).toThrow(
+      /Unknown model id/,
+    );
   });
 
   it("uses the supplied title (trimmed), falling back to a derived label", () => {
     const mgr = makeMgr();
-    const a = mgr.start({ modelId: "gemma4:e4b", title: "  Refactor PromptBuilder  " });
+    const a = mgr.start({
+      modelId: "gemma4:e4b",
+      title: "  Refactor PromptBuilder  ",
+    });
     const b = mgr.start({ modelId: "gemma4:e4b" });
     const list = mgr.list().sessions;
     expect(list.find((s) => s.sessionId === a.sessionId)?.title).toBe(
       "Refactor PromptBuilder",
     );
-    expect(list.find((s) => s.sessionId === b.sessionId)?.title).toBe("New chat");
+    expect(list.find((s) => s.sessionId === b.sessionId)?.title).toBe(
+      "New session",
+    );
   });
 
   it("sendMessage emits the full event union and increments messageCount", async () => {
@@ -58,7 +65,8 @@ describe("CodingSessionManager", () => {
     const { sessionId } = mgr.start({ modelId: "deepseek-coder:6.7b" });
     const events = await mgr.sendMessage(sessionId, "ping");
     const complete = events.find((e) => e.kind === "toolCallComplete");
-    if (complete?.kind !== "toolCallComplete") throw new Error("missing complete event");
+    if (complete?.kind !== "toolCallComplete")
+      throw new Error("missing complete event");
     expect(complete.result).toContain("deepseek");
   });
 
@@ -74,7 +82,9 @@ describe("CodingSessionManager", () => {
   it("cancel / sendMessage / resume reject unknown sessionIds", async () => {
     const mgr = makeMgr();
     expect(() => mgr.cancel("nope")).toThrow(/unknown sessionId/);
-    await expect(mgr.sendMessage("nope", "m")).rejects.toThrow(/unknown sessionId/);
+    await expect(mgr.sendMessage("nope", "m")).rejects.toThrow(
+      /unknown sessionId/,
+    );
     expect(() => mgr.resume("nope")).toThrow(/unknown sessionId/);
   });
 
@@ -83,7 +93,10 @@ describe("CodingSessionManager", () => {
     const a = mgr.start({ modelId: "gemma4:e4b" });
     const b = mgr.start({ modelId: "qwen2.5:7b" });
     await mgr.sendMessage(a.sessionId, "m1");
-    const list = mgr.list().sessions.map((s) => s.sessionId).sort();
+    const list = mgr
+      .list()
+      .sessions.map((s) => s.sessionId)
+      .sort();
     expect(list).toEqual([a.sessionId, b.sessionId].sort());
   });
 
@@ -205,7 +218,9 @@ describe("CodingSessionManager", () => {
       agentRunner: async () => [
         {
           kind: "reasoning_delta",
-          text: "Check " + ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join(""),
+          text:
+            "Check " +
+            ["gh", "p_abcdefghijklmnopqrstuvwxyz1234567890"].join(""),
         },
         { kind: "token", text: "Safe answer" },
         { kind: "done", finishReason: "stop", reasoningTokens: 4 },
@@ -221,7 +236,10 @@ describe("CodingSessionManager", () => {
 
   it("renames and deletes a session", async () => {
     const mgr = makeMgr();
-    const { sessionId } = mgr.start({ modelId: "gemma4:e4b", title: "Old title" });
+    const { sessionId } = mgr.start({
+      modelId: "gemma4:e4b",
+      title: "Old title",
+    });
     const renamed = mgr.rename(sessionId, "  New title  ");
     expect(renamed.session.title).toBe("New title");
     expect(mgr.list().sessions[0]?.title).toBe("New title");
