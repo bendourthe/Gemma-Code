@@ -196,8 +196,12 @@ class TestReviewEstimate:
         # card says nothing is left to download, the size must agree.
         state = _state(selected_gb=233.2, selection_pending_gb=0.0)
         text = self._summary(state)
-        assert "0 to download" in text
+        # v2.4.7 Phase 4.2: the counts render as a counter row, so assert the
+        # zero pending count and the size agree rather than matching a
+        # sentence that no longer exists.
+        assert "TO DOWNLOAD" in text
         assert "~2 GB to download" in text
+        assert "157" not in text
 
     def test_partially_downloaded_selection_states_both_figures(self, qt_app) -> None:
         state = _state(selected_gb=194.4, selection_pending_gb=18.0)

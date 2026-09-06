@@ -718,12 +718,13 @@ class TestReviewPage:
         assert page._facts_label.objectName() == "review-facts-column"
         assert page._models_label.objectName() == "review-models-column"
         assert r"C:\Program Files\NexusAI" in facts
-        # v2.4.5 Phase 3.3: both estimates moved under the model list, where
-        # they describe the models rather than the install path beside them.
-        assert "Estimated installation time" in models
-        assert "Estimated disk usage" in models
-        assert "Estimated installation time" not in facts
-        assert "Estimated disk usage" not in facts
+        # v2.4.7 Phase 4.1: both estimates moved back into the facts column.
+        # They are install facts, so they belong beside path, components and
+        # GPU rather than trailing the model list.
+        assert "Estimated installation time" in facts
+        assert "Estimated disk usage" in facts
+        assert "Estimated installation time" not in models
+        assert "Estimated disk usage" not in models
         assert "Estimated time:" not in facts
         assert "16 GB VRAM" in facts
         assert "16384 MB" not in facts

@@ -8,10 +8,12 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QGridLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
+    ACCENT,
     BG_CARD,
     BORDER,
     FS_BODY,
     FS_CAPTION,
+    FS_H2,
     SUCCESS,
     TEXT_SECONDARY,
 )
@@ -212,7 +214,14 @@ class ReviewPage(QWidget):
 
     @staticmethod
     def _estimate_html(pending_gb: float, already_gb: float) -> str:
-        """Disk + time estimate, keyed off what still has to be downloaded."""
+        """Disk + time estimate, keyed off what still has to be downloaded.
+
+        v2.4.7 Phase 4.1 (T016): rendered into the FACTS column, and storage
+        on a single line. The already-downloaded total trails the figure as
+        muted text rather than taking a row of its own -- showing only the
+        small number after a large selection invites the opposite worry, that
+        the selection was silently dropped.
+        """
         estimated = pending_gb + _OVERHEAD_GB
         if pending_gb >= 18:
             time_est = "10-15 minutes"
@@ -224,15 +233,40 @@ class ReviewPage(QWidget):
             # Nothing to fetch: the run verifies what is already there.
             time_est = "under 5 minutes"
         already = (
-            f'<br><span style="color:{TEXT_SECONDARY};">'
-            f"{already_gb:.1f} GB already downloaded</span>"
+            f' <span style="color:{TEXT_SECONDARY};">'
+            f"({already_gb:.1f} GB already downloaded)</span>"
             if already_gb > 0
             else ""
         )
         return (
-            f"<br><b>Estimated disk usage:</b> ~{estimated:.0f} GB to download"
+            f"<br><br><b>Estimated disk usage:</b> ~{estimated:.0f} GB to download"
             f"{already}"
             f"<br><b>Estimated installation time:</b> {time_est}"
+        )
+
+    @staticmethod
+    def _summary_counters_html(selected: int, ready: int, pending: int) -> str:
+        """A counter row that reads as a summary, not as another category.
+
+        Screenshot 4's mockup: the totals sit above the per-category lists at
+        their own visual level, so a reader sees the shape of the install
+        before its contents.
+        """
+        cells = (
+            ("SELECTED", selected, TEXT_SECONDARY),
+            ("READY", ready, SUCCESS),
+            ("TO DOWNLOAD", pending, ACCENT if pending else TEXT_SECONDARY),
+        )
+        tds = "".join(
+            f'<td align="center" width="33%">'
+            f'<span style="color:{color};font-size:{FS_H2}px;'
+            f'font-weight:bold;">{value}</span><br>'
+            f'<span style="color:{TEXT_SECONDARY};font-size:{FS_CAPTION}px;">'
+            f"{label}</span></td>"
+            for label, value, color in cells
+        )
+        return (
+            f'<table width="100%" data-testid="models-counters"><tr>{tds}</tr></table>'
         )
 
     def _summary_text(self) -> str:
@@ -272,37 +306,36 @@ class ReviewPage(QWidget):
             # that never ran still reports the whole selection as pending.
             pending_size = pending_download_gb(s)
             already_size = max(0.0, s.selected_models_gb - pending_size)
+            counters = self._summary_counters_html(
+                len(s.selected_model_ids), len(done_ids), len(pending_ids)
+            )
             models_html = (
-                f"<b>Models:</b> {len(s.selected_model_ids)} selected"
-                f"{self._counts_suffix(len(done_ids), len(pending_ids))}<br>"
+                f"{counters}"
                 f"{_LEGEND_HTML}"
                 f"{self._grouped_model_html(s.selected_model_ids, report)}"
-                f"{self._estimate_html(pending_size, already_size)}"
             )
         elif s.selected_model:
             pending_size = s.selected_models_gb
             already_size = 0.0
-            models_html = (
-                f"<b>Model:</b> {s.selected_model}"
-                f"{self._estimate_html(pending_size, already_size)}"
-            )
+            models_html = f"<b>Model:</b> {s.selected_model}"
         else:
             pending_size = 0.0
             already_size = 0.0
-            models_html = (
-                "<b>Models:</b> none selected"
-                f"{self._estimate_html(pending_size, already_size)}"
-            )
+            models_html = "<b>Models:</b> none selected"
 
         vram_part = f" ({display_vram_gb(s.vram_mb)} GB VRAM)" if s.vram_mb else ""
 
         # Estimated disk usage moved under the model list, where the operator
         # asked for it: it is a statement about the models, not about the
         # install path and components beside it.
+        # v2.4.7 Phase 4.1 (T016): the estimates are install facts, so they
+        # belong beside path, components and GPU rather than under the model
+        # list they used to trail.
         facts_html = (
             f"<b>Install path:</b> {s.install_path}<br><br>"
             f"<b>Components:</b><br>{components}<br>"
             f"<b>GPU:</b> {s.gpu_name or 'None detected'}{vram_part}"
+            f"{self._estimate_html(pending_size, already_size)}"
         )
         self._facts_label.setText(facts_html)
         self._models_label.setText(models_html)
