@@ -246,8 +246,9 @@ def pending_download_gb(state: object) -> float:
     One helper so the install guard, the picker footer, and per-model
     affordability cannot disagree about the size of a selection.
 
-    An installed-report with neither downloaded nor pending entries means the
-    probe never ran (a headless `--model` override, or a page order that skips
+    Reads `state.pending_models_gb`, which the picker computes over the
+    selection. An installed-report with neither downloaded nor pending entries
+    means the probe never ran (a headless `--model` override, or a page order that skips
     the picker). Unknown falls back to the full selection total -- the
     pre-v2.4.5 behavior -- because the safe reading of unknown is "assume
     nothing is present", never "assume nothing to download".
@@ -258,7 +259,13 @@ def pending_download_gb(state: object) -> float:
         return total
     if not report.downloaded and not report.pending:
         return total
-    return float(report.pending_gb)
+    # v2.4.7 Phase 1.2 (T002): read the SELECTION-scoped figure the picker
+    # publishes, not the report's own `pending_gb`. The report is probed over
+    # the entire catalog so every card can show a Downloaded pill, so its
+    # `pending_gb` is "every un-downloaded catalog model" -- a number that has
+    # nothing to do with what the user selected. Returning it here made the
+    # guard demand headroom for models nobody asked for.
+    return float(getattr(state, "pending_models_gb", 0.0) or 0.0)
 
 
 __all__ = [

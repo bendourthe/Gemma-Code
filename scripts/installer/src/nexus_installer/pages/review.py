@@ -15,6 +15,7 @@ from nexus_installer.constants import (
     SUCCESS,
     TEXT_SECONDARY,
 )
+from nexus_installer.engine.installed_models import pending_download_gb
 from nexus_installer.pages.typed_catalog import TYPE_TABS, load_catalog_models
 from nexus_installer.registry_paths import default_catalog_path
 from nexus_installer.vram_display import display_vram_gb
@@ -263,17 +264,14 @@ class ReviewPage(QWidget):
             done_ids = [
                 mid for mid in s.selected_model_ids if report.is_downloaded(mid)
             ]
-            if report.downloaded or report.pending:
-                pending_size = report.pending_gb
-                already_size = report.downloaded_gb
-            else:
-                # The probe never ran (headless `--model` override, or a page
-                # order that skips the picker). An unpopulated report means
-                # "unknown", and the safe reading of unknown is "nothing is
-                # downloaded" -- the pre-v2.4.5 behavior -- not "nothing to
-                # download", which would understate the disk requirement.
-                pending_size = s.selected_models_gb
-                already_size = 0.0
+            # v2.4.7 Phase 1.3 (T003): size the SELECTION, via the same helper
+            # the install guard uses, so the two can never disagree. Reading
+            # `report.pending_gb` here was catalog-wide, which is how this card
+            # came to claim `0 to download` beside `~157 GB to download`.
+            # `pending_download_gb` keeps the unknown-report fallback: a probe
+            # that never ran still reports the whole selection as pending.
+            pending_size = pending_download_gb(s)
+            already_size = max(0.0, s.selected_models_gb - pending_size)
             models_html = (
                 f"<b>Models:</b> {len(s.selected_model_ids)} selected"
                 f"{self._counts_suffix(len(done_ids), len(pending_ids))}<br>"

@@ -129,12 +129,19 @@ class TestReviewDownloadedMarks:
         state = InstallerState()
         state.selected_model_ids = list(downloaded) + list(pending)
         state.selected_models_gb = downloaded_gb + pending_gb
+        # v2.4.7: the report is CATALOG-wide, so it also covers models this
+        # selection does not include and its sizes are deliberately far larger.
+        # Any consumer that reads `report.pending_gb` as a selection size fails
+        # here rather than passing because the two happened to coincide -- the
+        # coincidence that hid this defect through v2.4.5 and v2.4.6.
         state.installed_report = InstalledReport(
-            downloaded=frozenset(downloaded),
-            pending=frozenset(pending),
-            downloaded_gb=downloaded_gb,
-            pending_gb=pending_gb,
+            downloaded=frozenset(downloaded) | {"other-catalog-model"},
+            pending=frozenset(pending) | {"another-catalog-model"},
+            downloaded_gb=downloaded_gb + 500.0,
+            pending_gb=pending_gb + 500.0,
         )
+        # The selection-scoped figure the picker publishes.
+        state.pending_models_gb = pending_gb
         return state
 
     def test_models_render_in_two_columns(self, qt_app) -> None:

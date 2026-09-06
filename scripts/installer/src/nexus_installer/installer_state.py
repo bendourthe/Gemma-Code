@@ -209,13 +209,20 @@ class InstallerState:
             # wizard does not lock the user out; the final Install-click
             # guard will re-check.
             return True
-        # v2.4.5 Phase 4.2 (T016): charge only what is not already on disk.
-        # Charging the full selection here would let the picker refuse a model
-        # the install guard would then happily allow -- two answers to the same
-        # question on adjacent screens.
-        already = 0.0
+        # Charge only what is not already on disk, or the picker would refuse a
+        # model the install guard would then happily allow -- two answers to
+        # the same question on adjacent screens.
+        #
+        # v2.4.7: use the SELECTION-scoped pending figure. This previously
+        # credited back `installed_report.downloaded_gb`, which is catalog-wide
+        # (the report is probed over every model so each card can show its
+        # Downloaded pill), so a large downloaded catalog could offset the
+        # whole selection and make the picker accept anything.
         report = self.installed_report
         if report.downloaded or report.pending:
-            already = float(report.downloaded_gb)
-        remaining = self.free_disk_gb - (self.selected_models_gb - already) - model_gb
+            pending = float(self.pending_models_gb)
+        else:
+            # Probe never ran: assume nothing is present.
+            pending = float(self.selected_models_gb)
+        remaining = self.free_disk_gb - pending - model_gb
         return remaining >= self.disk_reserve_gb
