@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QCheckBox,
     QGridLayout,
@@ -20,6 +21,11 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.engine.model_router import (
+    default_catalog_path,
+    load_catalog_index,
+)
+from nexus_installer.engine.required_components import apply_required_components
 from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
 from nexus_installer.vram_display import display_vram_gb
 
@@ -43,6 +49,7 @@ class ConfigurationPage(QWidget):
     ) -> None:
         super().__init__(parent)
         self._state = state
+        self._catalog_entry_cache: dict | None = None
         self._narrow_columns = False
         self._user_touched_unsloth = False
 
@@ -64,35 +71,31 @@ class ConfigurationPage(QWidget):
         components_label.setObjectName("sectionHead")
         components_layout.addWidget(components_label)
 
-        self._ollama_toggle = QCheckBox("Install Ollama")
-        self._ollama_toggle.setChecked("ollama" in state.components_to_install)
-        if state.ollama_installed:
-            self._ollama_toggle.setChecked(True)
-            self._ollama_toggle.setEnabled(False)
-        self._ollama_toggle.stateChanged.connect(
-            lambda s: self._toggle_component("ollama", s)
-        )
-        components_layout.addWidget(self._ollama_toggle)
-
-        self._venv_toggle = QCheckBox("Create Python virtual environment")
-        self._venv_toggle.setChecked("venv" in state.components_to_install)
-        self._venv_toggle.stateChanged.connect(
-            lambda s: self._toggle_component("venv", s)
-        )
-        components_layout.addWidget(self._venv_toggle)
-
-        # v1.8.0 Phase 2 -- the desktop app ships default-checked, like the
-        # extension choice.
-        self._desktop_toggle = QCheckBox("Install the Nexus desktop app (recommended)")
-        self._desktop_toggle.setChecked("desktop" in state.components_to_install)
-        self._desktop_toggle.stateChanged.connect(
-            lambda s: self._toggle_component("desktop", s)
-        )
-        components_layout.addWidget(self._desktop_toggle)
+        # v2.4.7 Phase 2.2 (T007): Ollama, the Python environment, and the
+        # desktop app are DERIVED from the model selection, not asked. Making
+        # them checkboxes let a user silently break a model they had chosen
+        # two steps earlier, with no warning anywhere in the wizard.
+        self._required_list = QLabel()
+        self._required_list.setObjectName("config-required-components")
+        self._required_list.setWordWrap(True)
+        self._required_list.setTextFormat(Qt.TextFormat.RichText)
+        components_layout.addWidget(self._required_list)
 
         self._shortcut_toggle = QCheckBox("Add Start Menu / Applications shortcut")
         self._shortcut_toggle.setChecked(True)
         components_layout.addWidget(self._shortcut_toggle)
+
+        # v2.4.7 Phase 3.2 (T012): the Ollama URL belongs with the thing it
+        # configures, at column width, with no separate heading.
+        self._ollama_url = QLineEdit(state.ollama_url)
+        self._ollama_url.setObjectName("config-ollama-url")
+        self._ollama_url.setAccessibleName("Ollama URL")
+        self._ollama_url.setPlaceholderText("Ollama URL (http://localhost:11434)")
+        self._ollama_url.textChanged.connect(
+            lambda text: setattr(state, "ollama_url", text.strip())
+        )
+        components_layout.addWidget(self._ollama_url)
+
         components_layout.addStretch()
 
         self._features_col = QWidget()
@@ -115,24 +118,12 @@ class ConfigurationPage(QWidget):
         )
         features_layout.addWidget(self._vscode)
 
-        self._thinking_toggle = QCheckBox(
-            "Enable thinking mode (show the model's step-by-step reasoning)"
-        )
-        self._thinking_toggle.setChecked(state.enable_thinking)
-        self._thinking_toggle.stateChanged.connect(
-            lambda s: setattr(state, "enable_thinking", bool(s))
-        )
-        features_layout.addWidget(self._thinking_toggle)
-
-        self._memory_toggle = QCheckBox(
-            "Enable persistent memory (remember context across sessions)"
-        )
-        self._memory_toggle.setChecked(state.enable_memory)
-        self._memory_toggle.stateChanged.connect(
-            lambda s: setattr(state, "enable_memory", bool(s))
-        )
-        features_layout.addWidget(self._memory_toggle)
-
+        # v2.4.7 Phase 2.3 (T008): "Enable thinking mode" and "Enable
+        # persistent memory" were removed. They set `state.enable_thinking` and
+        # `state.enable_memory`, gate no install step, and are changeable in
+        # Settings afterwards -- runtime preferences asked at the worst
+        # possible moment. Their state fields, defaults, and config writer are
+        # untouched, so first-run behavior is unchanged.
         unsloth_row = QWidget()
         unsloth_row.setStyleSheet("background: transparent;")
         unsloth_layout = QHBoxLayout(unsloth_row)
@@ -187,24 +178,46 @@ class ConfigurationPage(QWidget):
         split_host.setLayout(self._split)
         layout.addWidget(split_host)
 
-        # Ollama URL
-        url_label = QLabel("Ollama URL")
-        url_label.setObjectName("sectionHead")
-        layout.addWidget(url_label)
-
-        self._url_input = QLineEdit(state.ollama_url)
-        self._url_input.textChanged.connect(lambda t: setattr(state, "ollama_url", t))
-        layout.addWidget(self._url_input)
+        # v2.4.7 Phase 3.2 (T012): the page-width Ollama URL row is gone. The
+        # field now lives in the components column directly under Ollama, at
+        # column width. `_url_input` stays as an alias so any caller that
+        # reaches for it by name keeps working.
+        self._url_input = self._ollama_url
 
         layout.addStretch()
+
+    def refresh_required_components(self) -> None:
+        """Render the components this selection requires, with their reasons."""
+        resolved = apply_required_components(self._state, self._catalog_entries())
+        rows = "".join(
+            f'<div style="margin-bottom:6px;">'
+            f'<span style="color:{SUCCESS};">✓</span> {item.label}'
+            f'<br><span style="color:{TEXT_SECONDARY};font-size:{FS_CAPTION}px;">'
+            f"{item.reason}</span></div>"
+            for item in resolved.items
+        )
+        self._required_list.setText(rows)
+        # Ollama's URL only matters when Ollama is part of the install.
+        self._ollama_url.setVisible(resolved.requires("ollama"))
+
+    def _catalog_entries(self) -> dict:
+        if self._catalog_entry_cache is None:
+            self._catalog_entry_cache = load_catalog_index(default_catalog_path())
+        return self._catalog_entry_cache
 
     def set_interactive(self, enabled: bool) -> None:
         self._vscode.set_interactive(enabled)
 
     def showEvent(self, event: object) -> None:  # noqa: N802
-        """Refresh Unsloth after GPU detection on Setup has finished."""
+        """Refresh Unsloth and the derived component list on show.
+
+        The model picker precedes this page, so the selection is only known by
+        the time the page is shown -- computing the required list in __init__
+        would render it against an empty selection.
+        """
         super().showEvent(event)  # type: ignore[arg-type]
         self._apply_unsloth_host_lock()
+        self.refresh_required_components()
 
     def resizeEvent(self, event: object) -> None:  # noqa: N802
         super().resizeEvent(event)  # type: ignore[arg-type]

@@ -531,22 +531,36 @@ class TestConfigurationPage:
         page = ConfigurationPage(state)
         assert page is not None
 
-    def test_desktop_toggle_default_checked(self, qt_app: object) -> None:
+    def test_desktop_is_required_not_asked(self, qt_app: object) -> None:
+        # v2.4.7 Phase 2: the desktop app, Ollama and the Python environment
+        # are derived from the model selection rather than offered as
+        # checkboxes. Unchecking one used to silently break a model the user
+        # had chosen two steps earlier, with no warning in the wizard.
         from nexus_installer.pages.configuration import ConfigurationPage
 
         state = InstallerState()
         page = ConfigurationPage(state)
-        assert page._desktop_toggle.isChecked() is True
-
-    def test_desktop_toggle_updates_components(self, qt_app: object) -> None:
-        from nexus_installer.pages.configuration import ConfigurationPage
-
-        state = InstallerState()
-        page = ConfigurationPage(state)
-        page._desktop_toggle.setChecked(False)
-        assert "desktop" not in state.components_to_install
-        page._desktop_toggle.setChecked(True)
+        assert not hasattr(page, "_desktop_toggle")
+        assert not hasattr(page, "_ollama_toggle")
+        assert not hasattr(page, "_venv_toggle")
+        page.refresh_required_components()
         assert "desktop" in state.components_to_install
+
+    def test_settings_toggles_are_gone_but_state_defaults_stand(
+        self, qt_app: object
+    ) -> None:
+        # Thinking mode and persistent memory gate no install step and are
+        # changeable in Settings; only the questions were removed, so first-run
+        # behavior must be unchanged.
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        thinking_default, memory_default = state.enable_thinking, state.enable_memory
+        page = ConfigurationPage(state)
+        assert not hasattr(page, "_thinking_toggle")
+        assert not hasattr(page, "_memory_toggle")
+        assert state.enable_thinking is thinking_default
+        assert state.enable_memory is memory_default
 
     def test_video2x_and_gemma_sampling_are_absent(self, qt_app: object) -> None:
         from PyQt5.QtWidgets import QLabel
@@ -569,7 +583,10 @@ class TestConfigurationPage:
         assert page._components_col.objectName() == "config-components-column"
         assert page._features_col.objectName() == "config-features-column"
         assert page._components_col.parent() is not page._features_col
-        assert page._ollama_toggle.parentWidget() is page._components_col
+        assert page._required_list.parentWidget() is page._components_col
+        # v2.4.7 Phase 3.2: the Ollama URL sits in the components column, at
+        # column width, rather than spanning the page below both columns.
+        assert page._ollama_url.parentWidget() is page._components_col
         assert page._unsloth.parentWidget().parentWidget() is page._features_col
         assert page._vscode.parentWidget() is page._features_col
 
