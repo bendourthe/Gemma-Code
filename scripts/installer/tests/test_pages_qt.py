@@ -951,3 +951,81 @@ class TestInstallingGatedAuthWiring:
         # Declined -> removed from the queue; the public model is untouched.
         assert state.selected_model_ids == ["pub-y"]
         assert "gated-x" in state.skipped_steps
+
+
+class TestWizardDensityV247:
+    """v2.4.7 Phase 3 (T014) -- Install Path and Configuration layout.
+
+    Screenshot 1: Browse sat outside a narrowed path field.
+    Screenshot 2: the Ollama URL spanned the page under both columns, and a
+    blue detection paragraph sat under the VS Code checkbox.
+    """
+
+    def test_path_field_spans_the_row_with_browse_inside_it(
+        self, qt_app: object
+    ) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        page = InstallPathPage(InstallerState())
+        # Browse is a child of the field, not a sibling in a shared row.
+        assert page._browse_btn.parentWidget() is page._path_input
+        # Typed text is kept clear of the overlaid button.
+        margins = page._path_input.textMargins()
+        assert margins.right() > 0
+
+    def test_browse_stays_clickable_and_named(self, qt_app: object) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        page = InstallPathPage(InstallerState())
+        assert page._browse_btn.isEnabled() is True
+        assert "Browse" in page._browse_btn.text()
+        assert page._path_input.isReadOnly() is False
+
+    def test_disk_and_error_lines_remain_under_the_field(self, qt_app: object) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        page = InstallPathPage(InstallerState())
+        assert page._disk_label is not None
+        assert page._error_label is not None
+
+    def test_ollama_url_sits_in_the_components_column(self, qt_app: object) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        assert page._ollama_url.parentWidget() is page._components_col
+        # The visible heading is gone; the accessible name carries the meaning.
+        assert page._ollama_url.accessibleName() == "Ollama URL"
+        labels = " ".join(lbl.text() for lbl in page.findChildren(QLabel) if lbl.text())
+        assert "Ollama URL" not in labels
+
+    def test_ollama_url_is_hidden_when_the_selection_does_not_need_ollama(
+        self, qt_app: object
+    ) -> None:
+        # A URL for a daemon that will not be installed is noise.
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        state.selected_model_ids = []
+        page = ConfigurationPage(state)
+        page.refresh_required_components()
+        assert page._ollama_url.isVisibleTo(page) is False
+
+    def test_compact_vscode_row_has_no_detection_paragraph(
+        self, qt_app: object
+    ) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        assert page._vscode._detection_label.isVisibleTo(page._vscode) is False
+
+    def test_detection_still_drives_the_checkbox(self, qt_app: object) -> None:
+        # Removing the paragraph must not remove the information: an
+        # uninstallable extension still disables the box and explains itself.
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        checkbox = page._vscode._checkbox
+        if not checkbox.isEnabled():
+            assert checkbox.toolTip().strip()

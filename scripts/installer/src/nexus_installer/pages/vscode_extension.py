@@ -173,8 +173,13 @@ class VsCodeExtensionPage(QWidget):
         self._detection_label.setWordWrap(True)
 
         if compact:
+            # v2.4.7 Phase 3.3 (T013): the compact Configuration surface shows
+            # the checkbox alone. The detection paragraph was a wall of blue
+            # text under a control that already says what it does; detection
+            # still runs and still drives the checkbox's enabled state, and the
+            # detail moves to a tooltip for the not-supported case.
             layout.addWidget(self._checkbox)
-            layout.addWidget(self._detection_label)
+            self._detection_label.setVisible(False)
         else:
             card = QWidget()
             card.setStyleSheet(
@@ -239,6 +244,14 @@ class VsCodeExtensionPage(QWidget):
             f"color: {ACCENT if detected.supported else TEXT_SECONDARY}; "
             "font-size: 14px; background: transparent;"
         )
+        if self._compact:
+            # Hidden, not deleted: when the extension cannot be installed the
+            # user still needs to know why, so the reason becomes the disabled
+            # checkbox's tooltip rather than disappearing entirely.
+            self._detection_label.setVisible(False)
+            self._checkbox.setToolTip(
+                "" if detected.supported else _detection_text(detected)
+            )
         self._sync_extension_selection(selected)
         self._apply_replace_label(detected.path)
 
