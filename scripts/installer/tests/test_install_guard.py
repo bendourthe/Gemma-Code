@@ -57,6 +57,14 @@ class TestPendingDownloadSizing:
     """
 
     def _state(self, *, selected_gb, downloaded_gb=0.0, pending_gb=0.0, populated=True):
+        """Build a state whose REPORT is catalog-wide and deliberately wrong.
+
+        v2.4.7: the report carries huge catalog-wide sizes that describe models
+        outside the selection. If any consumer reads `report.pending_gb` as a
+        selection size again, these tests fail loudly instead of passing by
+        coincidence -- which is exactly how the v2.4.5 fixtures let the defect
+        through, by making the selection equal the catalog.
+        """
         from nexus_installer.engine.installed_models import InstalledReport
         from nexus_installer.installer_state import InstallerState
 
@@ -64,11 +72,14 @@ class TestPendingDownloadSizing:
         state.selected_models_gb = selected_gb
         if populated:
             state.installed_report = InstalledReport(
-                downloaded=frozenset({"present"}) if downloaded_gb else frozenset(),
-                pending=frozenset({"absent"}) if pending_gb else frozenset(),
-                downloaded_gb=downloaded_gb,
-                pending_gb=pending_gb,
+                downloaded=frozenset({"present", "other-catalog-model"}),
+                pending=frozenset({"absent", "another-catalog-model"}),
+                # Catalog-wide totals: far larger than this selection.
+                downloaded_gb=downloaded_gb + 500.0,
+                pending_gb=pending_gb + 500.0,
             )
+            # The selection-scoped figure the picker publishes.
+            state.pending_models_gb = pending_gb
         return state
 
     def test_pending_helper_returns_the_remaining_download(self) -> None:

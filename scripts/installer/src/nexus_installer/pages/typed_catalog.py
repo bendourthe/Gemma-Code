@@ -1504,6 +1504,23 @@ class TypedCatalogPage(QWidget):
     def _update_selection_state(self) -> None:
         total = self._selection.total_gb(self._catalog)
         self._state.selected_models_gb = total
+        # v2.4.7 Phase 1.1 (T001): the SELECTION-scoped pending size.
+        #
+        # `installed_report` is deliberately probed over the whole catalog, so
+        # every card can show its Downloaded pill -- which means the report's
+        # own `pending_gb` is "every un-downloaded model in the catalog", not
+        # "what this selection still needs". Reading that as a selection size
+        # is what made Review claim `0 to download` beside `~157 GB to
+        # download`, and it fed the install guard the same wrong number.
+        #
+        # Written in the same place as `selected_models_gb` so the two cannot
+        # drift apart.
+        downloaded = self._state.installed_report.downloaded
+        self._state.pending_models_gb = sum(
+            self._catalog[mid].size_gb
+            for mid in self._selection.selected
+            if mid in self._catalog and mid not in downloaded
+        )
 
         # v1.8.0 Phase 4 (OSI003.P3.D): publish the multi-selection the
         # protocol-routed model step consumes, and keep the legacy single

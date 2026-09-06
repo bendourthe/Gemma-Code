@@ -8,6 +8,51 @@ Per-version tracker of unfinished work, deferrals, and follow-ups. The next plan
 
 Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [v2.4.5 installer already-downloaded models](plans/v2.4.5-installer-already-downloaded-models.md), [v2.4.6 field delivery, density, and session identity](plans/v2.4.6-field-delivery-density-and-session-identity.md)
 
+## v2.4.7
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---:|---:|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 2 | 0 |
+| Bugs / regressions (BG) | 0 | 1 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 1 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phases 1-5 implemented against four operator screenshots of the v2.4.6 installer. One was a defect this project introduced in v2.4.5; three were density and scope feedback. Every earlier open row carries forward, because the v2.4.7 rebuild is the first installer since v2.4.6 merged.
+
+### Open Items
+
+##### MT-1 - The reworked wizard is not observed in the packaged window
+
+- **Source phase**: Phases 1-4
+- **Impact**: Tests pin selection-scoped sizing across four consumers, the derived component resolver, the overlaid Browse button, the column-scoped Ollama URL, the hidden VS Code paragraph, one-line storage in the facts column, and the counter row. None of it has rendered in the packaged wizard, and Qt geometry does not resolve headlessly.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Operator items 1-5 in `last-phase-evidence-v2.4.7-wizard-density.md`.
+
+##### DF-1 - An already-installed Ollama still reads as "will be installed"
+
+- **Source phase**: Phase 2 - Configuration scope
+- **Impact**: `state.ollama_installed` could mark the row satisfied rather than pending. The installer step is already idempotent, so this is imprecise wording rather than wrong behavior.
+- **Owner**: Next installer cycle
+- **Next step**: Render a distinct "already present" state for a satisfied required component.
+
+##### DF-2 - Category labels are not coloured chips
+
+- **Source phase**: Phase 4 - Review density and model summary
+- **Impact**: Screenshot 4's mockup colours each category label. The counter row delivers the visual separation the operator asked for; recolouring the labels is cosmetic and carries a palette decision with no correctness content.
+- **Owner**: Next installer cycle
+- **Next step**: Decide a per-category palette, or accept the current neutral headings.
+
+### Resolved
+
+##### BG-1 - Review reported two contradictory sizes for one selection (resolved)
+
+- **Resolved**: 2026-09-06 in Phases 1 and 4.
+- **Evidence**: The card claimed `7 selected (7 already downloaded, 0 to download)` beside `~157 GB to download / 233.2 GB already downloaded`. The counts were computed per id and correct; the sizes were read from `installed_report.pending_gb` / `downloaded_gb`, which are catalog-wide because the picker probes every entry so each card can show a Downloaded pill. `pending_download_gb` returned the same catalog-wide value, so the install guard demanded headroom for models the user never selected, and `can_select_model` credited back the catalog-wide downloaded total. Introduced in v2.4.5; its tests missed it because every fixture made the report cover exactly the selection, so the two scopes coincided. `state.pending_models_gb` is now the single selection-scoped figure, written beside `selected_models_gb` and read by all four consumers. `test_selection_scoped_sizing.py` adds 13 cases in which every fixture uses a catalog strictly wider than the selection, and both pre-existing fixture helpers were rebuilt with that property. Packaged confirmation remains MT-1.
+
 ## v2.4.6
 
 ### Summary
@@ -87,8 +132,6 @@ Phase 7 of field-delivery is implemented locally. Chat, Agents, Image, and Video
 - **Plan reference**: `docs/v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md` (sub-task 3.2)
 - **Reason**: vscode-versions listed 1.134.0 and 1.135.0 at Electron 42.8.1. 1.136.0 released 2026-09-02 and was not in that table at planning time. This phase kept the rebuild pin at 42.8.1 rather than claiming a new ABI.
 - **Suggested next step**: Confirm `process.versions.electron` on the operator 1.136.0 host before Phase 8 VSIX rebuild; if it is not 42.8.1, rebuild `better-sqlite3` for that Electron.
-
-## v2.4.5
 
 ## v2.4.5
 

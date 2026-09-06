@@ -531,22 +531,36 @@ class TestConfigurationPage:
         page = ConfigurationPage(state)
         assert page is not None
 
-    def test_desktop_toggle_default_checked(self, qt_app: object) -> None:
+    def test_desktop_is_required_not_asked(self, qt_app: object) -> None:
+        # v2.4.7 Phase 2: the desktop app, Ollama and the Python environment
+        # are derived from the model selection rather than offered as
+        # checkboxes. Unchecking one used to silently break a model the user
+        # had chosen two steps earlier, with no warning in the wizard.
         from nexus_installer.pages.configuration import ConfigurationPage
 
         state = InstallerState()
         page = ConfigurationPage(state)
-        assert page._desktop_toggle.isChecked() is True
-
-    def test_desktop_toggle_updates_components(self, qt_app: object) -> None:
-        from nexus_installer.pages.configuration import ConfigurationPage
-
-        state = InstallerState()
-        page = ConfigurationPage(state)
-        page._desktop_toggle.setChecked(False)
-        assert "desktop" not in state.components_to_install
-        page._desktop_toggle.setChecked(True)
+        assert not hasattr(page, "_desktop_toggle")
+        assert not hasattr(page, "_ollama_toggle")
+        assert not hasattr(page, "_venv_toggle")
+        page.refresh_required_components()
         assert "desktop" in state.components_to_install
+
+    def test_settings_toggles_are_gone_but_state_defaults_stand(
+        self, qt_app: object
+    ) -> None:
+        # Thinking mode and persistent memory gate no install step and are
+        # changeable in Settings; only the questions were removed, so first-run
+        # behavior must be unchanged.
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        thinking_default, memory_default = state.enable_thinking, state.enable_memory
+        page = ConfigurationPage(state)
+        assert not hasattr(page, "_thinking_toggle")
+        assert not hasattr(page, "_memory_toggle")
+        assert state.enable_thinking is thinking_default
+        assert state.enable_memory is memory_default
 
     def test_video2x_and_gemma_sampling_are_absent(self, qt_app: object) -> None:
         from PyQt5.QtWidgets import QLabel
@@ -569,7 +583,10 @@ class TestConfigurationPage:
         assert page._components_col.objectName() == "config-components-column"
         assert page._features_col.objectName() == "config-features-column"
         assert page._components_col.parent() is not page._features_col
-        assert page._ollama_toggle.parentWidget() is page._components_col
+        assert page._required_list.parentWidget() is page._components_col
+        # v2.4.7 Phase 3.2: the Ollama URL sits in the components column, at
+        # column width, rather than spanning the page below both columns.
+        assert page._ollama_url.parentWidget() is page._components_col
         assert page._unsloth.parentWidget().parentWidget() is page._features_col
         assert page._vscode.parentWidget() is page._features_col
 
@@ -701,12 +718,13 @@ class TestReviewPage:
         assert page._facts_label.objectName() == "review-facts-column"
         assert page._models_label.objectName() == "review-models-column"
         assert r"C:\Program Files\NexusAI" in facts
-        # v2.4.5 Phase 3.3: both estimates moved under the model list, where
-        # they describe the models rather than the install path beside them.
-        assert "Estimated installation time" in models
-        assert "Estimated disk usage" in models
-        assert "Estimated installation time" not in facts
-        assert "Estimated disk usage" not in facts
+        # v2.4.7 Phase 4.1: both estimates moved back into the facts column.
+        # They are install facts, so they belong beside path, components and
+        # GPU rather than trailing the model list.
+        assert "Estimated installation time" in facts
+        assert "Estimated disk usage" in facts
+        assert "Estimated installation time" not in models
+        assert "Estimated disk usage" not in models
         assert "Estimated time:" not in facts
         assert "16 GB VRAM" in facts
         assert "16384 MB" not in facts
@@ -934,3 +952,103 @@ class TestInstallingGatedAuthWiring:
         # Declined -> removed from the queue; the public model is untouched.
         assert state.selected_model_ids == ["pub-y"]
         assert "gated-x" in state.skipped_steps
+
+
+class TestWizardDensityV247:
+    """v2.4.7 Phase 3 (T014) -- Install Path and Configuration layout.
+
+    Screenshot 1: Browse sat outside a narrowed path field.
+    Screenshot 2: the Ollama URL spanned the page under both columns, and a
+    blue detection paragraph sat under the VS Code checkbox.
+    """
+
+    def test_path_field_spans_the_row_with_browse_inside_it(
+        self, qt_app: object
+    ) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        page = InstallPathPage(InstallerState())
+        # Browse is a child of the field, not a sibling in a shared row.
+        assert page._browse_btn.parentWidget() is page._path_input
+        # Typed text is kept clear of the overlaid button.
+        margins = page._path_input.textMargins()
+        assert margins.right() > 0
+
+    def test_browse_stays_clickable_and_named(self, qt_app: object) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        page = InstallPathPage(InstallerState())
+        assert page._browse_btn.isEnabled() is True
+        assert "Browse" in page._browse_btn.text()
+        assert page._path_input.isReadOnly() is False
+
+    def test_disk_and_error_lines_remain_under_the_field(self, qt_app: object) -> None:
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        page = InstallPathPage(InstallerState())
+        assert page._disk_label is not None
+        assert page._error_label is not None
+
+    def test_ollama_url_sits_in_the_components_column(self, qt_app: object) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        assert page._ollama_url.parentWidget() is page._components_col
+        # The visible heading is gone; the accessible name carries the meaning.
+        assert page._ollama_url.accessibleName() == "Ollama URL"
+        labels = " ".join(lbl.text() for lbl in page.findChildren(QLabel) if lbl.text())
+        assert "Ollama URL" not in labels
+
+    def test_ollama_url_is_hidden_when_the_selection_does_not_need_ollama(
+        self, qt_app: object
+    ) -> None:
+        # A URL for a daemon that will not be installed is noise.
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        state.selected_model_ids = []
+        page = ConfigurationPage(state)
+        page.refresh_required_components()
+        assert page._ollama_url.isVisibleTo(page) is False
+
+    def test_compact_vscode_row_has_no_detection_paragraph(
+        self, qt_app: object
+    ) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        page = ConfigurationPage(InstallerState())
+        assert page._vscode._detection_label.isVisibleTo(page._vscode) is False
+
+    def test_detection_still_drives_the_checkbox(self, qt_app: object) -> None:
+        # Removing the paragraph must not remove the information: an
+        # uninstallable extension still disables the box and explains itself.
+        #
+        # Detection is INJECTED rather than read from the host. Written as a
+        # conditional against real detection, this passed vacuously on a
+        # machine with VS Code installed and only ran on CI -- where it caught
+        # a real gap, because the tooltip was set on refresh but not at
+        # construction.
+        from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
+
+        class _Detection:
+            def __init__(self, supported: bool) -> None:
+                self.supported = supported
+                self.version = "1.1.0"
+                self.path = "/usr/bin/code"
+                self.cli_name = "code"
+                self.reason = "ok" if supported else "not-found"
+
+        unsupported = VsCodeExtensionPage(
+            InstallerState(), detect_fn=lambda: _Detection(False), compact=True
+        )
+        assert unsupported._checkbox.isEnabled() is False
+        assert unsupported._checkbox.toolTip().strip()
+
+        supported = VsCodeExtensionPage(
+            InstallerState(), detect_fn=lambda: _Detection(True), compact=True
+        )
+        assert supported._checkbox.isEnabled() is True
+        # No tooltip when there is nothing to explain.
+        assert supported._checkbox.toolTip() == ""

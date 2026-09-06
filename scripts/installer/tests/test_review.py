@@ -38,7 +38,9 @@ class TestReviewSummary:
         page = ReviewPage(state)
         page._rebuild_summary()
         text = page._summary_text()
-        assert "2 selected" in text
+        # v2.4.7 Phase 4.2: the "N selected" sentence became a counter row.
+        assert "models-counters" in text
+        assert "SELECTED" in text
         assert "gemma4:e4b" in text
         assert "juggernaut-xl-v9" in text
         # v2.4.5 Phase 3.3: the size moved out of the header and under the
@@ -129,27 +131,35 @@ class TestReviewDownloadedMarks:
         state = InstallerState()
         state.selected_model_ids = list(downloaded) + list(pending)
         state.selected_models_gb = downloaded_gb + pending_gb
+        # v2.4.7: the report is CATALOG-wide, so it also covers models this
+        # selection does not include and its sizes are deliberately far larger.
+        # Any consumer that reads `report.pending_gb` as a selection size fails
+        # here rather than passing because the two happened to coincide -- the
+        # coincidence that hid this defect through v2.4.5 and v2.4.6.
         state.installed_report = InstalledReport(
-            downloaded=frozenset(downloaded),
-            pending=frozenset(pending),
-            downloaded_gb=downloaded_gb,
-            pending_gb=pending_gb,
+            downloaded=frozenset(downloaded) | {"other-catalog-model"},
+            pending=frozenset(pending) | {"another-catalog-model"},
+            downloaded_gb=downloaded_gb + 500.0,
+            pending_gb=pending_gb + 500.0,
         )
+        # The selection-scoped figure the picker publishes.
+        state.pending_models_gb = pending_gb
         return state
 
     def test_models_render_in_two_columns(self, qt_app) -> None:
         state = self._state(pending=[f"model-{i}" for i in range(6)], pending_gb=6.0)
         text = self._page(state)._summary_text()
         assert "<table" in text
-        # Six models over two columns is three rows, not six.
-        assert text.count("<tr>") == 3
+        # Six models over two columns is three rows, not six -- plus the one
+        # counter row the summary now renders above the categories.
+        assert text.count("<tr>") == 3 + 1
         for i in range(6):
             assert f"model-{i}" in text
 
     def test_odd_count_leaves_one_empty_cell(self, qt_app) -> None:
         state = self._state(pending=["a", "b", "c"], pending_gb=3.0)
         text = self._page(state)._summary_text()
-        assert text.count("<tr>") == 2
+        assert text.count("<tr>") == 2 + 1  # + the counter row
         for mid in ("a", "b", "c"):
             assert mid in text
 
@@ -199,13 +209,16 @@ class TestReviewDownloadedMarks:
         text = self._page(state)._summary_text()
         assert "176.0 GB already downloaded" in text
 
-    def test_counts_appear_in_the_header(self, qt_app) -> None:
+    def test_counters_replace_the_header_sentence(self, qt_app) -> None:
+        # v2.4.7 Phase 4.2: totals read as a summary above the categories
+        # rather than as a sentence that looked like another category label.
         state = self._state(
             downloaded=["a", "b"], pending=["c"], downloaded_gb=10.0, pending_gb=5.0
         )
         text = self._page(state)._summary_text()
-        assert "3 selected" in text
-        assert "2 already downloaded, 1 to download" in text
+        assert "models-counters" in text
+        assert "SELECTED" in text and "READY" in text and "TO DOWNLOAD" in text
+        assert "2 already downloaded, 1 to download" not in text
 
     def test_everything_downloaded_reads_as_a_short_run(self, qt_app) -> None:
         state = self._state(downloaded=["a", "b"], downloaded_gb=100.0, pending_gb=0.0)
@@ -220,17 +233,114 @@ class TestReviewDownloadedMarks:
         state = InstallerState()
         state.selected_model_ids = ["a", "b"]
         state.selected_models_gb = 50.0
-        text = self._page(state)._summary_text()
-        assert "~52 GB to download" in text
-        assert "already downloaded" not in text.split("Estimated disk usage")[1]
+        # Assert on the facts label rather than the concatenated summary: the
+        # models column carries a legend containing the same words, so a split
+        # on the whole text would match the legend rather than the estimate.
+        # Hold the page: letting it fall out of scope deletes the underlying
+        # Qt widget before the label is read.
+        page = self._page(state)
+        facts = page._facts_label.text()
+        del page
+        assert "~52 GB to download" in facts
+        assert "already downloaded" not in facts
 
-    def test_estimate_sits_under_the_model_list(self, qt_app) -> None:
+    def test_estimate_sits_in_the_facts_column(self, qt_app) -> None:
+        # v2.4.7 Phase 4.1: the estimates are install facts, so they sit with
+        # path, components and GPU rather than trailing the model list.
         state = self._state(pending=["a"], pending_gb=4.0)
         page = self._page(state)
         models_text = page._models_label.text()
         facts_text = page._facts_label.text()
-        # The operator asked for it under the models; it must not remain in
-        # the left-hand facts column.
-        assert "Estimated disk usage" in models_text
-        assert "Estimated disk usage" not in facts_text
+        assert "Estimated disk usage" in facts_text
+        assert "Estimated installation time" in facts_text
+        assert "Estimated disk usage" not in models_text
         assert "Install path" in facts_text
+
+
+class TestReviewDensityV247:
+    """v2.4.7 Phase 4 (T018) -- facts left, one-line storage, counter row.
+
+    Screenshot 3: storage and time sat in the models column with storage
+    wrapping to two lines. Screenshot 4 is the target for the summary: totals
+    read as a summary above the category lists, not as another category.
+    """
+
+    def _page(self, *, downloaded=(), pending=(), downloaded_gb=0.0, pending_gb=0.0):
+        from nexus_installer.engine.installed_models import InstalledReport
+        from nexus_installer.pages.review import ReviewPage
+
+        state = InstallerState()
+        state.selected_model_ids = list(downloaded) + list(pending)
+        state.selected_models_gb = downloaded_gb + pending_gb
+        state.installed_report = InstalledReport(
+            downloaded=frozenset(downloaded) | {"unselected-model"},
+            pending=frozenset(pending) | {"another-unselected"},
+            downloaded_gb=downloaded_gb + 500.0,
+            pending_gb=pending_gb + 500.0,
+        )
+        state.pending_models_gb = pending_gb
+        page = ReviewPage(state)
+        page._rebuild_summary()
+        # Return TEXT, never the page. Holding a Qt widget past the test kept
+        # it alive through QApplication teardown and crashed the suite with a
+        # COM RPC_E_DISCONNECTED -- the same trap v2.4.5 Phase 2 hit.
+        return page._facts_label.text(), page._models_label.text()
+
+    def test_storage_renders_on_a_single_line(self, qt_app) -> None:
+        facts, _ = self._page(
+            downloaded=["a"], pending=["b"], downloaded_gb=176.0, pending_gb=18.0
+        )
+        head, _, tail = facts.partition("<b>Estimated disk usage:</b>")
+        assert head  # the marker exists
+        storage_line = tail.split("<br>")[0]
+        # Both figures on one line: the pending estimate and, in parentheses,
+        # the already-downloaded total as muted trailing text.
+        assert "GB to download" in storage_line
+        assert "already downloaded" in storage_line
+
+    def test_already_downloaded_is_omitted_when_there_is_none(self, qt_app) -> None:
+        facts, _ = self._page(pending=["b"], pending_gb=18.0)
+        assert "already downloaded" not in facts
+
+    def test_counter_row_reports_selected_ready_and_pending(self, qt_app) -> None:
+        _, models = self._page(
+            downloaded=["a", "b"], pending=["c"], downloaded_gb=10.0, pending_gb=5.0
+        )
+        assert 'data-testid="models-counters"' in models
+        for label in ("SELECTED", "READY", "TO DOWNLOAD"):
+            assert label in models
+
+    def test_counters_agree_with_the_category_rows(self, qt_app) -> None:
+        # A summary that disagrees with what it summarizes is worse than none.
+        _, models = self._page(
+            downloaded=["a", "b"], pending=["c"], downloaded_gb=10.0, pending_gb=5.0
+        )
+        counters = models.split("</table>")[0]
+        assert ">3<" in counters  # selected
+        assert ">2<" in counters  # ready
+        assert ">1<" in counters  # to download
+
+    def test_counter_row_is_visually_distinct_from_category_headings(
+        self, qt_app
+    ) -> None:
+        # Screenshot 4's point: the summary must not read as another category.
+        from nexus_installer.constants import FS_H2
+
+        _, models = self._page(
+            downloaded=["a"], pending=["b"], downloaded_gb=1.0, pending_gb=2.0
+        )
+        counters = models.split("</table>")[0]
+        assert f"font-size:{FS_H2}px" in counters
+
+    def test_categories_still_render_beneath_the_counters(self, qt_app) -> None:
+        _, models = self._page(
+            downloaded=["a"], pending=["b"], downloaded_gb=1.0, pending_gb=2.0
+        )
+        assert models.index("models-counters") < models.index("<table width='100%'>")
+
+    def test_an_all_downloaded_selection_reads_as_a_short_run(self, qt_app) -> None:
+        facts, _ = self._page(
+            downloaded=["a", "b"], downloaded_gb=100.0, pending_gb=0.0
+        )
+        assert "~2 GB to download" in facts
+        assert "under 5 minutes" in facts

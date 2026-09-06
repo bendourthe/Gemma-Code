@@ -6,9 +6,9 @@ import os
 import shutil
 from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QFileDialog,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QVBoxLayout,
@@ -28,6 +28,10 @@ from nexus_installer.widgets.secondary_button import SecondaryButton
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
+
+
+#: Gap between the typed text and the overlaid Browse button.
+_BROWSE_GAP_PX = 8
 
 
 class InstallPathPage(QWidget):
@@ -56,16 +60,24 @@ class InstallPathPage(QWidget):
             title.setObjectName("pageTitle")
         layout.addWidget(title)
 
-        # Path input row
-        path_row = QHBoxLayout()
+        # v2.4.7 Phase 3.1 (T011): one full-width control that reads as a path
+        # field with an action, rather than a narrowed field beside a button.
+        # Browse is an overlaid child so the field keeps the whole row and the
+        # button still takes focus and clicks.
         self._path_input = QLineEdit(state.install_path)
+        self._path_input.setObjectName("install-path-input")
         self._path_input.textChanged.connect(self._on_path_changed)
-        path_row.addWidget(self._path_input, stretch=1)
 
-        browse_btn = SecondaryButton("Browse...")
-        browse_btn.clicked.connect(self._browse)
-        path_row.addWidget(browse_btn)
-        layout.addLayout(path_row)
+        self._browse_btn = SecondaryButton("Browse...")
+        self._browse_btn.setObjectName("install-path-browse")
+        self._browse_btn.setParent(self._path_input)
+        self._browse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._browse_btn.clicked.connect(self._browse)
+        # Keep typed text clear of the button.
+        self._path_input.setTextMargins(
+            0, 0, self._browse_btn.sizeHint().width() + _BROWSE_GAP_PX, 0
+        )
+        layout.addWidget(self._path_input)
 
         # Disk space display
         self._disk_label = QLabel("")
@@ -105,6 +117,23 @@ class InstallPathPage(QWidget):
         )
         if path:
             self._path_input.setText(path)
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802
+        """Keep the overlaid Browse button pinned to the field's right edge."""
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        self._position_browse()
+
+    def showEvent(self, event: object) -> None:  # noqa: N802
+        super().showEvent(event)  # type: ignore[arg-type]
+        self._position_browse()
+
+    def _position_browse(self) -> None:
+        field = self._path_input
+        button = self._browse_btn
+        width = button.sizeHint().width()
+        height = max(1, field.height() - 8)
+        button.setFixedHeight(height)
+        button.move(max(0, field.width() - width - 4), 4)
 
     def _on_path_changed(self, text: str) -> None:
         self._state.install_path = text
