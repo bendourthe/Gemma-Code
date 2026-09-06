@@ -209,12 +209,36 @@ Installer and extension suites were green at their phase commits (`fb7d8ddd` thr
 
 ## Publication and integration
 
-PR: https://github.com/bendourthe/Nexus-AI/pull/62 against `develop` (opened 2026-09-04). Branch published. Package remains 2.4.1. `/update release` and the installer rebuild are held until this PR is green and merged.
+PR: https://github.com/bendourthe/Nexus-AI/pull/62 against `develop` (opened 2026-09-04). Branch published at `e1f399c6`. Package remains 2.4.1. `/update release` is held until this PR is merged. Required checks on the stabilization push are green (installer tests, Shell ubuntu-latest, production npm audit included). `init.ps1 (Windows)` is skipped on `pull_request` by design. Merge still waits on explicit operator approval.
 
-First merge-result run was red on three checks. Each was reproduced locally before any re-push:
+First merge-result run was red on three checks. Each was reproduced locally before the re-push (`e1f399c6`):
 
-1. `Installer tests + lint + smoke` -- `test_compact_gpu_name_vendor_vram_one_label` saw `'16 GB VRAM' in 'NVIDIA GeForce RTX 3080 Ti Laptop GPU | Vendor: Nvidia | 16 G…'`. Compact elide now shortens the GPU name and keeps the vendor + VRAM suffix. Local: `uv run pytest tests/test_pages_qt.py::TestGpuDetectionPage` 9 passed.
-2. `Shell ubuntu-latest` -- `vite build` failed on `core/storage/desktopPayload.ts` `readFileSync` (`node:fs` is not a browser export). Parse/format stay in `desktopPayload.ts`; Node reads moved to `desktopPayloadFs.ts`. Local: `desktop` `npm run build:web` succeeded (1792 modules).
-3. `npm audit (production deps)` -- 2 non-allowlisted advisories: `qs` CVE-2026-82562 (patched 6.16.0) and `fast-uri` GHSA-qw65-cvwx-89v3 (patched 3.1.7 on the 3.x line). Overrides bumped in-range. Local: `npm run check:audit-prod` OK (0 blocking).
+1. `Installer tests + lint + smoke` -- compact GPU elide truncated `'16 GB VRAM'` mid-token, leaving `16 G` plus a rendered ellipsis. Fix: elide the GPU name, keep vendor + VRAM. Local: 9 GPU page tests passed.
+2. `Shell ubuntu-latest` -- Vite `build:web` failed on `readFileSync` from `desktopPayload.ts`. Fix: Node I/O in `desktopPayloadFs.ts`. Local: `npm run build:web` 1792 modules.
+3. `npm audit (production deps)` -- `qs` CVE-2026-82562 (6.16.0) and `fast-uri` GHSA-qw65-cvwx-89v3 (3.1.7). In-range overrides. Local: `check:audit-prod` 0 blocking.
 
-Merge still waits on a green re-run and explicit operator approval. Do not rebuild `NexusSetup.exe` from this feature tip.
+---
+
+## Installer rebuild
+
+Local field-test freeze from the implemented feature tip (not from merged `develop`; PR 62 is green and unmerged). Sequence: `scripts/build-vsix.ps1 -SkipTests`, then immediately `cd desktop; npm run build:shell`, then `scripts/installer/build/build-windows.ps1 -SkipSign`, then `scripts/installer/build/smoke-windows-exe.ps1`. After the VSIX, `npm rebuild better-sqlite3` restored the Node ABI.
+
+| Fact | Value |
+|---|---|
+| Artifact | `dist\NexusSetup.exe` (unsigned) |
+| Size | 251,048,432 bytes (239.4 MB) |
+| SHA-256 | `17DD4CA5A2E2C1AB8BD140761FD2C74D5C429CD8A329D6D6F24C3ECEE9052021` |
+| Source commit | `e1f399c6` (`feat/v2.4.6-field-delivery-density-and-session-identity`) |
+| Staged desktop NSIS | `Nexus AI Studio_2.4.1_x64-setup.exe` |
+| Payload sha256 | `5d55ffb1903f4c39626a3702dbedc4c3b8420ef1e5bab2f2531af57444d992fa` |
+| Payload source_mtime_utc | `2026-09-04T04:49:57Z` |
+| VSIX | `nexus-coding-2.4.1-win32-x64.vsix` |
+
+Smoke passed all four assertions: single artifact, no leftover two-artifact wizard, `--version` / `--check-registry` / `--check-desktop-payload` each exit 0.
+
+Build-time warnings, both pre-existing and by design:
+
+- Hub catalog snapshot refused (local catalog tag 4.4.0 reported as not latest). The installer syncs Hub at install time.
+- Placeholder HF weight pins remain (`dist/pin-check.log`); those downloads skip hash verification (`sam2:hiera-tiny` class).
+
+**No version bump, tag, or GitHub Release.** Package version stays 2.4.1.
