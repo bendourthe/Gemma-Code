@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as vscode from "vscode";
 import { mockOf } from "../../helpers/factories.js";
 import type { ChatCommandContext } from "../../../src/panels/ChatCommandHandlers.js";
 import {
@@ -9,6 +10,11 @@ import {
 } from "../../../src/panels/ChatCommandHandlers.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 import { HarnessSessionOverride } from "../../../modules/coding/orchestration/HarnessSelector.js";
+import { EMPTY_OWNED_AGENTIC_MESSAGE } from "../../../core/registry/ownedAgentic.js";
+
+const { listOwnedAgenticModels } = vi.hoisted(() => ({
+  listOwnedAgenticModels: vi.fn(),
+}));
 
 vi.mock("vscode", () => ({
   workspace: {
@@ -16,7 +22,9 @@ vi.mock("vscode", () => ({
     getConfiguration: vi.fn(() => ({
       update: vi.fn().mockResolvedValue(undefined),
     })),
-    openTextDocument: vi.fn().mockResolvedValue({ uri: { fsPath: "/ws/Memory.md" } }),
+    openTextDocument: vi
+      .fn()
+      .mockResolvedValue({ uri: { fsPath: "/ws/Memory.md" } }),
   },
   window: {
     showQuickPick: vi.fn(),
@@ -24,6 +32,10 @@ vi.mock("vscode", () => ({
   },
   Uri: { file: (p: string) => ({ fsPath: p }) },
   ConfigurationTarget: { Global: 1 },
+}));
+
+vi.mock("../../../modules/coding/config/ownedAgenticFeed.js", () => ({
+  listOwnedAgenticModels,
 }));
 
 vi.mock("../../../modules/coding/utils/MarkdownRenderer.js", () => ({
@@ -123,6 +135,7 @@ function makeFakeCtx(opts: FakeContextOptions = {}): {
   const agentLoop = mockOf<ChatCommandContext["agentLoop"]>({
     getModifiedFiles: vi.fn(() => []),
     getRecentToolResults: vi.fn(() => []),
+    setModelName: vi.fn(),
   });
 
   const postHistory = vi.fn();
@@ -147,15 +160,18 @@ function makeFakeCtx(opts: FakeContextOptions = {}): {
     getMcpManager: () => opts.mcpManager as never,
     getMcpTools: () => (opts.mcpTools ?? []) as never,
     setMcpTools: vi.fn(),
-    getSettings: () => ({
-      mcpEnabled: opts.mcpEnabled ?? false,
-      embeddingModel: "",
-      secretPathDenyExtra: [] as readonly string[],
-      subAgentMaxIterations: 5,
-      modelName: opts.modelName ?? "gemma4:e4b",
-      harnessSelectorEnabled: opts.harnessSelectorEnabled ?? false,
-    }) as never,
-    getHarnessSession: opts.harnessSession ? () => opts.harnessSession! : undefined,
+    getSettings: () =>
+      ({
+        mcpEnabled: opts.mcpEnabled ?? false,
+        embeddingModel: "",
+        secretPathDenyExtra: [] as readonly string[],
+        subAgentMaxIterations: 5,
+        modelName: opts.modelName ?? "gemma4:e4b",
+        harnessSelectorEnabled: opts.harnessSelectorEnabled ?? false,
+      }) as never,
+    getHarnessSession: opts.harnessSession
+      ? () => opts.harnessSession!
+      : undefined,
     buildPromptContext: vi.fn(() => ({}) as never),
     postMessage: (m: ExtensionToWebviewMessage) => posted.push({ msg: m }),
     postHistory,
@@ -164,7 +180,15 @@ function makeFakeCtx(opts: FakeContextOptions = {}): {
     postMcpStatus,
   };
 
-  return { ctx, posted, added, postHistory, postTokenCount, postMemoryStatus, postMcpStatus };
+  return {
+    ctx,
+    posted,
+    added,
+    postHistory,
+    postTokenCount,
+    postMemoryStatus,
+    postMcpStatus,
+  };
 }
 
 describe("ChatCommandHandlers", () => {
@@ -265,7 +289,9 @@ describe("ChatCommandHandlers", () => {
 
   it("/history with a store posts a sessionList event", async () => {
     const fakeStore = {
-      listSessions: vi.fn(() => [{ id: "s1", title: "x", createdAt: 0, updatedAt: 0, messages: [] }]),
+      listSessions: vi.fn(() => [
+        { id: "s1", title: "x", createdAt: 0, updatedAt: 0, messages: [] },
+      ]),
     };
     const { ctx, posted } = makeFakeCtx({ store: fakeStore });
     const h = new ChatCommandHandlers(ctx);
@@ -350,7 +376,11 @@ describe("ChatCommandHandlers", () => {
   it("/memory save persists content and refreshes the badge", async () => {
     const memoryStore = {
       save: vi.fn().mockResolvedValue(undefined),
-      getStats: vi.fn(() => ({ totalEntries: 1, embeddingCount: 0, byType: {} })),
+      getStats: vi.fn(() => ({
+        totalEntries: 1,
+        embeddingCount: 0,
+        byType: {},
+      })),
     };
     const { ctx, postMemoryStatus } = makeFakeCtx({ memoryStore });
     const h = new ChatCommandHandlers(ctx);
@@ -367,7 +397,11 @@ describe("ChatCommandHandlers", () => {
   it("/memory clear empties the store", async () => {
     const memoryStore = {
       clear: vi.fn(),
-      getStats: vi.fn(() => ({ totalEntries: 0, embeddingCount: 0, byType: {} })),
+      getStats: vi.fn(() => ({
+        totalEntries: 0,
+        embeddingCount: 0,
+        byType: {},
+      })),
     };
     const { ctx } = makeFakeCtx({ memoryStore });
     const h = new ChatCommandHandlers(ctx);
@@ -516,7 +550,9 @@ describe("ChatCommandHandlers", () => {
       lruStats: vi.fn(),
       clear: vi.fn(),
       prune: vi.fn(),
-      reembedHeuristic: vi.fn().mockResolvedValue({ scanned: 4, reembedded: 3 }),
+      reembedHeuristic: vi
+        .fn()
+        .mockResolvedValue({ scanned: 4, reembedded: 3 }),
     };
     const { ctx, added } = makeFakeCtx({ toolOutputCache });
     const h = new ChatCommandHandlers(ctx);
@@ -612,21 +648,48 @@ describe("ChatCommandHandlers", () => {
     expect(added[0]).toContain("Research Results");
   });
 
-  it("/model surfaces an error when Ollama is unreachable", async () => {
+  it("/model surfaces a Settings message when the owned set is empty", async () => {
+    listOwnedAgenticModels.mockResolvedValue([]);
     const ctxBag = makeFakeCtx();
-    (ctxBag.ctx.runtime.getOllamaClient as ReturnType<typeof vi.fn>).mockReturnValue({
-      listModels: vi.fn().mockResolvedValue([]),
-    });
     const h = new ChatCommandHandlers(ctxBag.ctx);
     await h.dispatch("model", "");
 
     const errorPost = ctxBag.posted.find((p) => p.msg.type === "error");
     expect(errorPost).toBeDefined();
+    expect((errorPost?.msg as { text?: string }).text).toBe(
+      EMPTY_OWNED_AGENTIC_MESSAGE,
+    );
+    expect(ctxBag.ctx.runtime.getOllamaClient).not.toHaveBeenCalled();
+  });
+
+  it("/model switches to an owned agentic id and keeps the agent loop", async () => {
+    listOwnedAgenticModels.mockResolvedValue([
+      { id: "gemma-4-12b-it-gguf", displayName: "Gemma 4 12B" },
+      { id: "qwen2.5-coder:14b", displayName: "Qwen2.5 Coder 14B" },
+    ]);
+    (vscode.window.showQuickPick as ReturnType<typeof vi.fn>).mockResolvedValue(
+      {
+        label: "Qwen2.5 Coder 14B",
+        description: "qwen2.5-coder:14b",
+      },
+    );
+    const ctxBag = makeFakeCtx();
+    const h = new ChatCommandHandlers(ctxBag.ctx);
+    await h.dispatch("model", "");
+
+    expect(ctxBag.ctx.agentLoop.setModelName).toHaveBeenCalledWith(
+      "qwen2.5-coder:14b",
+    );
+    expect(ctxBag.added[0]).toContain("qwen2.5-coder:14b");
   });
 
   it("/memory lint runs the lint helper", async () => {
     const memoryStore = {
-      getStats: vi.fn(() => ({ totalEntries: 0, embeddingCount: 0, byType: {} })),
+      getStats: vi.fn(() => ({
+        totalEntries: 0,
+        embeddingCount: 0,
+        byType: {},
+      })),
     };
     const { ctx, added } = makeFakeCtx({ memoryStore });
     const h = new ChatCommandHandlers(ctx);
@@ -707,7 +770,9 @@ describe("ChatCommandHandlers", () => {
     const { ctx } = makeFakeCtx({ memoryFiles });
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "edit");
-    expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith({ fsPath: "/ws/Memory.md" });
+    expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith({
+      fsPath: "/ws/Memory.md",
+    });
     expect(vscode.window.showTextDocument).toHaveBeenCalled();
   });
 
@@ -721,7 +786,9 @@ describe("ChatCommandHandlers", () => {
     const { ctx } = makeFakeCtx({ memoryFiles });
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "edit context");
-    expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith({ fsPath: "/ws/Context.md" });
+    expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith({
+      fsPath: "/ws/Context.md",
+    });
   });
 
   it("/memory edit unknown surfaces usage help", async () => {
@@ -738,7 +805,10 @@ describe("ChatCommandHandlers", () => {
 
   // v0.7.0 Phase 5 -- /memory forget|export|import slash-command surface.
   it("/memory forget rejects an empty pattern with usage help", async () => {
-    const memoryFiles = { memoryPath: "/ws/Memory.md", removeFromMemory: vi.fn() };
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      removeFromMemory: vi.fn(),
+    };
     const { ctx, added } = makeFakeCtx({ memoryFiles });
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "forget");
@@ -770,7 +840,10 @@ describe("ChatCommandHandlers", () => {
       ]),
       deleteById: vi.fn(() => true),
     };
-    const { ctx, added, postMemoryStatus } = makeFakeCtx({ memoryFiles, memoryStore });
+    const { ctx, added, postMemoryStatus } = makeFakeCtx({
+      memoryFiles,
+      memoryStore,
+    });
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "forget Conventional --include-sql");
     expect(memoryStore.deleteById).toHaveBeenCalledWith("a");
@@ -783,7 +856,7 @@ describe("ChatCommandHandlers", () => {
     const memoryFiles = {
       memoryPath: "/ws/Memory.md",
       removeFromMemory: vi.fn(() => {
-        throw new Error("Refused to remove: pattern \".*\" is too greedy.");
+        throw new Error('Refused to remove: pattern ".*" is too greedy.');
       }),
     };
     const { ctx, added } = makeFakeCtx({ memoryFiles });
@@ -828,7 +901,9 @@ describe("ChatCommandHandlers", () => {
     const { ctx, added } = makeFakeCtx({ memoryFiles, memoryStore: null });
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "export /tmp/memory.json");
-    expect(memoryFiles.export).toHaveBeenCalledWith("/tmp/memory.json", { sqlMemories: [] });
+    expect(memoryFiles.export).toHaveBeenCalledWith("/tmp/memory.json", {
+      sqlMemories: [],
+    });
     expect(added[0]).toContain("0 SQL-backed entries");
   });
 
@@ -845,7 +920,9 @@ describe("ChatCommandHandlers", () => {
     const memoryFiles = {
       memoryPath: "/ws/Memory.md",
       export: vi.fn(() => {
-        throw new Error("Refused to export to a secret path: /home/me/.aws/credentials");
+        throw new Error(
+          "Refused to export to a secret path: /home/me/.aws/credentials",
+        );
       }),
     };
     const { ctx, added } = makeFakeCtx({ memoryFiles, memoryStore: null });
@@ -860,7 +937,10 @@ describe("ChatCommandHandlers", () => {
     const { ctx, added } = makeFakeCtx({ memoryFiles });
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "import /tmp/memory.json");
-    expect(memoryFiles.import).toHaveBeenCalledWith("/tmp/memory.json", "merge");
+    expect(memoryFiles.import).toHaveBeenCalledWith(
+      "/tmp/memory.json",
+      "merge",
+    );
     expect(added[0]).toContain("mode: **merge**");
   });
 
@@ -869,7 +949,10 @@ describe("ChatCommandHandlers", () => {
     const { ctx, added } = makeFakeCtx({ memoryFiles });
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "import /tmp/memory.json --mode=replace");
-    expect(memoryFiles.import).toHaveBeenCalledWith("/tmp/memory.json", "replace");
+    expect(memoryFiles.import).toHaveBeenCalledWith(
+      "/tmp/memory.json",
+      "replace",
+    );
     expect(added[0]).toContain("mode: **replace**");
   });
 
@@ -886,7 +969,9 @@ describe("ChatCommandHandlers", () => {
     const memoryFiles = {
       memoryPath: "/ws/Memory.md",
       import: vi.fn(() => {
-        throw new Error("Invalid memory export at /tmp/memory.json: Unexpected token");
+        throw new Error(
+          "Invalid memory export at /tmp/memory.json: Unexpected token",
+        );
       }),
     };
     const { ctx, added } = makeFakeCtx({ memoryFiles });
@@ -907,12 +992,18 @@ describe("Phase 5 memory-command parsers", () => {
       pattern: "^- prefer:",
       includeSql: true,
     });
-    expect(parseForgetArgs("foo bar")).toEqual({ pattern: "foo bar", includeSql: false });
+    expect(parseForgetArgs("foo bar")).toEqual({
+      pattern: "foo bar",
+      includeSql: false,
+    });
     expect(parseForgetArgs("")).toEqual({ pattern: "", includeSql: false });
   });
 
   it("parseImportArgs honours --mode= and --replace shorthand", () => {
-    expect(parseImportArgs("/tmp/x.json")).toEqual({ path: "/tmp/x.json", mode: "merge" });
+    expect(parseImportArgs("/tmp/x.json")).toEqual({
+      path: "/tmp/x.json",
+      mode: "merge",
+    });
     expect(parseImportArgs("/tmp/x.json --mode=replace")).toEqual({
       path: "/tmp/x.json",
       mode: "replace",

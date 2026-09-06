@@ -13,7 +13,10 @@ import {
   longestPendingCaption,
   pendingPillMinWidthExpr,
 } from "../src/components/agentState/captionRotator";
-import { ORB_SIZE_BUBBLE, rectFullyInside } from "../src/components/agentState/orbEngine";
+import {
+  ORB_SIZE_BUBBLE,
+  rectFullyInside,
+} from "../src/components/agentState/orbEngine";
 import { isSidebarHistoryRoute } from "../src/components/SidebarHistoryHost";
 import { HISTORY_HAIRLINE_GAP } from "../src/components/Sidebar";
 
@@ -41,7 +44,11 @@ describe("sidebar history host", () => {
     const host = await screen.findByTestId("sidebar-history-host");
     const pane = await screen.findByTestId("chats-pane");
     expect(host).toContainElement(pane);
-    expect(screen.getByTestId("chat-page").querySelector("[data-testid='chats-pane']")).toBeNull();
+    expect(
+      screen
+        .getByTestId("chat-page")
+        .querySelector("[data-testid='chats-pane']"),
+    ).toBeNull();
     expect(screen.queryByTestId("chats-pane-collapse-toggle")).toBeNull();
   });
 
@@ -50,7 +57,11 @@ describe("sidebar history host", () => {
     const host = await screen.findByTestId("sidebar-history-host");
     const pane = await screen.findByTestId("coding-history-pane");
     expect(host).toContainElement(pane);
-    expect(screen.getByTestId("coding-page").querySelector("[data-testid='coding-history-pane']")).toBeNull();
+    expect(
+      screen
+        .getByTestId("coding-page")
+        .querySelector("[data-testid='coding-history-pane']"),
+    ).toBeNull();
     expect(screen.queryByTestId("coding-history-collapse-toggle")).toBeNull();
     expect(screen.getByTestId("coding-workspace-header")).toBeInTheDocument();
     expect(screen.getByTestId("coding-tabs")).toBeInTheDocument();
@@ -61,7 +72,11 @@ describe("sidebar history host", () => {
     const imageHost = await screen.findByTestId("sidebar-history-host");
     const imagePane = await screen.findByTestId("image-history-pane");
     expect(imageHost).toContainElement(imagePane);
-    expect(screen.getByTestId("image-studio-page").querySelector("[data-testid='image-history-pane']")).toBeNull();
+    expect(
+      screen
+        .getByTestId("image-studio-page")
+        .querySelector("[data-testid='image-history-pane']"),
+    ).toBeNull();
     expect(screen.queryByTestId("video-history-pane")).toBeNull();
     expect(screen.queryByTestId("chats-pane")).toBeNull();
 
@@ -70,7 +85,11 @@ describe("sidebar history host", () => {
     const videoPane = await screen.findByTestId("video-history-pane");
     expect(videoHost).toContainElement(videoPane);
     expect(screen.queryByTestId("image-history-pane")).toBeNull();
-    expect(screen.getByTestId("video-lab-page").querySelector("[data-testid='video-history-pane']")).toBeNull();
+    expect(
+      screen
+        .getByTestId("video-lab-page")
+        .querySelector("[data-testid='video-history-pane']"),
+    ).toBeNull();
   });
 
   it("swaps the hosted tree when switching Chatbot to Agents and hides the slot on Settings", async () => {
@@ -102,17 +121,29 @@ describe("sidebar history host", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByTestId("sidebar-history-host")).toHaveAttribute("data-compact", "true");
-    expect(screen.getByTestId("chats-pane")).toHaveAttribute("data-history-collapsed", "true");
+    expect(screen.getByTestId("sidebar-history-host")).toHaveAttribute(
+      "data-compact",
+      "true",
+    );
+    expect(screen.getByTestId("chats-pane")).toHaveAttribute(
+      "data-history-collapsed",
+      "true",
+    );
     expect(screen.getByTestId("chats-pane")).toBeInTheDocument();
     expect(
-      screen.getByTestId("chats-pane").querySelector("[data-testid='folder-tree'], [data-testid='folder-tree-empty']"),
+      screen
+        .getByTestId("chats-pane")
+        .querySelector(
+          "[data-testid='folder-tree'], [data-testid='folder-tree-empty']",
+        ),
     ).not.toBeNull();
   });
 
   it("draws a hairline between module tabs and history, not on Settings", async () => {
     renderApp("/images");
-    expect(await screen.findByTestId("sidebar-history-hairline")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("sidebar-history-hairline"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-history-host")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("nav-admin-settings"));
@@ -134,10 +165,30 @@ describe("sidebar history host", () => {
     expect(rule.style.marginBlock).toBe(HISTORY_HAIRLINE_GAP);
     // No asymmetric shorthand may reintroduce the uneven gap.
     expect(rule.style.marginTop).toBe(rule.style.marginBottom);
-    const header = screen
-      .getByTestId("sidebar-history-host")
-      .querySelector("header") as HTMLElement | null;
-    if (header) expect(header.style.paddingTop).toBe("0px");
+    const header = screen.getByTestId("folder-tree-header");
+    expect(header.style.paddingTop).toBe("0px");
+    expect(header.style.justifyContent).toBe("flex-start");
+    expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
+      "Sessions History",
+    );
+    expect(HISTORY_HAIRLINE_GAP).toBe("var(--space-2)");
+    const videos = screen.getByTestId("nav-video");
+    expect(videos.style.padding).toContain("var(--space-2)");
+  });
+
+  it("shows Sessions History under the hairline on an empty Chatbot tree", async () => {
+    renderApp("/chatbot");
+    const rule = await screen.findByTestId("sidebar-history-hairline");
+    expect(rule.style.marginBlock).toBe(HISTORY_HAIRLINE_GAP);
+    const host = screen.getByTestId("sidebar-history-host");
+    expect(host).toContainElement(screen.getByTestId("folder-tree-title"));
+    expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
+      "Sessions History",
+    );
+    expect(screen.getByTestId("nav-chatbot")).toHaveAttribute(
+      "aria-label",
+      "Chatbot",
+    );
   });
 });
 
@@ -156,7 +207,9 @@ describe("thinking pill crop", () => {
       ),
     ).toBe(false);
 
-    render(<AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />);
+    render(
+      <AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />,
+    );
     const pill = screen.getByTestId("agent-state-orb");
     const canvas = screen.getByTestId("agent-state-orb-canvas");
     const chrome = screen.getByTestId("agent-state-orb-pill-chrome");
@@ -168,18 +221,34 @@ describe("thinking pill crop", () => {
     expect(Number.parseInt(canvas.style.width, 10)).toBe(ORB_SIZE_BUBBLE);
 
     const pillBox = { left: 0, right: 200, top: 0, bottom: 64 };
-    const canvasBox = { left: 12, right: 12 + ORB_SIZE_BUBBLE, top: 8, bottom: 8 + ORB_SIZE_BUBBLE };
+    const canvasBox = {
+      left: 12,
+      right: 12 + ORB_SIZE_BUBBLE,
+      top: 8,
+      bottom: 8 + ORB_SIZE_BUBBLE,
+    };
     vi.spyOn(pill, "getBoundingClientRect").mockReturnValue(pillBox as DOMRect);
-    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(canvasBox as DOMRect);
-    expect(rectFullyInside(canvas.getBoundingClientRect(), pill.getBoundingClientRect())).toBe(true);
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(
+      canvasBox as DOMRect,
+    );
+    expect(
+      rectFullyInside(
+        canvas.getBoundingClientRect(),
+        pill.getBoundingClientRect(),
+      ),
+    ).toBe(true);
   });
 
   it("keeps a fixed min-width and no second inset for rotating captions", () => {
     expect(longestPendingCaption()).toBe("Searching...");
-    render(<AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />);
+    render(
+      <AgentStateOrb activity="chat-streaming" size="bubble" rotateCaptions />,
+    );
     const pill = screen.getByTestId("agent-state-orb");
     expect(pill.style.minWidth).toBe(pendingPillMinWidthExpr(ORB_SIZE_BUBBLE));
-    expect(pill.style.minWidth).toContain(`${longestPendingCaption().length}ch`);
+    expect(pill.style.minWidth).toContain(
+      `${longestPendingCaption().length}ch`,
+    );
     // v2.4.4 Phase 1.2: the list gutter is the only left offset.
     expect(pill.style.marginLeft).toBe("");
     expect(pill.style.overflow).toBe("visible");
@@ -190,11 +259,16 @@ describe("thinking pill crop", () => {
 
 describe("scrollbar tokens", () => {
   it("declares a transparent track and scheme-matched thumb", () => {
-    const css = readFileSync(path.resolve(__dirname, "../src/styles/tokens.css"), "utf8");
+    const css = readFileSync(
+      path.resolve(__dirname, "../src/styles/tokens.css"),
+      "utf8",
+    );
     expect(css).toContain("::-webkit-scrollbar");
     expect(css).toContain("scrollbar-color");
     expect(css).toContain("scrollbar-width: thin");
-    expect(css).toMatch(/::-webkit-scrollbar-track\s*\{\s*background:\s*transparent/);
+    expect(css).toMatch(
+      /::-webkit-scrollbar-track\s*\{\s*background:\s*transparent/,
+    );
     expect(css).toContain("color-mix(in srgb, var(--fg-muted)");
   });
 });

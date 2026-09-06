@@ -5,6 +5,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ipcCall } from "../../lib/ipc";
+import {
+  formatDesktopPayloadLabel,
+  type DesktopPayloadIdentity,
+} from "../../../../core/storage/desktopPayload";
 import { DataSettings } from "./DataSettings";
 import { VideoSettings } from "./VideoSettings";
 import type { VideoSettingsClient } from "./videoSettingsTypes";
@@ -85,6 +90,8 @@ export interface SettingsPageProps {
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
   hostGpuVendor?: string | null;
+  /** v2.4.6 Phase 1 -- installer payload identity. Undefined loads via IPC. */
+  payloadIdentity?: DesktopPayloadIdentity | null;
 }
 
 export function SettingsPage({
@@ -102,12 +109,29 @@ export function SettingsPage({
   initialTab = "models",
   hostVramGB = null,
   hostGpuVendor = null,
+  payloadIdentity,
 }: SettingsPageProps = {}): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = parseSettingsTab(searchParams.get("tab"));
   const [tab, setTabState] = useState<SettingsTab>(
     tabFromUrl ?? (initialTab === "archives" ? "data" : initialTab),
   );
+  const identityInjected = payloadIdentity !== undefined;
+  const [identity, setIdentity] = useState<DesktopPayloadIdentity | null>(
+    payloadIdentity ?? null,
+  );
+
+  useEffect(() => {
+    if (identityInjected) {
+      setIdentity(payloadIdentity ?? null);
+      return;
+    }
+    void ipcCall<{ identity: DesktopPayloadIdentity | null }>(
+      "runtime.desktopPayload",
+    ).then((reply) => {
+      setIdentity(reply.ok ? reply.value.identity : null);
+    });
+  }, [identityInjected, payloadIdentity]);
 
   useEffect(() => {
     const next = parseSettingsTab(searchParams.get("tab"));
@@ -263,6 +287,18 @@ export function SettingsPage({
       ) : (
         <CredentialsSettings client={credentials} />
       )}
+      <p
+        data-testid="settings-payload-fingerprint"
+        style={{
+          margin: 0,
+          padding: "var(--space-2, 8px) var(--space-6, 24px)",
+          color: "var(--fg-muted)",
+          fontSize: 12,
+          borderTop: "1px solid var(--border-1, #2a2a2a)",
+        }}
+      >
+        {formatDesktopPayloadLabel(identity)}
+      </p>
     </div>
   );
 }

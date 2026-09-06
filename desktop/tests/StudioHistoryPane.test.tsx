@@ -19,13 +19,20 @@ describe("StudioHistoryPane", () => {
       modelId: "sana-1.6b-1024",
     });
     render(
-      <StudioHistoryPane pillar="image" client={client} defaultModelId="sana-1.6b-1024" />,
+      <StudioHistoryPane
+        pillar="image"
+        client={client}
+        defaultModelId="sana-1.6b-1024"
+      />,
     );
     expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
     expect(screen.getByText("Fox portrait")).toBeInTheDocument();
-    // v2.2.9 Phase 3.1 (T007): Chatbot copy, not "New session".
-    expect(screen.getByTestId("folder-tree-new-chat")).toHaveAttribute("title", "New chat");
-    expect(screen.getByText("Chats")).toBeInTheDocument();
+    // v2.4.6 Phase 5: Sessions History copy on every pillar.
+    expect(screen.getByTestId("folder-tree-new-chat")).toHaveAttribute(
+      "title",
+      "New session",
+    );
+    expect(screen.getByText("Sessions History")).toBeInTheDocument();
   });
 
   it("keeps new/folder actions without a second-column collapse pill", () => {
@@ -36,12 +43,18 @@ describe("StudioHistoryPane", () => {
       modelId: "sana-1.6b-1024",
     });
     render(
-      <StudioHistoryPane pillar="image" client={client} defaultModelId="sana-1.6b-1024" />,
+      <StudioHistoryPane
+        pillar="image"
+        client={client}
+        defaultModelId="sana-1.6b-1024"
+      />,
     );
     expect(screen.queryByTestId("image-history-collapse-toggle")).toBeNull();
     expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
-    expect(screen.getByTestId(`tree-row-chat-${session.id}`)).toBeInTheDocument();
+    expect(
+      screen.getByTestId(`tree-row-chat-${session.id}`),
+    ).toBeInTheDocument();
   });
 
   // v2.2.9 Phase 1.4 (T004): the highlighted row is bound to the session the
@@ -71,30 +84,45 @@ describe("StudioHistoryPane", () => {
     expect(openRow).toHaveAttribute("aria-selected", "true");
     expect(otherRow).toHaveAttribute("aria-selected", "false");
     expect(openRow.style.backgroundColor).not.toBe("transparent");
-    expect(openRow.style.backgroundColor).not.toBe(otherRow.style.backgroundColor);
+    expect(openRow.style.backgroundColor).not.toBe(
+      otherRow.style.backgroundColor,
+    );
   });
 
-  // v2.2.9 Phase 3.1 (T007): the studio panes use Chatbot FolderTree strings
-  // (Chats / New chat / No chats yet.), never "Sessions" / "Start a new session".
-  it("video pane matches image width and Chatbot copy", () => {
+  // v2.4.6 Phase 5: studio panes use Sessions History copy.
+  it("video pane matches image width and Session copy", () => {
     const client = new InMemoryStudioExplorerClient("video");
     render(
-      <StudioHistoryPane pillar="video" client={client} defaultModelId="wan2.1" />,
+      <StudioHistoryPane
+        pillar="video"
+        client={client}
+        defaultModelId="wan2.1"
+      />,
     );
-    expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(/start a new chat/i);
-    expect(screen.getByText("No chats yet.")).toBeInTheDocument();
-    expect(screen.queryByText(/start a new session/i)).toBeNull();
+    expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(
+      /start a new session/i,
+    );
+    expect(screen.getByText("No sessions yet.")).toBeInTheDocument();
+    expect(screen.getByText("Sessions History")).toBeInTheDocument();
+    expect(screen.queryByText(/start a new chat/i)).toBeNull();
     expect(screen.queryByTestId("video-history-collapse-toggle")).toBeNull();
   });
 
-  it("image pane empty state also uses the Chatbot strings", () => {
+  it("image pane empty state also uses Session strings", () => {
     const client = new InMemoryStudioExplorerClient("image");
     render(
-      <StudioHistoryPane pillar="image" client={client} defaultModelId="sana-1.6b-1024" />,
+      <StudioHistoryPane
+        pillar="image"
+        client={client}
+        defaultModelId="sana-1.6b-1024"
+      />,
     );
-    expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(/start a new chat/i);
-    expect(screen.getByText("No chats yet.")).toBeInTheDocument();
-    expect(screen.queryByText(/session/i)).toBeNull();
+    expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(
+      /start a new session/i,
+    );
+    expect(screen.getByText("No sessions yet.")).toBeInTheDocument();
+    expect(screen.getByText("Sessions History")).toBeInTheDocument();
+    expect(screen.queryByText("Chats")).toBeNull();
   });
 
   it("sidecar down shows an empty hint and does not fabricate sessions", () => {
@@ -117,7 +145,7 @@ describe("StudioHistoryPane", () => {
     expect(screen.queryByTestId("folder-tree-empty-cta")).toBeNull();
   });
 
-  it("Chatbot FolderTree default copy is still Start a new chat", () => {
+  it("FolderTree default copy is Start a new session", () => {
     const storage = new Map<string, readonly string[]>();
     const storageAdapter = {
       read: () => storage.get("expanded") ?? [],
@@ -126,9 +154,14 @@ describe("StudioHistoryPane", () => {
       },
     };
     render(
-      <FolderTree client={new InMemoryChatExplorerClient()} storageAdapter={storageAdapter} />,
+      <FolderTree
+        client={new InMemoryChatExplorerClient()}
+        storageAdapter={storageAdapter}
+      />,
     );
-    expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(/start a new chat/i);
+    expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(
+      /start a new session/i,
+    );
   });
 
   it("opens a newly created chat as the selected session", () => {

@@ -20,7 +20,7 @@ describe("activateProxy", () => {
     channel = { appendLine: vi.fn() };
   });
 
-  it("registers all six nexus.coding.* command ids", () => {
+  it("registers the proxied command ids plus the owned-agentic picker", () => {
     activateProxy(
       context as unknown as vscode.ExtensionContext,
       channel as unknown as vscode.OutputChannel,
@@ -38,6 +38,7 @@ describe("activateProxy", () => {
       "nexus.coding.openSession",
       "nexus.coding.detectGpu",
       "nexus.coding.hooks.editPlanModeHook",
+      "nexus.coding.selectModel",
     ]) {
       expect(registered).toContain(id);
     }
@@ -55,7 +56,7 @@ describe("activateProxy", () => {
     expect(lines.some((l) => l.toLowerCase().includes("proxy mode"))).toBe(true);
   });
 
-  it("creates a status bar item that points to the focus-sidebar command", () => {
+  it("creates status bar items for the daemon and the owned-agentic picker", () => {
     activateProxy(
       context as unknown as vscode.ExtensionContext,
       channel as unknown as vscode.OutputChannel,
@@ -66,11 +67,11 @@ describe("activateProxy", () => {
       typeof vi.fn
     >;
     expect(statusBarMock).toHaveBeenCalled();
-    // The proxy branch attaches the focus-sidebar command to the status bar
-    // so a click surfaces the chat view.
-    const lastReturn = statusBarMock.mock.results[statusBarMock.mock.results.length - 1]
-      ?.value as { command?: string };
-    expect(lastReturn.command).toBe("nexus.coding.focusSidebar");
+    const commands = statusBarMock.mock.results.map(
+      (result) => (result?.value as { command?: string }).command,
+    );
+    expect(commands).toContain("nexus.coding.focusSidebar");
+    expect(commands).toContain("nexus.coding.selectModel");
   });
 
   it("appends every disposable to context.subscriptions", () => {

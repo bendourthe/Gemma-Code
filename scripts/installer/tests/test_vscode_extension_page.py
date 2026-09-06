@@ -61,7 +61,15 @@ class TestDetectVsCodeCli:
         assert result.supported is True
         assert result.version == "1.135.0"
 
-    @pytest.mark.parametrize("version", ["1.133.9", "1.136.0"])
+    def test_accepts_1_136_same_electron_abi(self) -> None:
+        result = detect_vscode_cli(
+            which_fn=lambda name: "/usr/bin/code" if name == "code" else None,
+            run_fn=lambda cmd, timeout: (0, "1.136.0\ncommit\nx64\n", ""),
+        )
+        assert result.supported is True
+        assert result.version == "1.136.0"
+
+    @pytest.mark.parametrize("version", ["1.133.9", "1.137.0"])
     def test_rejects_earlier_and_later_stable_versions(self, version: str) -> None:
         result = detect_vscode_cli(
             which_fn=lambda name: "/usr/bin/code" if name == "code" else None,
@@ -206,7 +214,7 @@ class TestVsCodeExtensionPage:
         page = VsCodeExtensionPage(
             state,
             detect_fn=lambda: _status(
-                version="1.136.0",
+                version="1.137.0",
                 supported=False,
                 reason="version-mismatch",
             ),
@@ -216,9 +224,20 @@ class TestVsCodeExtensionPage:
         assert page._checkbox.isChecked() is False
         assert page._checkbox.isEnabled() is False
         assert page._checkbox.isHidden() is False
-        assert "1.136.0" in page._detection_label.text()
-        assert "1.134 or 1.135" in page._detection_label.text()
+        assert "1.137.0" in page._detection_label.text()
+        assert "1.134, 1.135, or 1.136" in page._detection_label.text()
         assert "exactly" not in page._detection_label.text()
+
+    def test_1_136_host_is_enabled_and_ticked(self, qt_app) -> None:
+        state = InstallerState(components_to_install=["ollama"])
+        page = VsCodeExtensionPage(
+            state,
+            detect_fn=lambda: _status(version="1.136.0"),
+        )
+        assert page._checkbox.isEnabled() is True
+        assert page._checkbox.isChecked() is True
+        assert page._checkbox.isHidden() is False
+        assert "extension" in state.components_to_install
 
     def test_1_135_host_is_enabled_and_ticked(self, qt_app) -> None:
         state = InstallerState(components_to_install=["ollama"])
@@ -310,7 +329,7 @@ class TestVsCodeExtensionPage:
         page = VsCodeExtensionPage(state, detect_fn=_status)
         page.set_interactive(False)
         page._detect_fn = lambda: _status(
-            version="1.136.0",
+            version="1.137.0",
             supported=False,
             reason="version-mismatch",
         )
@@ -330,6 +349,7 @@ class TestVsCodeExtensionPage:
 
         page = ConfigurationPage(InstallerState(), detect_fn=_status)
         assert hasattr(page, "_unsloth")
+        assert page._vscode.parentWidget() is page._features_col
         assert page._vscode._checkbox.isChecked() is True
 
     def test_candidates_include_known_clis(self) -> None:

@@ -7,34 +7,40 @@
  */
 
 import { useMemo, useState } from "react";
-import { FolderTree, type FolderTreeCopy, type SelectedNode } from "../../modules/chat/FolderTree";
+import {
+  FolderTree,
+  type FolderTreeCopy,
+  type SelectedNode,
+} from "../../modules/chat/FolderTree";
 import type { Chat } from "../../modules/chat/types";
 import { studioClientAsChatExplorer } from "./studioAsChatExplorer";
 import type { StudioExplorerClient } from "./studioExplorerClient";
 import type { StudioPillar } from "../../../../core/generations/StudioSessionStore.types";
-import { SidebarHistorySlot, useSidebarCompact } from "../../components/SidebarHistoryHost";
+import {
+  SidebarHistorySlot,
+  useSidebarCompact,
+} from "../../components/SidebarHistoryHost";
 
-// v2.2.9 Phase 3.1 (T007): Chatbot FolderTree strings, not Sessions / Start a
-// new session (screenshots 6-7). Only the aria labels stay pillar-specific so
-// screen readers can tell the panes apart.
+// v2.4.6 Phase 5: Sessions History copy on every pillar. Aria labels stay
+// pillar-specific so screen readers can tell the panes apart.
 const IMAGE_COPY: FolderTreeCopy = {
-  paneTitle: "Chats",
-  newItem: "New chat",
-  emptyCta: "Start a new chat",
-  treeAria: "Image chats",
-  loadError: "Could not load chats",
-  emptyHint: "No chats yet.",
-  itemNoun: "chat",
+  paneTitle: "Sessions History",
+  newItem: "New session",
+  emptyCta: "Start a new session",
+  treeAria: "Image sessions",
+  loadError: "Could not load sessions",
+  emptyHint: "No sessions yet.",
+  itemNoun: "session",
 };
 
 const VIDEO_COPY: FolderTreeCopy = {
-  paneTitle: "Chats",
-  newItem: "New chat",
-  emptyCta: "Start a new chat",
-  treeAria: "Video chats",
-  loadError: "Could not load chats",
-  emptyHint: "No chats yet.",
-  itemNoun: "chat",
+  paneTitle: "Sessions History",
+  newItem: "New session",
+  emptyCta: "Start a new session",
+  treeAria: "Video sessions",
+  loadError: "Could not load sessions",
+  emptyHint: "No sessions yet.",
+  itemNoun: "session",
 };
 
 export interface StudioHistoryPaneProps {
@@ -51,7 +57,9 @@ export interface StudioHistoryPaneProps {
    * click state.
    */
   readonly activeSessionId?: string | null;
-  readonly onBeforeSessionDisposition?: (sessionId: string) => void | Promise<void>;
+  readonly onBeforeSessionDisposition?: (
+    sessionId: string,
+  ) => void | Promise<void>;
   readonly onSessionDisposition?: (sessionId: string) => void | Promise<void>;
 }
 
@@ -76,7 +84,8 @@ export function StudioHistoryPane({
       ? { kind: "chat", id: activeSessionId }
       : localSelected;
   const copy = pillar === "video" ? VIDEO_COPY : IMAGE_COPY;
-  const testId = pillar === "video" ? "video-history-pane" : "image-history-pane";
+  const testId =
+    pillar === "video" ? "video-history-pane" : "image-history-pane";
 
   return (
     <SidebarHistorySlot>
@@ -84,12 +93,21 @@ export function StudioHistoryPane({
         data-testid={testId}
         aria-label={copy.treeAria}
         data-history-collapsed={compact ? "true" : "false"}
-        style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
       >
         {sidecarDown ? (
           <p
             data-testid={`${pillar}-history-empty`}
-            style={{ margin: 0, padding: "var(--space-3)", color: "var(--fg-muted)" }}
+            style={{
+              margin: 0,
+              padding: "var(--space-3)",
+              color: "var(--fg-muted)",
+            }}
           >
             {copy.emptyHint}
           </p>
@@ -104,7 +122,9 @@ export function StudioHistoryPane({
             storageKey={`nexus.${pillar}.expanded`}
             refreshToken={refreshToken}
             collapsed={compact}
-            onBeforeSessionDisposition={(id) => onBeforeSessionDisposition?.(id)}
+            onBeforeSessionDisposition={(id) =>
+              onBeforeSessionDisposition?.(id)
+            }
             onSessionDisposition={(id) => onSessionDisposition?.(id)}
           />
         )}

@@ -3,7 +3,13 @@
  */
 
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { MediaComposer } from "../src/shared/chat/MediaComposer";
 
@@ -17,7 +23,9 @@ describe("MediaComposer", () => {
   it("submits typed text with no attachments", () => {
     const onSubmit = vi.fn();
     render(<MediaComposer onSubmit={onSubmit} />);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "hello" },
+    });
     fireEvent.click(screen.getByTestId("media-composer-submit"));
     expect(onSubmit).toHaveBeenCalledWith("hello", []);
   });
@@ -26,8 +34,12 @@ describe("MediaComposer", () => {
     const onSubmit = vi.fn();
     render(<MediaComposer onSubmit={onSubmit} />);
     expect(screen.getByTestId("media-composer-submit")).toBeDisabled();
-    fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [pngFile()] } });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-file"), {
+      target: { files: [pngFile()] },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
     expect(screen.getByTestId("media-composer-submit")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("media-composer-submit"));
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
@@ -39,10 +51,16 @@ describe("MediaComposer", () => {
 
   it("removes a pending attachment", async () => {
     render(<MediaComposer onSubmit={vi.fn()} />);
-    fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [pngFile()] } });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-file"), {
+      target: { files: [pngFile()] },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByTestId("media-composer-remove-0"));
-    await waitFor(() => expect(screen.queryByTestId("media-composer-thumb-0")).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByTestId("media-composer-thumb-0")).toBeNull(),
+    );
   });
 
   it("Enter submits; Shift+Enter inserts a newline", () => {
@@ -65,16 +83,33 @@ describe("MediaComposer", () => {
     expect(screen.queryByTestId("media-composer-submit-metal")).toBeNull();
     // v2.2.3 Phase 2 (2.2): a pillar submitAccentVar must NOT tint the beam --
     // the beam is always the brand cyan.
-    rerender(<MediaComposer onSubmit={vi.fn()} streaming submitAccentVar="--accent-image" />);
-    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
-    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-playing", "true");
-    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+    rerender(
+      <MediaComposer
+        onSubmit={vi.fn()}
+        streaming
+        submitAccentVar="--accent-image"
+      />,
+    );
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute(
+      "data-beam-mode",
+      "traveling",
+    );
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute(
+      "data-beam-playing",
+      "true",
+    );
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute(
+      "data-beam-accent",
+      "--accent-chatbot",
+    );
   });
 
   // v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface, sits inside
   // the outer composer box, and the send icon is neutral fg, not a pillar hue.
   it("wraps the inner typing surface with the beam, not the outer box", () => {
-    render(<MediaComposer onSubmit={vi.fn()} submitAccentVar="--accent-image" />);
+    render(
+      <MediaComposer onSubmit={vi.fn()} submitAccentVar="--accent-image" />,
+    );
     const beam = screen.getByTestId("media-composer-beam");
     const outer = screen.getByTestId("media-composer");
     const surface = screen.getByTestId("media-composer-surface");
@@ -96,11 +131,28 @@ describe("MediaComposer", () => {
       .map((n) => n.textContent?.trim())
       .join("");
     expect(caption).toBe("");
-    expect(submit.closest("[data-testid='media-composer-submit-metal']")).toBeNull();
+    expect(
+      submit.closest("[data-testid='media-composer-submit-metal']"),
+    ).toBeNull();
     const surface = screen.getByTestId("media-composer-surface");
     const actions = screen.getByTestId("media-composer-actions");
     expect(surface.contains(actions)).toBe(true);
-    expect(actions.contains(screen.getByTestId("media-composer-add"))).toBe(true);
+    expect(actions.contains(screen.getByTestId("media-composer-add"))).toBe(
+      true,
+    );
     expect(actions.contains(submit)).toBe(true);
+  });
+
+  it("replaces Send with Stop while streaming and hides Stop when idle", () => {
+    const onStop = vi.fn();
+    const { rerender } = render(
+      <MediaComposer onSubmit={vi.fn()} onStop={onStop} streaming />,
+    );
+    expect(screen.queryByTestId("media-composer-submit")).toBeNull();
+    fireEvent.click(screen.getByTestId("media-composer-stop"));
+    expect(onStop).toHaveBeenCalledTimes(1);
+    rerender(<MediaComposer onSubmit={vi.fn()} onStop={onStop} />);
+    expect(screen.queryByTestId("media-composer-stop")).toBeNull();
+    expect(screen.getByTestId("media-composer-submit")).toBeDisabled();
   });
 });

@@ -80,6 +80,10 @@
       {
         "command": "nexus.coding.hooks.editPlanModeHook",
         "title": "Nexus Code: Edit Plan-Mode Improvement Hook"
+      },
+      {
+        "command": "nexus.coding.selectModel",
+        "title": "Nexus Code: Select Agentic Model"
       }
     ],
     "menus": {
@@ -101,7 +105,7 @@
         "nexus.llm.modelName": {
           "type": "string",
           "default": "gemma4:e4b",
-          "description": "Model to use for inference (v1.0.0; legacy `gemma-code.modelName`)."
+          "description": "Owned agentic model for coding (installer ticks or Settings downloads). Use Nexus Code: Select Agentic Model; legacy `gemma-code.modelName`."
         },
         "nexus.llm.maxTokens": {
           "type": "number",
@@ -1091,12 +1095,12 @@
     "hnswlib-node": "^3.0.0"
   },
   "overrides": {
-    "qs": "^6.15.2",
+    "qs": "^6.16.0",
     "hono": "^4.12.34",
     "dompurify": "^3.4.13",
     "undici": "^7.29.0",
     "@hono/node-server": "^1.19.15",
-    "fast-uri": "^3.1.5",
+    "fast-uri": "^3.1.7",
     "ip-address": "^10.3.1",
     "react-router": "7.18.2"
   }

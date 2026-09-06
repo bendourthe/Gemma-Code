@@ -1,9 +1,23 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 
-import { ModelsSettings, type ModelsClient, type InstallHandle } from "../src/pages/settings/ModelsSettings";
+import {
+  ModelsSettings,
+  type ModelsClient,
+  type InstallHandle,
+} from "../src/pages/settings/ModelsSettings";
 import { FAVORITE_STORAGE_PREFIX } from "../src/shared/models/selectionPolicy";
-import type { DiskUsageDto, InstallProgressDto, ListedModelDto } from "../src/pages/settings/modelsTypes";
+import type {
+  DiskUsageDto,
+  InstallProgressDto,
+  ListedModelDto,
+} from "../src/pages/settings/modelsTypes";
 
 function diskUsage(overrides: Partial<DiskUsageDto> = {}): DiskUsageDto {
   return {
@@ -77,7 +91,12 @@ function makeItems(): ListedModelDto[] {
 
 function client(): {
   client: ModelsClient;
-  events: { install: string[]; remove: string[]; reveal: string[]; progress: InstallProgressDto[] };
+  events: {
+    install: string[];
+    remove: string[];
+    reveal: string[];
+    progress: InstallProgressDto[];
+  };
   state: { items: ListedModelDto[] };
   resolveInstall(id: string): void;
   rejectInstall(id: string, message: string): void;
@@ -89,7 +108,10 @@ function client(): {
     progress: [] as InstallProgressDto[],
   };
   const state = { items: makeItems() };
-  const pendingResolvers = new Map<string, (v: void | PromiseLike<void>) => void>();
+  const pendingResolvers = new Map<
+    string,
+    (v: void | PromiseLike<void>) => void
+  >();
   const pendingRejectors = new Map<string, (e: Error) => void>();
   const c: ModelsClient = {
     async list() {
@@ -117,7 +139,8 @@ function client(): {
       const target = state.items.find((m) => m.id === id);
       if (target) {
         target.installed = false;
-        (target as { source: ListedModelDto["source"] }).source = "catalog-only";
+        (target as { source: ListedModelDto["source"] }).source =
+          "catalog-only";
       }
     },
     reveal(p) {
@@ -154,9 +177,14 @@ function client(): {
   };
 }
 
-async function loaded(ui: ReturnType<typeof client>, props: { hostVramGB?: number | null } = {}) {
+async function loaded(
+  ui: ReturnType<typeof client>,
+  props: { hostVramGB?: number | null } = {},
+) {
   render(<ModelsSettings client={ui.client} hostVramGB={props.hostVramGB} />);
-  await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
+  );
 }
 
 describe("ModelsSettings", () => {
@@ -166,7 +194,15 @@ describe("ModelsSettings", () => {
 
   it("renders installer-parity catalog tabs after loading, Embeddings first", async () => {
     await loaded(client());
-    for (const id of ["embeddings", "chat", "agentic", "image", "video", "audio", "document"]) {
+    for (const id of [
+      "embeddings",
+      "chat",
+      "agentic",
+      "image",
+      "video",
+      "audio",
+      "document",
+    ]) {
       expect(screen.getByTestId(`models-tab-${id}`)).toBeInTheDocument();
     }
     // v2.2.9 Phase 5 (T010): Embeddings precedes Chat in the tab strip.
@@ -176,7 +212,9 @@ describe("ModelsSettings", () => {
     expect(screen.getByTestId("models-tab-other")).toBeInTheDocument();
     expect(screen.getByTestId("models-panel-chat")).toBeInTheDocument();
     expect(screen.getByTestId("models-row-gemma4:e4b")).toBeInTheDocument();
-    expect(screen.queryByTestId("models-row-qwen2.5-coder:7b")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("models-row-qwen2.5-coder:7b"),
+    ).not.toBeInTheDocument();
   });
 
   it("labels downloaded, available, and incompatible groups in display order", async () => {
@@ -213,17 +251,21 @@ describe("ModelsSettings", () => {
     render(
       <ModelsSettings client={ctx.client} hostVramGB={16} gpuVendor="nvidia" />,
     );
-    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
+    );
 
     const list = screen.getByTestId("models-list");
-    expect(Array.from(list.children).map((child) => child.textContent)).toEqual([
-      "Downloaded",
-      expect.stringContaining("Downloaded"),
-      "Available to download",
-      expect.stringContaining("Available"),
-      "Incompatible",
-      expect.stringContaining("Incompatible"),
-    ]);
+    expect(Array.from(list.children).map((child) => child.textContent)).toEqual(
+      [
+        "Downloaded",
+        expect.stringContaining("Downloaded"),
+        "Available to download",
+        expect.stringContaining("Available"),
+        "Incompatible",
+        expect.stringContaining("Incompatible"),
+      ],
+    );
   });
 
   it("refreshes disk usage on focus only while the page is visible", async () => {
@@ -235,14 +277,21 @@ describe("ModelsSettings", () => {
     fireEvent.focus(window);
     await waitFor(() => expect(diskUsage).toHaveBeenCalledTimes(2));
 
-    const visibilityState = Object.getOwnPropertyDescriptor(document, "visibilityState");
-    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    const visibilityState = Object.getOwnPropertyDescriptor(
+      document,
+      "visibilityState",
+    );
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
     try {
       fireEvent.focus(window);
       await Promise.resolve();
       expect(diskUsage).toHaveBeenCalledTimes(2);
     } finally {
-      if (visibilityState) Object.defineProperty(document, "visibilityState", visibilityState);
+      if (visibilityState)
+        Object.defineProperty(document, "visibilityState", visibilityState);
       else Reflect.deleteProperty(document, "visibilityState");
     }
   });
@@ -262,25 +311,39 @@ describe("ModelsSettings", () => {
       },
     ];
     await loaded(ctx);
-    expect(screen.getByTestId("models-downloaded-gemma-4-12b-it-gguf")).toBeInTheDocument();
-    expect(screen.getByTestId("models-row-gemma-4-12b-it-gguf")).toHaveAttribute("data-downloaded", "true");
-    expect(screen.queryByTestId("models-install-gemma-4-12b-it-gguf")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("models-downloaded-gemma-4-12b-it-gguf"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("models-row-gemma-4-12b-it-gguf"),
+    ).toHaveAttribute("data-downloaded", "true");
+    expect(
+      screen.queryByTestId("models-install-gemma-4-12b-it-gguf"),
+    ).not.toBeInTheDocument();
   });
 
   it("switches to Agentic and Video without using type dropdowns", async () => {
     await loaded(client());
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    expect(screen.getByTestId("models-row-qwen2.5-coder:7b")).toBeInTheDocument();
-    expect(screen.queryByTestId("models-row-gemma4:e4b")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("models-row-qwen2.5-coder:7b"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("models-row-gemma4:e4b"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("models-tab-video"));
     expect(screen.getByTestId("models-row-ltx-video")).toBeInTheDocument();
   });
 
   it("search by name still narrows the active tab", async () => {
     await loaded(client());
-    fireEvent.change(screen.getByTestId("models-search"), { target: { value: "no-such-model" } });
+    fireEvent.change(screen.getByTestId("models-search"), {
+      target: { value: "no-such-model" },
+    });
     await waitFor(() => {
-      expect(screen.queryByTestId("models-row-gemma4:e4b")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("models-row-gemma4:e4b"),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -288,18 +351,24 @@ describe("ModelsSettings", () => {
     const ctx = client();
     await loaded(ctx);
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    expect(screen.getByTestId("models-install-qwen2.5-coder:7b").textContent).toMatch(/Download/i);
+    expect(
+      screen.getByTestId("models-install-qwen2.5-coder:7b").textContent,
+    ).toMatch(/Download/i);
     fireEvent.click(screen.getByTestId("models-install-qwen2.5-coder:7b"));
     expect(ctx.events.install).toEqual(["qwen2.5-coder:7b"]);
     await waitFor(() => {
-      expect(screen.getByTestId("models-progress-qwen2.5-coder:7b")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("models-progress-qwen2.5-coder:7b"),
+      ).toBeInTheDocument();
     });
     await act(async () => {
       ctx.resolveInstall("qwen2.5-coder:7b");
       await Promise.resolve();
     });
     await waitFor(() => {
-      expect(screen.getByTestId("models-downloaded-qwen2.5-coder:7b")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("models-downloaded-qwen2.5-coder:7b"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -313,9 +382,13 @@ describe("ModelsSettings", () => {
       await Promise.resolve();
     });
     await waitFor(() => {
-      expect(screen.getByTestId("models-row-error-qwen2.5-coder:7b").textContent).toMatch(/disk full/i);
+      expect(
+        screen.getByTestId("models-row-error-qwen2.5-coder:7b").textContent,
+      ).toMatch(/disk full/i);
     });
-    expect(screen.queryByTestId("models-downloaded-qwen2.5-coder:7b")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("models-downloaded-qwen2.5-coder:7b"),
+    ).not.toBeInTheDocument();
   });
 
   it("cancel during download removes the progress bar", async () => {
@@ -329,7 +402,9 @@ describe("ModelsSettings", () => {
       await Promise.resolve();
     });
     await waitFor(() => {
-      expect(screen.queryByTestId("models-progress-qwen2.5-coder:7b")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("models-progress-qwen2.5-coder:7b"),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -339,7 +414,9 @@ describe("ModelsSettings", () => {
     fireEvent.click(screen.getByTestId("models-remove-gemma4:e4b"));
     await waitFor(() => {
       expect(ctx.events.remove).toEqual(["gemma4:e4b"]);
-      expect(screen.getByTestId("models-install-gemma4:e4b")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("models-install-gemma4:e4b"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -347,15 +424,23 @@ describe("ModelsSettings", () => {
     const ctx = client();
     await loaded(ctx);
     fireEvent.click(screen.getByTestId("models-tab-other"));
-    fireEvent.click(screen.getByTestId("models-reveal-external:comfyui:checkpoints:dreamshaper"));
+    fireEvent.click(
+      screen.getByTestId(
+        "models-reveal-external:comfyui:checkpoints:dreamshaper",
+      ),
+    );
     expect(ctx.events.reveal).toEqual(["/abs/dreamshaper.safetensors"]);
   });
 
   it("renders the disk-usage summary", async () => {
     await loaded(client());
     await waitFor(() => {
-      expect(screen.getByTestId("models-disk-summary").textContent).toMatch(/used by models/);
-      expect(screen.getByRole("progressbar", { name: "Model storage usage" })).toBeInTheDocument();
+      expect(screen.getByTestId("models-disk-summary").textContent).toMatch(
+        /used by models/,
+      );
+      expect(
+        screen.getByRole("progressbar", { name: "Model storage usage" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -384,12 +469,20 @@ describe("ModelsSettings", () => {
       },
     };
     render(<ModelsSettings client={embedClient} />);
-    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
+    );
     // Chat is the default tab; the embed row must not park there.
-    expect(screen.queryByTestId("models-row-nomic-embed-text")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("models-row-nomic-embed-text"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("models-tab-embeddings"));
-    expect(screen.getByTestId("models-row-nomic-embed-text")).toBeInTheDocument();
-    expect(screen.getByTestId("models-downloaded-nomic-embed-text")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("models-row-nomic-embed-text"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("models-downloaded-nomic-embed-text"),
+    ).toBeInTheDocument();
   });
 
   it("places audio models on the Audio tab", async () => {
@@ -417,7 +510,9 @@ describe("ModelsSettings", () => {
       },
     };
     render(<ModelsSettings client={audioClient} />);
-    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByTestId("models-tab-audio"));
     expect(screen.getByTestId("models-icon-audio")).toBeInTheDocument();
     expect(screen.getByTestId("models-row-faster-whisper")).toBeInTheDocument();
@@ -426,9 +521,16 @@ describe("ModelsSettings", () => {
   it("disables Download on over-budget entries", async () => {
     await loaded(client(), { hostVramGB: 8 });
     fireEvent.click(screen.getByTestId("models-tab-video"));
-    expect(screen.getByTestId("models-over-budget-ltx-video")).toBeInTheDocument();
-    expect(screen.getByTestId("models-row-ltx-video")).toHaveAttribute("data-over-budget", "true");
-    expect(screen.queryByTestId("models-install-ltx-video")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("models-over-budget-ltx-video"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-ltx-video")).toHaveAttribute(
+      "data-over-budget",
+      "true",
+    );
+    expect(
+      screen.queryByTestId("models-install-ltx-video"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows every catalog sibling and keeps incompatible rows visible", async () => {
@@ -471,7 +573,10 @@ describe("ModelsSettings", () => {
     expect(screen.getByTestId("models-row-gemma-e4b")).toBeInTheDocument();
     expect(screen.getByTestId("models-row-gemma-e2b")).toBeInTheDocument();
     expect(screen.getByTestId("models-row-kimi-hidden")).toBeInTheDocument();
-    expect(screen.getByTestId("models-row-kimi-hidden")).toHaveAttribute("data-over-budget", "true");
+    expect(screen.getByTestId("models-row-kimi-hidden")).toHaveAttribute(
+      "data-over-budget",
+      "true",
+    );
   });
 
   it("lists dependency-only family components inside Details without a primary card", async () => {
@@ -502,13 +607,13 @@ describe("ModelsSettings", () => {
     await loaded(ctx, { hostVramGB: 16 });
     fireEvent.click(screen.getByTestId("models-tab-image"));
     expect(screen.getByTestId("models-row-sana-1.6b-2k")).toBeInTheDocument();
-    expect(screen.queryByTestId("models-row-dc-ae-f32c32-sana-1.1")).not.toBeInTheDocument();
-    const details = screen.getByTestId("models-row-sana-1.6b-2k-details");
-    fireEvent.click(details.querySelector("summary")!);
-    expect(details).toHaveAttribute("open");
-    expect(screen.getByTestId("models-row-sana-1.6b-2k-components")).toHaveTextContent(
-      "DC-AE f32c32 (SANA 1.1)",
-    );
+    expect(
+      screen.queryByTestId("models-row-dc-ae-f32c32-sana-1.1"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("models-row-sana-1.6b-2k-details")).toBeNull();
+    expect(
+      screen.getByTestId("models-row-sana-1.6b-2k-components"),
+    ).toHaveTextContent("DC-AE f32c32 (SANA 1.1)");
   });
 
   it("renders installer card copy and the LFM use-restriction note", async () => {
@@ -545,16 +650,25 @@ describe("ModelsSettings", () => {
       },
     };
     render(<ModelsSettings client={lfmClient} />);
-    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    expect(screen.getByTestId("models-row-lfm2.5:2.6b-description").textContent).toMatch(/On-device agentic/);
-    expect(screen.getByTestId("models-row-lfm2.5:2.6b-best-for").textContent).toMatch(/Tool calling on CPU/);
-    expect(screen.getByTestId("models-row-lfm2.5:2.6b-why").textContent).toMatch(/sub-4 GB/);
-    expect(screen.getByTestId("models-row-lfm2.5:2.6b")).toHaveAttribute("data-compact", "true");
-    expect(screen.getByTestId("models-row-lfm2.5:2.6b-details")).not.toHaveAttribute("open");
+    expect(
+      screen.getByTestId("models-row-lfm2.5:2.6b-description").textContent,
+    ).toMatch(/On-device agentic/);
+    expect(screen.queryByTestId("models-row-lfm2.5:2.6b-best-for")).toBeNull();
+    expect(screen.queryByTestId("models-row-lfm2.5:2.6b-why")).toBeNull();
+    expect(screen.getByTestId("models-row-lfm2.5:2.6b")).toHaveAttribute(
+      "data-compact",
+      "true",
+    );
+    expect(screen.queryByTestId("models-row-lfm2.5:2.6b-details")).toBeNull();
     const note = screen.getByTestId("models-row-lfm2.5:2.6b-license-note");
     expect(note.textContent).toMatch(/USD 10M/i);
-    expect(note.querySelector("a")?.getAttribute("href")).toBe("https://www.liquid.ai/lfm-license");
+    expect(note.querySelector("a")?.getAttribute("href")).toBe(
+      "https://www.liquid.ai/lfm-license",
+    );
   });
 
   it("renders the locked name-row pills, in order, on the header row", async () => {
@@ -600,23 +714,29 @@ describe("ModelsSettings", () => {
       },
     };
     render(<ModelsSettings client={lfmClient} />);
-    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    // Origin / license / context pills live in Details so the dense facts row stays nowrap.
+    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
+      /Company: Liquid AI/,
+    );
+    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
+      /Country: USA/,
+    );
+    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
+      /Released: August 2026/,
+    );
     const pillRow = screen.getByTestId("models-pills-lfm2.5:2.6b");
     expect(Array.from(pillRow.children).map((c) => c.textContent)).toEqual([
-      "Company: Liquid AI",
-      "Country: USA",
       "Agentic: Yes",
       "Context window: 128k tokens",
       "Multimodal: No",
       "License: LFM Open License v1.0",
-      "Released: August 2026",
     ]);
     const header = screen.getByTestId("models-header-lfm2.5:2.6b");
-    const details = screen.getByTestId("models-row-lfm2.5:2.6b-details");
+    expect(screen.queryByTestId("models-row-lfm2.5:2.6b-details")).toBeNull();
     expect(header.contains(pillRow)).toBe(false);
-    expect(details.contains(pillRow)).toBe(true);
     expect(header.firstChild?.textContent).toBe("LFM2.5 2.6B");
     // The split-window row derives its pill from the in-window.
     expect(screen.getByTestId("models-pills-split-ctx").textContent).toContain(
@@ -626,24 +746,37 @@ describe("ModelsSettings", () => {
 
   it("does not invent a 128k pill for gemma without a catalog window or a null diffusion row", async () => {
     await loaded(client());
-    expect(screen.getByTestId("models-pills-gemma4:e4b").textContent).not.toMatch(/Context window/);
+    expect(
+      screen.getByTestId("models-pills-gemma4:e4b").textContent,
+    ).not.toMatch(/Context window/);
     fireEvent.click(screen.getByTestId("models-tab-video"));
-    expect(screen.getByTestId("models-pills-ltx-video").textContent).not.toMatch(/Context window/);
+    expect(
+      screen.getByTestId("models-pills-ltx-video").textContent,
+    ).not.toMatch(/Context window/);
     expect(screen.getByTestId("models-row-ltx-video")).toBeInTheDocument();
   });
 
   it("favorite is one-per-tab and writes the Phase 2 storage key", async () => {
     await loaded(client());
     fireEvent.click(screen.getByTestId("models-favorite-gemma4:e4b"));
-    expect(screen.getByTestId("models-favorite-gemma4:e4b")).toHaveAttribute("aria-pressed", "true");
-    expect(window.localStorage.getItem(`${FAVORITE_STORAGE_PREFIX}chat`)).toBe("gemma4:e4b");
+    expect(screen.getByTestId("models-favorite-gemma4:e4b")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(window.localStorage.getItem(`${FAVORITE_STORAGE_PREFIX}chat`)).toBe(
+      "gemma4:e4b",
+    );
   });
 
   it("does not contain a raw select element (installer tabs replace Type/Family/Status)", async () => {
     await loaded(client());
     expect(screen.queryByTestId("models-filter-type")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("models-filter-family")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("models-filter-source")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("models-filter-family"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("models-filter-source"),
+    ).not.toBeInTheDocument();
   });
 
   it("makes the model list a scrolling flex child", async () => {
@@ -696,24 +829,38 @@ describe("ModelsSettings", () => {
       },
     };
     render(<ModelsSettings client={sanaClient} hostVramGB={16} />);
-    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByTestId("models-tab-image"));
-    const rows = screen.getAllByTestId(/^models-row-(sana-sprint-1024|sana-1\.6b-4k)$/);
-    expect(rows[0]).toHaveAttribute("data-testid", "models-row-sana-sprint-1024");
+    const rows = screen.getAllByTestId(
+      /^models-row-(sana-sprint-1024|sana-1\.6b-4k)$/,
+    );
+    expect(rows[0]).toHaveAttribute(
+      "data-testid",
+      "models-row-sana-sprint-1024",
+    );
     expect(rows[1]).toHaveAttribute("data-testid", "models-row-sana-1.6b-4k");
     expect(rows[1]).toHaveAttribute("data-over-budget", "true");
-    expect(screen.getByTestId("models-compatibility-sana-1.6b-4k").textContent).toBe("Incompatible - needs 20 GB VRAM");
-    expect(screen.getByTestId("models-badge-sana-sprint-1024").textContent).toBe("Recommended");
-    // v2.2.9 Phase 5 (T010): the locked name-row pills replace the old chips.
-    const pills = Array.from(screen.getByTestId("models-pills-sana-1.6b-4k").children).map(
-      (c) => c.textContent,
+    expect(
+      screen.getByTestId("models-compatibility-sana-1.6b-4k").textContent,
+    ).toBe("Incompatible - needs 20 GB VRAM");
+    expect(
+      screen.getByTestId("models-badge-sana-sprint-1024").textContent,
+    ).toBe("Recommended");
+    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
+      /Company: NVIDIA/,
     );
-    expect(pills).toEqual([
-      "Company: NVIDIA",
-      "Country: USA",
-      "Guardrails: Censored",
-      "Released: September 2025",
-    ]);
+    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
+      /Country: USA/,
+    );
+    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
+      /Released: September 2025/,
+    );
+    const pills = Array.from(
+      screen.getByTestId("models-pills-sana-1.6b-4k").children,
+    ).map((c) => c.textContent);
+    expect(pills).toEqual(["Guardrails: Censored"]);
   });
 
   it("shows Retry when Qwen 3.5 4B was selected at install but is not on disk", async () => {
@@ -742,11 +889,15 @@ describe("ModelsSettings", () => {
       },
     };
     render(<ModelsSettings client={qwenClient} hostVramGB={16} />);
-    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    expect(screen.getByTestId("models-row-qwen3.5:4b-selected-missing").textContent).toMatch(
-      /Selected during setup/,
+    await waitFor(() =>
+      expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
     );
-    expect(screen.getByTestId("models-install-qwen3.5:4b").textContent).toMatch(/Retry/i);
+    fireEvent.click(screen.getByTestId("models-tab-agentic"));
+    expect(
+      screen.getByTestId("models-row-qwen3.5:4b-selected-missing").textContent,
+    ).toMatch(/Selected during setup/);
+    expect(screen.getByTestId("models-install-qwen3.5:4b").textContent).toMatch(
+      /Retry/i,
+    );
   });
 });

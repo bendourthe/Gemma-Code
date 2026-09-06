@@ -28,7 +28,11 @@ function ops() {
 describe("chat.explorer ops", () => {
   it("creates a chat at the root with no folder required", () => {
     const { ops: o, store } = ops();
-    const chat = o.createChat({ folderId: null, title: "New chat", modelId: "gemma4:e4b" });
+    const chat = o.createChat({
+      folderId: null,
+      title: "New chat",
+      modelId: "gemma4:e4b",
+    });
     expect(chat.folderId).toBeNull();
     expect(o.tree().tree.chats.map((c) => c.id)).toContain(chat.id);
     store.close();
@@ -39,16 +43,19 @@ describe("chat.explorer ops", () => {
     const chat = o.createChat({ folderId: null, title: "t", modelId: "m" });
     o.appendMessage({ chatId: chat.id, role: "user", content: "hello" });
     o.appendMessage({ chatId: chat.id, role: "assistant", content: "hi" });
-    expect(o.listMessages({ chatId: chat.id }).messages.map((m) => m.content)).toEqual([
-      "hello",
-      "hi",
-    ]);
+    expect(
+      o.listMessages({ chatId: chat.id }).messages.map((m) => m.content),
+    ).toEqual(["hello", "hi"]);
     store.close();
   });
 
   it("distinguishes a machine rename from a user rename", () => {
     const { ops: o, store } = ops();
-    const chat = o.createChat({ folderId: null, title: "New chat", modelId: "m" });
+    const chat = o.createChat({
+      folderId: null,
+      title: "New chat",
+      modelId: "m",
+    });
 
     // Auto-title path: must NOT pin the title.
     const auto = o.renameChat({ id: chat.id, title: "Generated" });
@@ -73,14 +80,20 @@ describe("chat.explorer ops", () => {
     const { ops: o, store } = ops();
     const project = o.createFolder({ parentId: null, name: "Project" });
     const chat = o.createChat({ folderId: null, title: "t", modelId: "m" });
-    expect(o.moveChat({ id: chat.id, folderId: project.id }).folderId).toBe(project.id);
+    expect(o.moveChat({ id: chat.id, folderId: project.id }).folderId).toBe(
+      project.id,
+    );
     expect(o.moveChat({ id: chat.id, folderId: null }).folderId).toBeNull();
     store.close();
   });
 
   it("searches chats by title", () => {
     const { ops: o, store } = ops();
-    o.createChat({ folderId: null, title: "Refactor the parser", modelId: "m" });
+    o.createChat({
+      folderId: null,
+      title: "Refactor the parser",
+      modelId: "m",
+    });
     o.createChat({ folderId: null, title: "Holiday plans", modelId: "m" });
     const hits = o.search({ query: "parser" });
     expect(hits.hits.length).toBeGreaterThan(0);
@@ -90,9 +103,9 @@ describe("chat.explorer ops", () => {
 
 describe("fallbackTitle", () => {
   it("takes the first few words of the prompt", () => {
-    expect(fallbackTitle("Help me refactor the parser module for clarity please")).toBe(
-      "Help me refactor the parser module",
-    );
+    expect(
+      fallbackTitle("Help me refactor the parser module for clarity please"),
+    ).toBe("Help me refactor the parser module");
   });
 
   it("collapses whitespace and newlines", () => {
@@ -100,20 +113,26 @@ describe("fallbackTitle", () => {
   });
 
   it("falls back to New chat for an empty prompt", () => {
-    expect(fallbackTitle("   ")).toBe("New chat");
+    expect(fallbackTitle("   ")).toBe("New session");
   });
 });
 
 describe("sanitizeTitle", () => {
   it("strips the wrappers small models add", () => {
     expect(sanitizeTitle('"Refactor the parser"')).toBe("Refactor the parser");
-    expect(sanitizeTitle("Title: Refactor the parser")).toBe("Refactor the parser");
+    expect(sanitizeTitle("Title: Refactor the parser")).toBe(
+      "Refactor the parser",
+    );
     expect(sanitizeTitle("Refactor the parser.")).toBe("Refactor the parser");
-    expect(sanitizeTitle("**Refactor the parser**")).toBe("Refactor the parser");
+    expect(sanitizeTitle("**Refactor the parser**")).toBe(
+      "Refactor the parser",
+    );
   });
 
   it("keeps only the first line", () => {
-    expect(sanitizeTitle("Refactor the parser\nHere is why...")).toBe("Refactor the parser");
+    expect(sanitizeTitle("Refactor the parser\nHere is why...")).toBe(
+      "Refactor the parser",
+    );
   });
 
   it("caps an over-long title, ellipsis included", () => {
@@ -131,7 +150,10 @@ describe("sanitizeTitle", () => {
 });
 
 describe("generateChatTitle", () => {
-  const input = { chatId: "c1", firstMessage: "Help me refactor the parser module" };
+  const input = {
+    chatId: "c1",
+    firstMessage: "Help me refactor the parser module",
+  };
 
   it("uses the model's answer when it is usable", async () => {
     const titleModel: TitleModelPort = {
@@ -150,7 +172,9 @@ describe("generateChatTitle", () => {
 
   it("falls back when the model returns nothing", async () => {
     const titleModel: TitleModelPort = { complete: async () => null };
-    expect((await generateChatTitle(input, { titleModel } as never)).source).toBe("fallback");
+    expect(
+      (await generateChatTitle(input, { titleModel } as never)).source,
+    ).toBe("fallback");
   });
 
   it("falls back when the answer sanitizes to nothing usable", async () => {
@@ -176,12 +200,15 @@ describe("generateChatTitle", () => {
         throw new Error("model exploded");
       },
     };
-    expect((await generateChatTitle(input, { titleModel } as never)).source).toBe("fallback");
+    expect(
+      (await generateChatTitle(input, { titleModel } as never)).source,
+    ).toBe("fallback");
   });
 
   it("does not pass the whole conversation to the titling prompt", async () => {
     const complete = vi.fn(
-      async (_prompt: string, _modelId?: string, _signal?: AbortSignal) => "A title",
+      async (_prompt: string, _modelId?: string, _signal?: AbortSignal) =>
+        "A title",
     );
     const huge = "x".repeat(5000);
     await generateChatTitle({ chatId: "c", firstMessage: huge }, {

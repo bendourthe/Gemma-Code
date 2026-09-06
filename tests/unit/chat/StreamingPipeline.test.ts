@@ -132,6 +132,18 @@ describe("StreamingPipeline", () => {
     expect(text.toLowerCase()).toContain("pull");
   });
 
+  it("uses the switched model id after setModelName", async () => {
+    const client = makeMockClient(() => {
+      throw new OllamaError("not found", 404);
+    });
+    const pipeline = new StreamingPipeline(client, manager, "gemma-4-12b-it-gguf");
+    pipeline.setModelName("qwen2.5-coder:14b");
+    await pipeline.send("q", postMessage);
+    const errorCall = postMessage.mock.calls.find((c) => c[0]?.type === "error");
+    const text = (errorCall?.[0] as { text: string })?.text ?? "";
+    expect(text).toContain("qwen2.5-coder:14b");
+  });
+
   it("posts a generic error message for unknown errors", async () => {
     const client = makeMockClient(() => {
       throw new Error("something unexpected");

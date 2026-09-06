@@ -65,7 +65,8 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Working",
-    rationale: "Coding tool-use (read/edit/bash) is active labor; working is the busy orbit.",
+    rationale:
+      "Coding tool-use (read/edit/bash) is active labor; working is the busy orbit.",
   },
   "coding-solving": {
     activity: "coding-solving",
@@ -73,7 +74,8 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Solving",
-    rationale: "Multi-step coding reasoning converges toward an answer; solving spirals inward.",
+    rationale:
+      "Multi-step coding reasoning converges toward an answer; solving spirals inward.",
   },
   "memory-retrieval": {
     activity: "memory-retrieval",
@@ -81,7 +83,8 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Searching",
-    rationale: "Memory/RAG retrieval is a search over the local index; coding accent because memory lives in the coding pillar.",
+    rationale:
+      "Memory/RAG retrieval is a search over the local index; coding accent because memory lives in the coding pillar.",
   },
   "web-search": {
     activity: "web-search",
@@ -89,7 +92,8 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Searching",
-    rationale: "Web/grep search is outward lookup; chatbot cyan matches the explorer pillar.",
+    rationale:
+      "Web/grep search is outward lookup; chatbot cyan matches the explorer pillar.",
   },
   "chat-streaming": {
     activity: "chat-streaming",
@@ -97,7 +101,8 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Composing",
-    rationale: "Token streaming is the model writing a reply; composing is the sequential chase.",
+    rationale:
+      "Token streaming is the model writing a reply; composing is the sequential chase.",
   },
   "asr-capture": {
     activity: "asr-capture",
@@ -105,7 +110,8 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Listening",
-    rationale: "ASR/whisper capture is inbound audio; listening breathes as a pulse.",
+    rationale:
+      "ASR/whisper capture is inbound audio; listening breathes as a pulse.",
   },
   "document-parse": {
     activity: "document-parse",
@@ -113,23 +119,26 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Searching",
-    rationale: "OCR/document parse reads pages for text; searching, on the chatbot/explorer accent.",
+    rationale:
+      "OCR/document parse reads pages for text; searching, on the chatbot/explorer accent.",
   },
   "image-generation": {
     activity: "image-generation",
     state: "shaping",
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
-    label: "Shaping",
-    rationale: "Image generation forms a picture; shaping morphs the ring on the image accent.",
+    label: "Creating",
+    rationale:
+      "Image generation forms a picture; Creating is the first studio caption, never Shaping.",
   },
   "video-generation": {
     activity: "video-generation",
     state: "shaping",
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
-    label: "Shaping",
-    rationale: "Video generation forms a clip; same shaping state, video accent.",
+    label: "Generating",
+    rationale:
+      "Video generation forms a clip; Generating is a studio caption, never Shaping.",
   },
   "model-loading": {
     activity: "model-loading",
@@ -137,7 +146,8 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Working",
-    rationale: "Connecting to a local model is agent work before the first sample arrives.",
+    rationale:
+      "Connecting to a local model is agent work before the first sample arrives.",
   },
   "model-inference": {
     activity: "model-inference",
@@ -145,13 +155,18 @@ const MAPPINGS: Record<AgentActivity, AgentStateMapping> = {
     accentToken: "--accent-chatbot",
     accentFallback: "#22d3ee",
     label: "Working",
-    rationale: "A loaded model that is not idle is doing inference; working, coding accent as the default agent color.",
+    rationale:
+      "A loaded model that is not idle is doing inference; working, coding accent as the default agent color.",
   },
 };
 
-export const AGENT_ACTIVITIES: readonly AgentActivity[] = Object.keys(MAPPINGS) as AgentActivity[];
+export const AGENT_ACTIVITIES: readonly AgentActivity[] = Object.keys(
+  MAPPINGS,
+) as AgentActivity[];
 
-export function resolveAgentState(activity: AgentActivity | null | undefined): AgentStateMapping {
+export function resolveAgentState(
+  activity: AgentActivity | null | undefined,
+): AgentStateMapping {
   if (activity && activity in MAPPINGS) return MAPPINGS[activity];
   return MAPPINGS["chat-streaming"];
 }

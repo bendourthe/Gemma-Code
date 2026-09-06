@@ -10,11 +10,17 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from "react";
-import { Send } from "lucide-react";
-import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentBeam";
+import { Send, Square } from "lucide-react";
+import {
+  AccentBeam,
+  type AccentBeamAccentToken,
+} from "../../components/AccentBeam";
 import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { DOCUMENT_ACCEPT } from "../../shared/chat/documentAccept";
-import { fileMatchesAccept, isImageDataUrl } from "../../shared/chat/MediaComposer";
+import {
+  fileMatchesAccept,
+  isImageDataUrl,
+} from "../../shared/chat/MediaComposer";
 import {
   clusterIconStyle,
   composerSurfaceStyle,
@@ -34,6 +40,8 @@ export interface CodingInputProps {
   onSubmit: (text: string, attachments?: readonly string[]) => void;
   /** Traveling beam while a coding turn is in flight. */
   streaming?: boolean;
+  /** While a turn is in flight, replaces Send. Hidden when idle. */
+  onStop?: () => void;
   /**
    * v2.2.0 Phase 3 (3.3) test seam: pre-resolved hub commands. Production
    * omits this and the composer loads them from the sidecar.
@@ -49,7 +57,8 @@ function readFilesAsDataUrls(files: readonly File[]): Promise<string[]> {
           const reader = new FileReader();
           reader.onload = () =>
             resolve(typeof reader.result === "string" ? reader.result : "");
-          reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+          reader.onerror = () =>
+            reject(reader.error ?? new Error("read failed"));
           reader.readAsDataURL(file);
         }),
     ),
@@ -60,6 +69,7 @@ export function CodingInput({
   disabled,
   onSubmit,
   streaming = false,
+  onStop,
   hubCommands,
 }: CodingInputProps): JSX.Element {
   const [value, setValue] = useState("");
@@ -74,7 +84,9 @@ export function CodingInput({
     return filterSlashCommandsWithHub(value, discovered.commands);
   }, [value, discovered.commands]);
 
-  const canSubmit = !disabled && (value.trim().length > 0 || attachments.length > 0);
+  const canSubmit =
+    !disabled && (value.trim().length > 0 || attachments.length > 0);
+  const canStop = Boolean(streaming && onStop);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -85,13 +97,16 @@ export function CodingInput({
 
   const addFiles = async (files: FileList | null): Promise<void> => {
     if (!files || files.length === 0) return;
-    const accepted = Array.from(files).filter((f) => fileMatchesAccept(f, DOCUMENT_ACCEPT));
+    const accepted = Array.from(files).filter((f) =>
+      fileMatchesAccept(f, DOCUMENT_ACCEPT),
+    );
     if (accepted.length === 0) return;
     const urls = await readFilesAsDataUrls(accepted);
     setAttachments((prev) => [...prev, ...urls]);
   };
 
   const submit = (): void => {
+    if (canStop) return;
     if (!canSubmit) return;
     onSubmit(value.trim(), attachments);
     setValue("");
@@ -144,195 +159,225 @@ export function CodingInput({
   );
 
   return (
-    <MotionSurface
-      surfaceId="coding-composer"
-      candidates={candidates}
-    >
-    <div
-      data-testid="coding-input"
-      data-drag-active={dragActive}
-      onFocus={() => setFocused(true)}
-      onBlur={(e: FocusEvent<HTMLDivElement>) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragActive(true);
-      }}
-      onDragLeave={() => setDragActive(false)}
-      onDrop={onDrop}
-      style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}
-    >
-      {suggestions.length > 0 && (
-        <ul
-          data-testid="coding-input-suggestions"
-          aria-label="Slash command suggestions"
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: "var(--space-2)",
-            backgroundColor: "var(--bg-1)",
-            border: "1px solid var(--border-1)",
-            borderRadius: "var(--radius-md)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-1)",
-            maxHeight: "18rem",
-            overflowY: "auto",
-          }}
-        >
-          {suggestions.map((s, i) => (
-            <li key={s.name}>
-              <button
-                type="button"
-                data-testid={`slash-${s.name}`}
-                onClick={() => pickSuggestion(i)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  background: "transparent",
-                  color: "var(--fg-0)",
-                  border: "none",
-                  padding: "var(--space-1) var(--space-2)",
-                  cursor: "pointer",
-                }}
-              >
-                <strong>/{s.name}</strong>
-                {s.namespace === "nexus-hub" && (
+    <MotionSurface surfaceId="coding-composer" candidates={candidates}>
+      <div
+        data-testid="coding-input"
+        data-drag-active={dragActive}
+        onFocus={() => setFocused(true)}
+        onBlur={(e: FocusEvent<HTMLDivElement>) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+            setFocused(false);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={onDrop}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-2)",
+        }}
+      >
+        {suggestions.length > 0 && (
+          <ul
+            data-testid="coding-input-suggestions"
+            aria-label="Slash command suggestions"
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: "var(--space-2)",
+              backgroundColor: "var(--bg-1)",
+              border: "1px solid var(--border-1)",
+              borderRadius: "var(--radius-md)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-1)",
+              maxHeight: "18rem",
+              overflowY: "auto",
+            }}
+          >
+            {suggestions.map((s, i) => (
+              <li key={s.name}>
+                <button
+                  type="button"
+                  data-testid={`slash-${s.name}`}
+                  onClick={() => pickSuggestion(i)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    background: "transparent",
+                    color: "var(--fg-0)",
+                    border: "none",
+                    padding: "var(--space-1) var(--space-2)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <strong>/{s.name}</strong>
+                  {s.namespace === "nexus-hub" && (
+                    <span
+                      data-testid={`slash-${s.name}-source`}
+                      style={{
+                        marginLeft: "var(--space-2)",
+                        fontSize: "var(--text-xs)",
+                        color: "var(--accent-coding)",
+                      }}
+                    >
+                      Nexus-Hub
+                    </span>
+                  )}
                   <span
-                    data-testid={`slash-${s.name}-source`}
                     style={{
+                      color: "var(--fg-muted)",
                       marginLeft: "var(--space-2)",
-                      fontSize: "var(--text-xs)",
-                      color: "var(--accent-coding)",
                     }}
                   >
-                    Nexus-Hub
+                    {s.description}
                   </span>
-                )}
-                <span style={{ color: "var(--fg-muted)", marginLeft: "var(--space-2)" }}>
-                  {s.description}
-                </span>
-              </button>
-            </li>
-          ))}
-          {!discovered.catalogPresent && value.startsWith("/") && (
-            <li
-              data-testid="slash-no-catalog-hint"
-              style={{
-                color: "var(--fg-muted)",
-                fontSize: "var(--text-xs)",
-                padding: "var(--space-1) var(--space-2)",
-              }}
-            >
-              Built-in commands only. Install the Nexus-Hub harness in Settings &gt; Skills
-              for more.
-            </li>
-          )}
-        </ul>
-      )}
-      {attachments.length > 0 && (
-        <div
-          data-testid="coding-input-thumbs"
-          style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}
-        >
-          {attachments.map((src, i) => (
-            <div key={i} data-testid={`coding-input-thumb-${i}`} style={{ position: "relative" }}>
-              {isImageDataUrl(src) ? (
-                <img
-                  src={src}
-                  alt="Pending attachment"
-                  style={{ width: 64, height: 64, objectFit: "cover", borderRadius: "var(--radius-sm)" }}
-                />
-              ) : (
-                <div
-                  data-testid={`coding-input-doc-${i}`}
-                  title="Attached document"
-                  style={docChipStyle}
-                >
-                  DOC
-                </div>
-              )}
-              <button
-                type="button"
-                aria-label="Remove attachment"
-                data-testid={`coding-input-remove-${i}`}
-                onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
-                style={removeBtnStyle}
+                </button>
+              </li>
+            ))}
+            {!discovered.catalogPresent && value.startsWith("/") && (
+              <li
+                data-testid="slash-no-catalog-hint"
+                style={{
+                  color: "var(--fg-muted)",
+                  fontSize: "var(--text-xs)",
+                  padding: "var(--space-1) var(--space-2)",
+                }}
               >
-                x
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {/*
+                Built-in commands only. Install the Nexus-Hub harness in
+                Settings &gt; Skills for more.
+              </li>
+            )}
+          </ul>
+        )}
+        {attachments.length > 0 && (
+          <div
+            data-testid="coding-input-thumbs"
+            style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}
+          >
+            {attachments.map((src, i) => (
+              <div
+                key={i}
+                data-testid={`coding-input-thumb-${i}`}
+                style={{ position: "relative" }}
+              >
+                {isImageDataUrl(src) ? (
+                  <img
+                    src={src}
+                    alt="Pending attachment"
+                    style={{
+                      width: 64,
+                      height: 64,
+                      objectFit: "cover",
+                      borderRadius: "var(--radius-sm)",
+                    }}
+                  />
+                ) : (
+                  <div
+                    data-testid={`coding-input-doc-${i}`}
+                    title="Attached document"
+                    style={docChipStyle}
+                  >
+                    DOC
+                  </div>
+                )}
+                <button
+                  type="button"
+                  aria-label="Remove attachment"
+                  data-testid={`coding-input-remove-${i}`}
+                  onClick={() =>
+                    setAttachments((prev) => prev.filter((_, idx) => idx !== i))
+                  }
+                  style={removeBtnStyle}
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {/*
         v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface and is
         always the brand cyan, not the coding pillar pink. It is the only
         focus/streaming ring.
       */}
-      <AccentBeam
-        mode={streaming ? "traveling" : "breathing"}
-        playing={Boolean(streaming || focused)}
-        accentToken={BEAM_ACCENT}
-        radiusToken={BEAM_RADIUS}
-        strength={streaming ? 0.9 : 0.7}
-        surfaceId="coding-composer-beam"
-        data-testid="coding-composer-beam"
-      >
-      <div data-testid="coding-input-surface" style={composerSurfaceStyle}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={DOCUMENT_ACCEPT}
-          multiple
-          data-testid="coding-input-file"
-          onChange={(e) => {
-            void addFiles(e.target.files);
-            e.target.value = "";
-          }}
-          style={{ display: "none" }}
-        />
-        <textarea
-          ref={textareaRef}
-          data-testid="coding-input-textarea"
-          aria-label="Coding chat input"
-          value={value}
-          disabled={disabled}
-          onChange={handleChange}
-          onKeyDown={handleKey}
-          onPaste={onPaste}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder={`Ask anything, or attach a PDF, image, or Office file. Type / for commands (${SLASH_COMMANDS.length} available).`}
-          rows={1}
-          style={inFieldTextareaStyle}
-        />
-        <div data-testid="coding-input-actions" style={rightControlsStyle}>
-          <button
-            type="button"
-            aria-label="Add attachments"
-            data-testid="coding-input-add"
-            disabled={disabled}
-            onClick={() => fileInputRef.current?.click()}
-            style={clusterIconStyle}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            aria-label="Send"
-            data-testid="coding-input-submit"
-            disabled={!canSubmit}
-            onClick={submit}
-            style={submitStyle}
-          >
-            <Send size={16} aria-hidden="true" />
-          </button>
-        </div>
+        <AccentBeam
+          mode={streaming ? "traveling" : "breathing"}
+          playing={Boolean(streaming || focused)}
+          accentToken={BEAM_ACCENT}
+          radiusToken={BEAM_RADIUS}
+          strength={streaming ? 0.9 : 0.7}
+          surfaceId="coding-composer-beam"
+          data-testid="coding-composer-beam"
+        >
+          <div data-testid="coding-input-surface" style={composerSurfaceStyle}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={DOCUMENT_ACCEPT}
+              multiple
+              data-testid="coding-input-file"
+              onChange={(e) => {
+                void addFiles(e.target.files);
+                e.target.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+            <textarea
+              ref={textareaRef}
+              data-testid="coding-input-textarea"
+              aria-label="Coding chat input"
+              value={value}
+              disabled={disabled}
+              onChange={handleChange}
+              onKeyDown={handleKey}
+              onPaste={onPaste}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder={`Ask anything, or attach a PDF, image, or Office file. Type / for commands (${SLASH_COMMANDS.length} available).`}
+              rows={1}
+              style={inFieldTextareaStyle}
+            />
+            <div data-testid="coding-input-actions" style={rightControlsStyle}>
+              <button
+                type="button"
+                aria-label="Add attachments"
+                data-testid="coding-input-add"
+                disabled={disabled}
+                onClick={() => fileInputRef.current?.click()}
+                style={clusterIconStyle}
+              >
+                +
+              </button>
+              {canStop ? (
+                <button
+                  type="button"
+                  aria-label="Stop"
+                  data-testid="coding-input-stop"
+                  onClick={() => onStop?.()}
+                  style={submitStyle}
+                >
+                  <Square size={16} aria-hidden="true" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Send"
+                  data-testid="coding-input-submit"
+                  disabled={!canSubmit}
+                  onClick={submit}
+                  style={submitStyle}
+                >
+                  <Send size={16} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
+        </AccentBeam>
       </div>
-      </AccentBeam>
-    </div>
     </MotionSurface>
   );
 }

@@ -124,6 +124,10 @@ export class ChatSessionManager {
     ];
   }
 
+  peekModelId(sessionId: string): string | undefined {
+    return this._sessions.get(sessionId)?.model.id;
+  }
+
   /** Test surface: count of live chat sessions. */
   size(): number {
     return this._sessions.size;
@@ -132,7 +136,10 @@ export class ChatSessionManager {
   private _requireSession(id: string): ChatRecord {
     const rec = this._sessions.get(id);
     if (!rec) {
-      throw new IpcMethodError("chat.session.sendMessage" as never, `unknown sessionId: ${id}`);
+      throw new IpcMethodError(
+        "chat.session.sendMessage" as never,
+        `unknown sessionId: ${id}`,
+      );
     }
     return rec;
   }

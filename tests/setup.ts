@@ -28,8 +28,7 @@ const mockConfigurationChangeEvent = {
 };
 
 let _onDidChangeConfigurationListener:
-  | ((e: typeof mockConfigurationChangeEvent) => void)
-  | null = null;
+  ((e: typeof mockConfigurationChangeEvent) => void) | null = null;
 
 // v1.0.0 Phase 2.1: SettingsCompat reads via `inspect()` so tests get a
 // realistic default that reports "no explicit value set". The legacy `get()`
@@ -37,12 +36,16 @@ let _onDidChangeConfigurationListener:
 // it via `mockGetConfiguration.mockReturnValue(...)`).
 export const mockGetConfiguration = vi.fn(() => ({
   get: vi.fn(<T>(key: string, defaultValue?: T): T | undefined => defaultValue),
-  inspect: vi.fn(<T>(_key: string): {
-    defaultValue?: T;
-    globalValue?: T;
-    workspaceValue?: T;
-    workspaceFolderValue?: T;
-  } => ({})),
+  inspect: vi.fn(
+    <T>(
+      _key: string,
+    ): {
+      defaultValue?: T;
+      globalValue?: T;
+      workspaceValue?: T;
+      workspaceFolderValue?: T;
+    } => ({}),
+  ),
   update: vi.fn(() => Promise.resolve()),
 }));
 
@@ -50,11 +53,11 @@ export const mockOnDidChangeConfiguration = vi.fn(
   (listener: (e: typeof mockConfigurationChangeEvent) => void) => {
     _onDidChangeConfigurationListener = listener;
     return mockDisposable;
-  }
+  },
 );
 
 export function triggerConfigurationChange(
-  affectsConfiguration: (section: string) => boolean
+  affectsConfiguration: (section: string) => boolean,
 ): void {
   if (_onDidChangeConfigurationListener) {
     _onDidChangeConfigurationListener({ affectsConfiguration });
@@ -130,9 +133,12 @@ vi.mock("vscode", () => ({
     showInformationMessage: vi.fn(),
     showErrorMessage: vi.fn(),
     showSaveDialog: vi.fn(),
+    showQuickPick: vi.fn(),
   },
   commands: {
-    registerCommand: vi.fn((_id: string, _handler: () => void) => mockDisposable),
+    registerCommand: vi.fn(
+      (_id: string, _handler: () => void) => mockDisposable,
+    ),
     // v1.15.0 Phase 7: the safe-mode activation fallback queries the live
     // command list to decide which declared ids still need a placeholder.
     getCommands: vi.fn(async (_filterInternal?: boolean) => [] as string[]),
@@ -164,6 +170,11 @@ vi.mock("vscode", () => ({
     Directory: 2,
     SymbolicLink: 64,
   },
+  ConfigurationTarget: {
+    Global: 1,
+    Workspace: 2,
+    WorkspaceFolder: 3,
+  },
   CancellationTokenSource: class {
     token = { isCancellationRequested: false };
     cancel = vi.fn();
@@ -172,7 +183,7 @@ vi.mock("vscode", () => ({
   Position: class {
     constructor(
       public readonly line: number,
-      public readonly character: number
+      public readonly character: number,
     ) {}
   },
 }));

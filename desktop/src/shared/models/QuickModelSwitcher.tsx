@@ -9,13 +9,14 @@
 import { useEffect, useMemo } from "react";
 
 import { ModelSelector } from "../chat/ModelSelector";
-import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
+import type {
+  ListedModelDto,
+  ModelType,
+} from "../../pages/settings/modelsTypes";
 import { GET_MORE_MODELS_ID, installedModelsForType } from "./installedFeed";
-import {
-  catalogSortGpuVendor,
-  visibleModelsOnTab,
-  type CatalogTab,
-} from "./catalogTabs";
+import { catalogTabsFor, type CatalogTab } from "./catalogTabs";
+
+const EMPTY_OWNED = new Set<string>();
 
 export interface QuickModelSwitcherProps {
   readonly models: readonly ListedModelDto[];
@@ -23,7 +24,7 @@ export interface QuickModelSwitcherProps {
   readonly value: string;
   readonly onChange: (modelId: string) => void;
   readonly onGetMoreModels?: () => void;
-  /** v2.2.4 Phase 2 -- this-install ownership set; omit to keep probe-only filtering. */
+  /** v2.4.6 Phase 7 -- this-install ownership set. Omit or null means empty, not every disk model. */
   ownedIds?: ReadonlySet<string> | null;
   disabled?: boolean;
   label?: string;
@@ -59,22 +60,23 @@ export function QuickModelSwitcher({
   testId = "quick-model-switcher",
   harnessLabel,
   harnessSelectorEnabled,
-  hostVramGB = null,
+  hostVramGB: _hostVramGB = null,
   catalogTab,
   recommendOrder,
 }: QuickModelSwitcherProps): JSX.Element {
   const ready = useMemo(() => {
-    const installed = new Set(
-      installedModelsForType(models, taskType, ownedIds).map((m) => m.id),
-    );
+    const owned = ownedIds ?? EMPTY_OWNED;
     const tab = catalogTab ?? catalogTabForTask(taskType);
-    return visibleModelsOnTab(models, tab, {
-      hostVramGB,
-      gpuVendor: catalogSortGpuVendor(hostVramGB),
-      recommendOrder,
-      defaults: new Set(recommendOrder?.slice(0, 1) ?? []),
-    }).filter((m) => installed.has(m.id));
-  }, [models, taskType, ownedIds, hostVramGB, catalogTab, recommendOrder]);
+    const onTab = installedModelsForType(models, taskType, owned).filter((m) =>
+      catalogTabsFor(m).includes(tab),
+    );
+    const rank = new Map(
+      (recommendOrder ?? []).map((id, index) => [id, index]),
+    );
+    return [...onTab].sort(
+      (a, b) => (rank.get(a.id) ?? 10_000) - (rank.get(b.id) ?? 10_000),
+    );
+  }, [models, taskType, ownedIds, catalogTab, recommendOrder]);
 
   const options = useMemo(
     () => [
@@ -95,7 +97,9 @@ export function QuickModelSwitcher({
     onChange(id);
   }
 
-  const selectValue = ready.some((m) => m.id === value) ? value : (ready[0]?.id ?? GET_MORE_MODELS_ID);
+  const selectValue = ready.some((m) => m.id === value)
+    ? value
+    : (ready[0]?.id ?? GET_MORE_MODELS_ID);
 
   // v2.2.4 Phase 2: never display ready[0] while parent state stays on a
   // missing id. Sync once so send uses the same id the <select> shows.

@@ -4,6 +4,153 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-04] v2.4.6 Phase 8 - Integration PR and merge-result fixes
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.6-field-delivery.md), PR [62](https://github.com/bendourthe/Nexus-AI/pull/62). Package remains **2.4.1**.
+
+### What Changed
+
+- Opened the develop integration PR. The first merge-result run failed installer GPU elision, Vite `node:fs` in Settings, and production `qs` / `fast-uri` advisories. All three were reproduced locally and fixed in source (name-only GPU elide, `desktopPayloadFs.ts`, in-range overrides).
+- Merge, installer rebuild, and `/update release` still wait on a green re-run plus operator approval.
+
+### Why It Changed
+
+A red required check reopens the last phase. Re-running without a local reproduction is a guess.
+
+---
+
+## [2026-09-03] v2.4.6 Phase 8 - Last-phase evidence (publication pending)
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.6-field-delivery.md), history [P8](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-8-evidence.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Quoted empty-directory scan, handbooks check, release-preconditions output, and a CI conformance re-check with no `.github` diff versus `develop`.
+- Goal-vs-codebase review: every Goal slice has a source artifact; packaged observation stays MT-1 through MT-7.
+- Publication, integration PR, installer rebuild, and `/update release` are not started.
+
+### Why It Changed
+
+The last phase must quote proving scans before anything leaves the machine.
+
+### Decisions Made
+
+- No layout moves. No pipeline edits without explicit approval of the carried aggregate-check and permissions findings.
+- Installer rebuild waits for a green merge, then a fresh `desktop` `npm run build:shell`.
+
+---
+
+## [2026-09-03] v2.4.6 Phase 7 - Four-tab runtime chrome
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P7](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-7-runtime.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Chat, Agents, Image, and Video pickers list installer ticks union Settings downloads only. A missing snapshot is an empty allowlist plus Get more models.
+- Recommend order puts the task recommended id first (Gemma 4 12B on 16 GB agentic/chat among owned ids; RealVis before Juggernaut on Image when both are owned).
+- Assistant token counts persist on explorer records. Stop replaces Send while a turn or job is in flight. Studio captions are Creating/Generating, not Shaping. Advanced sits on the Context | Model row.
+- Chat and Agents token jobs enqueue on the studio scheduler so the GPU footer is Busy even at 0% utilization. Windows nvidia-smi falls back to System32.
+
+### Why It Changed
+
+Packaged Chat/Agents/Image/Video still showed leftover Ollama or Hugging Face ids, Idle 0% during a request, and Image defaulting to Juggernaut when RealVis was the 16 GB recommendation.
+
+### Decisions Made
+
+- `ownedIdSet(null)` is empty, matching VS Code Phase 4. Settings > Models still shows unowned catalog cards.
+- Image empty-session default uses `recommendedByTask.image` and does not apply a leftover localStorage favorite.
+- Juggernaut is catalog id `juggernaut-xl-v9`. The wizard can auto-tick it because the weights are already on disk. That is not a ghost picker row.
+- Video Lab still takes host VRAM as `vramGB`. QuickModelSwitcher no longer shuffles owned rows by missing `hostVramGB`.
+
+---
+
+## [2026-09-03] v2.4.6 Phase 4 - VS Code owned agentic models
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P4](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-4-vscode-models.md). Package remains **2.4.1**.
+
+### What Changed
+
+- VS Code coding model enum is installer ticks union Settings downloads, intersected with catalog agentic and on-disk presence.
+- Status bar, `nexus.coding.selectModel`, and `/model` share that list. Empty snapshot shows a Settings message instead of every Ollama tag.
+- Switching the owned id keeps AgentLoop tools, skills, hooks, and ConfirmationGate.
+
+### Why It Changed
+
+`/model` listed `ollama list`, so leftover tags from a previous install appeared. The operator bar is the same allowlist the desktop Phase 7 pickers will use.
+
+### Decisions Made
+
+- Missing snapshot is empty, not pass-through. Desktop `ownedIdSet(null)` stays leaky until Phase 7.
+- Hub skills and hooks already load in the extension host; this phase did not start a second agent runtime.
+- After a VSIX rebuild, rebuild `better-sqlite3` for the Node ABI before running extension tests (v2.4.5 footgun).
+
+---
+
+## [2026-09-02] v2.4.6 Phase 3 - Configuration, VS Code 1.136, and Review groups
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P3](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-3-configuration-review.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Unsloth is checked when the badge is Compatible; a user uncheck survives showEvent; Incompatible stays locked off.
+- VS Code extension is a Features checkbox, default-on for Microsoft stable 1.134, 1.135, or 1.136. Exclusive max is 1.137.0. Insiders, Cursor, and Windsurf stay unsupported.
+- Configuration no longer shows Gemma sampling bullets or a Video2X note.
+- Review groups selected models by catalog section and hugs the facts card to its content.
+
+### Why It Changed
+
+Screenshot 2 still showed Unsloth Compatible but unchecked, VS Code 1.136 disabled, and Gemma/Video2X copy. Screenshot 4 mixed image and chat ids in one uncategorized list.
+
+### Decisions Made
+
+- Electron rebuild pin stays 42.8.1 (WN-2: 1.136 ABI inferred from 1.134/1.135).
+- `engines.vscode` stays `^1.134.0` because vsce 2.24.0 rejects compound ranges.
+
+---
+
+## [2026-09-02] v2.4.6 Phase 2 - installer Setup compactness
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P2](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-2-setup.md). Package remains **2.4.1**.
+
+### What Changed
+
+- Compact Setup puts VS Code + Python and Disk + Ollama in two columns, stacking under 520 px.
+- Re-check is a title-row refresh icon with accessible name `Re-check`, not a full-width button.
+- GPU name, vendor, and VRAM share one eliding line. No GPU hides the empty card.
+- Setup spacing is 6 px with no trailing stretch. Install path and available-space stay.
+
+### Why It Changed
+
+Screenshot 1 still showed one-column prereqs, a full-width Re-check bar, and a tall empty GPU/path stack after v2.4.5 tests were green.
+
+### Decisions Made
+
+- Compact mode hides the recommended-model callout; Configuration still owns the model choice.
+- Elide only when the GPU label is at least 80 px wide so unshown widgets keep a testable full string.
+
+---
+
+## [2026-09-02] v2.4.6 Phase 1 - packaged delivery and installer window
+
+Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), history [P1](v2/v2.4/development/history/2026-09-02_v2.4.6-phase-1-delivery.md). Package remains **2.4.1**.
+
+### What Changed
+
+- `build-windows.ps1` stages the desktop NSIS bundle through `stage-desktop-payload.py`. A missing file, a filename that does not encode the product version, or a bundle older than desktop source files fails the freeze.
+- After install, `~/.nexus/desktop-payload.json` holds version + sha256. Settings shows that fingerprint or `Desktop payload unknown`.
+- The wizard's first presentation is `showMaximized`. Tray reattach still restores.
+
+### Why It Changed
+
+Rebuilding only PyInstaller could ship last week's desktop while package.json stayed 2.4.1. The operator then saw a new Review page and an old Settings card.
+
+### Decisions Made
+
+- Freshness is source mtime versus bundle mtime, not an automatic `npm run build:shell` (too slow for this gate). A freshly copied stale NSIS can still pass (WN-1).
+- Sidecar `runtime.desktopPayload` returns null when the file is missing; Settings never invents 2.4.1.
+
+---
+
 ## [2026-09-01] v2.4.5 - installer already-downloaded model detection (Phases 1-5)
 
 Index: [plan](v2/v2.4/plans/v2.4.5-installer-already-downloaded-models.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.5-installer-downloaded.md), [gaps](v2/v2.4/known-gaps.md), histories [P1](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-1-downloaded-probe.md), [P2](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-2-picker-marks.md), [P3](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-3-review-page.md), [P4](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-4-guard.md), [P5](v2/v2.4/development/history/2026-09-01_v2.4.5-phase-5-last-phase.md). Package remains **2.4.1**; nothing in the 2.4 series is released.

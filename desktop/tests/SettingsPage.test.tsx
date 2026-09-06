@@ -40,4 +40,31 @@ describe("SettingsPage URL tabs", () => {
     fireEvent.click(screen.getByText("go-models"));
     expect(screen.getByTestId("settings-models")).toBeInTheDocument();
   });
+
+  it("shows the injected desktop payload fingerprint", () => {
+    render(
+      <MemoryRouter>
+        <SettingsPage
+          payloadIdentity={{
+            version: "2.4.1",
+            sha256: "abcdef0123456789ffff",
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("settings-payload-fingerprint")).toHaveTextContent(
+      "Desktop payload 2.4.1 (abcdef012345)",
+    );
+  });
+
+  it("shows unknown when the payload identity is missing", () => {
+    render(
+      <MemoryRouter>
+        <SettingsPage payloadIdentity={null} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("settings-payload-fingerprint")).toHaveTextContent(
+      "Desktop payload unknown",
+    );
+  });
 });

@@ -1,8 +1,8 @@
 // v2.2.0 Phase 5 (5.3) -- name a chat from its first message.
 //
-// Every chat was literally called "New chat" (hardcoded in FolderTree), so a
-// rail of ten conversations was ten identical rows. This asks the local model
-// that is ALREADY loaded for a short title.
+// Every session was literally called "New session" until the first prompt,
+// so a rail of ten conversations was ten identical rows. This asks the local
+// model that is ALREADY loaded for a short title.
 //
 // Two constraints shape the design:
 //
@@ -13,11 +13,13 @@
 //   2. Never block the conversation. The caller shows the fallback title
 //      immediately and applies a generated one only if it arrives.
 
-
 /** Bounded so a slow or wedged model cannot hold a title request open. */
 export const TITLE_TIMEOUT_MS = 5000;
 const MAX_TITLE_CHARS = 60;
 const FALLBACK_WORDS = 6;
+
+/** Default rail title until the first prompt names the session. */
+export const DEFAULT_SESSION_TITLE = "New session";
 
 export interface GenerateTitleInput {
   readonly chatId: string;
@@ -36,7 +38,7 @@ export interface GenerateTitleResult {
  */
 export function fallbackTitle(firstMessage: string): string {
   const cleaned = firstMessage.replace(/\s+/g, " ").trim();
-  if (!cleaned) return "New chat";
+  if (!cleaned) return DEFAULT_SESSION_TITLE;
   const words = cleaned.split(" ").slice(0, FALLBACK_WORDS).join(" ");
   // The ellipsis counts toward the cap: slicing to the cap and THEN appending
   // it overshoots by three characters.
@@ -70,7 +72,11 @@ const PROMPT = (message: string): string =>
 
 export interface TitleModelPort {
   /** Ask the resident model. Resolves null when no model is available. */
-  complete(prompt: string, modelId: string | undefined, signal: AbortSignal): Promise<string | null>;
+  complete(
+    prompt: string,
+    modelId: string | undefined,
+    signal: AbortSignal,
+  ): Promise<string | null>;
 }
 
 /**
@@ -103,7 +109,11 @@ export async function generateChatTitle(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const raw = await port.complete(PROMPT(input.firstMessage), input.modelId, controller.signal);
+    const raw = await port.complete(
+      PROMPT(input.firstMessage),
+      input.modelId,
+      controller.signal,
+    );
     if (!raw) return { title: fallback, source: "fallback" };
     const title = sanitizeTitle(raw);
     // A model that answers with punctuation, an empty string, or a single
@@ -124,9 +134,7 @@ export async function generateChatTitle(
  * Returns null when no chat runtime is available, which is what keeps titling
  * from ever forcing a model load.
  */
-function defaultTitleModel(
-  ctx?: TitleContext,
-): TitleModelPort | null {
+function defaultTitleModel(ctx?: TitleContext): TitleModelPort | null {
   const chat = ctx?.chat as unknown as
     | { completeOnce?: (prompt: string, modelId?: string) => Promise<string> }
     | undefined;

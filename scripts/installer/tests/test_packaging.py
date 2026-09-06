@@ -273,6 +273,8 @@ class TestWorkflows:
             "Select-Object -First 1"
             not in content.split("# v1.11.0 Phase 4", maxsplit=1)[0]
         )
+        assert "stage-desktop-payload.py" in content
+        assert "stale, version-mismatched, or missing bundle" in content
 
     def test_release_workflow_builds_and_routes_three_native_vsixes(self) -> None:
         content = (WORKFLOWS / "release.yml").read_text()

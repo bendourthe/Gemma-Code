@@ -87,6 +87,7 @@ describe("activate()", () => {
     ]) {
       expect(registeredIds).toContain(id);
     }
+    expect(registeredIds).toContain("nexus.coding.selectModel");
   });
 
   it("registers the legacy gemma-code.* command shims programmatically", () => {

@@ -102,18 +102,33 @@ if (-not $DesktopBundle) {
     Write-Host "  Or download the desktop-bundle-windows artifact next to package.json." -ForegroundColor Red
     exit 1
 }
+# v2.4.6 Phase 1: stage via Python so a stale NSIS (same package version,
+# older than desktop/src) fails the freeze. Do not Copy-Item here -- that
+# path used to embed last week's exe whenever package.json was still 2.4.1.
 $PayloadDir = Join-Path $InstallerRoot "build\desktop-payload"
-New-Item -ItemType Directory -Force -Path $PayloadDir | Out-Null
+New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
+$StageLog = Join-Path $DistDir "desktop-payload-stage.log"
+Push-Location $InstallerRoot
+$PrevEAP = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+uv run python (Join-Path $PSScriptRoot "stage-desktop-payload.py") --source $DesktopBundle --dest $PayloadDir --version $Version --repo-root $RepoRoot > $StageLog 2>&1
+$StageExit = $LASTEXITCODE
+$ErrorActionPreference = $PrevEAP
+Pop-Location
+if ($StageExit -ne 0) {
+    Write-Host "ERROR: desktop payload staging failed (stale, version-mismatched, or missing bundle). See $StageLog." -ForegroundColor Red
+    if (Test-Path $StageLog) {
+        Get-Content $StageLog | ForEach-Object { Write-Host "  $_" }
+    }
+    Write-Host "  Build a current desktop first: cd desktop; npm run build:shell" -ForegroundColor Red
+    exit 1
+}
 $StagedBundle = Join-Path $PayloadDir "Nexus-Desktop-Setup.exe"
-Copy-Item $DesktopBundle $StagedBundle -Force
+if (-not (Test-Path $StagedBundle)) {
+    Write-Host "ERROR: staged desktop payload missing after a successful stage step: $StagedBundle" -ForegroundColor Red
+    exit 1
+}
 $BundleHash = (Get-FileHash $StagedBundle -Algorithm SHA256).Hash.ToLower()
-@{
-    filename      = "Nexus-Desktop-Setup.exe"
-    original_name = (Split-Path $DesktopBundle -Leaf)
-    version       = $Version
-    sha256        = $BundleHash
-    platform      = "win32"
-} | ConvertTo-Json | Set-Content (Join-Path $PayloadDir "manifest.json") -Encoding ascii
 Write-Host "  Desktop bundle staged: $(Split-Path $DesktopBundle -Leaf) (sha256 $($BundleHash.Substring(0,12))...)"
 
 # The onefile is written straight to the repo-root dist/ (gitignored) so the

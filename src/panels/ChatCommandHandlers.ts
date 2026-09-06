@@ -47,6 +47,11 @@ import {
 import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
+import {
+  EMPTY_OWNED_AGENTIC_MESSAGE,
+  resolveOwnedAgenticId,
+} from "../../core/registry/ownedAgentic.js";
+import { listOwnedAgenticModels } from "../../modules/coding/config/ownedAgenticFeed.js";
 
 /**
  * Bag of dependencies the slash-command handlers need. The owning panel
@@ -229,14 +234,19 @@ export class ChatCommandHandlers {
     const state = ctx.getCompressionState();
 
     if (parsed.verb === "context") {
-      const breakdown = computeContextBreakdown(ctx.manager.getHistory(), settings.maxTokens);
+      const breakdown = computeContextBreakdown(
+        ctx.manager.getHistory(),
+        settings.maxTokens,
+      );
       this._emitMarkdown(renderContextBreakdown(breakdown));
       return;
     }
 
     if (parsed.verb === "stats") {
       if (!state) {
-        this._emitMarkdown("Compression state is not available in this session.");
+        this._emitMarkdown(
+          "Compression state is not available in this session.",
+        );
         return;
       }
       const stats = computeCompactionStats(state);
@@ -248,7 +258,9 @@ export class ChatCommandHandlers {
       const n = parsed.numericArg ?? settings.compactionToolResultsKeep;
       const plan = planSweep(ctx.manager.getHistory(), n);
       if (!plan) {
-        this._emitMarkdown("No tool-result messages since the last user message; nothing to sweep.");
+        this._emitMarkdown(
+          "No tool-result messages since the last user message; nothing to sweep.",
+        );
         return;
       }
       this._emitMarkdown(
@@ -261,18 +273,26 @@ export class ChatCommandHandlers {
 
     if (parsed.verb === "decompress") {
       if (!state) {
-        this._emitMarkdown("Compression state is not available in this session.");
+        this._emitMarkdown(
+          "Compression state is not available in this session.",
+        );
         return;
       }
       if (!parsed.stringArg) {
         this._emitMarkdown("Usage: /compact decompress <blockId>");
         return;
       }
-      const result = decompressBlockInConversation(ctx.manager, state, parsed.stringArg);
+      const result = decompressBlockInConversation(
+        ctx.manager,
+        state,
+        parsed.stringArg,
+      );
       if (!result.ok) {
         this._emitMarkdown(`Decompress failed: ${result.reason}.`);
       } else {
-        this._emitMarkdown(`Decompressed block ${parsed.stringArg}: ${result.restored} message(s) restored.`);
+        this._emitMarkdown(
+          `Decompressed block ${parsed.stringArg}: ${result.restored} message(s) restored.`,
+        );
         ctx.postHistory();
         ctx.postTokenCount();
       }
@@ -281,14 +301,20 @@ export class ChatCommandHandlers {
 
     if (parsed.verb === "recompress") {
       if (!state) {
-        this._emitMarkdown("Compression state is not available in this session.");
+        this._emitMarkdown(
+          "Compression state is not available in this session.",
+        );
         return;
       }
       if (!parsed.stringArg) {
         this._emitMarkdown("Usage: /compact recompress <blockId>");
         return;
       }
-      const result = recompressBlockInConversation(ctx.manager, state, parsed.stringArg);
+      const result = recompressBlockInConversation(
+        ctx.manager,
+        state,
+        parsed.stringArg,
+      );
       if (!result.ok) {
         this._emitMarkdown(`Recompress failed: ${result.reason}.`);
       } else {
@@ -301,15 +327,21 @@ export class ChatCommandHandlers {
 
     if (parsed.verb === "manual") {
       if (!state) {
-        this._emitMarkdown("Compression state is not available in this session.");
+        this._emitMarkdown(
+          "Compression state is not available in this session.",
+        );
         return;
       }
       if (parsed.stringArg === "on") {
         state.setManualOnly(true);
-        this._emitMarkdown("Compress tool: **manual-only mode ON**. The model will no longer auto-compress.");
+        this._emitMarkdown(
+          "Compress tool: **manual-only mode ON**. The model will no longer auto-compress.",
+        );
       } else if (parsed.stringArg === "off") {
         state.setManualOnly(false);
-        this._emitMarkdown("Compress tool: **manual-only mode OFF**. The model may auto-compress again.");
+        this._emitMarkdown(
+          "Compress tool: **manual-only mode OFF**. The model may auto-compress again.",
+        );
       } else {
         this._emitMarkdown("Usage: /compact manual on|off");
       }
@@ -323,30 +355,45 @@ export class ChatCommandHandlers {
   }
 
   private async _handleModel(args: string): Promise<void> {
-    const ctx = this._ctx;
-    const client = ctx.runtime.getOllamaClient();
-    const models = await client.listModels().catch(() => []);
-
-    if (models.length === 0) {
+    let entries: Awaited<ReturnType<typeof listOwnedAgenticModels>>;
+    try {
+      entries = await listOwnedAgenticModels();
+    } catch {
       this._post({
         type: "error",
-        text: "Could not reach Ollama to list models. Make sure `ollama serve` is running.",
+        text: EMPTY_OWNED_AGENTIC_MESSAGE,
+      });
+      return;
+    }
+    if (entries.length === 0) {
+      this._post({
+        type: "error",
+        text: EMPTY_OWNED_AGENTIC_MESSAGE,
       });
       return;
     }
 
     const selected = await vscode.window.showQuickPick(
-      models.map((m) => m.name),
-      { placeHolder: args || "Select a model" },
+      entries.map((entry) => ({
+        label: entry.displayName,
+        description: entry.id,
+      })),
+      { placeHolder: args || "Select an owned agentic model" },
     );
+    if (!selected) return;
 
-    if (selected) {
-      this._ctx.getHarnessSession?.()?.clear();
-      await vscode.workspace
-        .getConfiguration("nexus.llm")
-        .update("modelName", selected, vscode.ConfigurationTarget.Global);
-      this._emitMarkdown(`_Switched to model: **${selected}**_`);
+    const resolved = resolveOwnedAgenticId(selected.description, entries);
+    if (!resolved.ok) {
+      this._post({ type: "error", text: resolved.message });
+      return;
     }
+
+    this._ctx.getHarnessSession?.()?.clear();
+    await vscode.workspace
+      .getConfiguration("nexus.llm")
+      .update("modelName", resolved.id, vscode.ConfigurationTarget.Global);
+    this._ctx.agentLoop.setModelName(resolved.id);
+    this._emitMarkdown(`_Switched to model: **${resolved.id}**_`);
   }
 
   private async _handleMemory(args: string): Promise<void> {
@@ -397,7 +444,10 @@ export class ChatCommandHandlers {
           results.length > 0
             ? "## Memory Search Results\n\n" +
               results
-                .map((r, i) => `${i + 1}. **[${r.entry.type}]** ${r.entry.content}`)
+                .map(
+                  (r, i) =>
+                    `${i + 1}. **[${r.entry.type}]** ${r.entry.content}`,
+                )
                 .join("\n")
             : "_No memories found matching your query._";
         this._emitMarkdown(text);
@@ -409,7 +459,11 @@ export class ChatCommandHandlers {
           this._emitMarkdown("Usage: `/memory save <content>`");
           return;
         }
-        await memoryStore.save(subArgs, "fact", ctx.manager.sessionId ?? undefined);
+        await memoryStore.save(
+          subArgs,
+          "fact",
+          ctx.manager.sessionId ?? undefined,
+        );
         this._emitMarkdown("_Memory saved._");
         ctx.postMemoryStatus();
         return;
@@ -506,7 +560,9 @@ export class ChatCommandHandlers {
     lines.push(`Files live under \`${memoryFiles.workspaceDir}\`.`);
     if (!force) {
       lines.push("");
-      lines.push("_Use `/memory init --force` to overwrite existing files with scaffolds._");
+      lines.push(
+        "_Use `/memory init --force` to overwrite existing files with scaffolds._",
+      );
     }
     this._emitMarkdown(lines.join("\n"));
   }
@@ -641,7 +697,9 @@ export class ChatCommandHandlers {
     }
     const parsed = parseImportArgs(rawArgs);
     if (!parsed.path) {
-      this._emitMarkdown("Usage: `/memory import <path> [--mode=merge|replace]`");
+      this._emitMarkdown(
+        "Usage: `/memory import <path> [--mode=merge|replace]`",
+      );
       return;
     }
     try {
@@ -675,7 +733,9 @@ export class ChatCommandHandlers {
       return;
     }
     try {
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+      const doc = await vscode.workspace.openTextDocument(
+        vscode.Uri.file(target),
+      );
       await vscode.window.showTextDocument(doc, { preview: false });
     } catch (err) {
       this._emitMarkdown(`_/memory edit failed: ${formatForUser(err)}_`);
@@ -771,7 +831,9 @@ export class ChatCommandHandlers {
       modifiedFiles: [...ctx.agentLoop.getModifiedFiles()],
       recentToolResults: [...ctx.agentLoop.getRecentToolResults()],
     };
-    const result = await ctx.subAgentManager.run(config, (msg) => this._post(msg));
+    const result = await ctx.subAgentManager.run(config, (msg) =>
+      this._post(msg),
+    );
     const reportText = `## Verification Report\n\n${result.output || "_No issues found._"}`;
     this._emitMarkdown(reportText);
   }
@@ -790,7 +852,9 @@ export class ChatCommandHandlers {
       modifiedFiles: [...ctx.agentLoop.getModifiedFiles()],
       recentToolResults: [...ctx.agentLoop.getRecentToolResults()],
     };
-    const result = await ctx.subAgentManager.run(config, (msg) => this._post(msg));
+    const result = await ctx.subAgentManager.run(config, (msg) =>
+      this._post(msg),
+    );
     const researchText = `## Research Results\n\n${result.output || "_No results._"}`;
     this._emitMarkdown(researchText);
   }
@@ -880,7 +944,9 @@ export class ChatCommandHandlers {
       }
       case "disable": {
         traceFile.disable();
-        this._emitMarkdown("_Trace recording disabled. Existing file kept in place._");
+        this._emitMarkdown(
+          "_Trace recording disabled. Existing file kept in place._",
+        );
         return;
       }
       case "dump": {
@@ -948,7 +1014,9 @@ export class ChatCommandHandlers {
     if (parsed.kind === "clear") {
       session?.clear();
       this._rebuildHarnessPrompt();
-      this._emitMarkdown("_Harness override cleared. Auto selection applies on the next prompt._");
+      this._emitMarkdown(
+        "_Harness override cleared. Auto selection applies on the next prompt._",
+      );
       return;
     }
 
@@ -960,7 +1028,9 @@ export class ChatCommandHandlers {
         return;
       }
       if (!session) {
-        this._emitMarkdown("_Harness session override is unavailable in this host._");
+        this._emitMarkdown(
+          "_Harness session override is unavailable in this host._",
+        );
         return;
       }
       session.set(parsed.profileId, settings.modelName);
@@ -986,7 +1056,9 @@ export class ChatCommandHandlers {
       `- **Overlay:** promptStyle \`${overlay.promptStyle}\`, thinkingMode \`${overlay.thinkingMode}\`, budget ${overlay.systemPromptBudgetPercent}%`,
     ];
     if (selection.overrideId) {
-      lines.push(`- **Session override:** \`${selection.overrideId}\`${applied ? "" : " (inactive while selector is off)"}`);
+      lines.push(
+        `- **Session override:** \`${selection.overrideId}\`${applied ? "" : " (inactive while selector is off)"}`,
+      );
     }
     this._emitMarkdown(lines.join("\n"));
   }
@@ -1003,9 +1075,8 @@ export class ChatCommandHandlers {
    * picks up the new sampler preset.
    */
   private async _handleThinkingMode(args: string): Promise<void> {
-    const { parseThinkingMode, SAMPLER_PRESETS } = await import(
-      "../../modules/coding/config/SamplerPresets.js"
-    );
+    const { parseThinkingMode, SAMPLER_PRESETS } =
+      await import("../../modules/coding/config/SamplerPresets.js");
     const requested = args.trim();
     if (!requested) {
       const current = this._ctx.getSettings().thinkingModePreset;
@@ -1043,9 +1114,7 @@ export class ChatCommandHandlers {
         `_[Thinking mode: \`${mode}\`] Sampler preset applies to the next streaming request._`,
       );
     } catch (err) {
-      this._emitMarkdown(
-        `_Failed to update setting: ${formatForUser(err)}_`,
-      );
+      this._emitMarkdown(`_Failed to update setting: ${formatForUser(err)}_`);
     }
   }
 
@@ -1100,13 +1169,17 @@ export class ChatCommandHandlers {
   private _handleSkillMetrics(args: string): void {
     const metrics = this._ctx.getSkillMetrics();
     if (!metrics) {
-      this._emitMarkdown("_Skill metrics are not initialized in this session._");
+      this._emitMarkdown(
+        "_Skill metrics are not initialized in this session._",
+      );
       return;
     }
     const target = args.trim() || undefined;
     const stats = metrics.getMetrics(target);
     if (target && stats.length === 0) {
-      this._emitMarkdown(`_No invocations recorded for skill \`${target}\` in the past 30 days._`);
+      this._emitMarkdown(
+        `_No invocations recorded for skill \`${target}\` in the past 30 days._`,
+      );
       return;
     }
     this._emitMarkdown(formatMetricsTable(stats));
@@ -1119,7 +1192,9 @@ export class ChatCommandHandlers {
     const ctx = this._ctx;
     const loop = ctx.getCurationLoop();
     if (!loop) {
-      this._emitMarkdown("_Curator unavailable; enable via `gemma-code.workers.curator.enabled`._");
+      this._emitMarkdown(
+        "_Curator unavailable; enable via `gemma-code.workers.curator.enabled`._",
+      );
       return;
     }
     const tokens = args.split(/\s+/).filter(Boolean);
@@ -1141,7 +1216,9 @@ export class ChatCommandHandlers {
         } else {
           for (let i = 0; i < manifest.actions.length; i++) {
             const a = manifest.actions[i]!;
-            lines.push(`${i + 1}. **${a.type}** -- \`${a.target}\` (${a.rationale})`);
+            lines.push(
+              `${i + 1}. **${a.type}** -- \`${a.target}\` (${a.rationale})`,
+            );
           }
         }
         lines.push("", `Apply with \`/curate --apply ${manifest.id}\`.`);
@@ -1267,7 +1344,10 @@ export function parseImportArgs(rawArgs: string): {
  * unit-testability without instantiating the full panel.
  */
 export function forgetMatchingSqlRows(
-  memoryStore: { listAll(limit?: number): readonly { id: string; content: string }[]; deleteById(id: string): boolean },
+  memoryStore: {
+    listAll(limit?: number): readonly { id: string; content: string }[];
+    deleteById(id: string): boolean;
+  },
   pattern: string,
 ): number {
   let re: RegExp;

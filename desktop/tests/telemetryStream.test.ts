@@ -47,10 +47,25 @@ describe("createTelemetryStream", () => {
         return () => undefined;
       },
       scheduler: () => ({
-        active: { id: "j1", moduleId: "coding", jobType: "tokens", modelId: "gemma4:e4b" },
+        active: {
+          id: "j1",
+          moduleId: "coding",
+          jobType: "tokens",
+          modelId: "gemma4:e4b",
+        },
         queued: [
-          { id: "q1", moduleId: "image", jobType: "txt2img", estimatedVramGB: 6 },
-          { id: "q2", moduleId: "video", jobType: "text2video", estimatedVramGB: 10 },
+          {
+            id: "q1",
+            moduleId: "image",
+            jobType: "txt2img",
+            estimatedVramGB: 6,
+          },
+          {
+            id: "q2",
+            moduleId: "video",
+            jobType: "text2video",
+            estimatedVramGB: 10,
+          },
         ],
       }),
     });
@@ -71,7 +86,12 @@ describe("createTelemetryStream", () => {
         return () => undefined;
       },
       scheduler: () => ({
-        active: { id: "j1", moduleId: "coding", jobType: "tokens", modelId: "llama-3-8b" },
+        active: {
+          id: "j1",
+          moduleId: "coding",
+          jobType: "tokens",
+          modelId: "llama-3-8b",
+        },
         queued: [],
       }),
     });
@@ -94,7 +114,12 @@ describe("createTelemetryStream", () => {
         displayName: () => "Custom Model",
       },
       scheduler: () => ({
-        active: { id: "j1", moduleId: "coding", jobType: "tokens", modelId: "anything" },
+        active: {
+          id: "j1",
+          moduleId: "coding",
+          jobType: "tokens",
+          modelId: "anything",
+        },
         queued: [],
       }),
     });
@@ -142,7 +167,12 @@ describe("createTelemetryStream", () => {
         return () => undefined;
       },
       scheduler: () => ({
-        active: { id: "j1", moduleId: "coding", jobType: "tokens", modelId: "gemma4:e4b" },
+        active: {
+          id: "j1",
+          moduleId: "coding",
+          jobType: "tokens",
+          modelId: "gemma4:e4b",
+        },
         queued: [],
       }),
     });
@@ -192,6 +222,32 @@ describe("createTelemetryStream", () => {
     push(makeRaw());
     expect(seen[0]?.idle).toBe(true);
     expect(seen[0]?.queuedJobs).toHaveLength(0);
+    unsub();
+  });
+
+  it("is not idle at 0% utilization when a scheduler job is active", () => {
+    let push!: (s: RawGpuSample) => void;
+    const stream = createTelemetryStream({
+      source: (fn) => {
+        push = fn;
+        return () => undefined;
+      },
+      scheduler: () => ({
+        active: {
+          id: "j1",
+          moduleId: "chat",
+          jobType: "tokens",
+          modelId: "gemma4:e4b",
+        },
+        queued: [],
+      }),
+    });
+    const seen: LocalModelTelemetry[] = [];
+    const unsub = stream.subscribe((s) => seen.push(s));
+    push(makeRaw({ utilizationPct: 0 }));
+    expect(seen[0]?.idle).toBe(false);
+    expect(seen[0]?.modelName).not.toBe("Idle");
+    expect(seen[0]?.gpuPct).toBe(0);
     unsub();
   });
 });

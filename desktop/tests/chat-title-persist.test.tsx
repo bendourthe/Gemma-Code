@@ -29,7 +29,11 @@ type TitleCapableClient = InMemoryChatExplorerClient & {
 
 function echoSession(): ChatSessionClient {
   return {
-    start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+    start: async () => ({
+      sessionId: "s1",
+      modelId: "gemma4:e4b",
+      createdAt: "t",
+    }),
     sendMessage: async () => ({
       sessionId: "s1",
       events: [
@@ -45,19 +49,30 @@ describe("auto-title persistence (T005)", () => {
     const client = new InMemoryChatExplorerClient();
     const user = userEvent.setup();
     render(
-      <ChatPage client={client} chatSession={echoSession()} modelsClient={INSTALLED_CHAT_MODELS} />,
+      <ChatPage
+        client={client}
+        chatSession={echoSession()}
+        modelsClient={INSTALLED_CHAT_MODELS}
+      />,
     );
     await user.type(
       screen.getByTestId("media-composer-textarea"),
       "explain quantum entanglement to a beginner please{Enter}",
     );
-    const expected = fallbackTitle("explain quantum entanglement to a beginner please");
-    expect(expected).not.toBe("New chat");
-    await waitFor(() => expect(client.listTree().chats[0]?.title).toBe(expected));
+    const expected = fallbackTitle(
+      "explain quantum entanglement to a beginner please",
+    );
+    expect(expected).not.toBe("New session");
+    await waitFor(() =>
+      expect(client.listTree().chats[0]?.title).toBe(expected),
+    );
     // The rail re-reads the store after the refreshToken bump.
     const chatId = client.listTree().chats[0]?.id ?? "";
     await waitFor(() =>
-      expect(screen.getByTestId(`tree-row-chat-${chatId}`)).toHaveAttribute("title", expected),
+      expect(screen.getByTestId(`tree-row-chat-${chatId}`)).toHaveAttribute(
+        "title",
+        expected,
+      ),
     );
     // A machine rename never pins the title.
     expect(client.listTree().chats[0]?.userRenamed).not.toBe(true);
@@ -72,11 +87,20 @@ describe("auto-title persistence (T005)", () => {
     };
     const user = userEvent.setup();
     render(
-      <ChatPage client={client} chatSession={echoSession()} modelsClient={INSTALLED_CHAT_MODELS} />,
+      <ChatPage
+        client={client}
+        chatSession={echoSession()}
+        modelsClient={INSTALLED_CHAT_MODELS}
+      />,
     );
-    await user.type(screen.getByTestId("media-composer-textarea"), "explain quantum things{Enter}");
+    await user.type(
+      screen.getByTestId("media-composer-textarea"),
+      "explain quantum things{Enter}",
+    );
     await screen.findByText("ok");
-    await waitFor(() => expect(client.listTree().chats[0]?.title).toBe("Quantum Basics"));
+    await waitFor(() =>
+      expect(client.listTree().chats[0]?.title).toBe("Quantum Basics"),
+    );
     expect(calls.length).toBe(1);
   });
 
@@ -89,34 +113,56 @@ describe("auto-title persistence (T005)", () => {
       });
     const user = userEvent.setup();
     render(
-      <ChatPage client={client} chatSession={echoSession()} modelsClient={INSTALLED_CHAT_MODELS} />,
+      <ChatPage
+        client={client}
+        chatSession={echoSession()}
+        modelsClient={INSTALLED_CHAT_MODELS}
+      />,
     );
-    await user.type(screen.getByTestId("media-composer-textarea"), "explain quantum things{Enter}");
+    await user.type(
+      screen.getByTestId("media-composer-textarea"),
+      "explain quantum things{Enter}",
+    );
     await screen.findByText("ok");
     // The fallback landed; now the user renames before the model answers.
-    await waitFor(() => expect(client.listTree().chats[0]?.title).toBe("explain quantum things"));
+    await waitFor(() =>
+      expect(client.listTree().chats[0]?.title).toBe("explain quantum things"),
+    );
     const chatId = client.listTree().chats[0]?.id ?? "";
     client.renameChat(chatId, "My own name", true);
     releaseTitle({ title: "Late Model Title", source: "model" });
     // Give the refine path a macrotask to run, then assert it did not clobber.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    await waitFor(() => expect(client.listTree().chats[0]?.title).toBe("My own name"));
+    await waitFor(() =>
+      expect(client.listTree().chats[0]?.title).toBe("My own name"),
+    );
     expect(client.listTree().chats[0]?.userRenamed).toBe(true);
   });
 
-  it("an empty prompt keeps New chat", async () => {
-    expect(fallbackTitle("")).toBe("New chat");
-    expect(fallbackTitle("   \n\t ")).toBe("New chat");
+  it("an empty prompt keeps New session", async () => {
+    expect(fallbackTitle("")).toBe("New session");
+    expect(fallbackTitle("   \n\t ")).toBe("New session");
     const client = new InMemoryChatExplorerClient();
-    client.createChat({ folderId: null, title: "New chat", modelId: "gemma4:e4b" });
+    client.createChat({
+      folderId: null,
+      title: "New session",
+      modelId: "gemma4:e4b",
+    });
     const user = userEvent.setup();
     render(
-      <ChatPage client={client} chatSession={echoSession()} modelsClient={INSTALLED_CHAT_MODELS} />,
+      <ChatPage
+        client={client}
+        chatSession={echoSession()}
+        modelsClient={INSTALLED_CHAT_MODELS}
+      />,
     );
     // Whitespace never submits (composer trims), so the title must not move.
-    await user.type(screen.getByTestId("media-composer-textarea"), "   {Enter}");
+    await user.type(
+      screen.getByTestId("media-composer-textarea"),
+      "   {Enter}",
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(client.listTree().chats[0]?.title).toBe("New chat");
+    expect(client.listTree().chats[0]?.title).toBe("New session");
   });
 
   // The sidecar side of the contract (in-repo style, see chat-gaps-phase8):
@@ -127,7 +173,9 @@ describe("auto-title persistence (T005)", () => {
       path.resolve(__dirname, "../sidecar/src/handlers.ts"),
       "utf8",
     );
-    expect(source).toContain("ops.renameChat({ id: req.chatId, title: result.title })");
+    expect(source).toContain(
+      "ops.renameChat({ id: req.chatId, title: result.title })",
+    );
     expect(source).toContain("chat.userRenamed !== true");
   });
 });

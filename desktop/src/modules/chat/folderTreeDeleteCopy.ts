@@ -1,6 +1,5 @@
 export type DeleteTarget =
-  | { kind: "folder"; id: string | null }
-  | { kind: "chat"; id: string };
+  { kind: "folder"; id: string | null } | { kind: "chat"; id: string };
 
 export interface DeleteConfirmCopy {
   readonly question: string;
@@ -21,10 +20,12 @@ export function parseTreeNodeKey(key: string): DeleteTarget | null {
 
 export function deleteConfirmCopy(
   targets: readonly DeleteTarget[],
-  itemNoun = "chat",
+  itemNoun = "session",
 ): DeleteConfirmCopy {
   const chats = targets.filter((target) => target.kind === "chat");
-  const folders = targets.filter((target) => target.kind === "folder" && target.id !== null);
+  const folders = targets.filter(
+    (target) => target.kind === "folder" && target.id !== null,
+  );
   const irreversible = "This action cannot be undone.";
   const pluralNoun = itemNoun === "session" ? "sessions" : "chats";
   const singularNoun = itemNoun === "session" ? "session" : "chat";

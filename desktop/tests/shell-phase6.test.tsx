@@ -17,7 +17,10 @@ import userEvent from "@testing-library/user-event";
 import { Sidebar } from "../src/components/Sidebar";
 import { GpuStatusFooter } from "../src/components/GpuStatusFooter";
 import { ApprovalsBell } from "../src/components/ApprovalsBell";
-import type { LocalModelTelemetry, TelemetryStream } from "../src/components/LocalModelStatus.types";
+import type {
+  LocalModelTelemetry,
+  TelemetryStream,
+} from "../src/components/LocalModelStatus.types";
 
 function streamOf(sample: LocalModelTelemetry | null): TelemetryStream {
   return {
@@ -28,7 +31,9 @@ function streamOf(sample: LocalModelTelemetry | null): TelemetryStream {
   } as TelemetryStream;
 }
 
-function sample(partial: Partial<LocalModelTelemetry> = {}): LocalModelTelemetry {
+function sample(
+  partial: Partial<LocalModelTelemetry> = {},
+): LocalModelTelemetry {
   return {
     modelName: "qwen2.5-coder",
     paramSize: "14B",
@@ -54,14 +59,18 @@ describe("sidebar compact mode", () => {
     localStorage.clear();
     renderSidebar({ initialWidth: 1600 });
     expect(screen.getByTestId("nav-chatbot").textContent).toContain("Chatbot");
-    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Chatbot");
+    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe(
+      "Chatbot",
+    );
   });
 
   it("hides labels when the stored compact preference is true", () => {
     localStorage.setItem("nexus.sidebar.compact", "true");
     renderSidebar({ initialWidth: 900 });
     expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
-    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Chatbot");
+    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe(
+      "Chatbot",
+    );
     localStorage.clear();
   });
 
@@ -127,6 +136,25 @@ describe("GPU status footer", () => {
     expect(screen.getByTestId("gpu-status-footer-stale")).toBeTruthy();
   });
 
+  it("is not Idle at 0% utilization while a job is active", () => {
+    render(
+      <GpuStatusFooter
+        compact={false}
+        stream={streamOf(
+          sample({
+            gpuPct: 0,
+            idle: false,
+            modelName: "gemma4",
+            paramSize: "e4b",
+          }),
+        )}
+      />,
+    );
+    const footer = screen.getByTestId("gpu-status-footer");
+    expect(footer.textContent).not.toContain("Idle");
+    expect(footer.textContent).toContain("gemma4");
+  });
+
   it("collapses to a slim mark with the numbers in its tooltip", () => {
     render(<GpuStatusFooter compact stream={streamOf(sample())} />);
     const footer = screen.getByTestId("gpu-status-footer");
@@ -135,7 +163,10 @@ describe("GPU status footer", () => {
   });
 
   it("is not fixed-positioned anywhere (the dock covered the buttons)", () => {
-    const appSource = readFileSync(path.resolve(__dirname, "../src/App.tsx"), "utf8");
+    const appSource = readFileSync(
+      path.resolve(__dirname, "../src/App.tsx"),
+      "utf8",
+    );
     expect(appSource).not.toContain("LocalModelStatusDock");
     expect(appSource).not.toContain("DockMount");
   });
@@ -175,12 +206,14 @@ describe("approvals bell", () => {
     render(<ApprovalsBell pendingCount={1} compact={false} client={client} />);
     await user.click(screen.getByTestId("approvals-bell"));
     await screen.findByTestId("approvals-bell-item-a1");
-    const before = (client as unknown as { list: { mock: { calls: unknown[] } } }).list.mock.calls
-      .length;
+    const before = (
+      client as unknown as { list: { mock: { calls: unknown[] } } }
+    ).list.mock.calls.length;
     await user.click(screen.getByTestId("approvals-bell-approve-a1"));
     await waitFor(() =>
       expect(
-        (client as unknown as { list: { mock: { calls: unknown[] } } }).list.mock.calls.length,
+        (client as unknown as { list: { mock: { calls: unknown[] } } }).list
+          .mock.calls.length,
       ).toBeGreaterThan(before),
     );
   });
@@ -250,7 +283,12 @@ describe("design tokens", () => {
     );
     // These were referenced in 71 places but never defined, so each usage fell
     // through to whatever inline literal the author happened to write.
-    for (const name of ["--border-1", "--accent-primary", "--accent-danger", "--accent-warning"]) {
+    for (const name of [
+      "--border-1",
+      "--accent-primary",
+      "--accent-danger",
+      "--accent-warning",
+    ]) {
       expect(tokens).toContain(`${name}:`);
     }
   });

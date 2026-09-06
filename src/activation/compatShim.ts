@@ -17,14 +17,18 @@
 
 import * as vscode from "vscode";
 
-export const COMPAT_COMMAND_MAP: ReadonlyArray<readonly [string, string]> = Object.freeze([
-  ["gemma-code.ping", "nexus.coding.ping"],
-  ["gemma-code.newChat", "nexus.coding.newChat"],
-  ["gemma-code.focusSidebar", "nexus.coding.focusSidebar"],
-  ["gemma-code.openSession", "nexus.coding.openSession"],
-  ["gemma-code.detectGpu", "nexus.coding.detectGpu"],
-  ["gemma-code.hooks.editPlanModeHook", "nexus.coding.hooks.editPlanModeHook"],
-] as const);
+export const COMPAT_COMMAND_MAP: ReadonlyArray<readonly [string, string]> =
+  Object.freeze([
+    ["gemma-code.ping", "nexus.coding.ping"],
+    ["gemma-code.newChat", "nexus.coding.newChat"],
+    ["gemma-code.focusSidebar", "nexus.coding.focusSidebar"],
+    ["gemma-code.openSession", "nexus.coding.openSession"],
+    ["gemma-code.detectGpu", "nexus.coding.detectGpu"],
+    [
+      "gemma-code.hooks.editPlanModeHook",
+      "nexus.coding.hooks.editPlanModeHook",
+    ],
+  ] as const);
 
 /**
  * v1.15.0 Phase 7 (Issue 6) -- forward aliases for the "Nexus Code" rename.
@@ -37,14 +41,19 @@ export const COMPAT_COMMAND_MAP: ReadonlyArray<readonly [string, string]> = Obje
  * Instead the new `nexus.code.*` namespace is registered as thin forwarders, so
  * a user or script may bind either spelling and both work.
  */
-export const NEXUS_CODE_ALIAS_MAP: ReadonlyArray<readonly [string, string]> = Object.freeze([
-  ["nexus.code.ping", "nexus.coding.ping"],
-  ["nexus.code.newChat", "nexus.coding.newChat"],
-  ["nexus.code.focusSidebar", "nexus.coding.focusSidebar"],
-  ["nexus.code.openSession", "nexus.coding.openSession"],
-  ["nexus.code.detectGpu", "nexus.coding.detectGpu"],
-  ["nexus.code.hooks.editPlanModeHook", "nexus.coding.hooks.editPlanModeHook"],
-] as const);
+export const NEXUS_CODE_ALIAS_MAP: ReadonlyArray<readonly [string, string]> =
+  Object.freeze([
+    ["nexus.code.ping", "nexus.coding.ping"],
+    ["nexus.code.newChat", "nexus.coding.newChat"],
+    ["nexus.code.focusSidebar", "nexus.coding.focusSidebar"],
+    ["nexus.code.openSession", "nexus.coding.openSession"],
+    ["nexus.code.detectGpu", "nexus.coding.detectGpu"],
+    [
+      "nexus.code.hooks.editPlanModeHook",
+      "nexus.coding.hooks.editPlanModeHook",
+    ],
+    ["nexus.code.selectModel", "nexus.coding.selectModel"],
+  ] as const);
 
 /**
  * Register the legacy `gemma-code.<cmd>` IDs as thin forwarders to their
@@ -62,13 +71,16 @@ export function installCompatShim(
 ): void {
   const logged = new Set<string>();
   for (const [legacyId, newId] of COMPAT_COMMAND_MAP) {
-    const disposable = vscode.commands.registerCommand(legacyId, (...args: unknown[]) => {
-      if (!logged.has(legacyId)) {
-        logged.add(legacyId);
-        channel.appendLine(`[deprecation] ${legacyId} -> ${newId}`);
-      }
-      return vscode.commands.executeCommand(newId, ...args);
-    });
+    const disposable = vscode.commands.registerCommand(
+      legacyId,
+      (...args: unknown[]) => {
+        if (!logged.has(legacyId)) {
+          logged.add(legacyId);
+          channel.appendLine(`[deprecation] ${legacyId} -> ${newId}`);
+        }
+        return vscode.commands.executeCommand(newId, ...args);
+      },
+    );
     context.subscriptions.push(disposable);
   }
 

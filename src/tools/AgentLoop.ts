@@ -1,11 +1,19 @@
-import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../../modules/coding/llm/types.js";
+import type {
+  OllamaClient,
+  OllamaMessage,
+  OllamaOptions,
+  OllamaToolDefinition,
+} from "../../modules/coding/llm/types.js";
 import type { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
 import type { PostMessageFn } from "../../modules/coding/chat/StreamingPipeline.js";
 import { toLlmMessages } from "../../modules/coding/chat/llmMessages.js";
 import { isVisionCapableModel } from "../../modules/coding/config/ModelCapabilities.js";
 import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
 import type { SubAgentSpawner } from "../../modules/coding/agents/SubAgentSpawner.types.js";
-import type { SubAgentConfig, SubAgentResult } from "../../modules/coding/agents/types.js";
+import type {
+  SubAgentConfig,
+  SubAgentResult,
+} from "../../modules/coding/agents/types.js";
 import { formatToolResult } from "./ToolCallParser.js";
 import {
   parseAgentToolCalls,
@@ -14,9 +22,15 @@ import {
 } from "../../modules/coding/llm/parseAgentToolCalls.js";
 import type { ToolFormatName } from "../../core/registry/ModelCatalog.js";
 import type { TelemetryBus } from "../../core/telemetry/TelemetryBus.js";
-import { hashToolCall, type RoutingTurnEvent } from "../../modules/coding/orchestration/routing/RoutingSignals.js";
+import {
+  hashToolCall,
+  type RoutingTurnEvent,
+} from "../../modules/coding/orchestration/routing/RoutingSignals.js";
 import { routeTurn } from "../../modules/coding/orchestration/routing/routeTurn.js";
-import type { EscalationPolicy, RoutingModels } from "../../modules/coding/orchestration/routing/EscalationPolicy.js";
+import type {
+  EscalationPolicy,
+  RoutingModels,
+} from "../../modules/coding/orchestration/routing/EscalationPolicy.js";
 import type { GpuScheduler } from "../../core/scheduler/GpuScheduler.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 import type { BudgetMiddleware } from "./BudgetMiddleware.js";
@@ -41,9 +55,18 @@ import {
 } from "../../modules/coding/guardrails/SecurityPosture.js";
 import { originForTool } from "../../modules/coding/guardrails/toolResultOrigin.js";
 import { closeSharedBrowserSession } from "../../modules/coding/browser/session.js";
-import type { GitSafetyNet, GitCheckpoint } from "../../modules/coding/guardrails/GitSafetyNet.js";
-import { classifyAction, ActionRisk } from "../../modules/coding/guardrails/ActionClassifier.js";
-import { Tracer, type SkillSpanContext } from "../../modules/coding/observability/Tracer.js";
+import type {
+  GitSafetyNet,
+  GitCheckpoint,
+} from "../../modules/coding/guardrails/GitSafetyNet.js";
+import {
+  classifyAction,
+  ActionRisk,
+} from "../../modules/coding/guardrails/ActionClassifier.js";
+import {
+  Tracer,
+  type SkillSpanContext,
+} from "../../modules/coding/observability/Tracer.js";
 import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { countTokens } from "../../modules/coding/config/PromptBudget.js";
@@ -59,7 +82,13 @@ import {
 const DEFAULT_MAX_ITERATIONS = 20;
 
 const FILE_EDIT_TOOLS = new Set(["write_file", "edit_file", "create_file"]);
-const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_terminal", "grep_codebase"]);
+const EPISODIC_TOOLS = new Set([
+  "write_file",
+  "edit_file",
+  "create_file",
+  "run_terminal",
+  "grep_codebase",
+]);
 
 /**
  * v1.5.0 Phase 3 (item 3) -- tools that return untrusted external content. Their
@@ -94,12 +123,9 @@ const VERIFICATION_TOOLS = new Set(["run_terminal"]);
  * `run_terminal` invocation by the parent loop. Reflect-worker is excluded
  * because its dry-run does not assert correctness of recent edits.
  */
-const SUB_AGENT_VERIFICATION_TYPES = new Set<import("../../modules/coding/agents/types.js").SubAgentType>([
-  "verification",
-  "audit-worker",
-  "testgaps-worker",
-  "curator-worker",
-]);
+const SUB_AGENT_VERIFICATION_TYPES = new Set<
+  import("../../modules/coding/agents/types.js").SubAgentType
+>(["verification", "audit-worker", "testgaps-worker", "curator-worker"]);
 
 const MAX_RECENT_TOOL_RESULTS = 5;
 
@@ -269,7 +295,10 @@ export interface AgentLoopOptions {
 export interface PathScopedSkillSource {
   reevaluatePathScope(
     currentPath: string | null,
-  ): readonly { readonly id: string; readonly provenance: { readonly source: "builtin" | "user" | "nexus-hub" } }[];
+  ): readonly {
+    readonly id: string;
+    readonly provenance: { readonly source: "builtin" | "user" | "nexus-hub" };
+  }[];
 }
 
 export class AgentLoop {
@@ -308,7 +337,7 @@ export class AgentLoop {
   private readonly _activeEditPathProvider?: () => string | null;
   private readonly _inboundClassifier?: InboundClassifier;
   private readonly _inboundClassifierEnabled: boolean;
-  private readonly _toolFormat: ToolFormatName;
+  private _toolFormat: ToolFormatName;
   private readonly _telemetry?: Pick<TelemetryBus, "publish">;
   private readonly _routing?: AgentLoopOptions["routing"];
   private readonly _routingEvents: RoutingTurnEvent[] = [];
@@ -358,8 +387,7 @@ export class AgentLoop {
     this._sessionId = options?.sessionId;
     this._loopDetector = options?.loopDetector;
     this._loopGuards =
-      options?.loopGuards ??
-      new LoopGuards(undefined, options?.loopDetector);
+      options?.loopGuards ?? new LoopGuards(undefined, options?.loopDetector);
     this._securityPosture = parseSecurityPosture(
       options?.securityPosture ?? getSettings().securityPosture,
     );
@@ -376,13 +404,15 @@ export class AgentLoop {
       this._securityPosture,
       options?.passStateGating ?? true,
     );
-    this._subAgentVerificationCredit = options?.subAgentVerificationCredit ?? true;
+    this._subAgentVerificationCredit =
+      options?.subAgentVerificationCredit ?? true;
     this._hookBus = options?.hookBus;
     this._skillCatalog = options?.skillCatalog;
     this._activeEditPathProvider = options?.activeEditPathProvider;
     this._inboundClassifier = options?.inboundClassifier;
     this._inboundClassifierEnabled = options?.inboundClassifierEnabled ?? true;
-    this._toolFormat = options?.toolFormat ?? toolFormatForModel(this._modelName);
+    this._toolFormat =
+      options?.toolFormat ?? toolFormatForModel(this._modelName);
     this._telemetry = options?.telemetry;
     this._routing = options?.routing;
   }
@@ -404,6 +434,19 @@ export class AgentLoop {
   /** Set or replace the budget middleware (used for async tier config updates). */
   setBudgetMiddleware(middleware: BudgetMiddleware): void {
     this._budgetMiddleware = middleware;
+  }
+
+  /**
+   * v2.4.6 Phase 4 -- keep Hub tools/skills/hooks on the same loop when the
+   * operator switches among owned agentic ids.
+   */
+  setModelName(modelName: string): void {
+    this._modelName = modelName;
+    this._toolFormat = toolFormatForModel(modelName);
+  }
+
+  getModelName(): string {
+    return this._modelName;
   }
 
   cancel(): void {
@@ -490,7 +533,10 @@ export class AgentLoop {
   }
 
   /** Manually spawn a sub-agent. Returns the sub-agent's result. */
-  async spawnSubAgent(config: SubAgentConfig, postMessage: PostMessageFn): Promise<SubAgentResult | null> {
+  async spawnSubAgent(
+    config: SubAgentConfig,
+    postMessage: PostMessageFn,
+  ): Promise<SubAgentResult | null> {
     if (!this._subAgentManager) return null;
 
     // v1.1.0 Phase 4.3 -- emit lifecycle.subagent.start before the
@@ -555,69 +601,84 @@ export class AgentLoop {
     // re-publishes for trace-side consumers.
     const sessionStartMs = Date.now();
     try {
-    if (this._hookBus && this._sessionId) {
-      this._hookBus.emit({
-        kind: "lifecycle.session.start",
-        sessionId: this._sessionId,
-        modelId: this._modelName,
-        isoTime: new Date(sessionStartMs).toISOString(),
+      if (this._hookBus && this._sessionId) {
+        this._hookBus.emit({
+          kind: "lifecycle.session.start",
+          sessionId: this._sessionId,
+          modelId: this._modelName,
+          isoTime: new Date(sessionStartMs).toISOString(),
+        });
+      }
+
+      // v1.4.0 Phase 8 (gap 5.2.P3.Q): reevaluate path-scoped skills against the
+      // current editing focus at the start of each run, so skills activate /
+      // deactivate as the focus changes between turns. No-op unless both a
+      // skill catalog and an active-edit-path provider are wired.
+      if (this._skillCatalog && this._activeEditPathProvider) {
+        this.reevaluateSkillsForPath(this._activeEditPathProvider());
+      }
+
+      // Pass trace context to compactor so compaction spans are linked.
+      if (this._compactor) {
+        this._compactor.setTraceContext(this._traceId, this._rootSpanId);
+      }
+
+      // Git safety: create a checkpoint before the agent modifies files.
+      if (this._gitSafetyNet) {
+        this._gitCheckpoint = await this._gitSafetyNet.createCheckpoint();
+        if (this._gitCheckpoint) {
+          postMessage({
+            type: "gitCheckpoint",
+            sha: this._gitCheckpoint.headSha,
+            filesChanged: 0,
+          });
+        }
+      }
+
+      const iterationCap = clampAgentIterations(this._maxIterations);
+      for (let iteration = 0; iteration < iterationCap; iteration++) {
+        if (this._cancelled) {
+          this._emitSessionStop(sessionStartMs);
+          return;
+        }
+        const ceiling = this._loopGuards.recordIteration();
+        if (ceiling.action === "halt") {
+          postMessage({
+            type: "error",
+            text: ceiling.message ?? "Iteration ceiling reached.",
+          });
+          this._emitSessionStop(sessionStartMs);
+          return;
+        }
+        const verdict = await this._runOneIteration(
+          iteration,
+          tracer,
+          postMessage,
+        );
+        if (verdict === "done" || verdict === "abort") {
+          this._emitSessionStop(sessionStartMs);
+          return;
+        }
+      }
+
+      // Git safety: commit agent-modified files after the loop finishes.
+      if (
+        this._gitSafetyNet &&
+        this._modifiedFiles.length > 0 &&
+        this._gitCheckpoint
+      ) {
+        await this._gitSafetyNet.commitAgentChanges(
+          this._modifiedFiles,
+          `agent session: ${this._modifiedFiles.length} file(s) modified`,
+        );
+      }
+
+      // Max iterations reached.
+      postMessage({
+        type: "error",
+        text: `Agent loop reached the maximum of ${iterationCap} iterations and stopped.`,
       });
-    }
-
-    // v1.4.0 Phase 8 (gap 5.2.P3.Q): reevaluate path-scoped skills against the
-    // current editing focus at the start of each run, so skills activate /
-    // deactivate as the focus changes between turns. No-op unless both a
-    // skill catalog and an active-edit-path provider are wired.
-    if (this._skillCatalog && this._activeEditPathProvider) {
-      this.reevaluateSkillsForPath(this._activeEditPathProvider());
-    }
-
-    // Pass trace context to compactor so compaction spans are linked.
-    if (this._compactor) {
-      this._compactor.setTraceContext(this._traceId, this._rootSpanId);
-    }
-
-    // Git safety: create a checkpoint before the agent modifies files.
-    if (this._gitSafetyNet) {
-      this._gitCheckpoint = await this._gitSafetyNet.createCheckpoint();
-      if (this._gitCheckpoint) {
-        postMessage({ type: "gitCheckpoint", sha: this._gitCheckpoint.headSha, filesChanged: 0 });
-      }
-    }
-
-    const iterationCap = clampAgentIterations(this._maxIterations);
-    for (let iteration = 0; iteration < iterationCap; iteration++) {
-      if (this._cancelled) {
-        this._emitSessionStop(sessionStartMs);
-        return;
-      }
-      const ceiling = this._loopGuards.recordIteration();
-      if (ceiling.action === "halt") {
-        postMessage({ type: "error", text: ceiling.message ?? "Iteration ceiling reached." });
-        this._emitSessionStop(sessionStartMs);
-        return;
-      }
-      const verdict = await this._runOneIteration(iteration, tracer, postMessage);
-      if (verdict === "done" || verdict === "abort") {
-        this._emitSessionStop(sessionStartMs);
-        return;
-      }
-    }
-
-    // Git safety: commit agent-modified files after the loop finishes.
-    if (this._gitSafetyNet && this._modifiedFiles.length > 0 && this._gitCheckpoint) {
-      await this._gitSafetyNet.commitAgentChanges(
-        this._modifiedFiles,
-        `agent session: ${this._modifiedFiles.length} file(s) modified`,
-      );
-    }
-
-    // Max iterations reached.
-    postMessage({
-      type: "error",
-      text: `Agent loop reached the maximum of ${iterationCap} iterations and stopped.`,
-    });
-    this._emitSessionStop(sessionStartMs);
+      this._emitSessionStop(sessionStartMs);
     } finally {
       await closeSharedBrowserSession();
     }
@@ -699,9 +760,15 @@ export class AgentLoop {
           // means the snapshot path must take over; we currently fall back to
           // a soft abort so the operator sees the reason rather than a silent
           // truncation. A future cycle will wire snapshot restore here.
-          const compactResult = await this._compactor.compact(postMessage, true);
+          const compactResult = await this._compactor.compact(
+            postMessage,
+            true,
+          );
           if (compactResult.state === "error") {
-            postMessage({ type: "error", text: `Compaction failed: ${compactResult.error}` });
+            postMessage({
+              type: "error",
+              text: `Compaction failed: ${compactResult.error}`,
+            });
             return "abort";
           }
           if (compactResult.state === "rebuild-needed") {
@@ -713,11 +780,17 @@ export class AgentLoop {
           }
           const recheck = this._budgetMiddleware.checkPreTurn();
           if (!recheck.allowed) {
-            postMessage({ type: "error", text: `Budget exhausted: ${recheck.reason}` });
+            postMessage({
+              type: "error",
+              text: `Budget exhausted: ${recheck.reason}`,
+            });
             return "abort";
           }
         } else {
-          postMessage({ type: "error", text: `Budget exhausted: ${check.reason}` });
+          postMessage({
+            type: "error",
+            text: `Budget exhausted: ${check.reason}`,
+          });
           return "abort";
         }
       }
@@ -755,7 +828,10 @@ export class AgentLoop {
       const turnTokens = estimateTokensForString(accumulated);
       const turnResult = this._budgetMiddleware.recordTurnTokens(turnTokens);
       if (!turnResult.allowed) {
-        postMessage({ type: "error", text: `Budget exceeded: ${turnResult.reason}` });
+        postMessage({
+          type: "error",
+          text: `Budget exceeded: ${turnResult.reason}`,
+        });
         tracer.endSpan(iterSpanId, "error", { reason: turnResult.reason });
         return "abort";
       }
@@ -783,7 +859,10 @@ export class AgentLoop {
         this._gateNudgeIssued = true;
         const noAction = this._loopGuards.recordNoAction();
         if (noAction.action === "halt") {
-          postMessage({ type: "error", text: noAction.message ?? "No-action budget exhausted." });
+          postMessage({
+            type: "error",
+            text: noAction.message ?? "No-action budget exhausted.",
+          });
           tracer.endSpan(iterSpanId, "error", { reason: "no-action" });
           return "abort";
         }
@@ -792,13 +871,20 @@ export class AgentLoop {
         // message and let the loop run another iteration.
         this._manager.addAssistantMessage(accumulated);
         this._manager.addUserMessage(PASS_STATE_GATING_NUDGE);
-        tracer.endSpan(iterSpanId, "ok", { finalResponse: false, gateNudge: true });
+        tracer.endSpan(iterSpanId, "ok", {
+          finalResponse: false,
+          gateNudge: true,
+        });
         return "continue";
       }
 
       // No tool calls -> final response. Commit and finish.
       const msg = this._manager.addAssistantMessage(accumulated);
-      postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
+      postMessage({
+        type: "messageComplete",
+        messageId: msg.id,
+        renderedHtml: "",
+      });
       this._postTokenCount(postMessage);
       if (this._compactor) {
         // v0.8.0 Phase 6.1: log a warning for non-ok states but still complete
@@ -828,7 +914,13 @@ export class AgentLoop {
     const toRun = executable.slice(0, admitted.admitted);
 
     for (const parsed of toRun) {
-      const verdict = await this._runToolCall(parsed.call, iteration, iterSpanId, tracer, postMessage);
+      const verdict = await this._runToolCall(
+        parsed.call,
+        iteration,
+        iterSpanId,
+        tracer,
+        postMessage,
+      );
       if (verdict === "abort") {
         tracer.endSpan(iterSpanId, "error", { reason: "tool loop terminated" });
         return "abort";
@@ -845,7 +937,9 @@ export class AgentLoop {
     if (
       this._subAgentManager &&
       this._fileEditCount >= this._verificationThreshold &&
-      (this._verificationEnabled || this._auditWorkerEnabled || this._testgapsWorkerEnabled)
+      (this._verificationEnabled ||
+        this._auditWorkerEnabled ||
+        this._testgapsWorkerEnabled)
     ) {
       const modifiedFiles = [...this._modifiedFiles];
       const recentToolResults = [...this._recentToolResults];
@@ -855,13 +949,19 @@ export class AgentLoop {
         const verifyConfig: SubAgentConfig = {
           type: "verification",
           maxIterations: 10,
-          userRequest: "Verify recent changes for correctness, check for bugs and run relevant tests.",
+          userRequest:
+            "Verify recent changes for correctness, check for bugs and run relevant tests.",
           modifiedFiles,
           recentToolResults,
         };
-        const verifyResult = await this._subAgentManager.run(verifyConfig, postMessage);
+        const verifyResult = await this._subAgentManager.run(
+          verifyConfig,
+          postMessage,
+        );
         if (verifyResult.output) {
-          this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
+          this._manager.addUserMessage(
+            `[Verification Report]\n\n${verifyResult.output}`,
+          );
         }
         this.creditSubAgentVerification(verifyResult);
       }
@@ -874,9 +974,14 @@ export class AgentLoop {
           modifiedFiles,
           recentToolResults,
         };
-        const auditResult = await this._subAgentManager.run(auditConfig, postMessage);
+        const auditResult = await this._subAgentManager.run(
+          auditConfig,
+          postMessage,
+        );
         if (auditResult.output) {
-          this._manager.addUserMessage(`[Audit Report]\n\n${auditResult.output}`);
+          this._manager.addUserMessage(
+            `[Audit Report]\n\n${auditResult.output}`,
+          );
         }
         this.creditSubAgentVerification(auditResult);
       }
@@ -885,13 +990,19 @@ export class AgentLoop {
         const testgapsConfig: SubAgentConfig = {
           type: "testgaps-worker",
           maxIterations: 1,
-          userRequest: "Run vitest --coverage on the test files matching changed source files.",
+          userRequest:
+            "Run vitest --coverage on the test files matching changed source files.",
           modifiedFiles,
           recentToolResults,
         };
-        const testgapsResult = await this._subAgentManager.run(testgapsConfig, postMessage);
+        const testgapsResult = await this._subAgentManager.run(
+          testgapsConfig,
+          postMessage,
+        );
         if (testgapsResult.output) {
-          this._manager.addUserMessage(`[Test Gaps Report]\n\n${testgapsResult.output}`);
+          this._manager.addUserMessage(
+            `[Test Gaps Report]\n\n${testgapsResult.output}`,
+          );
         }
         this.creditSubAgentVerification(testgapsResult);
       }
@@ -940,7 +1051,10 @@ export class AgentLoop {
       );
       const burst = this._loopGuards.recordToolOutcome(false);
       if (burst.action === "halt") {
-        postMessage({ type: "error", text: burst.message ?? "Error-burst guard tripped." });
+        postMessage({
+          type: "error",
+          text: burst.message ?? "Error-burst guard tripped.",
+        });
         return "abort";
       }
       return "continue";
@@ -1033,7 +1147,10 @@ export class AgentLoop {
       type: "toolResult",
       callId: call.id,
       success: contextResult.success,
-      summary: (contextResult.output || contextResult.error || "").slice(0, 200),
+      summary: (contextResult.output || contextResult.error || "").slice(
+        0,
+        200,
+      ),
     });
 
     this._telemetry?.publish({
@@ -1066,7 +1183,10 @@ export class AgentLoop {
     // Update working memory based on tool results.
     if (this._workingMemory) {
       const filePath = call.parameters["path"] as string | undefined;
-      if (filePath && (call.tool === "read_file" || FILE_EDIT_TOOLS.has(call.tool))) {
+      if (
+        filePath &&
+        (call.tool === "read_file" || FILE_EDIT_TOOLS.has(call.tool))
+      ) {
         this._workingMemory.addOpenFile(filePath);
       }
       if (!result.success) {
@@ -1078,7 +1198,11 @@ export class AgentLoop {
     }
 
     // Record significant tool calls to episodic memory.
-    if (this._episodicMemory && this._sessionId && EPISODIC_TOOLS.has(call.tool)) {
+    if (
+      this._episodicMemory &&
+      this._sessionId &&
+      EPISODIC_TOOLS.has(call.tool)
+    ) {
       recordToolEvent(
         this._episodicMemory,
         this._sessionId,
@@ -1086,7 +1210,9 @@ export class AgentLoop {
         call.parameters,
         result,
         `Agent iteration ${iteration + 1}`,
-      ).catch(() => { /* episodic recording is non-fatal */ });
+      ).catch(() => {
+        /* episodic recording is non-fatal */
+      });
     }
 
     // Track recent tool results (rolling window of 5).
@@ -1104,7 +1230,10 @@ export class AgentLoop {
 
     const identical = this._loopGuards.recordToolCall(call);
     if (identical.action === "halt") {
-      postMessage({ type: "error", text: identical.message ?? "Loop detected. Terminating." });
+      postMessage({
+        type: "error",
+        text: identical.message ?? "Loop detected. Terminating.",
+      });
       return "abort";
     }
     if (identical.action === "warn") {
@@ -1115,7 +1244,10 @@ export class AgentLoop {
 
     const outcome = this._loopGuards.recordToolOutcome(result.success);
     if (outcome.action === "halt") {
-      postMessage({ type: "error", text: outcome.message ?? "Error-burst guard tripped." });
+      postMessage({
+        type: "error",
+        text: outcome.message ?? "Error-burst guard tripped.",
+      });
       return "abort";
     }
 
@@ -1131,14 +1263,18 @@ export class AgentLoop {
    * (the full original content wrapped in an untrusted-content banner). A
    * classifier error never blocks the pillar: the original result is returned.
    */
-  private async _screenInboundResult(call: ToolCall, result: ToolResult): Promise<ToolResult> {
+  private async _screenInboundResult(
+    call: ToolCall,
+    result: ToolResult,
+  ): Promise<ToolResult> {
     const origin = result.origin ?? originForTool(call.tool);
     const labelled = { ...result, origin };
     if (!result.success || !result.output) return labelled;
 
     const forceOrigin = mustScreenOrigin(origin, this._securityPosture);
     const legacyInbound =
-      INBOUND_EXTERNAL_DATA_TOOLS.has(call.tool) && this._inboundClassifierEnabled;
+      INBOUND_EXTERNAL_DATA_TOOLS.has(call.tool) &&
+      this._inboundClassifierEnabled;
     if (!forceOrigin && !legacyInbound) return labelled;
 
     try {
@@ -1156,7 +1292,10 @@ export class AgentLoop {
         if (screen.flagged) return { ...labelled, output: screen.annotated };
       }
       // Handlers already labelled ARIA snapshots; skip a second heuristic wrap.
-      if (origin === "browser_snapshot" && result.output.includes("[origin:browser_snapshot]")) {
+      if (
+        origin === "browser_snapshot" &&
+        result.output.includes("[origin:browser_snapshot]")
+      ) {
         return labelled;
       }
       const heuristic = scan(result.output);
@@ -1218,7 +1357,9 @@ export class AgentLoop {
    * Stream one model turn. Returns the accumulated response text, or null if
    * the stream was aborted or encountered an error (error is posted to webview).
    */
-  private async _streamOneTurn(postMessage: PostMessageFn): Promise<string | null> {
+  private async _streamOneTurn(
+    postMessage: PostMessageFn,
+  ): Promise<string | null> {
     this._abortController = new AbortController();
 
     // v1.5.0 Phase 5 (item 33): forward image attachments only to a
@@ -1234,8 +1375,14 @@ export class AgentLoop {
 
     try {
       const stream = this._client.streamChat(
-        { model: this._modelName, messages: ollamaMessages, stream: true, options: this._ollamaOptions, tools: this._tools },
-        this._abortController.signal
+        {
+          model: this._modelName,
+          messages: ollamaMessages,
+          stream: true,
+          options: this._ollamaOptions,
+          tools: this._tools,
+        },
+        this._abortController.signal,
       );
 
       for await (const chunk of stream) {

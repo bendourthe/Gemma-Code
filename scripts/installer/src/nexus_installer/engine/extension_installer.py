@@ -14,9 +14,10 @@ from nexus_installer.installer_state import InstallerState
 EXTENSION_ID = "nexus-coding.nexus-coding"
 LEGACY_EXTENSION_ID = "gemma-code.gemma-code"
 SUPPORTED_VSCODE_VERSION = "1.134.0"
-SUPPORTED_VSCODE_MAX_EXCLUSIVE = "1.136.0"
-SUPPORTED_VSCODE_MINORS = frozenset({(1, 134), (1, 135)})
+SUPPORTED_VSCODE_MAX_EXCLUSIVE = "1.137.0"
+SUPPORTED_VSCODE_MINORS = frozenset({(1, 134), (1, 135), (1, 136)})
 SUPPORTED_ELECTRON_VERSION = "42.8.1"
+SUPPORTED_VSCODE_RANGE_COPY = "1.134, 1.135, or 1.136"
 # @vscode/vsce 2.24.0 validateEngineCompatibility accepts only *, ^x.y.z, or >=x.y.z.
 VSCE_ENGINES_VSCODE = f"^{SUPPORTED_VSCODE_VERSION}"
 
@@ -38,7 +39,7 @@ class VsCodeCliStatus:
 
 
 def vscode_version_is_supported(version: str) -> bool:
-    """True when `version` is Microsoft stable 1.134 or 1.135 (Electron 42.8.1)."""
+    """True when `version` is Microsoft stable 1.134, 1.135, or 1.136."""
     core = version.split("-", 1)[0].split("+", 1)[0]
     parts = core.split(".")
     if len(parts) < 2:
@@ -74,7 +75,7 @@ def inspect_vscode_cli(
     cli_name: str | None = None,
     run_fn=None,
 ) -> VsCodeCliStatus:
-    """Verify that a CLI is Microsoft stable VS Code 1.134 or 1.135."""
+    """Verify that a CLI is Microsoft stable VS Code 1.134, 1.135, or 1.136."""
     normalized_name = (cli_name or _cli_name(cli_path)).lower()
     if normalized_name != "code":
         return VsCodeCliStatus(
@@ -149,18 +150,20 @@ def _unsupported_host_message(status: VsCodeCliStatus) -> str:
         return (
             f"Skipped: {status.cli_name or 'the detected editor CLI'} is not "
             "Microsoft stable VS Code. The bundled extension supports Microsoft "
-            f"VS Code 1.134 or 1.135 (Electron {SUPPORTED_ELECTRON_VERSION})."
+            f"VS Code {SUPPORTED_VSCODE_RANGE_COPY} "
+            f"(Electron {SUPPORTED_ELECTRON_VERSION})."
         )
     if status.reason == "version-mismatch":
         return (
             f"Skipped: Microsoft VS Code {status.version} is installed, but the "
-            "bundled extension supports Microsoft VS Code 1.134 or 1.135 "
+            "bundled extension supports Microsoft VS Code "
+            f"{SUPPORTED_VSCODE_RANGE_COPY} "
             f"(Electron {SUPPORTED_ELECTRON_VERSION})."
         )
     return (
         "Skipped: the Microsoft VS Code version could not be verified. The "
         "bundled extension is installed only when the stable `code` CLI reports "
-        "version 1.134 or 1.135."
+        f"version {SUPPORTED_VSCODE_RANGE_COPY}."
     )
 
 
@@ -276,6 +279,7 @@ __all__ = [
     "ExtensionInstaller",
     "SUPPORTED_ELECTRON_VERSION",
     "SUPPORTED_VSCODE_MAX_EXCLUSIVE",
+    "SUPPORTED_VSCODE_RANGE_COPY",
     "SUPPORTED_VSCODE_VERSION",
     "VSCE_ENGINES_VSCODE",
     "VsCodeCliStatus",

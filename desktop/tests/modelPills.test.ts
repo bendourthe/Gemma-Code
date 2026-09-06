@@ -14,6 +14,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildModelPills,
+  compactCapabilityFacts,
+  compactRequirementFacts,
   formatContextWindowPill,
   formatReleasedPill,
   multimodalPillValue,
@@ -22,7 +24,10 @@ import {
 
 const FIXTURE = JSON.parse(
   readFileSync(
-    resolve(dirname(fileURLToPath(import.meta.url)), "../../tests/fixtures/v2.2.9-model-pills.json"),
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../tests/fixtures/v2.2.9-model-pills.json",
+    ),
     "utf8",
   ),
 ) as {
@@ -63,9 +68,62 @@ describe("modelPills", () => {
   });
 
   it("never renders Unknown or Community for an unmapped or Community family", () => {
-    const pills = buildModelPills({ family: "totally-new-lab", task: "chat", type: "llm" });
+    const pills = buildModelPills({
+      family: "totally-new-lab",
+      task: "chat",
+      type: "llm",
+    });
     expect(pills).toEqual(["Agentic: No"]);
-    const community = buildModelPills({ family: "kokoro", task: "audio", type: "audio" });
-    expect(community.some((p) => p.includes("Community") || p.includes("Unknown"))).toBe(false);
+    const community = buildModelPills({
+      family: "kokoro",
+      task: "audio",
+      type: "audio",
+    });
+    expect(
+      community.some((p) => p.includes("Community") || p.includes("Unknown")),
+    ).toBe(false);
+  });
+
+  it("splits requirements and capabilities without inventing missing chips", () => {
+    expect(
+      compactRequirementFacts({
+        family: "unknown-lab",
+        storageLabel: null,
+      }),
+    ).toEqual([]);
+    expect(
+      compactRequirementFacts({
+        family: "gemma4",
+        vramGB: 11,
+        origin: "USA",
+        releaseDate: "2026-05-01",
+        storageLabel: "7.6 GB",
+      }),
+    ).toEqual([
+      "Storage (7.6 GB)",
+      "VRAM (11 GB)",
+      "Company: Google",
+      "Country: USA",
+      "Released: May 2026",
+    ]);
+    expect(
+      compactCapabilityFacts({
+        family: "gemma4",
+        task: "chat",
+        type: "llm",
+        agentic: true,
+        contextWindow: 262144,
+        modalities: ["text", "image"],
+        vision: true,
+        uncensored: false,
+        license: "Gemma Terms of Use",
+      }),
+    ).toEqual([
+      "Agentic: Yes",
+      "Context window: 262k tokens",
+      "Multimodal: Yes",
+      "Guardrails: Censored",
+      "License: Gemma Terms of Use",
+    ]);
   });
 });

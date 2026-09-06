@@ -85,19 +85,25 @@ describe("Sidebar", () => {
 
   it("persists the active route in localStorage", () => {
     renderAt("/images");
-    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/images");
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe(
+      "/images",
+    );
   });
 
   it("Ctrl+3 navigates to /images", () => {
     renderAt("/");
     fireEvent.keyDown(window, { key: "3", ctrlKey: true });
-    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/images");
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe(
+      "/images",
+    );
   });
 
   it("Ctrl+, navigates to /settings", () => {
     renderAt("/");
     fireEvent.keyDown(window, { key: ",", ctrlKey: true });
-    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/settings");
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe(
+      "/settings",
+    );
   });
 
   it("ignores Ctrl+digit when focus is on an input", () => {
@@ -137,7 +143,9 @@ describe("Sidebar", () => {
     expect(aside.style.padding).toMatch(/^var\(--space-2\)/);
     fireEvent.click(screen.getByTestId("sidebar-collapse-toggle"));
     expect(aside.style.padding).toMatch(/^var\(--space-2\)/);
-    expect(screen.getByTestId("nav-admin-settings").getAttribute("aria-current")).toBe("page");
+    expect(
+      screen.getByTestId("nav-admin-settings").getAttribute("aria-current"),
+    ).toBe("page");
   });
 
   it("toggles the edge pill without navigating modules", () => {
@@ -147,6 +155,20 @@ describe("Sidebar", () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(toggle.getAttribute("aria-label")).toBe("Expand sidebar");
-    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-current")).toBe("page");
+    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-current")).toBe(
+      "page",
+    );
+  });
+
+  it("keeps the Chatbot tab label and the chatbot module id", () => {
+    renderAt("/chatbot");
+    expect(screen.getByTestId("nav-chatbot")).toHaveAttribute(
+      "aria-label",
+      "Chatbot",
+    );
+    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Chatbot");
+    expect(MODULES.chatbot.id).toBe("chatbot");
+    expect(MODULES.chatbot.route).toBe("/chatbot");
+    expect(MODULES.chatbot.label).toBe("Chatbot");
   });
 });

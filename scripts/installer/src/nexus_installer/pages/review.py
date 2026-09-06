@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QGridLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
     BG_CARD,
@@ -14,6 +15,8 @@ from nexus_installer.constants import (
     SUCCESS,
     TEXT_SECONDARY,
 )
+from nexus_installer.pages.typed_catalog import TYPE_TABS, load_catalog_models
+from nexus_installer.registry_paths import default_catalog_path
 from nexus_installer.vram_display import display_vram_gb
 from nexus_installer.widgets.callout_box import CalloutBox
 
@@ -28,6 +31,10 @@ _COMPONENT_LABELS: dict[str, str] = {
 }
 
 _NARROW_COLUMNS_PX = 560
+
+_SECTION_HEADINGS = {key: label for key, label, _icon in TYPE_TABS}
+_SECTION_HEADINGS["other"] = "Other"
+_SECTION_ORDER = [key for key, _label, _icon in TYPE_TABS] + ["other"]
 
 #: venv + extension overhead, unchanged from the pre-v2.4.5 estimate.
 _OVERHEAD_GB = 2.0
@@ -68,18 +75,27 @@ class ReviewPage(QWidget):
         self._facts_label.setObjectName("review-facts-column")
         self._facts_label.setWordWrap(True)
         self._facts_label.setStyleSheet(_CARD_STYLE)
+        self._facts_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._facts_label.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+        )
 
         self._models_label = QLabel()
         self._models_label.setObjectName("review-models-column")
         self._models_label.setWordWrap(True)
         self._models_label.setStyleSheet(_CARD_STYLE)
+        self._models_label.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self._split = QGridLayout()
         self._split.setContentsMargins(0, 0, 0, 0)
         self._split.setHorizontalSpacing(16)
         self._split.setVerticalSpacing(12)
-        self._split.addWidget(self._facts_label, 0, 0)
-        self._split.addWidget(self._models_label, 0, 1)
+        self._split.addWidget(
+            self._facts_label, 0, 0, alignment=Qt.AlignmentFlag.AlignTop
+        )
+        self._split.addWidget(
+            self._models_label, 0, 1, alignment=Qt.AlignmentFlag.AlignTop
+        )
         self._split.setColumnStretch(0, 1)
         self._split.setColumnStretch(1, 1)
 
@@ -120,10 +136,14 @@ class ReviewPage(QWidget):
         self._narrow_columns = narrow
         self._split.removeWidget(self._models_label)
         if narrow:
-            self._split.addWidget(self._models_label, 1, 0)
+            self._split.addWidget(
+                self._models_label, 1, 0, alignment=Qt.AlignmentFlag.AlignTop
+            )
             self._split.setColumnStretch(1, 0)
             return
-        self._split.addWidget(self._models_label, 0, 1)
+        self._split.addWidget(
+            self._models_label, 0, 1, alignment=Qt.AlignmentFlag.AlignTop
+        )
         self._split.setColumnStretch(1, 1)
 
     @staticmethod
@@ -158,6 +178,36 @@ class ReviewPage(QWidget):
                 f"<td width='50%'>{right_cell}</td></tr>"
             )
         return f"<table width='100%'>{''.join(cells)}</table>"
+
+    def _catalog_by_id(self) -> dict[str, object]:
+        cached = getattr(self, "_catalog_index", None)
+        if cached is None:
+            cached = {
+                model.id: model for model in load_catalog_models(default_catalog_path())
+            }
+            self._catalog_index = cached
+        return cached
+
+    def _section_for(self, model_id: str) -> str:
+        model = self._catalog_by_id().get(model_id)
+        tab = getattr(model, "type", None) if model is not None else None
+        if tab in _SECTION_HEADINGS and tab != "other":
+            return str(tab)
+        return "other"
+
+    def _grouped_model_html(self, model_ids: list[str], report) -> str:
+        buckets: dict[str, list[str]] = {key: [] for key in _SECTION_ORDER}
+        for mid in model_ids:
+            buckets[self._section_for(mid)].append(mid)
+        parts: list[str] = []
+        for key in _SECTION_ORDER:
+            ids = buckets[key]
+            if not ids:
+                continue
+            heading = _SECTION_HEADINGS[key]
+            parts.append(f"<b>{heading}</b>")
+            parts.append(self._model_columns(ids, report))
+        return "".join(parts)
 
     @staticmethod
     def _estimate_html(pending_gb: float, already_gb: float) -> str:
@@ -228,7 +278,7 @@ class ReviewPage(QWidget):
                 f"<b>Models:</b> {len(s.selected_model_ids)} selected"
                 f"{self._counts_suffix(len(done_ids), len(pending_ids))}<br>"
                 f"{_LEGEND_HTML}"
-                f"{self._model_columns(s.selected_model_ids, report)}"
+                f"{self._grouped_model_html(s.selected_model_ids, report)}"
                 f"{self._estimate_html(pending_size, already_size)}"
             )
         elif s.selected_model:

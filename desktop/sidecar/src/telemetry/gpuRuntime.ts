@@ -27,6 +27,14 @@ import { InProcessTelemetryBus } from "../../../../core/telemetry/TelemetryBus.j
 /** Hard cap so a wedged vendor tool cannot stall the sample. */
 const QUERY_TIMEOUT_MS = 4000;
 
+const NVIDIA_SMI_ARGS = [
+  "--query-gpu=utilization.gpu,memory.total,memory.free,name",
+  "--format=csv,noheader,nounits",
+] as const;
+
+/** Same fallback the installer uses when nvidia-smi is missing from PATH. */
+export const WINDOWS_NVIDIA_SMI = "C:\\Windows\\System32\\nvidia-smi.exe";
+
 function run(command: string, args: readonly string[]): Promise<string | null> {
   return new Promise((resolve) => {
     execFile(
@@ -54,13 +62,14 @@ export async function queryHostGpu(
   exec: (cmd: string, args: readonly string[]) => Promise<string | null> = run,
   platform: NodeJS.Platform = process.platform,
 ): Promise<GpuQueryResult | null> {
-  const smi = await exec("nvidia-smi", [
-    "--query-gpu=utilization.gpu,memory.total,memory.free,name",
-    "--format=csv,noheader,nounits",
-  ]);
-  if (smi) {
-    const parsed = parseNvidiaSmiCsv(smi);
-    if (parsed) return parsed;
+  const commands =
+    platform === "win32" ? ["nvidia-smi", WINDOWS_NVIDIA_SMI] : ["nvidia-smi"];
+  for (const command of commands) {
+    const smi = await exec(command, [...NVIDIA_SMI_ARGS]);
+    if (smi) {
+      const parsed = parseNvidiaSmiCsv(smi);
+      if (parsed) return parsed;
+    }
   }
 
   if (platform === "darwin") {

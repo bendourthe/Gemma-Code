@@ -31,6 +31,7 @@ const MessageTokenUsageSchema = z.object({
 
 export const IPC_METHODS = [
   "ping",
+  "runtime.desktopPayload",
   "models.list",
   "models.install",
   // v1.15.0 Phase 4 (Issue 3) -- Settings > Models registry management.
@@ -200,6 +201,17 @@ export const PingResponse = z.object({
   platform: z.string().min(1),
 });
 export type PingResponseT = z.infer<typeof PingResponse>;
+
+export const DesktopPayloadRequest = z.object({}).strict();
+export const DesktopPayloadIdentitySchema = z.object({
+  version: z.string().min(1),
+  sha256: z.string().min(1),
+  originalName: z.string().optional(),
+}).strict();
+export const DesktopPayloadResponse = z.object({
+  identity: DesktopPayloadIdentitySchema.nullable(),
+}).strict();
+export type DesktopPayloadResponseT = z.infer<typeof DesktopPayloadResponse>;
 
 // ---- Coding session lifecycle ------------------------------------------------
 
@@ -2857,6 +2869,11 @@ interface MethodSchema {
 
 export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   ping: { request: PingRequest, response: PingResponse, implemented: true },
+  "runtime.desktopPayload": {
+    request: DesktopPayloadRequest,
+    response: DesktopPayloadResponse,
+    implemented: true,
+  },
   "models.list": {
     request: ModelsListRequest,
     response: ModelsRegistryListResponse,

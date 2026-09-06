@@ -3,7 +3,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { VideoLabPage } from "../src/modules/video/VideoLabPage";
 import { InMemoryVideoClient } from "../src/modules/video/videoClient";
@@ -18,19 +24,34 @@ import { STUDIO_PENDING_CAPTIONS } from "../src/components/agentState/captionRot
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
 
-function videoModels(): { list: () => Promise<ListedModelDto[]> } {
+function videoModels(): {
+  lastSelection: {
+    schemaVersion: 1;
+    orderedIds: string[];
+    recommendedByTask: { video: string };
+    downloadedSinceInstall: string[];
+  };
+  list: () => Promise<ListedModelDto[]>;
+} {
+  const models: ListedModelDto[] = [
+    {
+      id: "wan2.1-t2v-1.3b",
+      displayName: "Wan 2.1 T2V 1.3B",
+      type: "video",
+      installed: true,
+      source: "registry",
+      vramGB: 5.5,
+      visualTokenBudget: { maxVideoFrames: 4 },
+    },
+  ];
   return {
-    list: async () => [
-      {
-        id: "wan2.1-t2v-1.3b",
-        displayName: "Wan 2.1 T2V 1.3B",
-        type: "video",
-        installed: true,
-        source: "registry",
-        vramGB: 5.5,
-        visualTokenBudget: { maxVideoFrames: 4 },
-      },
-    ],
+    lastSelection: {
+      schemaVersion: 1,
+      orderedIds: ["wan2.1-t2v-1.3b"],
+      recommendedByTask: { video: "wan2.1-t2v-1.3b" },
+      downloadedSinceInstall: [],
+    },
+    list: async () => models,
   };
 }
 
@@ -40,17 +61,32 @@ describe("VideoLabPage (chat)", () => {
 
   it("renders the model selector, empty state, composer, and Advanced panel", () => {
     render(
-      <VideoLabPage client={new InMemoryVideoClient()} modelsClient={NO_MODELS} drainIntervalMs={20} />,
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={NO_MODELS}
+        drainIntervalMs={20}
+      />,
     );
     expect(screen.getByTestId("video-lab-page")).toBeInTheDocument();
     expect(screen.getByTestId("video-model-select")).toBeInTheDocument();
-    expect(screen.getByTestId("composer-context-row").querySelector('[data-testid="video-model-select"]')).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("composer-context-row")
+        .querySelector('[data-testid="video-model-select"]'),
+    ).toBeTruthy();
     // v2.2.9 Phase 3.1 (T007): no header at all until it has visible children.
-    expect(screen.getByTestId("video-lab-page").querySelector(":scope > header")).toBeNull();
+    expect(
+      screen.getByTestId("video-lab-page").querySelector(":scope > header"),
+    ).toBeNull();
     expect(screen.queryByTestId("context-usage-bar")).toBeNull();
     expect(screen.getByTestId("video-empty")).toBeInTheDocument();
     expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("video-advanced-settings")).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("composer-advanced-slot")
+        .querySelector('[data-testid="video-advanced-settings"]'),
+    ).toBeTruthy();
     expect(screen.getByTestId("video-history-pane")).toBeInTheDocument();
   });
 
@@ -60,15 +96,23 @@ describe("VideoLabPage (chat)", () => {
   // visual budget (Phase 3.2, T008) -- 0% before any generation.
   it("renders no header when models are installed and shows the visual Context bar", async () => {
     render(
-      <VideoLabPage client={new InMemoryVideoClient()} modelsClient={videoModels()} drainIntervalMs={20} />,
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+      />,
     );
-    await waitFor(() => expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument(),
+    );
     expect(screen.getByTestId("context-usage-bar")).toHaveAttribute(
       "aria-label",
       expect.stringContaining("visual token budget"),
     );
     expect(screen.getByTestId("context-usage-percent")).toHaveTextContent("0%");
-    expect(screen.getByTestId("video-lab-page").querySelector(":scope > header")).toBeNull();
+    expect(
+      screen.getByTestId("video-lab-page").querySelector(":scope > header"),
+    ).toBeNull();
   });
 
   // v2.2.9 Phase 3.1 (T007): when no models are installed the get-more-models
@@ -83,14 +127,23 @@ describe("VideoLabPage (chat)", () => {
         onGetMoreModels={onGetMoreModels}
       />,
     );
-    await waitFor(() => expect(screen.getByTestId("video-get-more-models")).toBeInTheDocument());
-    expect(screen.getByTestId("video-lab-page").querySelector(":scope > header")).not.toBeNull();
+    await waitFor(() =>
+      expect(screen.getByTestId("video-get-more-models")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByTestId("video-lab-page").querySelector(":scope > header"),
+    ).not.toBeNull();
     fireEvent.click(screen.getByTestId("video-get-more-models"));
     expect(onGetMoreModels).toHaveBeenCalledTimes(1);
   });
 
   it("drops the mode select (intent is attachment-inferred)", () => {
-    render(<VideoLabPage client={new InMemoryVideoClient()} modelsClient={NO_MODELS} />);
+    render(
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={NO_MODELS}
+      />,
+    );
     expect(screen.queryByTestId("video-mode")).toBeNull();
   });
 
@@ -114,7 +167,9 @@ describe("VideoLabPage (chat)", () => {
         outputHash: "a".repeat(64),
       },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -125,11 +180,19 @@ describe("VideoLabPage (chat)", () => {
     await waitFor(() => expect(client.lastRequest?.mode).toBe("text2video"));
     const media = await screen.findByTestId(/^message-media-/);
     expect(media.getAttribute("src")).toBe("mock:///tmp/clip.mp4");
-    expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
-    expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
+    expect((client.lastRequest?.request as { prompt: string }).prompt).toBe(
+      "a fox",
+    );
+    expect((client.lastRequest?.request as { modelId: string }).modelId).toBe(
+      "wan2.1-t2v-1.3b",
+    );
     expect(screen.getByTestId("context-usage-bar")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /enhance video/i })).toBeInTheDocument();
-    expect(screen.getAllByTestId(/^message-time-/).length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getByRole("button", { name: /enhance video/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByTestId(/^message-time-/).length,
+    ).toBeGreaterThanOrEqual(2);
     // v2.2.9 Phase 1.3: these turns report no token usage, so the span is
     // omitted rather than rendered as an em dash.
     expect(screen.queryAllByTestId(/^message-tokens-/).length).toBe(0);
@@ -140,7 +203,9 @@ describe("VideoLabPage (chat)", () => {
     const text2video = client.text2video.bind(client);
     const text2videoSpy = vi
       .spyOn(client, "text2video")
-      .mockRejectedValueOnce(new Error("runtime-unavailable: CUDA runtime is not ready"))
+      .mockRejectedValueOnce(
+        new Error("runtime-unavailable: CUDA runtime is not ready"),
+      )
       .mockImplementation(text2video);
     client.scriptEvents("mem-video-1", [
       {
@@ -181,22 +246,32 @@ describe("VideoLabPage (chat)", () => {
         resolveMp4Url={(path) => `mock://${path}`}
       />,
     );
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a repaired clip" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a repaired clip" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
-    await waitFor(() => expect(screen.getByTestId("media-runtime-recovery")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId("media-runtime-recovery")).toBeInTheDocument(),
+    );
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-runtime-repair"));
       await Promise.resolve();
       vi.advanceTimersByTime(60);
     });
-    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument(),
+    );
     expect(text2videoSpy).toHaveBeenCalledTimes(2);
     expect(mediaRuntimeClient.repair).toHaveBeenCalledTimes(1);
     const page = screen.getByTestId("video-lab-page");
-    expect(page.querySelectorAll('[data-testid^="message-shell-vuser-"]')).toHaveLength(1);
-    expect(page.querySelectorAll('[data-testid^="message-shell-vassistant-"]')).toHaveLength(1);
+    expect(
+      page.querySelectorAll('[data-testid^="message-shell-vuser-"]'),
+    ).toHaveLength(1);
+    expect(
+      page.querySelectorAll('[data-testid^="message-shell-vassistant-"]'),
+    ).toHaveLength(1);
   });
 
   it("does not generate until a conflicting active model switch is approved", async () => {
@@ -220,7 +295,9 @@ describe("VideoLabPage (chat)", () => {
       target: { value: "a fox" },
     });
     fireEvent.click(screen.getByTestId("media-composer-submit"));
-    expect(await screen.findByTestId("model-switch-dialog")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("model-switch-dialog"),
+    ).toBeInTheDocument();
     expect(client.lastRequest).toBeNull();
     fireEvent.click(screen.getByTestId("model-switch-dialog-switch"));
     await waitFor(() => expect(client.lastRequest?.mode).toBe("text2video"));
@@ -230,18 +307,28 @@ describe("VideoLabPage (chat)", () => {
   it("an attached image routes to image2video with the source image", async () => {
     const client = new InMemoryVideoClient();
     render(
-      <VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />,
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+      />,
     );
     client.scriptEvents("mem-video-1", [
       { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/a.mp4" },
     ]);
     const file = new File(["x"], "cat.png", { type: "image/png" });
     await act(async () => {
-      fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [file] } });
+      fireEvent.change(screen.getByTestId("media-composer-file"), {
+        target: { files: [file] },
+      });
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "pan slowly" } });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "pan slowly" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -250,18 +337,26 @@ describe("VideoLabPage (chat)", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(client.lastRequest?.mode).toBe("image2video"));
-    expect((client.lastRequest?.request as { sourceImage: string }).sourceImage).toContain(
-      "data:image/png",
-    );
+    expect(
+      (client.lastRequest?.request as { sourceImage: string }).sourceImage,
+    ).toContain("data:image/png");
   });
 
   it("surfaces an error event in the assistant bubble", async () => {
     const client = new InMemoryVideoClient();
-    render(<VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={10} />);
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={10}
+      />,
+    );
     client.scriptEvents("mem-video-1", [
       { kind: "error", jobId: "mem-video-1", message: "VRAM exhausted" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "x" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "x" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -269,7 +364,9 @@ describe("VideoLabPage (chat)", () => {
       vi.advanceTimersByTime(50);
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByText(/VRAM exhausted/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/VRAM exhausted/)).toBeInTheDocument(),
+    );
   });
 
   it("Copy Workflow forwards extracted JSON to the clipboard adapter", async () => {
@@ -288,7 +385,9 @@ describe("VideoLabPage (chat)", () => {
     client.scriptEvents("mem-video-1", [
       { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -296,12 +395,18 @@ describe("VideoLabPage (chat)", () => {
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByTestId(/^message-media-/));
     await waitFor(() =>
-      expect(container.querySelector('[data-testid^="video-copyworkflow-"]')).not.toBeNull(),
+      expect(
+        container.querySelector('[data-testid^="video-copyworkflow-"]'),
+      ).not.toBeNull(),
     );
-    const btn = container.querySelector('[data-testid^="video-copyworkflow-"]') as HTMLButtonElement;
+    const btn = container.querySelector(
+      '[data-testid^="video-copyworkflow-"]',
+    ) as HTMLButtonElement;
     await act(async () => {
       fireEvent.click(btn);
       await Promise.resolve();
@@ -328,39 +433,62 @@ describe("VideoLabPage (chat)", () => {
   it("shows the shaping orb while a clip is pending", async () => {
     const client = new InMemoryVideoClient();
     render(
-      <VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />,
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+      />,
     );
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
-    const orb = await screen.findByRole("img", { name: /agent shaping/i });
+    const orb = await screen.findByRole("img", { name: /generating media/i });
     expect(orb).toHaveAttribute("data-agent-activity", "video-generation");
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     // v2.4.4 Phase 5.3: one of Creating / Crafting / Generating, never Shaping.
     expect(screen.queryByText("Shaping...")).toBeNull();
     expect(
-      STUDIO_PENDING_CAPTIONS.some((caption) => screen.queryByText(caption) !== null),
+      STUDIO_PENDING_CAPTIONS.some(
+        (caption) => screen.queryByText(caption) !== null,
+      ),
     ).toBe(true);
     // The old assertion here was `queryByText("Generating...")` is null, which
     // meant "no separate status label besides the orb". "Generating..." is now
     // one of the orb's own captions, so the check moves to the composer: the
     // pending signal must still be the orb, not a second line of text.
     expect(screen.queryByTestId("video-lab-status-label")).toBeNull();
-    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute(
+      "data-beam-mode",
+      "traveling",
+    );
   });
 
   it("turns a complete event without an output path into a written failure", async () => {
     const client = new InMemoryVideoClient();
-    render(<VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />);
-    client.scriptEvents("mem-video-1", [{ kind: "complete", jobId: "mem-video-1" }]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByText(/Generation failed/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/Generation failed/)).toBeInTheDocument(),
+    );
     expect(screen.queryByTestId(/^video-actions-/)).toBeNull();
     expect(screen.queryByTestId(/^message-media-/)).toBeNull();
   });
@@ -387,7 +515,9 @@ describe("VideoLabPage (chat)", () => {
       await Promise.resolve();
     });
 
-    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument(),
+    );
     expect(screen.queryByRole("button", { name: /enhance video/i })).toBeNull();
   });
 
@@ -404,7 +534,9 @@ describe("VideoLabPage (chat)", () => {
     client.scriptEvents("mem-video-1", [
       { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
       vi.advanceTimersByTime(40);
@@ -412,7 +544,9 @@ describe("VideoLabPage (chat)", () => {
     });
     const media = await screen.findByTestId(/^message-media-/);
     fireEvent.error(media);
-    await waitFor(() => expect(screen.queryByTestId(/^video-actions-/)).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByTestId(/^video-actions-/)).toBeNull(),
+    );
     expect(screen.getByText(/could not be displayed/)).toBeInTheDocument();
   });
 
@@ -435,7 +569,9 @@ describe("VideoLabPage (chat)", () => {
     client.scriptEvents("mem-video-3", [
       { kind: "complete", jobId: "mem-video-3", outputPath: "/tmp/c.mp4" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "long take" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "long take" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -486,8 +622,12 @@ describe("VideoLabPage (chat)", () => {
       });
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-1")).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-composer-thumb-1")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "hello" },
+    });
     client.scriptEvents("mem-video-1", [
       { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/avatar.mp4" },
     ]);
@@ -500,7 +640,8 @@ describe("VideoLabPage (chat)", () => {
     });
     await waitFor(() => expect(client.lastRequest?.mode).toBe("audio2video"));
     expect(
-      (client.lastRequest?.request as { confirmLocalAvatar?: boolean }).confirmLocalAvatar,
+      (client.lastRequest?.request as { confirmLocalAvatar?: boolean })
+        .confirmLocalAvatar,
     ).toBe(true);
   });
 
@@ -517,7 +658,9 @@ describe("VideoLabPage (chat)", () => {
     client.scriptEvents("mem-video-1", [
       { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -532,12 +675,16 @@ describe("VideoLabPage (chat)", () => {
     client.scriptEvents("mem-video-2", [
       { kind: "complete", jobId: "mem-video-2", outputPath: "/tmp/clip2.mp4" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "again" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "again" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
     await waitFor(() =>
-      expect((client.lastRequest?.request as { prompt: string }).prompt).toMatch(/Frame notes:/),
+      expect(
+        (client.lastRequest?.request as { prompt: string }).prompt,
+      ).toMatch(/Frame notes:/),
     );
   });
 
@@ -574,7 +721,9 @@ describe("VideoLabPage (chat)", () => {
     client.scriptEvents("mem-video-1", [
       { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -582,7 +731,9 @@ describe("VideoLabPage (chat)", () => {
       vi.advanceTimersByTime(60);
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument(),
+    );
     await waitFor(() => {
       const session = explorer.listTree().sessions[0];
       expect(session).toBeTruthy();
@@ -590,9 +741,15 @@ describe("VideoLabPage (chat)", () => {
       expect(session!.lastOutputRef).toBe("/tmp/clip.mp4");
     });
     client.scriptEvents("mem-video-2", [
-      { kind: "complete", jobId: "mem-video-2", outputPath: "/tmp/clip-snow.mp4" },
+      {
+        kind: "complete",
+        jobId: "mem-video-2",
+        outputPath: "/tmp/clip-snow.mp4",
+      },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "make it snow" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "make it snow" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
@@ -601,7 +758,10 @@ describe("VideoLabPage (chat)", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(client.lastRequest?.mode).toBe("text2video"));
-    expect((client.lastRequest?.request as { continueFrom?: { priorJobId: string } }).continueFrom).toMatchObject({
+    expect(
+      (client.lastRequest?.request as { continueFrom?: { priorJobId: string } })
+        .continueFrom,
+    ).toMatchObject({
       priorJobId: "mem-video-1",
       lastFramePath: "/tmp/clip.mp4",
     });
@@ -618,7 +778,11 @@ describe("VideoLabPage (chat)", () => {
       title: "Fox",
       modelId: "wan2.1-t2v-1.3b",
     });
-    explorer.appendTurn({ sessionId: session.id, role: "user", content: "a fox" });
+    explorer.appendTurn({
+      sessionId: session.id,
+      role: "user",
+      content: "a fox",
+    });
     explorer.appendTurn({
       sessionId: session.id,
       role: "assistant",
@@ -647,7 +811,10 @@ describe("VideoLabPage (chat)", () => {
       />,
     );
     await waitFor(() => expect(screen.getByText("a fox")).toBeInTheDocument());
-    expect(screen.getByTestId(/^message-media-/)).toHaveAttribute("src", "/tmp/clip.mp4");
+    expect(screen.getByTestId(/^message-media-/)).toHaveAttribute(
+      "src",
+      "/tmp/clip.mp4",
+    );
     expect(screen.queryByRole("button", { name: /enhance video/i })).toBeNull();
   });
 
@@ -658,7 +825,11 @@ describe("VideoLabPage (chat)", () => {
       title: "Gone",
       modelId: "wan2.1-t2v-1.3b",
     });
-    explorer.appendTurn({ sessionId: session.id, role: "user", content: "a fox" });
+    explorer.appendTurn({
+      sessionId: session.id,
+      role: "user",
+      content: "a fox",
+    });
     explorer.appendTurn({
       sessionId: session.id,
       role: "assistant",
@@ -674,7 +845,9 @@ describe("VideoLabPage (chat)", () => {
         outputExists={() => false}
       />,
     );
-    await waitFor(() => expect(screen.getByText(/output missing on disk/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/output missing on disk/i)).toBeInTheDocument(),
+    );
     expect(screen.queryByTestId(/^message-media-/)).toBeNull();
   });
 
@@ -710,7 +883,9 @@ describe("VideoLabPage (chat)", () => {
       vi.advanceTimersByTime(60);
       await Promise.resolve();
     });
-    const enhance = await screen.findByRole("button", { name: /enhance video/i });
+    const enhance = await screen.findByRole("button", {
+      name: /enhance video/i,
+    });
     expect(enhance).toHaveAccessibleName(/enhance video/i);
     fireEvent.click(enhance);
     await waitFor(() =>
@@ -732,12 +907,20 @@ describe("VideoLabPage (chat)", () => {
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(screen.getByText(/Enhanced output \(1708 x 960/)).toBeInTheDocument(),
+      expect(
+        screen.getByText(/Enhanced output \(1708 x 960/),
+      ).toBeInTheDocument(),
     );
-    expect(screen.getByRole("button", { name: /download original video/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /download enhanced video/i })).toBeInTheDocument();
     expect(
-      screen.queryByTestId(`video-enhance-video-enhancement-${queued!.childJobId}`),
+      screen.getByRole("button", { name: /download original video/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /download enhanced video/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(
+        `video-enhance-video-enhancement-${queued!.childJobId}`,
+      ),
     ).toBeNull();
     const seen: string[] = [];
     const originalClick = HTMLAnchorElement.prototype.click;
@@ -745,8 +928,12 @@ describe("VideoLabPage (chat)", () => {
       seen.push(this.download);
     };
     try {
-      fireEvent.click(screen.getByRole("button", { name: /download original video/i }));
-      fireEvent.click(screen.getByRole("button", { name: /download enhanced video/i }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /download original video/i }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /download enhanced video/i }),
+      );
     } finally {
       HTMLAnchorElement.prototype.click = originalClick;
     }
@@ -763,7 +950,9 @@ describe("VideoLabPage (chat)", () => {
     fireEvent.click(screen.getAllByTestId(/^message-media-/)[1]!);
     await waitFor(() =>
       expect(
-        screen.getByTestId(`video-copyworkflow-video-enhancement-${queued!.childJobId}`),
+        screen.getByTestId(
+          `video-copyworkflow-video-enhancement-${queued!.childJobId}`,
+        ),
       ).toHaveAccessibleName("Copy workflow and provenance"),
     );
   });
@@ -814,7 +1003,9 @@ describe("VideoLabPage (chat)", () => {
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(screen.getByText(/separate synthesized file/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText(/separate synthesized file/i),
+      ).toBeInTheDocument(),
     );
   });
 
@@ -851,10 +1042,14 @@ describe("VideoLabPage (chat)", () => {
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
-    const item = await screen.findByTestId("generation-queue-item-enhance-child");
+    const item = await screen.findByTestId(
+      "generation-queue-item-enhance-child",
+    );
     expect(item).toHaveAttribute("data-job-kind", "enhancement");
     expect(item).toHaveTextContent("Enhance enhance-child");
-    expect(screen.getByRole("button", { name: "Cancel enhancement enhance-child" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Cancel enhancement enhance-child" }),
+    ).toBeInTheDocument();
   });
 
   it("persists an empty complete as error text, not an empty assistant turn", async () => {
@@ -868,18 +1063,26 @@ describe("VideoLabPage (chat)", () => {
         drainIntervalMs={20}
       />,
     );
-    client.scriptEvents("mem-video-1", [{ kind: "complete", jobId: "mem-video-1" }]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox in grass" } });
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox in grass" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByText(/playable clip/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/playable clip/i)).toBeInTheDocument(),
+    );
     await waitFor(() => {
       const session = explorer.listTree().sessions[0];
       expect(session).toBeTruthy();
-      const assistant = explorer.listTurns(session!.id).find((t) => t.role === "assistant");
+      const assistant = explorer
+        .listTurns(session!.id)
+        .find((t) => t.role === "assistant");
       expect(assistant?.content).toMatch(/playable clip/i);
       expect(assistant?.mediaRef).toBeFalsy();
     });
@@ -887,7 +1090,13 @@ describe("VideoLabPage (chat)", () => {
 
   it("maps a missing-weights error to Settings > Models", async () => {
     const client = new InMemoryVideoClient();
-    render(<VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />);
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+      />,
+    );
     client.scriptEvents("mem-video-1", [
       {
         kind: "error",
@@ -895,7 +1104,9 @@ describe("VideoLabPage (chat)", () => {
         message: "SANA-Video 2B 720p weights are not installed",
       },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a puppy in grass" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a puppy in grass" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
       vi.advanceTimersByTime(40);
@@ -918,18 +1129,24 @@ describe("VideoLabPage (chat)", () => {
     client.scriptEvents("mem-video-1", [
       { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
     ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "fox" },
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
-    await waitFor(() => expect(screen.getByText(/playable clip/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/playable clip/i)).toBeInTheDocument(),
+    );
     expect(screen.queryByTestId(/^message-media-/)).toBeNull();
   });
 });
 
-function succeedEnhancement(job: VideoEnhancementJobDto): VideoEnhancementJobDto {
+function succeedEnhancement(
+  job: VideoEnhancementJobDto,
+): VideoEnhancementJobDto {
   return {
     ...job,
     state: "succeeded",

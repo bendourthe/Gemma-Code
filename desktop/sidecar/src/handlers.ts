@@ -133,6 +133,7 @@ import {
   NotImplementedError,
   PingResponse,
   PingResponseT,
+  DesktopPayloadResponse,
   isMethod,
   type Method,
 } from "./protocol.js";
@@ -149,6 +150,7 @@ import {
   hubLayoutDir,
   nexusHome,
 } from "../../../core/storage/paths.js";
+import { readDesktopPayloadIdentity } from "../../../core/storage/desktopPayloadFs.js";
 import { createWorkspaceScope } from "../../../core/project/WorkspaceScope.js";
 import { WorkspaceScopeStore } from "../../../core/project/WorkspaceScopeStore.js";
 import {
@@ -481,6 +483,23 @@ function resolveStudio(ctx: HandlerContext): StudioRuntime {
     });
   }
   return ctx.studio;
+}
+
+async function enqueueInference(
+  ctx: HandlerContext,
+  moduleId: "chat" | "coding",
+  modelId: string | undefined,
+  run: (signal: AbortSignal) => Promise<unknown>,
+): Promise<unknown> {
+  const handle = await resolveStudio(ctx).scheduler.enqueue({
+    moduleId,
+    jobType: "tokens",
+    estimatedVramGB: 4,
+    priority: "foreground",
+    ...(modelId ? { modelId } : {}),
+    run,
+  });
+  return handle.completion;
 }
 
 function resolveVideoEnhancement(
@@ -948,12 +967,33 @@ export const handlers: Record<Method, HandlerFn> = {
     PingResponse.parse(response);
     return response;
   },
+  "runtime.desktopPayload": async (_params) => {
+    const identity = readDesktopPayloadIdentity();
+    const response = {
+      identity: identity
+        ? {
+            version: identity.version,
+            sha256: identity.sha256,
+            ...(identity.originalName
+              ? { originalName: identity.originalName }
+              : {}),
+          }
+        : null,
+    };
+    DesktopPayloadResponse.parse(response);
+    return response;
+  },
   "models.list": async (_params, ctx) => {
     const runtime = await resolveModelsRuntime(ctx);
     const models = await runtime.service.list();
     const { loadSnapshot } = await import("./models/selectionSnapshot.js");
     const selection = await loadSnapshot();
-    return { models, catalogStatus: runtime.catalogStatus, catalogHash: runtime.service.catalogHash, selection };
+    return {
+      models,
+      catalogStatus: runtime.catalogStatus,
+      catalogHash: runtime.service.catalogHash,
+      selection,
+    };
   },
   "models.install": async (params, ctx) => {
     const req = ModelsInstallRequest.parse(params ?? {});
@@ -1094,7 +1134,9 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "coding.session.start": async (params, ctx) => {
     const req = CodingSessionStartRequest.parse(params ?? {});
-    const previous = req.workspaceId ? resolveWorkspaceStore(ctx).get(req.workspaceId) : undefined;
+    const previous = req.workspaceId
+      ? resolveWorkspaceStore(ctx).get(req.workspaceId)
+      : undefined;
     const scope = await createWorkspaceScope(req, { previous });
     const stored = resolveWorkspaceStore(ctx).upsert(scope);
     return ctx.sessions.startWithScope(req, stored);
@@ -1106,7 +1148,12 @@ export const handlers: Record<Method, HandlerFn> = {
       source: "coding",
       payload: { role: "worker", sessionId: req.sessionId },
     });
-    const events = await ctx.sessions.sendMessage(req.sessionId, req.message);
+    const events = (await enqueueInference(
+      ctx,
+      "coding",
+      ctx.sessions.peekModelId(req.sessionId),
+      () => ctx.sessions.sendMessage(req.sessionId, req.message),
+    )) as Awaited<ReturnType<typeof ctx.sessions.sendMessage>>;
     for (const event of events) {
       if (event.kind === "toolCallHeader") {
         ctx.telemetry?.publish({
@@ -1151,36 +1198,85 @@ export const handlers: Record<Method, HandlerFn> = {
     }
     if (req.pillar === "chatbot") {
       const chat = (await explorerOps()).archiveChat({ id: req.id });
-      return { pillar: req.pillar, id: req.id, archivedAt: new Date(chat.archivedAt ?? Date.now()).toISOString() };
+      return {
+        pillar: req.pillar,
+        id: req.id,
+        archivedAt: new Date(chat.archivedAt ?? Date.now()).toISOString(),
+      };
     }
     const session = (await studioSessionOps()).archiveSession({ id: req.id });
-    return { pillar: req.pillar, id: req.id, archivedAt: new Date(session.archivedAt ?? Date.now()).toISOString() };
+    return {
+      pillar: req.pillar,
+      id: req.id,
+      archivedAt: new Date(session.archivedAt ?? Date.now()).toISOString(),
+    };
   },
   "sessions.listArchived": async (params, ctx) => {
     SessionsListArchivedRequest.parse(params ?? {});
-    const sessions: Array<{ pillar: "chatbot" | "agents" | "images" | "videos"; id: string; title: string; archivedAt: string; originalParent: string | null }> = [];
-    const errors: Array<{ pillar: "chatbot" | "agents" | "images" | "videos"; message: string }> = [];
+    const sessions: Array<{
+      pillar: "chatbot" | "agents" | "images" | "videos";
+      id: string;
+      title: string;
+      archivedAt: string;
+      originalParent: string | null;
+    }> = [];
+    const errors: Array<{
+      pillar: "chatbot" | "agents" | "images" | "videos";
+      message: string;
+    }> = [];
     try {
       for (const chat of (await explorerOps()).listArchived().chats) {
-        sessions.push({ pillar: "chatbot", id: chat.id, title: chat.title, archivedAt: new Date(chat.archivedAt).toISOString(), originalParent: chat.archivedFolderId ?? chat.folderId });
+        sessions.push({
+          pillar: "chatbot",
+          id: chat.id,
+          title: chat.title,
+          archivedAt: new Date(chat.archivedAt).toISOString(),
+          originalParent: chat.archivedFolderId ?? chat.folderId,
+        });
       }
     } catch (error) {
-      errors.push({ pillar: "chatbot", message: error instanceof Error ? error.message : String(error) });
+      errors.push({
+        pillar: "chatbot",
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
     try {
       for (const session of ctx.sessions.listArchived()) {
-        sessions.push({ pillar: "agents", id: session.id, title: session.title, archivedAt: session.archivedAt ?? session.createdAt, originalParent: null });
+        sessions.push({
+          pillar: "agents",
+          id: session.id,
+          title: session.title,
+          archivedAt: session.archivedAt ?? session.createdAt,
+          originalParent: null,
+        });
       }
     } catch (error) {
-      errors.push({ pillar: "agents", message: error instanceof Error ? error.message : String(error) });
+      errors.push({
+        pillar: "agents",
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
-    for (const [pillar, studioPillar] of [["images", "image"], ["videos", "video"]] as const) {
+    for (const [pillar, studioPillar] of [
+      ["images", "image"],
+      ["videos", "video"],
+    ] as const) {
       try {
-        for (const session of (await studioSessionOps()).listArchived({ pillar: studioPillar }).sessions) {
-          sessions.push({ pillar, id: session.id, title: session.title, archivedAt: new Date(session.archivedAt).toISOString(), originalParent: session.archivedFolderId ?? session.folderId });
+        for (const session of (await studioSessionOps()).listArchived({
+          pillar: studioPillar,
+        }).sessions) {
+          sessions.push({
+            pillar,
+            id: session.id,
+            title: session.title,
+            archivedAt: new Date(session.archivedAt).toISOString(),
+            originalParent: session.archivedFolderId ?? session.folderId,
+          });
         }
       } catch (error) {
-        errors.push({ pillar, message: error instanceof Error ? error.message : String(error) });
+        errors.push({
+          pillar,
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
     }
     return { sessions, errors };
@@ -1189,14 +1285,26 @@ export const handlers: Record<Method, HandlerFn> = {
     const req = SessionDispositionRequest.parse(params ?? {});
     if (req.pillar === "agents") {
       const restored = ctx.sessions.restore(req.id);
-      return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
+      return {
+        pillar: req.pillar,
+        id: req.id,
+        parentFallback: restored.parentFallback,
+      };
     }
     if (req.pillar === "chatbot") {
       const restored = (await explorerOps()).restoreChat({ id: req.id });
-      return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
+      return {
+        pillar: req.pillar,
+        id: req.id,
+        parentFallback: restored.parentFallback,
+      };
     }
     const restored = (await studioSessionOps()).restoreSession({ id: req.id });
-    return { pillar: req.pillar, id: req.id, parentFallback: restored.parentFallback };
+    return {
+      pillar: req.pillar,
+      id: req.id,
+      parentFallback: restored.parentFallback,
+    };
   },
   "coding.memory.snapshot": async (params) => {
     CodingMemorySnapshotRequest.parse(params ?? {});
@@ -1225,11 +1333,12 @@ export const handlers: Record<Method, HandlerFn> = {
       source: "chat",
       payload: { role: "app", sessionId: req.sessionId },
     });
-    const events = await ctx.chat.sendMessage(
-      req.sessionId,
-      req.message,
-      req.images,
-    );
+    const events = (await enqueueInference(
+      ctx,
+      "chat",
+      ctx.chat.peekModelId(req.sessionId),
+      () => ctx.chat.sendMessage(req.sessionId, req.message, req.images),
+    )) as Awaited<ReturnType<typeof ctx.chat.sendMessage>>;
     return { sessionId: req.sessionId, events };
   },
   "memory.episodic.record": async (params, ctx) =>

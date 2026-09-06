@@ -28,7 +28,9 @@ describe("MediaRuntimeRecoveryCard", () => {
         onOpenLog={onOpenLog}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Media runtime needs attention");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Media runtime needs attention",
+    );
     fireEvent.click(screen.getByTestId("media-runtime-repair"));
     fireEvent.click(screen.getByTestId("media-runtime-open-log"));
     expect(onRepair).toHaveBeenCalledTimes(1);
@@ -64,7 +66,7 @@ describe("GenerationCanvas", () => {
     expect(container.querySelectorAll(".nexus-aurora-layer")).toHaveLength(3);
     expect(container.querySelector(".nexus-aurora-shimmer")).not.toBeNull();
     expect(box).toHaveAttribute("data-reduced-motion", "false");
-    const orb = screen.getByRole("img", { name: /agent shaping/i });
+    const orb = screen.getByRole("img", { name: /agent creating/i });
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     const beam = screen.getByTestId("generation-canvas-beam");
@@ -105,24 +107,32 @@ describe("GenerationCanvas", () => {
   it("clamps progress when out of range", () => {
     render(<GenerationCanvas previewSrc="x" progress={2} data-testid="gc3" />);
     // clamped to 1.0 -> opacity 1
-    expect((screen.getByTestId("gc3-preview") as HTMLElement).style.opacity).toBe("1");
+    expect(
+      (screen.getByTestId("gc3-preview") as HTMLElement).style.opacity,
+    ).toBe("1");
   });
 
   it("marks reduced motion through the shared hook", () => {
     vi.stubGlobal(
       "matchMedia",
-      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
     );
     render(<GenerationCanvas />);
-    expect(screen.getByTestId("generation-canvas")).toHaveAttribute("data-reduced-motion", "true");
+    expect(screen.getByTestId("generation-canvas")).toHaveAttribute(
+      "data-reduced-motion",
+      "true",
+    );
   });
 
   it("uses the video activity when tint is video", () => {
     render(<GenerationCanvas tint="video" />);
-    expect(screen.getByRole("img", { name: /agent shaping/i })).toHaveAttribute(
-      "data-agent-activity",
-      "video-generation",
-    );
+    expect(
+      screen.getByRole("img", { name: /agent generating/i }),
+    ).toHaveAttribute("data-agent-activity", "video-generation");
     expect(screen.getByTestId("generation-canvas-beam")).toHaveAttribute(
       "data-beam-accent",
       "--accent-video",
@@ -143,7 +153,9 @@ describe("Sam2RecoveryCard", () => {
       />,
     );
     expect(screen.getByTestId("sam2-recovery")).toBeInTheDocument();
-    expect(screen.getByTestId("sam2-install")).toHaveTextContent("Install sam2:hiera-tiny");
+    expect(screen.getByTestId("sam2-install")).toHaveTextContent(
+      "Install sam2:hiera-tiny",
+    );
     fireEvent.click(screen.getByTestId("sam2-paint-mask"));
     expect(onPaint).toHaveBeenCalledTimes(1);
     expect(onInstall).not.toHaveBeenCalled();

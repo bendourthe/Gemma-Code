@@ -44,19 +44,28 @@ const MODELS: ListedModelDto[] = [
   },
 ];
 
+const OWNED_LLM = new Set(["gemma4:e4b", "qwen2.5-coder:7b"]);
+
 describe("QuickModelSwitcher", () => {
   it("lists only installed-and-ready models for the task type plus Get more models", () => {
     render(
       <QuickModelSwitcher
         models={MODELS}
         taskType="llm"
+        ownedIds={OWNED_LLM}
         value="gemma4:e4b"
         onChange={() => undefined}
       />,
     );
-    const select = screen.getByTestId("quick-model-switcher") as HTMLSelectElement;
+    const select = screen.getByTestId(
+      "quick-model-switcher",
+    ) as HTMLSelectElement;
     const values = [...select.options].map((o) => o.value);
-    expect(values).toEqual(["gemma4:e4b", "qwen2.5-coder:7b", GET_MORE_MODELS_ID]);
+    expect(values).toEqual([
+      "gemma4:e4b",
+      "qwen2.5-coder:7b",
+      GET_MORE_MODELS_ID,
+    ]);
   });
 
   it("orders llm pickers the same way Settings sorts the Chat tab", () => {
@@ -98,10 +107,14 @@ describe("QuickModelSwitcher", () => {
         taskType="llm"
         value="qwen-compat"
         onChange={() => undefined}
+        ownedIds={new Set(["qwen-compat", "gemma-e4b"])}
         hostVramGB={16}
+        recommendOrder={["gemma-e4b", "qwen-compat"]}
       />,
     );
-    const select = screen.getByTestId("quick-model-switcher") as HTMLSelectElement;
+    const select = screen.getByTestId(
+      "quick-model-switcher",
+    ) as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual([
       "gemma-e4b",
       "qwen-compat",
@@ -114,11 +127,14 @@ describe("QuickModelSwitcher", () => {
       <QuickModelSwitcher
         models={MODELS}
         taskType="image"
+        ownedIds={new Set(["sana"])}
         value="sana"
         onChange={() => undefined}
       />,
     );
-    const select = screen.getByTestId("quick-model-switcher") as HTMLSelectElement;
+    const select = screen.getByTestId(
+      "quick-model-switcher",
+    ) as HTMLSelectElement;
     const values = [...select.options].map((o) => o.value);
     expect(values).toEqual(["sana", GET_MORE_MODELS_ID]);
     expect(values).not.toContain("gemma4:e4b");
@@ -131,6 +147,7 @@ describe("QuickModelSwitcher", () => {
       <QuickModelSwitcher
         models={MODELS}
         taskType="llm"
+        ownedIds={OWNED_LLM}
         value="gemma4:e4b"
         onChange={onChange}
       />,
@@ -148,6 +165,7 @@ describe("QuickModelSwitcher", () => {
       <QuickModelSwitcher
         models={MODELS}
         taskType="llm"
+        ownedIds={OWNED_LLM}
         value="gemma4:e4b"
         onChange={onChange}
         onGetMoreModels={onGetMore}
@@ -208,13 +226,18 @@ describe("QuickModelSwitcher", () => {
         models={models}
         taskType="llm"
         catalogTab="agentic"
+        ownedIds={
+          new Set(["gpt-oss:20b", "lfm2.5:2.6b", "gemma-4-12b-it-gguf"])
+        }
         value="gemma-4-12b-it-gguf"
         onChange={() => undefined}
         hostVramGB={16}
         recommendOrder={["gemma-4-12b-it-gguf", "gpt-oss:20b"]}
       />,
     );
-    const select = screen.getByTestId("quick-model-switcher") as HTMLSelectElement;
+    const select = screen.getByTestId(
+      "quick-model-switcher",
+    ) as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual([
       "gemma-4-12b-it-gguf",
       "gpt-oss:20b",

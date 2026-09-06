@@ -170,7 +170,7 @@ describe("video enhancement packaging parity", () => {
     expect(installer).toContain(`SETTING_KEY = "${contract.settingKey}"`);
     expect(installer).toContain("never installed by this wizard");
     expect(installer).toContain("does not download, bundle, or search");
-    expect(read(CONFIGURATION)).toContain("INSTALLER_NOTE");
+    expect(read(CONFIGURATION)).not.toContain("INSTALLER_NOTE");
     expect(read(COMPLETE)).toContain("INSTALLER_NOTE");
     expect(read(CONFIGURATION)).not.toMatch(/Install Video2X/i);
     expect(read(CONFIGURATION)).not.toMatch(/download.*Video2X/i);
