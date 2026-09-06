@@ -1024,9 +1024,31 @@ class TestWizardDensityV247:
     def test_detection_still_drives_the_checkbox(self, qt_app: object) -> None:
         # Removing the paragraph must not remove the information: an
         # uninstallable extension still disables the box and explains itself.
-        from nexus_installer.pages.configuration import ConfigurationPage
+        #
+        # Detection is INJECTED rather than read from the host. Written as a
+        # conditional against real detection, this passed vacuously on a
+        # machine with VS Code installed and only ran on CI -- where it caught
+        # a real gap, because the tooltip was set on refresh but not at
+        # construction.
+        from nexus_installer.pages.vscode_extension import VsCodeExtensionPage
 
-        page = ConfigurationPage(InstallerState())
-        checkbox = page._vscode._checkbox
-        if not checkbox.isEnabled():
-            assert checkbox.toolTip().strip()
+        class _Detection:
+            def __init__(self, supported: bool) -> None:
+                self.supported = supported
+                self.version = "1.1.0"
+                self.path = "/usr/bin/code"
+                self.cli_name = "code"
+                self.reason = "ok" if supported else "not-found"
+
+        unsupported = VsCodeExtensionPage(
+            InstallerState(), detect_fn=lambda: _Detection(False), compact=True
+        )
+        assert unsupported._checkbox.isEnabled() is False
+        assert unsupported._checkbox.toolTip().strip()
+
+        supported = VsCodeExtensionPage(
+            InstallerState(), detect_fn=lambda: _Detection(True), compact=True
+        )
+        assert supported._checkbox.isEnabled() is True
+        # No tooltip when there is nothing to explain.
+        assert supported._checkbox.toolTip() == ""

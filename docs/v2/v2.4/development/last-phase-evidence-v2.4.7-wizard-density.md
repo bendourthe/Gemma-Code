@@ -172,7 +172,32 @@ $ python -m ruff check scripts/installer          All checks passed!
 
 ## Publication and integration
 
-*(Quoted below once the required checks reach a terminal state.)*
+Published as [PR 63](https://github.com/bendourthe/Nexus-AI/pull/63) against `develop`.
+
+**The first merge-result run was red on one check, and it caught a real gap.**
+
+`Installer tests + lint + smoke` failed on `TestWizardDensityV247::test_detection_still_drives_the_checkbox`: the checkbox was disabled but its tooltip was empty.
+
+Reproduced locally before any re-push, by injecting an unsupported detection:
+
+```
+enabled: False   tooltip: ''
+```
+
+The cause was mine. Phase 3 set the compact tooltip inside the detection *refresh*, but the checkbox's enabled state is also set at *construction*. On a host with no VS Code the page could therefore present a disabled control with no explanation at all -- which is exactly the failure the tooltip was introduced to prevent. Both paths now call one `_apply_detection_tooltip` helper.
+
+**The test itself was the second defect, and the more instructive one.** It was written as `if not checkbox.isEnabled(): assert checkbox.toolTip()`, reading real host detection. On this machine VS Code is installed, so the branch never executed and the test passed while verifying nothing; it only ran on the Linux runner. It now injects both a supported and an unsupported detection and asserts both outcomes, so it runs identically on every host.
+
+After the fix, locally:
+
+```
+$ PYTHONPATH=scripts/installer/src pytest scripts/installer/tests -q
+100%, 0 failed, no fatal exception
+$ python -m ruff check scripts/installer
+All checks passed!
+```
+
+Required-check results are quoted below once terminal.
 
 ---
 
