@@ -197,10 +197,54 @@ $ python -m ruff check scripts/installer
 All checks passed!
 ```
 
-Required-check results are quoted below once terminal.
+After the re-push, every required check reached a terminal state:
+
+```
+$ gh pr checks 63
+     42 pass
+      1 skipping     (init.ps1 (Windows) -- path-gated, not applicable)
+      0 fail
+      0 pending
+
+$ gh pr view 63 --json mergeable,mergeStateStatus
+MERGEABLE / CLEAN
+```
+
+Merged into `develop` as `2b7b9811`.
 
 ---
 
 ## Installer rebuild
 
-*(Recorded after integration; the rebuild is this cycle's deliverable to the operator.)*
+Rebuilt from the integrated branch, not the feature tip, so the artifact is the merge result. Sequence: `scripts/build-vsix.ps1 -SkipTests`, then `cd desktop; npm run build:shell` for a fresh desktop payload, then `scripts/installer/build/build-windows.ps1 -SkipSign`, then `smoke-windows-exe.ps1`.
+
+| Fact | Value |
+|---|---|
+| Artifact | `dist\NexusSetup.exe` (unsigned) |
+| Size | 251,059,373 bytes (239.4 MB) |
+| SHA-256 | `8B546AE4288992A1339B45DF523B423C7F82CDED65AAD87504179099A032699D` |
+| Source commit | `2b7b9811` (`develop`, merge of PR 63) |
+| Staged desktop NSIS | `Nexus AI Studio_2.4.1_x64-setup.exe` (5,197,476 bytes) |
+| Contains | v2.4.1 through v2.4.7 |
+
+Smoke passed all four assertions: single artifact, no leftover two-artifact wizard, and `--version` / `--check-registry` / `--check-desktop-payload` each exit 0.
+
+**Verified by extracting the embedded archive, not by grepping the exe.** A byte-grep of a PyInstaller onefile finds nothing and proves nothing, because the payload is compressed - the lesson from v2.4.4. Two checks against the real embedded content:
+
+```
+installer-build\versions.lock.json   ->  diffusers==0.36.0
+runtimes\diffusion\runtime-lock.json ->  diffusers==0.36.0
+
+PYZ modules: nexus_installer.engine.required_components   (new this cycle)
+             nexus_installer.engine.installed_models
+             nexus_installer.engine.install_guard
+```
+
+`required_components` is this cycle's new module, so its presence is direct evidence the artifact carries the v2.4.7 work rather than an older build. The lock files confirm v2.4.4's Diffusers pin survived.
+
+**No version bump, tag, or GitHub Release.** The package version stays 2.4.1. Nothing in the 2.4 series releases until the operator confirms field testing passed, and this repository's semantic-release automation on `main` makes a manual bump actively harmful - a dry run computes 2.4.0 against a `package.json` already reading 2.4.1 (see the v2.4.4 last-phase evidence).
+
+Two build-time warnings, both pre-existing and by design:
+
+- **Hub catalog snapshot refused** - the local catalog is not the latest tag. `build-windows.ps1` deliberately refuses to embed a stale snapshot; the installer syncs Hub at install time.
+- **Placeholder HF weight pins remain** (`dist/pin-check.log`), so those downloads skip hash verification (the `sam2:hiera-tiny` class).
