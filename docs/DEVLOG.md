@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-09-06] v2.4.7 - installer wizard density and scope (Phases 1-5)
+
+Index: [plan](v2/v2.4/plans/v2.4.7-installer-wizard-density-and-scope.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.7-wizard-density.md), [gaps](v2/v2.4/known-gaps.md), histories [P1](v2/v2.4/development/history/2026-09-06_v2.4.7-phase-1-selection-sizing.md), [P2](v2/v2.4/development/history/2026-09-06_v2.4.7-phase-2-config-scope.md), [P3](v2/v2.4/development/history/2026-09-06_v2.4.7-phase-3-page-layout.md), [P4](v2/v2.4/development/history/2026-09-06_v2.4.7-phase-4-review-density.md), [P5](v2/v2.4/development/history/2026-09-06_v2.4.7-phase-5-last-phase.md). Package remains **2.4.1**; nothing in the 2.4 series is released.
+
+### What Changed
+
+- **Selection-scoped sizing.** `state.pending_models_gb` is now the one figure the install guard, the picker footer, `can_select_model` and the Review estimate all read. They previously read `installed_report.pending_gb`, which is catalog-wide.
+- **Derived components.** Ollama, the Python environment and the desktop app are resolved from the model selection and shown as a read-only list with a reason each, instead of three checkboxes that silently broke selected models. The thinking-mode and persistent-memory toggles left the installer; their state fields and defaults are untouched.
+- **Install Path** spans the full width with Browse overlaid inside it.
+- **Configuration** puts the Ollama URL under Ollama at column width with no heading, and drops the VS Code detection paragraph in favour of a tooltip on the disabled checkbox.
+- **Review** moves both estimates into the facts column with storage on one line, and replaces the "N selected" sentence with a SELECTED / READY / TO DOWNLOAD counter row above the category groups.
+
+### Why It Changed
+
+Field-testing the v2.4.6 installer produced four screenshots. One was a defect: Review claimed `7 selected (7 already downloaded, 0 to download)` beside `~157 GB to download`. The other three were density and scope feedback, including a direct question about whether all eight Configuration options were needed.
+
+### Decisions Made
+
+- The probe keeps its catalog-wide scope, because every card needs a Downloaded pill; only the sizes became selection-scoped at the point of use.
+- Every fixture in the new sizing suite uses a catalog strictly wider than the selection. That property is what v2.4.5's tests lacked, which is how the defect survived two releases behind a green suite.
+- Three of the eight Configuration options were load-bearing and two were not install decisions at all; the split was decided by tracing what each gates, not by taste.
+- Zero failures across every suite. `npm rebuild better-sqlite3` was run up front, applying the v2.4.5 lesson about the Electron ABI.
+- No version bump, tag or release. The cycle ends with an installer rebuild for field testing.
+
+---
+
 ## [2026-09-04] v2.4.6 Phase 8 - Integration PR and merge-result fixes
 
 Index: [plan](v2/v2.4/plans/v2.4.6-field-delivery-density-and-session-identity.md), [gaps](v2/v2.4/known-gaps.md), [evidence](v2/v2.4/development/last-phase-evidence-v2.4.6-field-delivery.md), PR [62](https://github.com/bendourthe/Nexus-AI/pull/62). Package remains **2.4.1**.
