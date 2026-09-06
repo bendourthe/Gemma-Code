@@ -209,7 +209,7 @@ Installer and extension suites were green at their phase commits (`fb7d8ddd` thr
 
 ## Publication and integration
 
-PR: https://github.com/bendourthe/Nexus-AI/pull/62 against `develop` (opened 2026-09-04). Branch published at `e1f399c6`. Package remains 2.4.1. `/update release` is held until this PR is merged. Required checks on the stabilization push are green (installer tests, Shell ubuntu-latest, production npm audit included). `init.ps1 (Windows)` is skipped on `pull_request` by design. Merge still waits on explicit operator approval.
+PR: https://github.com/bendourthe/Nexus-AI/pull/62 against `develop` (opened 2026-09-04). Branch published at `e1f399c6`. Package remains 2.4.1. `/update release` is held until this PR is merged. Required checks on the stabilization push are green (installer tests, Shell ubuntu-latest, production npm audit included). `init.ps1 (Windows)` is skipped on `pull_request` by design. Merged into `develop` as `8499c05d` on 2026-09-06 after explicit operator approval, with 42 checks pass / 0 fail / 1 path-gated skip and `MERGEABLE / CLEAN`.
 
 First merge-result run was red on three checks. Each was reproduced locally before the re-push (`e1f399c6`):
 
