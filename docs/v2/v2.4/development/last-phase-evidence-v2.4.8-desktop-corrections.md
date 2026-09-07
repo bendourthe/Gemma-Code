@@ -50,7 +50,9 @@ Commits on this branch, each staging only the paths its phase names:
 | 6a | see `git log` | test(desktop): expect the proportional token split on the chat-session done event (full-suite finding, T031) |
 | 6b | `817edbaa` | docs(v2.4.8): record last-phase evidence, known gaps, CI filter, and the installer rebuild |
 | 7 | `eaaea3c2` | feat(desktop): put the model card action in the title row and group each tab as collapsible Downloaded, Compatible, Incompatible |
-| 7b | see `git log` | docs(v2.4.8): Phase 7 evidence, known gaps, and the second installer rebuild |
+| 7b | `ff618b9d` | docs(v2.4.8): record Phase 7 evidence, known gaps, and the second installer rebuild |
+| 8 | `c34154a0` | fix(media): pin torch 2.5.1 with a 2.4 floor, add a Loading model state, center the composer cluster, and trim the GPU card |
+| 8b | see `git log` | docs(v2.4.8): Phase 8 evidence, known gaps, and the third installer rebuild |
 
 Pre-existing uncommitted state, untouched and unstaged by this plan: 30 modified and 6 untracked files (installer wizard merge rounds 1-3 under `scripts/installer/`, `docs/v2/v2.5/`, `tests/fixtures/memory-tier-benchmark-results/2026-05-26/results.json`, and the wizard-merge notes in `docs/todos.md`). The `docs/todos.md` banner for this plan was staged against the `HEAD` version of the file so the commit carries the banner alone; the working copy keeps the wizard notes. `git status` after the Phase 6 commit lists exactly that pre-existing set.
 
@@ -202,6 +204,50 @@ Build complete.
 ```
 
 Built 2026-09-07 09:14 local. This supersedes the 2026-09-06 build (`0E66604B...9DC7FF`) and is the one to field-test. The same two expected log notes apply (stale Hub snapshot refused; placeholder HF pins), and the uncommitted wizard-merge state is still included (DF-2).
+
+## Phase 8 addendum (2026-09-07) - Video runtime torch floor and field round 2
+
+Second field round became Phase 8 (T037-T039). Session history: `history/2026-09-07_v2.4.8-phase-8-video-runtime-and-field-round-2.md`.
+
+**Root cause of the video failure**: `~/.nexus/runtime.json` read `ready` at `torch_version: 2.3.0+cu121`; both lock files pinned 2.3.0; diffusers 0.36's SANA-Video imports `torch.nn.RMSNorm` (torch 2.4+); no readiness layer checked the version. Fixed at the lock (2.5.1 cu121, twelve verified wheels) and guarded at the installer smoke, the sidecar status, and the runtime readiness.
+
+**Why the Models card still showed the star**: `~/.nexus/desktop-payload.json` records sha `cf3401c9...` (the 2026-09-06 22:46 payload, Phases 1-5). The Phase 7 payload is `9f2403dc...`; the installed desktop predates it. The Settings footer prints the installed payload sha prefix for exactly this check.
+
+**Verification**
+
+```
+scripts/installer: uv run pytest -q                                     -> full suite passed (lock bump included)
+tests/python/diffusion/test_real_execute.py                             -> 41 passed
+desktop: mediaMessageBubble, shell-phase6, diffusion-runtime-factory,
+         MediaComposer, composer-surface-phase5, ImageStudioPage,
+         VideoLabPage, AgentStateOrb, ChatPage, CodingPage                -> 196 passed (196)
+desktop: npm run typecheck / npm run lint                               -> exit 0
+```
+
+**Known gaps added**: BG-4 resolved; MT-7 (packaged Phase 8 not observed); DF-5 (stale venv repaired only by reinstall or Settings > Video Repair).
+
+**Operator checks, appended to T030**
+
+10. **Reinstall.** Run the new `dist/NexusSetup.exe`. The media-runtime step re-provisions (the manifest changed) and downloads about 2.4 GB of torch 2.5.1 wheels; wait for it. Then `type %USERPROFILE%\.nexus\runtime.json` shows `"torch_version": "2.5.1+cu121"` and `"status": "ready"`. If you skip the reinstall, Settings > Video shows the runtime as repairable with "older than 2.4"; press Repair.
+11. **Video.** Videos, `Generate a video of a puppy playing in the grass`. No `RMSNorm` error; the bubble reads `Loading model...` first, then rotates Generating / Creating / Crafting, then plays the clip.
+12. **Loading state.** From Chat, switch to Images and generate. The orb reads `Loading model...` while the GPU bar is still low, and switches to the studio captions when the bar rises.
+13. **Composer.** On Chat, Agents, Images, and Videos the `+`, `...`, mic, and send controls sit vertically centered on the field, at one line and after the field grows.
+14. **GPU card.** Idle: the card is the bar plus `GPU usage 0%` and free VRAM, no `Idle` line. While a model is loaded, the model name row returns above the bar.
+15. **Footer fingerprint.** Settings footer reads `Desktop payload 2.4.1 (` followed by the new payload sha prefix recorded below; if it still reads `cf3401c9`, the reinstall did not replace the desktop.
+
+**Third installer rebuild**
+
+```
+cd desktop && npm run build:shell                       -> shell rebuilt with Phases 7 and 8
+build-windows.ps1 -SkipSign
+  Desktop bundle staged: Nexus AI Studio_2.4.1_x64-setup.exe (sha256 368e75a70e5c...)
+  File: dist/NexusSetup.exe
+  Size: 251.1 MB (251,069,461 bytes)
+  SHA256: 3C1EBA0489F7B5AFACA212E76EA999685E2660AB44346E6F81523698972BC9B3
+Build complete.
+```
+
+Built 2026-09-07 local. This supersedes both earlier v2.4.8 builds (`0E66604B...` and `BD224EA3...`) and is the one to field-test. The installed payload record must read `368e75a7...` after the reinstall (operator item 15). The embedded media manifest now carries the torch 2.5.1 lock, so the installer reprovisions the diffusion venv (DF-5). The same two expected log notes apply (stale Hub snapshot refused; placeholder HF pins), and the uncommitted wizard-merge state is still included (DF-2).
 
 ## T033 - Publication
 

@@ -15,10 +15,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Category | Open | Resolved |
 |---|---:|---:|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 4 | 0 |
-| Bugs / regressions (BG) | 0 | 3 |
+| Deferred (DF) | 5 | 0 |
+| Bugs / regressions (BG) | 0 | 4 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 6 | 0 |
+| Missing tests / coverage gaps (MT) | 7 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
 Phases 1-5 implemented against five operator screenshots of the v2.4.7 desktop. Three were correctness defects (double-counted reasoning tokens, an installer snapshot that named an embedding model as the Chat pick and an untagged model as the Agentic pick, and a Settings tab order that had drifted from the installer); two were chrome and dismissal feedback. Every earlier open row carries forward. Publication and release wait on explicit approval.
@@ -28,6 +28,7 @@ Phases 1-5 implemented against five operator screenshots of the v2.4.7 desktop. 
 - **BG-1 (resolved)** - Reasoning tokens double-counted: Ollama `eval_count` already includes thinking; the sidecar added a bytes/4 estimate on top. Phase 1 splits the provider total by text proportion. `desktop/tests/serving-chatCore.test.ts`.
 - **BG-2 (resolved)** - Installer snapshot recommendation ignored catalog tier and mapped embeddings to Chat, so Agents defaulted to gpt-oss 20B. Phase 5 fixes `runtime_provisioner._recommended_by_task` and makes the desktop default catalog-endorsed. `scripts/installer/tests/test_runtime_provisioner.py`, `desktop/tests/selection-policy.test.ts`.
 - **BG-3 (resolved)** - Settings tab order drifted from the installer (Document last). Phase 4 pins both sides to `tests/fixtures/v2.4.8-catalog-tab-order.json`.
+- **BG-4 (resolved)** - Video generation failed with `module 'torch.nn' has no attribute 'RMSNorm'`: both media lock files pinned torch 2.3.0 while diffusers 0.36's SANA-Video needs 2.4+, and no readiness layer checked the version. Phase 8 pins 2.5.1 cu121 with verified wheels and adds a 2.4 floor to the installer smoke, the sidecar status, and the runtime readiness. `scripts/installer/tests/test_media_runtime_contract.py`, `desktop/tests/diffusion-runtime-factory.test.ts`, `tests/python/diffusion/test_real_execute.py`.
 
 ### Open Items
 
@@ -72,6 +73,20 @@ Phases 1-5 implemented against five operator screenshots of the v2.4.7 desktop. 
 - **Impact**: Tests pin size-then-action in the title row, the absence of star / checkmark / action row, the three headings with counts, collapse per tab, and disabled incompatible cards. None of it has rendered in the packaged desktop.
 - **Owner**: Operator, this cycle's second installer rebuild
 - **Next step**: Operator items 8-9 in `last-phase-evidence-v2.4.8-desktop-corrections.md`.
+
+##### MT-7 - Packaged Phase 8 surfaces are not observed
+
+- **Source phase**: Phase 8 (added 2026-09-07)
+- **Impact**: Tests pin the torch floor on three layers, the `loading` / `generating` stages, the `Loading model...` bubble state, the centered composer cluster, and the footer copy. No packaged install has yet reprovisioned the venv to torch 2.5.1 or generated a video on it.
+- **Owner**: Operator, this cycle's third installer rebuild
+- **Next step**: Operator items 10-15 in `last-phase-evidence-v2.4.8-desktop-corrections.md`.
+
+##### DF-5 - The stale torch 2.3.0 venv is repaired only by a reinstall or a Settings > Video Repair
+
+- **Source phase**: Phase 8
+- **Impact**: The desktop now reports the stale venv as repairable and offers Repair; the runtime refuses to generate with a typed message. Nothing upgrades the venv automatically. The wheel download is about 2.4 GB on Windows.
+- **Owner**: Operator
+- **Next step**: Re-run the rebuilt installer (the changed manifest fingerprint reprovisions) or press Repair in Settings > Video.
 
 ##### DF-4 - Settings no longer offers a way to set or clear a favorite model
 
