@@ -191,23 +191,48 @@ export function collectUsage(chunk: LLMStreamChunk, into: CollectedUsage): void 
   }
 }
 
+/**
+ * v2.4.8 Phase 1 (T001) -- the provider's completion count is the truth for
+ * the whole turn. Ollama's `eval_count` and OpenAI's `completion_tokens` both
+ * count every generated token, thinking included, so reasoning is never added
+ * on top of them. When a backend reports an explicit `reasoning_tokens`, output
+ * is the remainder. When it reports only the total and the model produced
+ * thinking text, the total is split in proportion to the thinking and reply
+ * byte lengths, so `reasoning + output === total` exactly and the ratio follows
+ * the text. The bytes/4 estimate survives only for a turn with no counts at
+ * all, which is the case it was written for.
+ */
 export function turnUsageFromCollected(
   usage: CollectedUsage,
   thinkingText = "",
+  replyText = "",
 ): {
   inputTokens: number | null;
   reasoningTokens: number | null;
   outputTokens: number | null;
 } {
-  const thinkingReasoning = thinkingText.trim().length > 0 ? Math.ceil(new TextEncoder().encode(thinkingText).length / 4) : null;
-  const reasoning = usage.reasoningTokens ?? thinkingReasoning;
+  const thinkBytes = new TextEncoder().encode(thinkingText.trim()).length;
   if (!usage.reported) {
-    return { inputTokens: null, reasoningTokens: reasoning, outputTokens: null };
+    const estimated = thinkBytes > 0 ? Math.ceil(thinkBytes / 4) : null;
+    return { inputTokens: null, reasoningTokens: usage.reasoningTokens ?? estimated, outputTokens: null };
   }
+  const total = usage.completionTokens;
+  if (usage.reasoningTokens !== null) {
+    return {
+      inputTokens: usage.promptTokens,
+      reasoningTokens: usage.reasoningTokens,
+      outputTokens: Math.max(total - usage.reasoningTokens, 0),
+    };
+  }
+  if (thinkBytes === 0) {
+    return { inputTokens: usage.promptTokens, reasoningTokens: null, outputTokens: total };
+  }
+  const replyBytes = new TextEncoder().encode(replyText.trim()).length;
+  const reasoning = Math.round((total * thinkBytes) / (thinkBytes + replyBytes));
   return {
     inputTokens: usage.promptTokens,
     reasoningTokens: reasoning,
-    outputTokens: usage.completionTokens,
+    outputTokens: total - reasoning,
   };
 }
 
