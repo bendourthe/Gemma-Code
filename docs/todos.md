@@ -2,6 +2,8 @@
 
 **Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v2.4.1-field-reliability` (**v2.4.3** field density Phases 1-8 local complete; T040 waits on explicit push approval against `develop` via [PR 58](https://github.com/bendourthe/Nexus-AI/pull/58). Package remains **2.4.1** until `/update release`).
 
+> **v2.4.8 DESKTOP CORRECTIONS, PHASES 1-5 LOCAL (2026-09-06)** -- [plan](v2/v2.4/plans/v2.4.8-desktop-token-split-persona-and-model-order.md) T001-T023 complete on `feat/v2.4.8-desktop-token-split-persona-and-model-order`: provider token total split by text proportion (no more double-counted reasoning), composer menus and Persona popover dismiss on outside click / Escape with app tokens, `Sessions` title in nav type on four pillars, Settings tabs and cards in the installer grammar (shared fixtures asserted from vitest and pytest), pickers and defaults follow catalog tier and the installer snapshot writer names the picker's own top pick. Phase 6: evidence, known gaps, CI filter, installer rebuild. No push until approved.
+
 > **v2.4.3 FIELD DENSITY PHASE 8 LOCAL (2026-08-31)** -- [field density last-phase evidence](v2/v2.4/development/last-phase-evidence-v2.4.3-field-density.md) T032-T039 complete. T040 is one push that updates PR 58; merge, tag, and `/update release` wait on green integration. MT-1 through MT-7 remain Not observed.
 
 > **v2.4.3 FIELD DENSITY PHASE 7 (2026-08-31)** -- [SANA-Video layout and executor](v2/v2.4/plans/v2.4.3-field-density-identity-and-runtime.md) T028-T031 complete. Complete Diffusers tree plus SanaVideoPipeline. Next: Phase 8 last-phase evidence.

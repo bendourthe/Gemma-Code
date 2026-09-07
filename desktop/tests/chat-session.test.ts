@@ -70,12 +70,15 @@ describe("createChatMessageHandler", () => {
       model: requireModel("gemma4:e4b"),
       messages: [{ role: "user", content: "hi" }],
     });
+    // v2.4.8 Phase 1: eval_count (8) already includes the thinking tokens, so
+    // it is split by text proportion (4 thinking bytes : 2 reply bytes ->
+    // 5 : 3) instead of adding a bytes/4 estimate on top of it.
     expect(events.at(-1)).toEqual({
       kind: "done",
       finishReason: "stop",
       inputTokens: 20,
-      reasoningTokens: 1,
-      outputTokens: 8,
+      reasoningTokens: 5,
+      outputTokens: 3,
     });
     const done = events.at(-1);
     if (!done || done.kind !== "done") throw new Error("expected done event");
@@ -89,8 +92,10 @@ describe("createChatMessageHandler", () => {
       ],
       contextWindow: 100,
     });
-    expect(summed.usedTokens).toBe(29);
-    expect(summed.percent).toBeCloseTo(29);
+    // 20 input + 8 generated (5 reasoning + 3 output): the provider total is
+    // never inflated by an estimate.
+    expect(summed.usedTokens).toBe(28);
+    expect(summed.percent).toBeCloseTo(28);
     expect(summed.estimated).toBe(false);
   });
 
