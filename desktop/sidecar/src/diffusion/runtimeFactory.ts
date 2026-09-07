@@ -72,7 +72,28 @@ const FAILURE_MESSAGES: Record<string, string> = {
   IMPORT_SMOKE_FAILED: "The installed media packages failed their import test.",
   ENCODER_UNAVAILABLE: "The local video encoder is missing.",
   REPAIR_BUSY: "Another process is repairing the media runtime.",
+  TORCH_TOO_OLD:
+    "The installed PyTorch is older than 2.4, which the video pipeline needs. Repair reinstalls the pinned media packages.",
 };
+
+/**
+ * v2.4.8 Phase 8: the oldest torch the media runtime accepts. diffusers 0.36's
+ * SANA-Video pipeline imports `torch.nn.RMSNorm` (torch 2.4+). The operator's
+ * runtime.json read `ready` with torch 2.3.0+cu121 and the first video
+ * generate failed with an AttributeError; a recorded version below this floor
+ * is now a repairable state, and repair installs the lock's 2.5.1 stack.
+ */
+export const MIN_TORCH_VERSION: readonly [number, number] = [2, 4];
+
+export function torchTooOld(version: string | undefined): boolean {
+  const core = (version ?? "").split("+", 1)[0]?.trim() ?? "";
+  if (!core) return false;
+  const [major, minor = "0"] = core.split(".");
+  const maj = Number(major);
+  const min = Number(minor);
+  if (!Number.isInteger(maj) || !Number.isInteger(min)) return false;
+  return maj < MIN_TORCH_VERSION[0] || (maj === MIN_TORCH_VERSION[0] && min < MIN_TORCH_VERSION[1]);
+}
 
 function failureMessage(code: string): string {
   return FAILURE_MESSAGES[code] ?? `Media runtime readiness failed (${code}).`;
@@ -115,13 +136,14 @@ export class MediaRuntimeService {
       return { state: "failed", code: "CONTRACT_MISSING", message: "The media-runtime installation record is missing.", retryable: false, progress: 0, logPath };
     }
     const readiness = config.diffusion;
-    const code = readiness?.failure_code || "RUNTIME_NOT_READY";
+    const staleTorch = readiness?.status === "ready" && torchTooOld(readiness.torch_version);
+    const code = staleTorch ? "TORCH_TOO_OLD" : readiness?.failure_code || "RUNTIME_NOT_READY";
     const python = config.diffusionPython || "";
     const cwd = config.diffusionCwd || "";
     const repairModule = cwd ? join(cwd, "runtimes", "diffusion", "repair.py") : "";
     const repairLock = cwd ? join(cwd, "runtimes", "diffusion", "runtime-lock.json") : "";
     const executableReady = Boolean(python && cwd && this.exists(python) && this.exists(cwd));
-    if (readiness?.status === "ready" && executableReady) {
+    if (readiness?.status === "ready" && executableReady && !staleTorch) {
       return { state: "ready", code: "READY", message: "Image and video generation is ready.", retryable: false, progress: 1, logPath };
     }
     const repairable = Boolean(executableReady && this.exists(repairModule) && this.exists(repairLock));

@@ -81,6 +81,8 @@ describe("MessageBubble media", () => {
       content: "",
       pending: true,
       activity: "image-generation",
+      // v2.4.8 Phase 8: sampling has started, so the studio captions apply.
+      progress: { step: 1, total: 20, stage: "generating" },
     };
     render(<MessageBubble message={msg} />);
     expect(
@@ -101,6 +103,56 @@ describe("MessageBubble media", () => {
       width: "100%",
     });
     expect(screen.queryByTestId("message-bubble-studio-pending")).toBeNull();
+  });
+
+  // v2.4.8 Phase 8: operator report 2026-09-07 -- after switching to Images the
+  // GPU idled while weights loaded, yet the bubble already read "Creating...".
+  it("shows Loading model until the runtime reports generating or a counted step", () => {
+    const base: ChatMessage = {
+      id: "studio-loading",
+      role: "assistant",
+      content: "",
+      pending: true,
+      activity: "image-generation",
+    };
+    const { rerender } = render(<MessageBubble message={base} />);
+    expect(screen.getByRole("img", { name: "Loading model" })).toHaveAttribute(
+      "data-orb-size",
+      "hero",
+    );
+    expect(screen.getByTestId("agent-state-orb-caption").textContent).toBe(
+      "Loading model...",
+    );
+    // A heartbeat with no stage keeps loading.
+    rerender(
+      <MessageBubble
+        message={{ ...base, progress: { step: 0, total: 0, stage: "loading" } }}
+      />,
+    );
+    expect(screen.getByTestId("agent-state-orb-caption").textContent).toBe(
+      "Loading model...",
+    );
+    // The runtime's generating stage flips to the studio captions.
+    rerender(
+      <MessageBubble
+        message={{ ...base, progress: { step: 0, total: 0, stage: "generating" } }}
+      />,
+    );
+    expect(screen.queryByText("Loading model...")).toBeNull();
+    expect(STUDIO_PENDING_CAPTIONS).toContain(
+      screen.getByTestId("agent-state-orb-caption").textContent,
+    );
+    expect(screen.getByRole("img", { name: /generating media/i })).toBeInTheDocument();
+    // So does a counted step even without a stage.
+    rerender(<MessageBubble message={{ ...base, progress: { step: 2, total: 20 } }} />);
+    expect(screen.queryByText("Loading model...")).toBeNull();
+    // Chat pending is untouched: no Loading model on a text reply.
+    rerender(
+      <MessageBubble
+        message={{ id: "chat", role: "assistant", content: "", pending: true }}
+      />,
+    );
+    expect(screen.queryByText("Loading model...")).toBeNull();
   });
 
   it("replaces undecodable generated media with a visible failure", () => {

@@ -122,8 +122,18 @@ describe("GPU status footer", () => {
   it("renders utilization and free VRAM when a sample arrives", () => {
     render(<GpuStatusFooter compact={false} stream={streamOf(sample())} />);
     const footer = screen.getByTestId("gpu-status-footer");
-    expect(footer.textContent).toContain("GPU 41%");
+    // v2.4.8 Phase 8: the bottom row reads "GPU usage"; an idle sample has no
+    // headline row at all, so the card is the bar plus one line.
+    expect(footer.textContent).toContain("GPU usage 41%");
     expect(footer.textContent).toContain("4.8 GB free");
+  });
+
+  it("drops the headline row while idle so the card is the bar plus one line", () => {
+    render(<GpuStatusFooter compact={false} stream={streamOf(sample({ idle: true }))} />);
+    const footer = screen.getByTestId("gpu-status-footer");
+    expect(footer.textContent).not.toContain("Idle");
+    expect(screen.queryByTestId("gpu-status-footer-headline")).toBeNull();
+    expect(footer.textContent).toContain("GPU usage 41%");
   });
 
   it("marks a stale sample rather than presenting it as current", () => {
@@ -153,13 +163,16 @@ describe("GPU status footer", () => {
     const footer = screen.getByTestId("gpu-status-footer");
     expect(footer.textContent).not.toContain("Idle");
     expect(footer.textContent).toContain("gemma4");
+    expect(screen.getByTestId("gpu-status-footer-headline").textContent).toBe(
+      "gemma4 e4b",
+    );
   });
 
   it("collapses to a slim mark with the numbers in its tooltip", () => {
     render(<GpuStatusFooter compact stream={streamOf(sample())} />);
     const footer = screen.getByTestId("gpu-status-footer");
     expect(footer.getAttribute("title")).toContain("Free VRAM");
-    expect(footer.textContent).not.toContain("GPU 41%");
+    expect(footer.textContent).not.toContain("GPU usage 41%");
   });
 
   it("is not fixed-positioned anywhere (the dock covered the buttons)", () => {

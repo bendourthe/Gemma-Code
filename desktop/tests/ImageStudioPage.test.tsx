@@ -395,15 +395,24 @@ describe("ImageStudioPage (chat)", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
-    const orb = await screen.findByRole("img", { name: /generating media/i });
-    expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
+    // v2.4.8 Phase 8: before the runtime reports a stage or a counted step the
+    // orb reads "Loading model..." (weights moving onto the GPU are not
+    // creation); once sampling starts it rotates the studio captions.
+    const orb = await screen.findByRole("img", {
+      name: /loading model|generating media/i,
+    });
+    expect(orb).toHaveAttribute(
+      "data-agent-activity",
+      expect.stringMatching(/^(model-loading|image-generation)$/),
+    );
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     // v2.4.4 Phase 5.3: one of Creating / Crafting / Generating, never Shaping.
     expect(screen.queryByText("Shaping...")).toBeNull();
     expect(
-      STUDIO_PENDING_CAPTIONS.some(
-        (caption) => screen.queryByText(caption) !== null,
-      ),
+      screen.queryByText("Loading model...") !== null ||
+        STUDIO_PENDING_CAPTIONS.some(
+          (caption) => screen.queryByText(caption) !== null,
+        ),
     ).toBe(true);
     // The old assertion here was that "Generating..." is absent, meaning "no
     // second status label beside the orb". "Generating..." is now one of the

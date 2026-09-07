@@ -40,7 +40,12 @@ export interface ChatMessage {
   /** True while an assistant message's generation is still in flight. */
   pending?: boolean;
   /** Optional step/total progress for a pending generation. */
-  progress?: { readonly step: number; readonly total: number };
+  /**
+   * v2.4.8 Phase 8: `stage` is the runtime's explicit phase (`loading` while
+   * weights move onto the GPU, `generating` once sampling starts). Absent
+   * or `loading` renders the bubble's "Loading model..." state.
+   */
+  progress?: { readonly step: number; readonly total: number; readonly stage?: string };
   /**
    * v1.17.0 Phase 2 -- agent activity driving the inline orb while this
    * message is pending. Surfaces pass a typed activity; the bubble maps it

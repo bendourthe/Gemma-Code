@@ -307,6 +307,8 @@ export function VideoLabPage({
     ReadonlyMap<string, readonly TimelineSegment[]>
   >(() => new Map());
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> mp4Path
+  // v2.4.8 Phase 8: last explicit runtime stage per message (see ImageStudioPage).
+  const stageByMessage = useRef<Map<string, string>>(new Map());
   const frameRatesByMessage = useRef<Map<string, number>>(new Map());
   const [enhancementSources, setEnhancementSources] = useState<
     ReadonlyMap<string, VideoEnhancementSourceBinding>
@@ -655,8 +657,11 @@ export function VideoLabPage({
     ): Promise<{ done: boolean; nextJobId?: string }> => {
       for (const event of events) {
         if (event.kind === "progress") {
+          const stage =
+            event.stage ?? stageByMessage.current.get(messageId) ?? "loading";
+          stageByMessage.current.set(messageId, stage);
           patchMessage(messageId, {
-            progress: { step: event.step ?? 0, total: event.totalSteps ?? 0 },
+            progress: { step: event.step ?? 0, total: event.totalSteps ?? 0, stage },
           });
         } else if (event.kind === "complete") {
           const mp4Path = event.outputPath ?? event.mp4Path ?? "";

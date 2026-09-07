@@ -187,12 +187,21 @@ export function MessageBubble({
               cycles Thinking / Searching / Working / Solving with one stable
               accessible name. Image/Video pending stays the hero orb. */}
             <AgentStateOrb
-              activity={message.activity ?? "chat-streaming"}
+              activity={
+                isLoadingModel(message)
+                  ? "model-loading"
+                  : (message.activity ?? "chat-streaming")
+              }
               size={studioPending ? "hero" : "bubble"}
               showCaption
               rotateCaptions={!studioPending}
+              caption={isLoadingModel(message) ? "Loading model..." : undefined}
               accessibleName={
-                studioPending ? "Generating media" : "Generating reply"
+                isLoadingModel(message)
+                  ? "Loading model"
+                  : studioPending
+                    ? "Generating media"
+                    : "Generating reply"
               }
               surfaceId={`message-${message.id}`}
             />
@@ -309,11 +318,22 @@ function PendingMessage({
       }}
     >
       <AgentStateOrb
-        activity={message.activity ?? "chat-streaming"}
+        activity={
+          isLoadingModel(message)
+            ? "model-loading"
+            : (message.activity ?? "chat-streaming")
+        }
         size={studioPending ? "hero" : "bubble"}
         showCaption
         rotateCaptions={!studioPending}
-        accessibleName={studioPending ? "Generating media" : "Generating reply"}
+        caption={isLoadingModel(message) ? "Loading model..." : undefined}
+        accessibleName={
+          isLoadingModel(message)
+            ? "Loading model"
+            : studioPending
+              ? "Generating media"
+              : "Generating reply"
+        }
         surfaceId={`message-${message.id}`}
       />
       {message.progress && message.progress.total > 0 ? (
@@ -321,6 +341,25 @@ function PendingMessage({
       ) : null}
     </div>
   );
+}
+
+/**
+ * v2.4.8 Phase 8 -- a studio job is "loading the model" until the runtime says
+ * otherwise. Operator report (2026-09-07): after switching from Chat to Images
+ * the GPU sat idle for a while before the first sample, and the bubble already
+ * read "Creating...". Weights moving onto the GPU are not creation. The
+ * runtime now emits `stage: "loading"` before a pipeline is built and
+ * `stage: "generating"` once it is on the device; before any event, or while
+ * the stage is still `loading` with no step counted, the orb shows
+ * "Loading model...". A counted step or the `generating` stage flips it to the
+ * studio captions.
+ */
+export function isLoadingModel(message: ChatMessage): boolean {
+  if (!isStudioPending(message)) return false;
+  const progress = message.progress;
+  if (!progress) return true;
+  if (progress.step > 0) return false;
+  return (progress.stage ?? "loading") === "loading";
 }
 
 function BubbleMeta({

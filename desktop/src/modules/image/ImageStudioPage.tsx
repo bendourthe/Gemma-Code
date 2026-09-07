@@ -314,6 +314,9 @@ export function ImageStudioPage({
   } | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> raw png
+  // v2.4.8 Phase 8: last explicit runtime stage per message; heartbeats carry
+  // no stage, so the previous one is kept until `generating` arrives.
+  const stageByMessage = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (pendingReplace) setAdvancedOpen(true);
@@ -564,7 +567,10 @@ export function ImageStudioPage({
         if (event.kind === "progress") {
           const step = event.step ?? 0;
           const total = event.totalSteps ?? 0;
-          patchMessage(messageId, { progress: { step, total } });
+          const stage =
+            event.stage ?? stageByMessage.current.get(messageId) ?? "loading";
+          stageByMessage.current.set(messageId, stage);
+          patchMessage(messageId, { progress: { step, total, stage } });
         } else if (event.kind === "complete") {
           done = true;
           const png = event.png ?? "";

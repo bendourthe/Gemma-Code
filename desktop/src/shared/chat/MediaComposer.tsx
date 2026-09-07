@@ -24,7 +24,7 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from "react";
-import { Send, Square } from "lucide-react";
+import { Plus, Send, Square } from "lucide-react";
 import { useDismissOnOutside } from "../ui/useDismissOnOutside";
 import {
   AccentBeam,
@@ -494,7 +494,7 @@ export function MediaComposer({
                 onClick={() => fileInputRef.current?.click()}
                 style={clusterIconStyle}
               >
-                +
+                <Plus size={18} aria-hidden="true" />
               </button>
               {hasOverflow ? (
                 <button

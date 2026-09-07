@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createDiffusionRuntime,
   MediaRuntimeService,
+  torchTooOld,
   UnavailableDiffusionRuntime,
 } from "../sidecar/src/diffusion/runtimeFactory";
 import {
@@ -129,6 +130,37 @@ describe("MediaRuntimeService", () => {
       existsFn: () => true,
     });
     expect(service.status()).toMatchObject({ state: "ready", code: "READY", progress: 1 });
+  });
+
+  // v2.4.8 Phase 8: operator evidence (2026-09-07). runtime.json said ready
+  // with torch 2.3.0+cu121; the first video generate failed with
+  // "module 'torch.nn' has no attribute 'RMSNorm'" (torch 2.4+).
+  it("treats a ready record whose torch is older than 2.4 as repairable", () => {
+    const service = new MediaRuntimeService({
+      readConfig: () => ({
+        ...config,
+        diffusion: { status: "ready", torch_version: "2.3.0+cu121" },
+      }),
+      existsFn: () => true,
+    });
+    expect(service.status()).toMatchObject({
+      state: "repairable",
+      code: "TORCH_TOO_OLD",
+      retryable: true,
+    });
+    expect(service.status().message).toMatch(/older than 2\.4/);
+    const fresh = new MediaRuntimeService({
+      readConfig: () => ({
+        ...config,
+        diffusion: { status: "ready", torch_version: "2.5.1+cu121" },
+      }),
+      existsFn: () => true,
+    });
+    expect(fresh.status()).toMatchObject({ state: "ready", code: "READY" });
+    expect(torchTooOld("2.3.0+cu121")).toBe(true);
+    expect(torchTooOld("2.4.0")).toBe(false);
+    expect(torchTooOld(undefined)).toBe(false);
+    expect(torchTooOld("nightly")).toBe(false);
   });
 
   it("shares a live external repair instead of starting a duplicate", () => {

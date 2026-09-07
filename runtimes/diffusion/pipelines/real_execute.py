@@ -268,8 +268,10 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
         if ctx.mode == "img2img":
             if not ctx.params.source_image:
                 raise RuntimeNotReady("img2img requires source image bytes")
+            base.emit_stage(ctx.job_id, "loading")
             pipe = _load_image_pipe(weights, model_id)
             _move_pipe(pipe, ctx.offload_strategy)
+            base.emit_stage(ctx.job_id, "generating")
             source = _decode_pil(ctx.params.source_image)
             source_digest = _image_digest(_png_bytes(source))
             # v2.4.4 Phase 3.2: an explicit None check, not `or`. A caller that
@@ -296,8 +298,10 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
                 f"image runtime is not ready: {ctx.mode} weights path is not wired"
             )
         else:
+            base.emit_stage(ctx.job_id, "loading")
             pipe = _load_text_pipe(weights, model_id)
             _move_pipe(pipe, ctx.offload_strategy)
+            base.emit_stage(ctx.job_id, "generating")
             result = pipe(
                 prompt=ctx.params.prompt,
                 negative_prompt=ctx.params.negative_prompt or None,
@@ -431,8 +435,10 @@ def _run_real_video(ctx: VideoExecutionContext, kind: str) -> VideoPipelineOutpu
         import torch  # type: ignore[import-not-found]
         from diffusers.utils import export_to_video  # type: ignore[import-not-found]
 
+        base.emit_stage(ctx.job_id, "loading")
         pipe = _load_video_pipeline(kind, weights)
         _move_pipe(pipe, ctx.offload_strategy)
+        base.emit_stage(ctx.job_id, "generating")
         requested_frames = max(1, ctx.params.duration_seconds * ctx.params.fps)
         num_frames = ((requested_frames - 1 + 3) // 4) * 4 + 1
         width = _align_spatial(ctx.params.width)

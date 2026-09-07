@@ -385,6 +385,27 @@ def _sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
+#: v2.4.8 Phase 8 -- the oldest torch the diffusion runtime accepts. The
+#: SANA-Video pipeline in diffusers 0.36 imports ``torch.nn.RMSNorm``, which
+#: torch added in 2.4; the lock pins 2.5.1.
+MIN_TORCH_VERSION: tuple[int, int] = (2, 4)
+
+
+def torch_too_old(version: str) -> bool:
+    """True when ``version`` (``"2.3.0+cu121"``) is below ``MIN_TORCH_VERSION``.
+
+    An unparseable or empty version is not "too old": the smoke reports the
+    real reason through its own checks, and this guard never masks them.
+    """
+    core = version.split("+", 1)[0].strip()
+    parts = core.split(".")
+    try:
+        major, minor = int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
+    except (ValueError, IndexError):
+        return False
+    return (major, minor) < MIN_TORCH_VERSION
+
+
 # Wheels that v1.0.0 expects to find in the bundled wheels directory. The
 # payload-fetching script in CI is the source of truth -- this list mirrors
 # the same set so we can fail fast if a wheel is missing before pip runs.
@@ -743,6 +764,21 @@ class DiffusionVenvProvisioner:
             )
         cuda_available = bool(evidence.get("cudaAvailable"))
         mps_available = bool(evidence.get("mpsAvailable"))
+        torch_version = str(evidence.get("torchVersion") or "")
+        if torch_too_old(torch_version):
+            # v2.4.8 Phase 8: SANA-Video imports torch.nn.RMSNorm (torch 2.4+).
+            # A venv that still carries the 2.3.0 pin passed every earlier
+            # smoke and then failed at the first video generate; it is a
+            # retryable readiness failure so the provisioner reinstalls.
+            return DiffusionProvisionResult(
+                status="failed",
+                backend=backend,
+                failure_code="TORCH_TOO_OLD",
+                retryable=True,
+                python_version=str(evidence.get("pythonVersion") or ""),
+                torch_version=torch_version,
+                cuda_version=str(evidence.get("cudaVersion") or ""),
+            )
         if backend == "cuda" and not cuda_available:
             return DiffusionProvisionResult(
                 status="failed",

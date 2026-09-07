@@ -959,3 +959,39 @@ def test_present_sana_video_class_is_used_and_never_wan(
 
     assert real_execute._load_video_pipeline("sana", tmp_path) == "sana-pipe"
     assert calls == ["sana"]
+
+
+def test_torch_too_old_is_a_typed_accelerator_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # v2.4.8 Phase 8: operator evidence 2026-09-07 -- torch 2.3.0+cu121 passed
+    # every probe and the first video generate raised
+    # "module 'torch.nn' has no attribute 'RMSNorm'".
+    monkeypatch.setattr(base, "torch_cuda_state", lambda: "torch-too-old")
+    failure = base.accelerator_not_ready("video")
+    assert failure.kind == "torch-too-old"
+    assert "older than 2.4" in str(failure)
+    assert "Settings > Video" in str(failure)
+    classified = base.classify_runtime_not_ready("video", None)
+    assert classified.kind == "torch-too-old"
+    assert base.torch_too_old("2.3.0+cu121") is True
+    assert base.torch_too_old("2.4.0") is False
+    assert base.torch_too_old("2.5.1+cu121") is False
+    assert base.torch_too_old("") is False
+    assert base.torch_too_old("nightly") is False
+
+
+def test_emit_stage_forwards_through_the_installed_sink():
+    seen: list[dict] = []
+    base.set_progress_sink(seen.append)
+    try:
+        base.emit_stage("job-1", "loading")
+        base.emit_stage("job-1", "generating")
+        base.emit_stage("", "loading")  # no job id: nothing emitted
+    finally:
+        base.set_progress_sink(None)
+    assert seen == [
+        {"kind": "progress", "jobId": "job-1", "stage": "loading"},
+        {"kind": "progress", "jobId": "job-1", "stage": "generating"},
+    ]
+    base.emit_stage("job-2", "loading")  # no sink: silently ignored

@@ -121,21 +121,32 @@ function GpuStatusFooterInner({
         fontSize: "var(--text-xs)",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-2)" }}>
-        <span style={{ color: "var(--fg-0)", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {headline}
-        </span>
-        {stale ? (
-          <span data-testid={`${testId}-stale`} style={{ color: "var(--fg-muted)" }}>
-            stale
-          </span>
-        ) : null}
-      </div>
+      {/* v2.4.8 Phase 8: no headline row while idle; the card is bar + one
+          line of numbers. The model row appears only while a model is loaded,
+          and the stale marker keeps its own row only when there is a headline
+          to share it with. */}
+      {!sample.idle || stale ? (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-2)" }}>
+          {!sample.idle ? (
+            <span
+              data-testid={`${testId}-headline`}
+              style={{ color: "var(--fg-0)", overflow: "hidden", textOverflow: "ellipsis" }}
+            >
+              {headline}
+            </span>
+          ) : null}
+          {stale ? (
+            <span data-testid={`${testId}-stale`} style={{ color: "var(--fg-muted)" }}>
+              stale
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <div style={{ height: 4, borderRadius: 2, background: "var(--bg-2)", overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, height: "100%", background: barColor(pct) }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", color: "var(--fg-muted)" }}>
-        <span>GPU {pct.toFixed(0)}%</span>
+        <span>GPU usage {pct.toFixed(0)}%</span>
         <span>{sample.vramFreeGB.toFixed(1)} GB free</span>
       </div>
     </div>

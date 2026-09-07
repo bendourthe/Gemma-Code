@@ -23,6 +23,7 @@ import traceback
 from typing import Any, Callable, Optional
 
 from . import device, registry, version
+from .pipelines import base as _pipelines_base
 
 
 JsonRpcParams = Optional[dict]
@@ -137,6 +138,11 @@ def dispatch(line: str, handlers: dict[str, HandlerFn]) -> None:
 def _notify(method: str, params: dict[str, Any]) -> None:
     """Emit a JSON-RPC notification (no `id`, so no response is expected)."""
     _emit({"jsonrpc": "2.0", "method": method, "params": params})
+
+
+# v2.4.8 Phase 8: pipeline stage notifications (`loading` / `generating`) ride
+# the same `progress` method the heartbeat uses, so the shell needs no new wire.
+_pipelines_base.set_progress_sink(lambda params: _notify("progress", params))
 
 
 def heartbeat_while(

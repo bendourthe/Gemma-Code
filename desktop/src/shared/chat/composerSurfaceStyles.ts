@@ -9,10 +9,18 @@ export const composerSurfaceStyle: CSSProperties = {
   borderRadius: "var(--radius-lg, 12px)",
 };
 
+/**
+ * v2.4.8 Phase 8: the control cluster is vertically centered on the field on
+ * every pillar (Chat, Agents, Images, Videos). Anchoring it to `bottom: 6`
+ * left the + button riding low against a one-line field and drifting as the
+ * field grew; `top: 0; bottom: 0` with centered items keeps it centered at
+ * every height.
+ */
 export const rightControlsStyle: CSSProperties = {
   position: "absolute",
   right: 8,
-  bottom: 6,
+  top: 0,
+  bottom: 0,
   display: "flex",
   alignItems: "center",
   gap: "var(--space-1, 4px)",
@@ -22,6 +30,9 @@ export const clusterIconStyle: CSSProperties = {
   width: 32,
   height: 32,
   padding: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
   fontSize: "var(--text-lg)",
   lineHeight: 1,
   borderRadius: "var(--radius-md)",
