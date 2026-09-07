@@ -40,11 +40,13 @@ import {
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
 import { filterCatalog } from "../../shared/models/modelLibrary";
+import { buildModelPills } from "../../shared/models/modelPills";
 import {
-  compactCapabilityFacts,
-  compactRequirementFacts,
-  splitModelPill,
-} from "../../shared/models/modelPills";
+  BADGE_DOWNLOADED,
+  BADGE_RECOMMENDED,
+  providerColor,
+  providerTint,
+} from "../../shared/models/providerColors";
 import {
   FAVORITE_STORAGE_PREFIX,
   readFavorite,
@@ -55,7 +57,6 @@ import type {
   DiskUsageDto,
   InstallProgressDto,
   ListedModelDto,
-  ModelType,
 } from "./modelsTypes";
 
 export type InstallHandle = { cancel(): void };
@@ -449,25 +450,82 @@ interface ModelCardProps {
   onReveal?: () => void;
 }
 
-function renderFactChips(
-  facts: readonly string[],
-  testId: string,
-): JSX.Element | null {
-  if (facts.length === 0) return null;
+/**
+ * v2.4.8 Phase 4 (T016) -- the installer card grammar, drawn in Settings.
+ *
+ * Operator screenshot 4 (2026-09-06): Settings cards were neutral boxes with a
+ * `Requirements:` row while the installer picker tints each card with its
+ * publisher's color, sets the name in that color, puts every fact pill on the
+ * name row with a steelblue Recommended pill, hangs a size pill plus round
+ * compatibility and downloaded badges on the right, then prints description,
+ * `Best for:`, the license note, and `Why this one:`. This mirrors
+ * `nexus_installer.pages.typed_catalog.ModelCard` one element at a time. The
+ * action row (star, download / delete) stays because this card can act and the
+ * installer card cannot. It reverses the v2.4.6 Phase 6 decision to drop
+ * `Best for` and `Why this one` from Settings: parity with the installer is
+ * the operator's stated requirement.
+ */
+function Pill({
+  text,
+  color = "var(--fg-muted)",
+  border = "var(--border-strong, #272a30)",
+  testId,
+}: {
+  text: string;
+  color?: string;
+  border?: string;
+  testId?: string;
+}): JSX.Element {
   return (
-    <span data-testid={testId} style={pillRowStyle}>
-      {facts.map((fact) => {
-        const { label, value } = splitModelPill(fact);
-        return (
-          <span key={fact} style={chipStyle}>
-            {label ? <span style={pillLabelStyle}>{label} </span> : null}
-            <span style={pillValueStyle}>{value}</span>
-          </span>
-        );
-      })}
+    <span
+      data-testid={testId}
+      style={{ ...chipStyle, color, borderColor: border }}
+    >
+      {text}
     </span>
   );
 }
+
+/** A round filled icon badge whose meaning lives on the tooltip (installer `_icon_badge`). */
+function IconBadge({
+  glyph,
+  color,
+  tooltip,
+  testId,
+}: {
+  glyph: string;
+  color: string;
+  tooltip: string;
+  testId: string;
+}): JSX.Element {
+  return (
+    <span
+      data-testid={testId}
+      role="img"
+      aria-label={tooltip}
+      title={tooltip}
+      style={{
+        display: "inline-flex",
+        width: ICON_BADGE_PX,
+        height: ICON_BADGE_PX,
+        borderRadius: ICON_BADGE_PX / 2,
+        alignItems: "center",
+        justifyContent: "center",
+        color,
+        background: providerTint(color, 0.18),
+        border: `1px solid ${color}`,
+        fontSize: "var(--text-xs, 12px)",
+        fontWeight: 700,
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+    >
+      {glyph}
+    </span>
+  );
+}
+
+const ICON_BADGE_PX = 22;
 
 function ModelCard({
   item,
@@ -485,50 +543,36 @@ function ModelCard({
   onReveal,
 }: ModelCardProps): JSX.Element {
   const tier = recommendationKind(item);
-  const kindLabel =
-    tier === "compatible"
-      ? ""
-      : tier === "required"
-        ? "Required"
-        : "Recommended";
   const overBudget = isCatalogOverBudget(
     item,
     hostVramGB,
     gpuVendor ?? catalogSortGpuVendor(hostVramGB),
   );
+  const fits = !overBudget;
+  const accent = providerColor(item.family);
   const downloaded = item.installed && item.source !== "catalog-only";
   const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
   const description =
     item.description?.trim() ||
     "Catalog metadata is unavailable for this installed model.";
-  const requirementFacts = compactRequirementFacts({
-    ...item,
-    storageLabel:
-      typeof item.sizeBytes === "number" ? formatBytes(item.sizeBytes) : null,
-  });
-  const capabilityFacts = compactCapabilityFacts(item);
-  const compatibilityLabel =
-    typeof item.vramGB === "number"
+  // Installer `compatibility_badge` wording; the text lives on the tooltip.
+  const compatibility =
+    typeof item.vramGB === "number" && item.vramGB > 0
       ? overBudget
         ? `Incompatible - needs ${item.vramGB} GB VRAM`
-        : typeof hostVramGB === "number"
-          ? `Compatible - ${item.vramGB} GB VRAM`
-          : `${item.vramGB} GB VRAM required`
-      : null;
+        : `Compatible - ${item.vramGB} GB VRAM`
+      : "Compatible - CPU";
+  const sizeLabel =
+    typeof item.sizeBytes === "number" ? formatBytes(item.sizeBytes) : null;
+  const titleColor = fits ? accent : "var(--fg-muted)";
+  const mutedBorder = "var(--border-strong, #272a30)";
   const card: CSSProperties = {
     ...cardStyle,
-    ...(downloaded
-      ? {
-          boxShadow:
-            "inset 3px 0 color-mix(in srgb, var(--accent-primary, #6366f1) 35%, transparent)",
-        }
-      : null),
-    ...(overBudget
-      ? {
-          opacity: 0.55,
-          color: "var(--fg-muted)",
-        }
-      : null),
+    background: providerTint(accent, fits ? 0.09 : 0.04),
+    border: fits
+      ? `1px solid ${providerTint(accent, 0.3)}`
+      : `1px dashed ${mutedBorder}`,
+    ...(overBudget ? { color: "var(--fg-muted)" } : null),
   };
   return (
     <li
@@ -536,179 +580,225 @@ function ModelCard({
       data-compact="true"
       data-downloaded={downloaded ? "true" : "false"}
       data-over-budget={overBudget ? "true" : "false"}
+      data-provider-color={accent}
       style={card}
     >
+      {/* --- Title row: name + fact pills (flow) | size, compatibility, downloaded --- */}
       <div
+        data-testid={`models-title-row-${item.id}`}
         style={{
           display: "flex",
-          gap: MODELS_CARD_INNER_GAP,
           alignItems: "flex-start",
+          gap: "var(--space-2, 8px)",
+          minWidth: 0,
         }}
       >
-        <ModelIcon type={item.type} />
         <div
+          data-testid={`models-header-${item.id}`}
           style={{
             flex: 1,
             minWidth: 0,
             display: "flex",
-            flexDirection: "column",
-            gap: 4,
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 6,
           }}
         >
-          <div
-            data-testid={`models-header-${item.id}`}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2, 8px)",
-              minWidth: 0,
-            }}
-          >
-            <span
-              style={{
-                fontWeight: 600,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                minWidth: 0,
-              }}
-            >
-              {item.displayName}
-            </span>
-            {kindLabel ? (
-              <span
-                data-testid={`models-badge-${item.id}`}
-                style={badgeStyle(kindLabel)}
-              >
-                {kindLabel}
-              </span>
-            ) : null}
-          </div>
-          <div data-testid={`models-facts-${item.id}`} style={factsRowStyle}>
-            {requirementFacts.length > 0 ? (
-              <>
-                <span style={pillLabelStyle}>Requirements:</span>
-                {renderFactChips(
-                  requirementFacts,
-                  `models-requirements-${item.id}`,
-                )}
-              </>
-            ) : null}
-            {compatibilityLabel ? (
-              <span
-                data-testid={`models-compatibility-${item.id}`}
-                style={badgeStyle(overBudget ? "Incompatible" : "Compatible")}
-              >
-                {compatibilityLabel}
-              </span>
-            ) : null}
-          </div>
-          {renderFactChips(capabilityFacts, `models-pills-${item.id}`)}
-          <p
-            data-testid={`models-row-${item.id}-description`}
-            style={{ ...copyStyle, minWidth: 0 }}
-          >
-            {description}
-          </p>
-          {/*
-            v2.4.6 Phase 6: star, downloaded, and delete share one centered
-            row under the three copy lines. No Details accordion.
-          */}
-          <div
-            data-testid={`models-actions-${item.id}`}
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "var(--space-2, 8px)",
-            }}
-          >
-            <Button
-              type="button"
-              testId={`models-favorite-${item.id}`}
-              aria-pressed={favorite}
-              aria-label={favorite ? "Unfavorite" : "Favorite"}
-              onClick={onFavorite}
-              variant="ghost"
-              style={starStyle(favorite)}
-            >
-              {favorite ? "★" : "☆"}
-            </Button>
-            <RowActions
-              item={item}
-              progress={progress}
-              installing={installing}
-              downloaded={downloaded}
-              overBudget={overBudget}
-              selectedMissing={selectedMissing}
-              hostVramGB={hostVramGB}
-              onInstall={onInstall}
-              onCancel={onCancel}
-              onRemove={onRemove}
-              onReveal={onReveal}
+          <span style={{ fontWeight: 700, color: titleColor }}>
+            {item.displayName}
+          </span>
+          <span data-testid={`models-pills-${item.id}`} style={pillRowStyle}>
+            {buildModelPills(item).map((pill) => (
+              <Pill key={pill} text={pill} />
+            ))}
+          </span>
+          {tier === "required" ? (
+            <Pill
+              testId={`models-badge-${item.id}`}
+              text="Required"
+              color={accent}
+              border={accent}
             />
-          </div>
-          {components.length > 0 ? (
-            <p
-              data-testid={`models-row-${item.id}-components`}
-              style={copyStyle}
-            >
-              Components:{" "}
-              {components
-                .map((component) =>
-                  typeof component.sizeBytes === "number"
-                    ? `${component.displayName} (${formatBytes(component.sizeBytes)})`
-                    : component.displayName,
-                )
-                .join("; ")}
-            </p>
+          ) : tier === "recommended" ? (
+            <Pill
+              testId={`models-badge-${item.id}`}
+              text="Recommended"
+              color={BADGE_RECOMMENDED}
+              border={BADGE_RECOMMENDED}
+            />
           ) : null}
-          {selectedMissing ? (
-            <p
-              data-testid={`models-row-${item.id}-selected-missing`}
-              style={{ ...copyStyle, gridColumn: "1 / -1" }}
-            >
-              Selected during setup but not found in Ollama. Retry the download,
-              or ignore if the installer skipped this sibling.
-            </p>
+          {item.toolCallingVerified ? (
+            <Pill
+              testId={`models-tool-calling-${item.id}`}
+              text="Tool calling verified"
+              color={accent}
+              border={accent}
+            />
           ) : null}
-          {item.licenseNote ? (
-            <div
-              data-testid={`models-row-${item.id}-license-note`}
-              style={{
-                fontSize: "0.8em",
-                color: "var(--fg-muted)",
-                marginTop: 2,
-                gridColumn: "1 / -1",
-              }}
-            >
-              Use restriction: {item.licenseNote}
-              {item.licenseUrl ? (
-                <>
-                  {" "}
-                  <a href={item.licenseUrl} target="_blank" rel="noreferrer">
-                    License text
-                  </a>
-                </>
-              ) : null}
-            </div>
+        </div>
+        <div
+          data-testid={`models-badges-${item.id}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-2, 8px)",
+            flexShrink: 0,
+          }}
+        >
+          {sizeLabel ? (
+            <Pill
+              testId={`models-size-${item.id}`}
+              text={sizeLabel}
+              color={fits ? accent : "var(--fg-muted)"}
+              border={fits ? accent : mutedBorder}
+            />
           ) : null}
-          {rowError ? (
-            <p
-              data-testid={`models-row-error-${item.id}`}
-              role="alert"
-              style={{
-                color: "var(--status-err, #dc2626)",
-                fontSize: "0.85em",
-                gridColumn: "1 / -1",
-              }}
-            >
-              {rowError}
-            </p>
+          <IconBadge
+            testId={`models-compat-badge-${item.id}`}
+            glyph={fits ? "✓" : "!"}
+            color={fits ? STATUS_OK : STATUS_WARN}
+            tooltip={compatibility}
+          />
+          {downloaded ? (
+            <IconBadge
+              testId={`models-downloaded-badge-${item.id}`}
+              glyph={"⤓"}
+              color={BADGE_DOWNLOADED}
+              tooltip="Downloaded"
+            />
           ) : null}
         </div>
       </div>
+      {/* --- Incompatibility note (only when the model does not fit) --- */}
+      {!fits ? (
+        <p
+          data-testid={`models-row-${item.id}-incompatible`}
+          style={{ ...captionStyle, color: STATUS_WARN }}
+        >
+          {compatibility}
+        </p>
+      ) : null}
+      {/* --- Plain-language description leads the body --- */}
+      <p
+        data-testid={`models-row-${item.id}-description`}
+        style={{
+          ...copyStyle,
+          minWidth: 0,
+          color: fits ? "var(--fg-1, var(--fg-0))" : "var(--fg-muted)",
+        }}
+      >
+        {description}
+      </p>
+      {item.strengths && item.strengths.length > 0 ? (
+        <p data-testid={`models-row-${item.id}-best-for`} style={captionStyle}>
+          <span style={{ color: accent, fontWeight: 600 }}>Best for:</span>{" "}
+          {item.strengths.join(", ")}
+        </p>
+      ) : null}
+      {item.licenseNote ? (
+        <p
+          data-testid={`models-row-${item.id}-license-note`}
+          style={captionStyle}
+        >
+          <span style={{ color: accent, fontWeight: 600 }}>
+            Use restriction:
+          </span>{" "}
+          {item.licenseNote}
+          {item.licenseUrl ? (
+            <>
+              {" "}
+              <a
+                href={item.licenseUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: accent }}
+              >
+                License text
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+      {tier === "recommended" && item.whyRecommended ? (
+        <p
+          data-testid={`models-row-${item.id}-why`}
+          style={{ ...captionStyle, color: accent }}
+        >
+          Why this one: {item.whyRecommended}
+        </p>
+      ) : null}
+      {/*
+        v2.4.6 Phase 6: star, downloaded, and delete share one centered
+        row under the body. The installer card has no actions; this one does.
+      */}
+      <div
+        data-testid={`models-actions-${item.id}`}
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "var(--space-2, 8px)",
+        }}
+      >
+        <Button
+          type="button"
+          testId={`models-favorite-${item.id}`}
+          aria-pressed={favorite}
+          aria-label={favorite ? "Unfavorite" : "Favorite"}
+          onClick={onFavorite}
+          variant="ghost"
+          style={starStyle(favorite)}
+        >
+          {favorite ? "★" : "☆"}
+        </Button>
+        <RowActions
+          item={item}
+          progress={progress}
+          installing={installing}
+          downloaded={downloaded}
+          overBudget={overBudget}
+          selectedMissing={selectedMissing}
+          hostVramGB={hostVramGB}
+          onInstall={onInstall}
+          onCancel={onCancel}
+          onRemove={onRemove}
+          onReveal={onReveal}
+        />
+      </div>
+      {components.length > 0 ? (
+        <p data-testid={`models-row-${item.id}-components`} style={copyStyle}>
+          Components:{" "}
+          {components
+            .map((component) =>
+              typeof component.sizeBytes === "number"
+                ? `${component.displayName} (${formatBytes(component.sizeBytes)})`
+                : component.displayName,
+            )
+            .join("; ")}
+        </p>
+      ) : null}
+      {selectedMissing ? (
+        <p
+          data-testid={`models-row-${item.id}-selected-missing`}
+          style={copyStyle}
+        >
+          Selected during setup but not found in Ollama. Retry the download, or
+          ignore if the installer skipped this sibling.
+        </p>
+      ) : null}
+      {rowError ? (
+        <p
+          data-testid={`models-row-error-${item.id}`}
+          role="alert"
+          style={{
+            color: "var(--status-err, #dc2626)",
+            fontSize: "var(--text-xs, 12px)",
+          }}
+        >
+          {rowError}
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -853,61 +943,6 @@ function RowActions({
   );
 }
 
-function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
-  const label =
-    type === "image"
-      ? "I"
-      : type === "video"
-        ? "V"
-        : type === "audio"
-          ? "S"
-          : type === "embed"
-            ? "E"
-            : type === "controlnet"
-              ? "C"
-              : type === "vae"
-                ? "A"
-                : type === "document"
-                  ? "D"
-                  : "L";
-  const color =
-    type === "image"
-      ? "var(--accent-image, #ec4899)"
-      : type === "video"
-        ? "var(--accent-video, #6366f1)"
-        : type === "audio"
-          ? "var(--accent-audio, #d946ef)"
-          : type === "embed"
-            ? "var(--accent-embed, #14b8a6)"
-            : type === "controlnet"
-              ? "var(--accent-controlnet, #f59e0b)"
-              : type === "vae"
-                ? "var(--accent-vae, #8b5cf6)"
-                : type === "document"
-                  ? "var(--accent-document, #0ea5e9)"
-                  : "var(--accent-llm, #10b981)";
-  return (
-    <span
-      aria-hidden
-      data-testid={`models-icon-${type ?? "?"}`}
-      style={{
-        display: "inline-flex",
-        width: "1.5em",
-        height: "1.5em",
-        borderRadius: "0.25em",
-        background: color,
-        color: "#fff",
-        alignItems: "center",
-        justifyContent: "center",
-        fontWeight: 700,
-        flexShrink: 0,
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
 function DiskSummary({ disk }: { disk: DiskUsageDto | null }): JSX.Element {
   if (!disk || disk.freeBytes === null) {
     return (
@@ -993,23 +1028,6 @@ function messageFor(e: unknown): string {
   return String(e);
 }
 
-function badgeStyle(kind: string): CSSProperties {
-  const over = kind.startsWith("Needs ") || kind === "Incompatible";
-  return {
-    fontSize: "0.75em",
-    padding: "2px 8px",
-    borderRadius: "var(--radius-1, 4px)",
-    background: over
-      ? "var(--status-warn-bg, #422006)"
-      : kind === "Required"
-        ? "var(--accent-primary, #6366f1)"
-        : kind === "Recommended"
-          ? "var(--bg-2, #1f1f1f)"
-          : "var(--bg-2, #1f1f1f)",
-    color: over ? "var(--status-warn, #fbbf24)" : "var(--fg-0)",
-  };
-}
-
 function tabButtonStyle(active: boolean): CSSProperties {
   return {
     appearance: "none",
@@ -1037,7 +1055,8 @@ function starStyle(on: boolean): CSSProperties {
 
 export const MODELS_PAGE_GAP = "var(--space-3, 12px)";
 export const MODELS_HEADER_TO_TABS_GAP = "var(--space-1, 4px)";
-export const MODELS_CARD_PADDING = "var(--space-2, 8px)";
+/** v2.4.8 Phase 4: installer card margins (14 px sides, 10 px top and bottom). */
+export const MODELS_CARD_PADDING = "10px 14px";
 export const MODELS_CARD_INNER_GAP = "var(--space-2, 8px)";
 export const MODELS_DOWNLOADED_COLOR = "rgb(74, 222, 128)";
 export const MODELS_REMOVE_COLOR = "rgb(248, 113, 113)";
@@ -1133,29 +1152,25 @@ const groupHeadingStyle: CSSProperties = {
 
 const cardStyle: CSSProperties = {
   padding: MODELS_CARD_PADDING,
-  border: "1px solid var(--border-1, #2a2a2a)",
-  borderRadius: "var(--radius-2, 6px)",
-  background: "var(--bg-1, transparent)",
+  borderRadius: 8,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  minWidth: 0,
 };
 
-/**
- * v2.4.4 Phase 6.3 (T025): the label half of a pill is muted and lighter so
- * the value it introduces is what the eye lands on. Rendering both halves in
- * one weight is what made `Company: Google` read as an undifferentiated blob.
- */
-const pillLabelStyle: CSSProperties = {
-  color: "var(--fg-muted)",
-  fontWeight: 400,
-};
-
-const pillValueStyle: CSSProperties = {
-  color: "var(--fg-0)",
-  fontWeight: 500,
-};
-
+/** Installer `TEXT_BODY` at `FS_BODY`: the description line. */
 const copyStyle: CSSProperties = {
-  margin: "2px 0 0",
-  fontSize: "0.85em",
+  margin: 0,
+  fontSize: "var(--text-sm, 14px)",
+  lineHeight: 1.35,
+  color: "var(--fg-1, var(--fg-0))",
+};
+
+/** Installer `FS_CAPTION`: Best for, license note, Why this one, notes. */
+const captionStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "var(--text-xs, 12px)",
   lineHeight: 1.35,
   color: "var(--fg-1, var(--fg-0))",
 };
@@ -1164,21 +1179,22 @@ const pillRowStyle: CSSProperties = {
   display: "inline-flex",
   flexWrap: "wrap",
   alignItems: "center",
-  gap: "6px",
-};
-
-const factsRowStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: "6px",
+  gap: 6,
   minWidth: 0,
 };
 
+/** Installer `_pill`: one-color chip, 9 px radius, 1 px 8 px padding. */
 const chipStyle: CSSProperties = {
-  fontSize: "0.75em",
+  fontSize: "var(--text-xs, 12px)",
+  lineHeight: 1.4,
   color: "var(--fg-muted)",
-  border: "1px solid var(--border-1, #2a2a2a)",
+  background: "transparent",
+  border: "1px solid var(--border-strong, #272a30)",
   borderRadius: 9,
   padding: "1px 8px",
+  whiteSpace: "nowrap",
 };
+
+/** Installer `SUCCESS` / `WARNING` for the compatibility badge. */
+const STATUS_OK = "var(--status-ok, #22c55e)";
+const STATUS_WARN = "var(--status-warn, #f59e0b)";

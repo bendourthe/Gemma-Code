@@ -181,17 +181,33 @@ describe("catalogTabs", () => {
     expect(visibleModelsOnTab(GOLDEN.models, "embeddings", opts).map((m) => m.id)).toContain("nomic-embed-text");
   });
 
-  it("puts the Embeddings tab first, before Chat (installer TYPE_TABS parity)", () => {
+  // v2.4.8 Phase 4 (T014): operator screenshot 4 (2026-09-06) showed Document
+  // last in Settings while the installer lists it second. The order now comes
+  // from a fixture the installer pytest asserts too.
+  it("matches the installer TYPE_TABS order from the shared fixture", () => {
+    const shared = JSON.parse(
+      readFileSync(
+        resolve(
+          dirname(fileURLToPath(import.meta.url)),
+          "../../tests/fixtures/v2.4.8-catalog-tab-order.json",
+        ),
+        "utf8",
+      ),
+    ) as { tabs: { id: string; label: string }[] };
+    expect(CATALOG_TAB_DEFS.map((d) => ({ id: d.id, label: d.label }))).toEqual(
+      shared.tabs,
+    );
     expect(CATALOG_TAB_DEFS.map((d) => d.id)).toEqual([
       "embeddings",
+      "document",
       "chat",
       "agentic",
       "image",
       "video",
       "audio",
-      "document",
     ]);
     expect(CATALOG_TAB_DEFS[0]!.label).toBe("Embeddings");
+    expect(CATALOG_TAB_DEFS[1]!.label).toBe("Document");
   });
 
   it("groups downloaded rows before compatible and incompatible rows", () => {

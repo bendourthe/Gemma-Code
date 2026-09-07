@@ -25,14 +25,20 @@ export type CatalogTab =
  * v2.2.9 Phase 5 (T010): Embeddings is its own first tab, before Chat --
  * embed rows no longer park on Chat. Mirrors installer TYPE_TABS.
  */
+/**
+ * v2.4.8 Phase 4 (T014): the installer's `TYPE_TABS` order. Document sits
+ * right after Embeddings (both are the retrieval side of the catalog), then
+ * Chat, Agentic, Image, Video, Audio. Pinned by
+ * `tests/fixtures/v2.4.8-catalog-tab-order.json` on both sides.
+ */
 export const CATALOG_TAB_DEFS: readonly { id: CatalogTab; label: string }[] = [
   { id: "embeddings", label: "Embeddings" },
+  { id: "document", label: "Document" },
   { id: "chat", label: "Chat" },
   { id: "agentic", label: "Agentic" },
   { id: "image", label: "Image" },
   { id: "video", label: "Video" },
   { id: "audio", label: "Audio" },
-  { id: "document", label: "Document" },
 ];
 
 const TASK_TAB: Record<string, CatalogTab> = {
@@ -314,3 +320,4 @@ export function visibleModelsOnTab(
 ): ListedModelDto[] {
   return settingsModelDisplayOrder(modelsOnTab(models, tab), options);
 }
+

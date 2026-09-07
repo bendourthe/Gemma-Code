@@ -514,7 +514,9 @@ describe("ModelsSettings", () => {
       expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
     );
     fireEvent.click(screen.getByTestId("models-tab-audio"));
-    expect(screen.getByTestId("models-icon-audio")).toBeInTheDocument();
+    // v2.4.8 Phase 4: the installer card carries no type icon, so neither does
+    // this one. The row and its OpenAI provider color are the evidence.
+    expect(screen.queryByTestId("models-icon-audio")).toBeNull();
     expect(screen.getByTestId("models-row-faster-whisper")).toBeInTheDocument();
   });
 
@@ -657,7 +659,13 @@ describe("ModelsSettings", () => {
     expect(
       screen.getByTestId("models-row-lfm2.5:2.6b-description").textContent,
     ).toMatch(/On-device agentic/);
-    expect(screen.queryByTestId("models-row-lfm2.5:2.6b-best-for")).toBeNull();
+    // v2.4.8 Phase 4 (T016): Best for and Why this one print exactly as the
+    // installer card prints them (the v2.4.6 removal is reversed for parity).
+    expect(
+      screen.getByTestId("models-row-lfm2.5:2.6b-best-for").textContent,
+    ).toBe("Best for: Tool calling on CPU");
+    // The installer prints Why this one only for recommended picks; this
+    // fixture row carries whyRecommended but no recommended tag.
     expect(screen.queryByTestId("models-row-lfm2.5:2.6b-why")).toBeNull();
     expect(screen.getByTestId("models-row-lfm2.5:2.6b")).toHaveAttribute(
       "data-compact",
@@ -718,26 +726,32 @@ describe("ModelsSettings", () => {
       expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
     );
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
-      /Company: Liquid AI/,
-    );
-    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
-      /Country: USA/,
-    );
-    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
-      /Released: August 2026/,
-    );
+    // v2.4.8 Phase 4 (T016): the installer name-row grammar. Every fact pill
+    // (Company, Country, Agentic, Context window, Multimodal, License,
+    // Released) sits on the name row after the display name; there is no
+    // separate Requirements row.
+    expect(screen.queryByTestId("models-facts-lfm2.5:2.6b")).toBeNull();
     const pillRow = screen.getByTestId("models-pills-lfm2.5:2.6b");
     expect(Array.from(pillRow.children).map((c) => c.textContent)).toEqual([
+      "Company: Liquid AI",
+      "Country: USA",
       "Agentic: Yes",
       "Context window: 128k tokens",
       "Multimodal: No",
       "License: LFM Open License v1.0",
+      "Released: August 2026",
     ]);
     const header = screen.getByTestId("models-header-lfm2.5:2.6b");
     expect(screen.queryByTestId("models-row-lfm2.5:2.6b-details")).toBeNull();
-    expect(header.contains(pillRow)).toBe(false);
+    expect(header.contains(pillRow)).toBe(true);
     expect(header.firstChild?.textContent).toBe("LFM2.5 2.6B");
+    // Liquid AI is sky in the shared provider fixture: name and card tint.
+    expect((header.firstChild as HTMLElement).style.color).toBe(
+      "rgb(56, 189, 248)",
+    );
+    expect(
+      screen.getByTestId("models-row-lfm2.5:2.6b").getAttribute("data-provider-color"),
+    ).toBe("#38bdf8");
     // The split-window row derives its pill from the in-window.
     expect(screen.getByTestId("models-pills-split-ctx").textContent).toContain(
       "Context window: 32k tokens",
@@ -842,25 +856,33 @@ describe("ModelsSettings", () => {
     );
     expect(rows[1]).toHaveAttribute("data-testid", "models-row-sana-1.6b-4k");
     expect(rows[1]).toHaveAttribute("data-over-budget", "true");
+    // v2.4.8 Phase 4 (T016): compatibility is a round badge whose wording is
+    // the tooltip, plus a note under the name row when the model does not fit.
     expect(
-      screen.getByTestId("models-compatibility-sana-1.6b-4k").textContent,
+      screen.getByTestId("models-compat-badge-sana-1.6b-4k"),
+    ).toHaveAccessibleName("Incompatible - needs 20 GB VRAM");
+    expect(
+      screen.getByTestId("models-row-sana-1.6b-4k-incompatible").textContent,
     ).toBe("Incompatible - needs 20 GB VRAM");
+    expect(
+      screen.getByTestId("models-compat-badge-sana-sprint-1024"),
+    ).toHaveAccessibleName("Compatible - 8 GB VRAM");
     expect(
       screen.getByTestId("models-badge-sana-sprint-1024").textContent,
     ).toBe("Recommended");
-    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
-      /Company: NVIDIA/,
-    );
-    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
-      /Country: USA/,
-    );
-    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
-      /Released: September 2025/,
-    );
+    expect(
+      screen.getByTestId("models-badge-sana-sprint-1024").style.color,
+    ).toBe("rgb(70, 130, 180)");
+    expect(screen.queryByTestId("models-facts-sana-1.6b-4k")).toBeNull();
     const pills = Array.from(
       screen.getByTestId("models-pills-sana-1.6b-4k").children,
     ).map((c) => c.textContent);
-    expect(pills).toEqual(["Guardrails: Censored"]);
+    expect(pills).toEqual([
+      "Company: NVIDIA",
+      "Country: USA",
+      "Guardrails: Censored",
+      "Released: September 2025",
+    ]);
   });
 
   it("shows Retry when Qwen 3.5 4B was selected at install but is not on disk", async () => {

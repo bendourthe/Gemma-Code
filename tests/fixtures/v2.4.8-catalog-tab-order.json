@@ -1,0 +1,12 @@
+{
+  "description": "v2.4.8 Phase 4 (T014): the catalog tab order shared by the installer picker (nexus_installer.pages.typed_catalog.TYPE_TABS) and desktop Settings > Models (CATALOG_TAB_DEFS). Dual-asserted from installer pytest and desktop vitest so the two cannot drift silently again.",
+  "tabs": [
+    { "id": "embeddings", "label": "Embeddings" },
+    { "id": "document", "label": "Document" },
+    { "id": "chat", "label": "Chat" },
+    { "id": "agentic", "label": "Agentic" },
+    { "id": "image", "label": "Image" },
+    { "id": "video", "label": "Video" },
+    { "id": "audio", "label": "Audio" }
+  ]
+}
