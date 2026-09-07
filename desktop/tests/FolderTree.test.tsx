@@ -47,7 +47,7 @@ describe("<FolderTree>", () => {
       /start a new session/i,
     );
     expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
-      "Sessions History",
+      "Sessions",
     );
     const header = screen.getByTestId("folder-tree-header");
     expect(header.style.justifyContent).toBe("flex-start");
@@ -633,7 +633,7 @@ describe("<FolderTree>", () => {
     expect(client.getChat(chat.id)?.title).toBe("keep-me");
   });
 
-  it("collapsed rail hides the Sessions History label but keeps create actions", () => {
+  it("collapsed rail hides the Sessions label but keeps create actions", () => {
     render(
       <FolderTree
         client={new InMemoryChatExplorerClient()}
@@ -779,11 +779,11 @@ describe("history chrome and bulk actions (v2.4.4 Phase 2)", () => {
     expect(header.style.paddingTop).toBe("0px");
     expect(header.style.justifyContent).toBe("flex-start");
     expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
-      "Sessions History",
+      "Sessions",
     );
   });
 
-  it("still renders Sessions History on an empty tree", () => {
+  it("still renders Sessions on an empty tree", () => {
     render(
       <FolderTree
         client={new InMemoryChatExplorerClient()}
@@ -792,7 +792,16 @@ describe("history chrome and bulk actions (v2.4.4 Phase 2)", () => {
     );
     expect(screen.getByTestId("folder-tree-empty")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
-      "Sessions History",
+      "Sessions",
+    );
+    // v2.4.8 Phase 3 (T011): the title is set in nav-label type (--fg-1 at
+    // --text-sm), not the muted caption color; the copy is exactly Sessions.
+    expect(screen.getByTestId("folder-tree-title").textContent).toBe("Sessions");
+    expect(screen.getByTestId("folder-tree-title").style.color).toBe(
+      "var(--fg-1)",
+    );
+    expect(screen.getByTestId("folder-tree-title").style.fontSize).toBe(
+      "var(--text-sm)",
     );
     expect(screen.getByTestId("folder-tree-header").style.paddingTop).toBe(
       "0px",

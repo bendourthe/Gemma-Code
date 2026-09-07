@@ -130,7 +130,7 @@ export interface FolderTreeCopy {
 }
 
 export const CHAT_FOLDER_TREE_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions History",
+  paneTitle: "Sessions",
   newItem: "New session",
   emptyCta: "Start a new session",
   treeAria: "Session folders",
@@ -974,7 +974,9 @@ export function FolderTree({
       {collapsed ? null : (
         <span
           data-testid="folder-tree-title"
-          style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}
+          // v2.4.8 Phase 3 (T011): same type as the nav labels (`.nexus-nav-link`
+          // sets --fg-1 at --text-sm), so Sessions reads as a peer of Videos.
+          style={{ color: "var(--fg-1)", fontSize: "var(--text-sm)" }}
         >
           {copy.paneTitle}
         </span>

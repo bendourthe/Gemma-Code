@@ -169,21 +169,21 @@ describe("sidebar history host", () => {
     expect(header.style.paddingTop).toBe("0px");
     expect(header.style.justifyContent).toBe("flex-start");
     expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
-      "Sessions History",
+      "Sessions",
     );
     expect(HISTORY_HAIRLINE_GAP).toBe("var(--space-2)");
     const videos = screen.getByTestId("nav-video");
     expect(videos.style.padding).toContain("var(--space-2)");
   });
 
-  it("shows Sessions History under the hairline on an empty Chatbot tree", async () => {
+  it("shows Sessions under the hairline on an empty Chatbot tree", async () => {
     renderApp("/chatbot");
     const rule = await screen.findByTestId("sidebar-history-hairline");
     expect(rule.style.marginBlock).toBe(HISTORY_HAIRLINE_GAP);
     const host = screen.getByTestId("sidebar-history-host");
     expect(host).toContainElement(screen.getByTestId("folder-tree-title"));
     expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
-      "Sessions History",
+      "Sessions",
     );
     expect(screen.getByTestId("nav-chatbot")).toHaveAttribute(
       "aria-label",
