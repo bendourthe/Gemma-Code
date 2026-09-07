@@ -2,11 +2,90 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-09-03
+**Last updated**: 2026-09-06
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next plan ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [v2.4.5 installer already-downloaded models](plans/v2.4.5-installer-already-downloaded-models.md), [v2.4.6 field delivery, density, and session identity](plans/v2.4.6-field-delivery-density-and-session-identity.md)
+Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting.md), [v2.4.1 field reliability](plans/v2.4.1-field-reliability-chat-archives-models-workspaces.md), [v2.4.1 generation recovery](plans/v2.4.1-generation-recovery-and-ui-corrections.md), [v2.4.2 field UI and generation](plans/v2.4.2-field-ui-history-and-generation.md), [v2.4.3 field density](plans/v2.4.3-field-density-identity-and-runtime.md), [v2.4.4 field chrome, restyle, SANA, density](plans/v2.4.4-field-chrome-restyle-sana-and-density.md), [v2.4.5 installer already-downloaded models](plans/v2.4.5-installer-already-downloaded-models.md), [v2.4.6 field delivery, density, and session identity](plans/v2.4.6-field-delivery-density-and-session-identity.md), [v2.4.7 installer wizard density and scope](plans/v2.4.7-installer-wizard-density-and-scope.md), [v2.4.8 desktop token split, persona, and model order](plans/v2.4.8-desktop-token-split-persona-and-model-order.md)
+
+## v2.4.8
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---:|---:|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 3 | 0 |
+| Bugs / regressions (BG) | 0 | 3 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 5 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Phases 1-5 implemented against five operator screenshots of the v2.4.7 desktop. Three were correctness defects (double-counted reasoning tokens, an installer snapshot that named an embedding model as the Chat pick and an untagged model as the Agentic pick, and a Settings tab order that had drifted from the installer); two were chrome and dismissal feedback. Every earlier open row carries forward. Publication and release wait on explicit approval.
+
+### Resolved
+
+- **BG-1 (resolved)** - Reasoning tokens double-counted: Ollama `eval_count` already includes thinking; the sidecar added a bytes/4 estimate on top. Phase 1 splits the provider total by text proportion. `desktop/tests/serving-chatCore.test.ts`.
+- **BG-2 (resolved)** - Installer snapshot recommendation ignored catalog tier and mapped embeddings to Chat, so Agents defaulted to gpt-oss 20B. Phase 5 fixes `runtime_provisioner._recommended_by_task` and makes the desktop default catalog-endorsed. `scripts/installer/tests/test_runtime_provisioner.py`, `desktop/tests/selection-policy.test.ts`.
+- **BG-3 (resolved)** - Settings tab order drifted from the installer (Document last). Phase 4 pins both sides to `tests/fixtures/v2.4.8-catalog-tab-order.json`.
+
+### Open Items
+
+##### MT-1 - Packaged token label is not observed
+
+- **Source phase**: Phase 1 - Token split
+- **Impact**: Tests pin the screenshot case (215 thinking bytes, 32 reply bytes, `eval_count: 72` -> 63 / 9) and the sum invariant. No packaged turn has been observed since.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Operator item 1 in `last-phase-evidence-v2.4.8-desktop-corrections.md`.
+
+##### MT-2 - Packaged composer dismissal and Persona chrome are not observed
+
+- **Source phase**: Phase 2
+- **Impact**: jsdom pointer and Escape events prove the hook; a real Tauri webview pointer has not.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Operator items 2-3.
+
+##### MT-3 - Packaged Sessions title is not observed on all four pillars
+
+- **Source phase**: Phase 3
+- **Impact**: Tests pin copy and tokens on FolderTree and both studio panes; the packaged Agents pane title is asserted only through CodingPage copy.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Operator item 4.
+
+##### MT-4 - Packaged Settings card is not compared against the packaged installer picker side by side
+
+- **Source phase**: Phase 4
+- **Impact**: Parity is asserted on values (tab order, colors, pill order) and on structure, not on rendered pixels. Font family differs by platform (Qt `FONT_PRIMARY` vs. the app's `--font-sans` stack) and is not asserted.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Operator item 5.
+
+##### MT-5 - Packaged picker order and default are not observed after a fresh snapshot
+
+- **Source phase**: Phase 5
+- **Impact**: The desktop rule is proven against the stale on-disk snapshot; the installer's corrected writer is proven in pytest. The two have not been observed together on the operator host.
+- **Owner**: Operator, this cycle's installer rebuild
+- **Next step**: Operator items 6-7, then `type ~/.nexus/selected-models.json` to confirm `recommendedByTask.chat` and `.agentic` read `gemma-4-12b-it-gguf`.
+
+##### DF-1 - The inferred reasoning / output split is not flagged in the tooltip
+
+- **Source phase**: Phase 1
+- **Impact**: When the provider gives only a total, the split is proportional and estimated while the total is exact. No protocol field carries "split inferred", so the tooltip states both numbers plainly.
+- **Owner**: Next desktop cycle
+- **Next step**: Add an optional `reasoningSplit: "provider" | "inferred"` to the `done` event and render `~` on inferred parts.
+
+##### DF-2 - Uncommitted installer wizard-merge state rides in the rebuilt installer
+
+- **Source phase**: Phase 6
+- **Impact**: `develop` carries 30 modified and 6 untracked files (installer wizard merge rounds 1-3, recorded only in `docs/todos.md`). This plan neither staged nor reverted them; the rebuilt `NexusSetup.exe` includes them, as did the installer the operator already field-tested.
+- **Owner**: Operator
+- **Next step**: Decide whether the wizard merge becomes its own plan and commit, or is discarded, before v2.4.8 publishes.
+
+##### DF-3 - Stale `recommendedByTask` on already-installed hosts is only masked, not rewritten
+
+- **Source phase**: Phase 5
+- **Impact**: The desktop rule keeps pickers and defaults correct against the stale snapshot; the file itself still says `chat: embeddinggemma` until the installer runs again. Settings downloads append to it without correcting it.
+- **Owner**: Next desktop cycle
+- **Next step**: Have the sidecar's `loadOrMigrate` drop a `recommendedByTask` entry whose model is not on the task's tab.
 
 ## v2.4.7
 
