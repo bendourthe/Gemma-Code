@@ -15,10 +15,10 @@ Plans: [v2.4.0 adoption](plans/v2.4.0-adoption-unsloth-qwen38-gaussian-splatting
 | Category | Open | Resolved |
 |---|---:|---:|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 3 | 0 |
+| Deferred (DF) | 4 | 0 |
 | Bugs / regressions (BG) | 0 | 3 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 5 | 0 |
+| Missing tests / coverage gaps (MT) | 6 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
 Phases 1-5 implemented against five operator screenshots of the v2.4.7 desktop. Three were correctness defects (double-counted reasoning tokens, an installer snapshot that named an embedding model as the Chat pick and an untagged model as the Agentic pick, and a Settings tab order that had drifted from the installer); two were chrome and dismissal feedback. Every earlier open row carries forward. Publication and release wait on explicit approval.
@@ -65,6 +65,20 @@ Phases 1-5 implemented against five operator screenshots of the v2.4.7 desktop. 
 - **Impact**: The desktop rule is proven against the stale on-disk snapshot; the installer's corrected writer is proven in pytest. The two have not been observed together on the operator host.
 - **Owner**: Operator, this cycle's installer rebuild
 - **Next step**: Operator items 6-7, then `type ~/.nexus/selected-models.json` to confirm `recommendedByTask.chat` and `.agentic` read `gemma-4-12b-it-gguf`.
+
+##### MT-6 - Packaged Phase 7 card cluster and collapsible groups are not observed
+
+- **Source phase**: Phase 7 (added 2026-09-07)
+- **Impact**: Tests pin size-then-action in the title row, the absence of star / checkmark / action row, the three headings with counts, collapse per tab, and disabled incompatible cards. None of it has rendered in the packaged desktop.
+- **Owner**: Operator, this cycle's second installer rebuild
+- **Next step**: Operator items 8-9 in `last-phase-evidence-v2.4.8-desktop-corrections.md`.
+
+##### DF-4 - Settings no longer offers a way to set or clear a favorite model
+
+- **Source phase**: Phase 7
+- **Impact**: The star was the only Settings control for a favorite. Pickers still write a favorite on every model change and `resolveDefaultId` still honors it, so a favorite once set cannot be cleared from the UI.
+- **Owner**: Next desktop cycle
+- **Next step**: Decide whether favorites are dropped entirely (remove `writeFavorite` from the pickers) or get a small control on the picker itself.
 
 ##### DF-1 - The inferred reasoning / output split is not flagged in the tooltip
 

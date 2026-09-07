@@ -48,7 +48,9 @@ Commits on this branch, each staging only the paths its phase names:
 | 4 | `760a9ced` | feat(desktop): match the installer catalog tab order and card grammar in Settings |
 | 5 | `dfeb8ef9` | fix(models): list and default to the installer's recommended model on every picker |
 | 6a | see `git log` | test(desktop): expect the proportional token split on the chat-session done event (full-suite finding, T031) |
-| 6b | see `git log` | docs(v2.4.8): last-phase evidence, known gaps, CI filter, installer rebuild |
+| 6b | `817edbaa` | docs(v2.4.8): record last-phase evidence, known gaps, CI filter, and the installer rebuild |
+| 7 | `eaaea3c2` | feat(desktop): put the model card action in the title row and group each tab as collapsible Downloaded, Compatible, Incompatible |
+| 7b | see `git log` | docs(v2.4.8): Phase 7 evidence, known gaps, and the second installer rebuild |
 
 Pre-existing uncommitted state, untouched and unstaged by this plan: 30 modified and 6 untracked files (installer wizard merge rounds 1-3 under `scripts/installer/`, `docs/v2/v2.5/`, `tests/fixtures/memory-tier-benchmark-results/2026-05-26/results.json`, and the wizard-merge notes in `docs/todos.md`). The `docs/todos.md` banner for this plan was staged against the `HEAD` version of the file so the commit carries the banner alone; the working copy keeps the wizard notes. `git status` after the Phase 6 commit lists exactly that pre-existing set.
 
@@ -164,6 +166,42 @@ Build complete.
 Built 2026-09-06 22:46 local, immediately after `build:shell`, so the staged desktop bundle is the one containing Phases 1-5 (WN-1 from v2.4.6 respected). Two expected notes in the log: the Nexus-Hub snapshot pack was refused because the local catalog tag (4.7.0) is not the latest release, so no snapshot is embedded and the installer syncs latest at install time, which is the documented behavior; and placeholder HF weight pins remain (`dist/pin-check.log`), unchanged from prior cycles.
 
 The rebuilt installer includes the uncommitted wizard-merge state described under T027 (DF-2), exactly as the installer the operator already field-tested did.
+
+## Phase 7 addendum (2026-09-07) - Models card actions and availability groups
+
+Operator feedback on the Phase 4 card arrived after the first rebuild and became Phase 7 (T034-T036), committed as `eaaea3c2`. Session history: `history/2026-09-07_v2.4.8-phase-7-models-card-actions.md`.
+
+**Verification**
+
+```
+cd desktop
+npm run typecheck   -> exit 0
+npm run lint        -> exit 0
+npx vitest run tests/ModelsSettings.test.tsx tests/settings-models-density.test.tsx   -> 39 passed (39)
+npx vitest run <every file that renders the page: ipcModelsClient, ModelsSettings, SettingsPage,
+                owned-picker-allowlist, settings-models-density, settings-phase7>          -> 68 passed (68)
+```
+
+**Known gaps added**: MT-6 (packaged Phase 7 not observed), DF-4 (Settings no longer offers a favorite control).
+
+**Operator checks, appended to T030**
+
+8. **Card cluster.** On any Models tab, each card's top right reads the size pill followed by one button: red delete on a downloaded row, blue download on a compatible row, nothing on an incompatible row. No star, no green checkmark, no row of controls under the description.
+9. **Groups.** Each tab shows `Downloaded`, `Compatible`, `Incompatible` headings (only those with rows), each with a count and a chevron. Clicking a chevron hides that group's cards and flips the chevron; the other groups stay. Incompatible cards are faded and do not react to the mouse.
+
+**Second installer rebuild**
+
+```
+cd desktop && npm run build:shell                       -> shell rebuilt with Phase 7
+build-windows.ps1 -SkipSign
+  Desktop bundle staged: Nexus AI Studio_2.4.1_x64-setup.exe (sha256 9f2403dcf184...)
+  File: dist/NexusSetup.exe
+  Size: 239.4 MB (251,067,827 bytes)
+  SHA256: BD224EA36740DF397DC6F8D8845E038239E9DACACB38D861D51638754BE88282
+Build complete.
+```
+
+Built 2026-09-07 09:14 local. This supersedes the 2026-09-06 build (`0E66604B...9DC7FF`) and is the one to field-test. The same two expected log notes apply (stale Hub snapshot refused; placeholder HF pins), and the uncommitted wizard-merge state is still included (DF-2).
 
 ## T033 - Publication
 
