@@ -122,3 +122,80 @@ describe("selectionPolicy", () => {
     ]);
   });
 });
+
+// v2.4.8 Phase 5 (T021): operator evidence (2026-09-06). The on-disk snapshot
+// listed gpt-oss:20b as the agentic recommendation above the catalog-tagged
+// Gemma 4 12B, and the Agents session opened on gpt-oss with it listed first.
+describe("selectionPolicy v2.4.8 picker order and catalog-endorsed default", () => {
+  const STALE: SelectionSnapshot = {
+    schemaVersion: 1,
+    orderedIds: [
+      "gemma-4-12b-it-gguf",
+      "inkling-small",
+      "gpt-oss:20b",
+      "lfm2.5:2.6b",
+      "qwen3.5:4b",
+    ],
+    recommendedByTask: { chat: "embeddinggemma", agentic: "gpt-oss:20b" },
+    downloadedSinceInstall: [],
+  };
+  const READY = [
+    model({ id: "gpt-oss:20b", displayName: "gpt-oss 20B", task: "agentic", releaseDate: "2025-08-05" }),
+    model({ id: "qwen3.5:4b", displayName: "Qwen 3.5 4B", task: "chat", releaseDate: "2026-02-01" }),
+    model({ id: "inkling-small", displayName: "Inkling-Small", task: "chat", releaseDate: "2026-07-01" }),
+    model({ id: "lfm2.5:2.6b", displayName: "LFM2.5 2.6B", task: "agentic", releaseDate: "2026-08-04" }),
+    model({
+      id: "gemma-4-12b-it-gguf",
+      displayName: "Gemma 4 12B",
+      task: "chat",
+      tags: ["recommended"],
+      releaseDate: "2026-05-01",
+    }),
+  ];
+
+  it("lists the catalog-recommended model first even when the snapshot orders it later", () => {
+    const ids = installedForTask(READY, "chat", STALE).map((m) => m.id);
+    expect(ids[0]).toBe("gemma-4-12b-it-gguf");
+    // Then installer order for the untagged rest.
+    expect(ids).toEqual([
+      "gemma-4-12b-it-gguf",
+      "inkling-small",
+      "gpt-oss:20b",
+      "lfm2.5:2.6b",
+      "qwen3.5:4b",
+    ]);
+  });
+
+  it("defaults to the catalog-endorsed row when the snapshot names an untagged one", () => {
+    const ready = installedForTask(READY, "chat", STALE);
+    expect(
+      resolveDefaultId(ready, { recommended: STALE.recommendedByTask.agentic }),
+    ).toBe("gemma-4-12b-it-gguf");
+    // A snapshot pick that is not even installed falls through to ready[0].
+    expect(
+      resolveDefaultId(ready, { recommended: STALE.recommendedByTask.chat }),
+    ).toBe("gemma-4-12b-it-gguf");
+  });
+
+  it("still honors the snapshot pick when it is itself tagged or nothing is tagged", () => {
+    const tagged = installedForTask(READY, "chat", STALE);
+    expect(resolveDefaultId(tagged, { recommended: "gemma-4-12b-it-gguf" })).toBe(
+      "gemma-4-12b-it-gguf",
+    );
+    const untagged = READY.filter((m) => !m.tags);
+    expect(resolveDefaultId(untagged, { recommended: "gpt-oss:20b" })).toBe(
+      "gpt-oss:20b",
+    );
+  });
+
+  it("lets an explicit favorite win over both", () => {
+    const ready = installedForTask(READY, "chat", STALE);
+    expect(
+      resolveDefaultId(ready, {
+        favorite: "lfm2.5:2.6b",
+        recommended: "gpt-oss:20b",
+        applyFavorite: true,
+      }),
+    ).toBe("lfm2.5:2.6b");
+  });
+});

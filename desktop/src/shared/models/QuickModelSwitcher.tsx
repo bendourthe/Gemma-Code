@@ -14,7 +14,7 @@ import type {
   ModelType,
 } from "../../pages/settings/modelsTypes";
 import { GET_MORE_MODELS_ID, installedModelsForType } from "./installedFeed";
-import { catalogTabsFor, type CatalogTab } from "./catalogTabs";
+import { catalogTabsFor, pickerOrder, type CatalogTab } from "./catalogTabs";
 
 const EMPTY_OWNED = new Set<string>();
 
@@ -60,7 +60,7 @@ export function QuickModelSwitcher({
   testId = "quick-model-switcher",
   harnessLabel,
   harnessSelectorEnabled,
-  hostVramGB: _hostVramGB = null,
+  hostVramGB = null,
   catalogTab,
   recommendOrder,
 }: QuickModelSwitcherProps): JSX.Element {
@@ -70,13 +70,14 @@ export function QuickModelSwitcher({
     const onTab = installedModelsForType(models, taskType, owned).filter((m) =>
       catalogTabsFor(m).includes(tab),
     );
-    const rank = new Map(
-      (recommendOrder ?? []).map((id, index) => [id, index]),
-    );
-    return [...onTab].sort(
-      (a, b) => (rank.get(a.id) ?? 10_000) - (rank.get(b.id) ?? 10_000),
-    );
-  }, [models, taskType, ownedIds, catalogTab, recommendOrder]);
+    // v2.4.8 Phase 5 (T020): installer picker order. Catalog tier first, the
+    // snapshot's recommend order as the tie-break, so a stale snapshot that
+    // names an untagged model cannot push the catalog recommendation down.
+    return pickerOrder(onTab, {
+      hostVramGB,
+      ...(recommendOrder ? { recommendOrder } : {}),
+    });
+  }, [models, taskType, ownedIds, catalogTab, recommendOrder, hostVramGB]);
 
   const options = useMemo(
     () => [

@@ -246,3 +246,85 @@ describe("QuickModelSwitcher", () => {
     ]);
   });
 });
+
+// v2.4.8 Phase 5 (T020/T022): operator screenshot 5 (2026-09-06). The Agents
+// picker listed gpt-oss 20B, Gemma 4 12B, Inkling-Small, LFM2.5 2.6B, two
+// Nemotron entries, Qwen 3.5 4B and 9B, with gpt-oss selected, because the
+// snapshot named gpt-oss as the agentic pick. The installer picker lists the
+// catalog-recommended Gemma 4 12B first; so does this switcher now.
+describe("QuickModelSwitcher v2.4.8 installer order", () => {
+  const ROSTER: ListedModelDto[] = [
+    { id: "gpt-oss:20b", displayName: "gpt-oss 20B", type: "llm", task: "agentic", agentic: true, installed: true, source: "registry", vramGB: 14, releaseDate: "2025-08-05" },
+    { id: "gemma-4-12b-it-gguf", displayName: "Gemma 4 12B", type: "llm", task: "chat", agentic: true, installed: true, source: "registry", vramGB: 11, releaseDate: "2026-05-01", tags: ["recommended"] },
+    { id: "inkling-small", displayName: "Inkling-Small (patient tier)", type: "llm", task: "chat", agentic: true, installed: true, source: "registry", vramGB: 0, releaseDate: "2026-07-01" },
+    { id: "lfm2.5:2.6b", displayName: "LFM2.5 2.6B", type: "llm", task: "agentic", agentic: true, installed: true, source: "registry", vramGB: 3, releaseDate: "2026-08-04" },
+    { id: "nemotron-lightning:30b-a3b", displayName: "Nemotron 3.5 Lightning 30B-A3B", type: "llm", task: "chat", agentic: true, installed: true, source: "registry", vramGB: 20, releaseDate: "2026-06-01" },
+    { id: "nemotron-lightning:30b-a3b-offload", displayName: "Nemotron 3.5 Lightning 30B-A3B (expert offload)", type: "llm", task: "chat", agentic: true, installed: true, source: "registry", vramGB: 8, releaseDate: "2026-06-01" },
+    { id: "qwen3.5:4b", displayName: "Qwen 3.5 4B", type: "llm", task: "chat", agentic: true, installed: true, source: "registry", vramGB: 4, releaseDate: "2026-02-01" },
+    { id: "qwen3.5:9b", displayName: "Qwen 3.5 9B", type: "llm", task: "chat", agentic: true, installed: true, source: "registry", vramGB: 8, releaseDate: "2026-02-01" },
+  ];
+  const OWNED = new Set(ROSTER.map((m) => m.id));
+  // The stale on-disk snapshot: agentic pick gpt-oss first, then install order.
+  const STALE_ORDER = [
+    "gpt-oss:20b",
+    "gemma-4-12b-it-gguf",
+    "inkling-small",
+    "lfm2.5:2.6b",
+    "nemotron-lightning:30b-a3b",
+    "nemotron-lightning:30b-a3b-offload",
+    "qwen3.5:4b",
+    "qwen3.5:9b",
+  ];
+
+  function values(): string[] {
+    const select = screen.getByTestId("quick-model-switcher") as HTMLSelectElement;
+    return [...select.options].map((o) => o.value);
+  }
+
+  it("lists Gemma 4 12B first on the Agentic tab despite a stale gpt-oss snapshot pick", () => {
+    render(
+      <QuickModelSwitcher
+        models={ROSTER}
+        taskType="llm"
+        catalogTab="agentic"
+        ownedIds={OWNED}
+        value="gpt-oss:20b"
+        onChange={() => undefined}
+        hostVramGB={16}
+        recommendOrder={STALE_ORDER}
+      />,
+    );
+    const ids = values();
+    expect(ids[0]).toBe("gemma-4-12b-it-gguf");
+    // Untagged rows keep the snapshot order; the 20 GB Nemotron is over budget
+    // on a 16 GB host and sinks to the bottom, as in the installer picker.
+    expect(ids).toEqual([
+      "gemma-4-12b-it-gguf",
+      "gpt-oss:20b",
+      "inkling-small",
+      "lfm2.5:2.6b",
+      "nemotron-lightning:30b-a3b-offload",
+      "qwen3.5:4b",
+      "qwen3.5:9b",
+      "nemotron-lightning:30b-a3b",
+      GET_MORE_MODELS_ID,
+    ]);
+  });
+
+  it("orders by tier, newest release, then name when no snapshot order exists", () => {
+    render(
+      <QuickModelSwitcher
+        models={ROSTER}
+        taskType="llm"
+        catalogTab="chat"
+        ownedIds={OWNED}
+        value="gemma-4-12b-it-gguf"
+        onChange={() => undefined}
+      />,
+    );
+    const ids = values();
+    expect(ids[0]).toBe("gemma-4-12b-it-gguf");
+    expect(ids.indexOf("inkling-small")).toBeLessThan(ids.indexOf("qwen3.5:4b"));
+    expect(ids.at(-1)).toBe(GET_MORE_MODELS_ID);
+  });
+});

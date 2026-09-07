@@ -321,7 +321,69 @@ def _ordered_selected_ids(state: InstallerState) -> list[str]:
     return ordered
 
 
+#: The picker tasks the sidecar snapshot carries a recommendation for.
+_SNAPSHOT_TASKS: tuple[str, ...] = ("chat", "agentic", "image", "video")
+
+# Mirror of the picker's `TASK_TO_TAB` / `CATALOG_TYPE_TO_TAB`; embeddings are
+# their own tab and never a chat recommendation.
+_SNAPSHOT_TASK_TO_TAB: dict[str, str] = {
+    "chat": "chat",
+    "agentic": "agentic",
+    "embed": "embeddings",
+    "image": "image",
+    "video": "video",
+    "audio": "audio",
+    "document": "document",
+}
+_SNAPSHOT_TYPE_TO_TAB: dict[str, str] = {
+    "llm": "chat",
+    "embed": "embeddings",
+    "image": "image",
+    "video": "video",
+    "audio": "audio",
+    "document": "document",
+}
+
+
+def _snapshot_entry_tabs(entry: dict[str, object]) -> set[str]:
+    """The picker tabs a catalog entry appears on.
+
+    A chat model with ``agentic: true`` also sits on the Agentic tab, exactly
+    as the picker (and desktop ``catalogTabsFor``) place it.
+    """
+    tab = _SNAPSHOT_TASK_TO_TAB.get(str(entry.get("task") or ""))
+    if tab is None:
+        tab = _SNAPSHOT_TYPE_TO_TAB.get(str(entry.get("type") or ""))
+    if tab is None:
+        return set()
+    tabs = {tab}
+    if tab == "chat" and bool(entry.get("agentic")):
+        tabs.add("agentic")
+    return tabs
+
+
+def _snapshot_recommendation_tier(entry: dict[str, object]) -> int:
+    """0 required, 1 recommended, 2 otherwise -- the picker's card tiers."""
+    tags = entry.get("tags") or ()
+    if "required" in tags:
+        return 0
+    if "recommended" in tags:
+        return 1
+    return 2
+
+
 def _recommended_by_task(ordered_ids: list[str]) -> dict[str, str]:
+    """Per picker task, the selected model the picker itself ranks first.
+
+    v2.4.8 Phase 5 (T021): this used to take the first selected id whose type
+    mapped to the task, so an all-models selection produced
+    ``chat: embeddinggemma`` (an embedding model) and ``agentic: gpt-oss:20b``
+    (an untagged model listed above the tagged Gemma 4 12B). The desktop then
+    opened Agents on gpt-oss and listed it first. The pick now follows the
+    picker's display order for the task's tab: catalog tier (required,
+    recommended, other), then newest release, then selection order. Embedding
+    models are never a chat recommendation.
+    """
     catalog: dict[str, object] = {}
     try:
         from nexus_installer.engine.model_router import (
@@ -332,24 +394,25 @@ def _recommended_by_task(ordered_ids: list[str]) -> dict[str, str]:
         catalog = load_catalog_index(default_catalog_path())
     except (OSError, ImportError, TypeError, ValueError):
         catalog = {}
+    from nexus_installer.catalog_tab_sort import release_ordinal
+
     recommended: dict[str, str] = {}
-    for model_id in ordered_ids:
-        entry = catalog.get(model_id) if isinstance(catalog, dict) else None
-        task: str | None = None
-        if isinstance(entry, dict):
-            raw_task = entry.get("task")
-            if raw_task in ("chat", "agentic", "image", "video"):
-                task = str(raw_task)
-            else:
-                typ = entry.get("type")
-                if typ == "image":
-                    task = "image"
-                elif typ == "video":
-                    task = "video"
-                elif typ in ("llm", "embed"):
-                    task = "chat"
-        if task and task not in recommended:
-            recommended[task] = model_id
+    for task in _SNAPSHOT_TASKS:
+        best_id: str | None = None
+        best_key: tuple[int, int, int] | None = None
+        for index, model_id in enumerate(ordered_ids):
+            entry = catalog.get(model_id) if isinstance(catalog, dict) else None
+            if not isinstance(entry, dict) or task not in _snapshot_entry_tabs(entry):
+                continue
+            key = (
+                _snapshot_recommendation_tier(entry),
+                -release_ordinal(str(entry.get("releaseDate") or "")),
+                index,
+            )
+            if best_key is None or key < best_key:
+                best_id, best_key = model_id, key
+        if best_id is not None:
+            recommended[task] = best_id
     return recommended
 
 

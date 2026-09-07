@@ -321,3 +321,47 @@ export function visibleModelsOnTab(
   return settingsModelDisplayOrder(modelsOnTab(models, tab), options);
 }
 
+/**
+ * v2.4.8 Phase 5 (T020) -- the order every model picker lists owned models in.
+ *
+ * Operator screenshot 5 (2026-09-06): the Agents picker read `gpt-oss 20B,
+ * Gemma 4 12B, Inkling-Small, LFM2.5, ...` with gpt-oss selected, because the
+ * installer snapshot named gpt-oss as the agentic recommendation and the
+ * picker ranked by snapshot position alone. The installer picker itself lists
+ * Gemma 4 12B first: catalog tier (required, recommended, other) outranks
+ * position. This sort mirrors the installer picker for a list of owned,
+ * downloaded rows -- no family collapse, no VRAM-floor hiding, since nothing
+ * on disk may disappear from a picker:
+ *
+ *   over budget last (when host VRAM is known) > catalog tier > snapshot rank
+ *   > newest release > highest VRAM > name
+ *
+ * A snapshot rank therefore breaks ties inside a tier and never promotes an
+ * untagged model above a catalog recommendation.
+ */
+export function pickerOrder(
+  models: readonly ListedModelDto[],
+  options: CatalogSortOptions = {},
+): ListedModelDto[] {
+  const hostVramGB = options.hostVramGB;
+  const gpuVendor = options.gpuVendor ?? catalogSortGpuVendor(hostVramGB);
+  const recRank = new Map<string, number>();
+  (options.recommendOrder ?? []).forEach((id, index) => {
+    if (!recRank.has(id)) recRank.set(id, index);
+  });
+  const tier = (m: ListedModelDto): number => {
+    const kind = recommendationKind(m);
+    return kind === "required" ? 0 : kind === "recommended" ? 1 : 2;
+  };
+  const over = (m: ListedModelDto): number =>
+    typeof hostVramGB === "number" && isCatalogOverBudget(m, hostVramGB, gpuVendor) ? 1 : 0;
+  return [...models].sort(
+    (a, b) =>
+      over(a) - over(b) ||
+      tier(a) - tier(b) ||
+      (recRank.get(a.id) ?? 10_000) - (recRank.get(b.id) ?? 10_000) ||
+      releaseOrdinal(b.releaseDate) - releaseOrdinal(a.releaseDate) ||
+      rowVram(b) - rowVram(a) ||
+      nameOf(a).localeCompare(nameOf(b)),
+  );
+}
