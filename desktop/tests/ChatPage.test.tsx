@@ -246,6 +246,49 @@ describe("<ChatPage>", () => {
     expect(sent[0]).toContain("hello");
   });
 
+  // v2.4.8 Phase 2 (T007/T008): operator screenshot 2 (2026-09-06) showed the
+  // Persona popover open with no way to close it and drawn without the app's
+  // tokens. It now closes on an outside pointer and on Escape, stays open on
+  // an inside pointer, and carries the elevated-surface and field tokens.
+  it("dismisses the persona popover on outside pointer or Escape and styles it with app tokens", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({
+      folderId: folder.id,
+      title: "draft",
+      modelId: "gemma4:e4b",
+    });
+    const user = userEvent.setup();
+    render(<ChatPage client={client} modelsClient={INSTALLED_CHAT_MODELS} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await user.click(screen.getByTestId("media-composer-overflow-toggle"));
+    await user.click(screen.getByTestId("chat-persona-toggle"));
+    const popover = screen.getByTestId("chat-persona-popover");
+    expect(popover.style.background).toBe("var(--bg-elevated)");
+    expect(popover.style.border).toBe("1px solid var(--border-subtle)");
+    expect(popover.style.borderRadius).toBe("var(--radius-md)");
+    const field = screen.getByTestId("chat-persona") as HTMLTextAreaElement;
+    expect(field.style.fontFamily).toBe("var(--font-sans)");
+    expect(field.style.fontSize).toBe("var(--text-sm)");
+    expect(field.style.background).toBe("var(--bg-1)");
+    expect(screen.getByText("Persona for this chat").style.color).toBe(
+      "var(--fg-1)",
+    );
+    // Inside pointer keeps it open; typing works.
+    fireEvent.pointerDown(field);
+    expect(screen.getByTestId("chat-persona-popover")).toBeInTheDocument();
+    // Outside pointer closes it.
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByTestId("chat-persona-popover")).toBeNull();
+    // Reopen, then Escape closes it.
+    await user.click(screen.getByTestId("media-composer-overflow-toggle"));
+    await user.click(screen.getByTestId("chat-persona-toggle"));
+    expect(screen.getByTestId("chat-persona-popover")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("chat-persona-popover")).toBeNull();
+  });
+
   it("shows the composing orb while the assistant reply is in flight", async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });

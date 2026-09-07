@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDismissOnOutside } from "../../shared/ui/useDismissOnOutside";
 import {
   FolderTree,
   CHAT_FOLDER_TREE_COPY,
@@ -263,6 +264,11 @@ export function ChatPage({
   );
   // v2.2.7 Phase 3: persona is a text control under the composer, not a header gear.
   const [personaOpen, setPersonaOpen] = useState(false);
+  // v2.4.8 Phase 2 (T007): the popover closes on an outside pointer or Escape.
+  const personaPopoverRef = useRef<HTMLDivElement>(null);
+  const personaSurface = useMemo(() => [personaPopoverRef], []);
+  const closePersona = useCallback(() => setPersonaOpen(false), []);
+  useDismissOnOutside(personaSurface, personaOpen, closePersona);
   const [voiceLoop, setVoiceLoop] =
     useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -1369,28 +1375,37 @@ export function ChatPage({
           {personaOpen && activeChat ? (
             <div
               data-testid="chat-persona-popover"
+              ref={personaPopoverRef}
               style={{
                 position: "absolute",
                 left: 0,
                 bottom: "100%",
                 zIndex: 30,
-                width: "22rem",
+                width: "min(22rem, 100%)",
+                boxSizing: "border-box",
                 marginBottom: "var(--space-2)",
                 padding: "var(--space-3)",
                 borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-subtle, #2a2a2a)",
-                background: "var(--bg-elevated, #1b1b1b)",
+                border: "1px solid var(--border-subtle)",
+                background: "var(--bg-elevated)",
+                boxShadow: "var(--shadow-md)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "var(--space-2)",
               }}
             >
               <label
-                style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}
+                htmlFor="chat-persona-field"
+                style={{
+                  fontSize: "var(--text-sm)",
+                  fontWeight: 600,
+                  color: "var(--fg-1)",
+                }}
               >
                 Persona for this chat
               </label>
               <textarea
+                id="chat-persona-field"
                 data-testid="chat-persona"
                 rows={3}
                 value={personaByChat[activeChat.id] ?? ""}
@@ -1409,6 +1424,15 @@ export function ChatPage({
                   resize: "vertical",
                   width: "100%",
                   boxSizing: "border-box",
+                  padding: "var(--space-2) var(--space-3)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-subtle)",
+                  background: "var(--bg-1)",
+                  color: "var(--fg-0)",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "var(--text-sm)",
+                  lineHeight: 1.4,
+                  outline: "none",
                 }}
               />
             </div>

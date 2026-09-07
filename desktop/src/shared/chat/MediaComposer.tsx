@@ -12,6 +12,7 @@
  */
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -24,6 +25,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Send, Square } from "lucide-react";
+import { useDismissOnOutside } from "../ui/useDismissOnOutside";
 import {
   AccentBeam,
   type AccentBeamAccentToken,
@@ -175,6 +177,21 @@ export function MediaComposer({
   const [overflowOpen, setOverflowOpen] = useState(false);
   const hasOverflow = overflowActions.length > 0;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // v2.4.8 Phase 2 (T006): both menus close on an outside pointer or Escape.
+  // Each surface is its menu plus its toggle, so the toggle keeps toggling.
+  const micMenuRef = useRef<HTMLDivElement>(null);
+  const micToggleRef = useRef<HTMLButtonElement>(null);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
+  const overflowToggleRef = useRef<HTMLButtonElement>(null);
+  const micSurface = useMemo(() => [micMenuRef, micToggleRef], []);
+  const overflowSurface = useMemo(
+    () => [overflowMenuRef, overflowToggleRef],
+    [],
+  );
+  const closeMicMenu = useCallback(() => setMicMenuOpen(false), []);
+  const closeOverflow = useCallback(() => setOverflowOpen(false), []);
+  useDismissOnOutside(micSurface, micMenuOpen, closeMicMenu);
+  useDismissOnOutside(overflowSurface, overflowOpen, closeOverflow);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -457,6 +474,7 @@ export function MediaComposer({
                     type="button"
                     aria-label="Voice options"
                     data-testid="media-composer-mic-menu-toggle"
+                    ref={micToggleRef}
                     aria-expanded={micMenuOpen}
                     disabled={disabled}
                     onClick={() => setMicMenuOpen((v) => !v)}
@@ -483,6 +501,7 @@ export function MediaComposer({
                   type="button"
                   aria-label="More composer options"
                   data-testid="media-composer-overflow-toggle"
+                  ref={overflowToggleRef}
                   aria-expanded={overflowOpen}
                   disabled={disabled}
                   onClick={() => setOverflowOpen((v) => !v)}
@@ -518,6 +537,7 @@ export function MediaComposer({
             {overflowOpen && hasOverflow ? (
               <div
                 data-testid="media-composer-overflow-menu"
+                ref={overflowMenuRef}
                 role="menu"
                 aria-label="More composer options"
                 style={micMenuStyle}
@@ -545,6 +565,7 @@ export function MediaComposer({
             {micMenuOpen && audioEnabled ? (
               <div
                 data-testid="media-composer-mic-menu"
+                ref={micMenuRef}
                 role="menu"
                 aria-label="Voice options"
                 style={micMenuStyle}
