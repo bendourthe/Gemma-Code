@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import type { CSSProperties } from "react";
-import { CircleCheck, Download, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Trash2 } from "lucide-react";
 import { modelAvailabilityBucket } from "../../../../core/registry/modelDisplayPolicy";
 import { Button, SearchInput } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
@@ -42,17 +42,10 @@ import {
 import { filterCatalog } from "../../shared/models/modelLibrary";
 import { buildModelPills } from "../../shared/models/modelPills";
 import {
-  BADGE_DOWNLOADED,
   BADGE_RECOMMENDED,
   providerColor,
   providerTint,
 } from "../../shared/models/providerColors";
-import {
-  FAVORITE_STORAGE_PREFIX,
-  readFavorite,
-  writeFavorite,
-  type TaskKey,
-} from "../../shared/models/selectionPolicy";
 import type {
   DiskUsageDto,
   InstallProgressDto,
@@ -85,18 +78,6 @@ export interface ModelsSettingsProps {
   gpuVendor?: string | null;
 }
 
-const TASK_TABS: readonly TaskKey[] = [
-  "chat",
-  "agentic",
-  "image",
-  "video",
-  "audio",
-  "document",
-];
-
-function isTaskKey(tab: CatalogTab): tab is TaskKey {
-  return (TASK_TABS as readonly string[]).includes(tab);
-}
 
 export function ModelsSettings({
   client,
@@ -115,22 +96,11 @@ export function ModelsSettings({
   const [active, setActive] = useState<Record<string, InstallHandle>>({});
   const [disk, setDisk] = useState<DiskUsageDto | null>(null);
   const diskRequest = useRef(0);
-  const [favorites, setFavorites] = useState<
-    Partial<Record<string, string | null>>
-  >(() => {
-    const next: Partial<Record<string, string | null>> = {};
-    for (const t of TASK_TABS) next[t] = readFavorite(t);
-    for (const extra of ["embeddings", "other"] as const) {
-      try {
-        next[extra] = window.localStorage.getItem(
-          `${FAVORITE_STORAGE_PREFIX}${extra}`,
-        );
-      } catch {
-        next[extra] = null;
-      }
-    }
-    return next;
-  });
+  // v2.4.8 Phase 7 (T034): each availability group (Downloaded, Compatible,
+  // Incompatible) collapses independently per tab.
+  const [collapsedGroups, setCollapsedGroups] = useState<
+    Record<string, boolean>
+  >({});
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(error);
 
@@ -213,11 +183,26 @@ export function ModelsSettings({
     hostVramGB,
     gpuVendor: gpuVendor ?? catalogSortGpuVendor(hostVramGB),
   };
-  const availabilityBuckets = new Set(
-    visible.map((model) => modelAvailabilityBucket(model, availabilityOptions)),
-  );
-  const showAvailabilityHeadings =
-    tab !== "other" && availabilityBuckets.size > 1;
+  // v2.4.8 Phase 7 (T034): every tab groups its rows as Downloaded, then
+  // Compatible (not yet downloaded), then Incompatible; each group has a
+  // heading with a chevron that collapses its list. "Installed outside
+  // catalog" has no compatibility data and renders as one flat list.
+  const groups: readonly { bucket: number; label: string; rows: ListedModelDto[] }[] =
+    tab === "other"
+      ? [{ bucket: 0, label: "Downloaded", rows: [...visible] }]
+      : [0, 1, 2].map((bucket) => ({
+          bucket,
+          label: GROUP_LABELS[bucket] ?? "",
+          rows: visible.filter(
+            (model) => modelAvailabilityBucket(model, availabilityOptions) === bucket,
+          ),
+        }));
+  const groupKey = (bucket: number): string => `${tab}:${bucket}`;
+  const toggleGroup = (bucket: number): void =>
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupKey(bucket)]: !prev[groupKey(bucket)],
+    }));
 
   async function refresh(): Promise<void> {
     const list = await client.list();
@@ -276,25 +261,6 @@ export function ModelsSettings({
     } catch (e) {
       setRowErrors((prev) => ({ ...prev, [id]: messageFor(e) }));
     }
-  }
-
-  function toggleFavorite(id: string): void {
-    const current = favorites[tab] ?? null;
-    const next = current === id ? null : id;
-    setFavorites((prev) => ({ ...prev, [tab]: next }));
-    if (!isTaskKey(tab)) {
-      // Embeddings and Other are not TaskKey selection-policy tabs; the
-      // favorite is a plain per-tab preference key.
-      try {
-        const key = `${FAVORITE_STORAGE_PREFIX}${tab}`;
-        if (!next) window.localStorage.removeItem(key);
-        else window.localStorage.setItem(key, next);
-      } catch {
-        /* preference is optional */
-      }
-      return;
-    }
-    writeFavorite(tab, next);
   }
 
   return (
@@ -377,55 +343,63 @@ export function ModelsSettings({
             <p style={{ color: "var(--fg-muted)" }}>No matching entries.</p>
           ) : (
             <ul data-testid="models-list" style={listStyle}>
-              {visible.map((m, index) => {
-                const bucket = modelAvailabilityBucket(m, availabilityOptions);
-                const previous =
-                  index > 0
-                    ? modelAvailabilityBucket(
-                        visible[index - 1]!,
-                        availabilityOptions,
-                      )
-                    : null;
-                return (
-                  <Fragment key={m.id}>
-                    {showAvailabilityHeadings && bucket !== previous ? (
+              {groups
+                .filter((group) => group.rows.length > 0)
+                .map((group) => {
+                  const collapsed = Boolean(collapsedGroups[groupKey(group.bucket)]);
+                  return (
+                    <Fragment key={group.bucket}>
                       <li
-                        data-testid={`models-group-${bucket}`}
+                        data-testid={`models-group-${group.bucket}`}
+                        data-collapsed={collapsed ? "true" : "false"}
                         style={groupHeadingStyle}
                       >
-                        {bucket === 0
-                          ? "Downloaded"
-                          : bucket === 1
-                            ? "Available to download"
-                            : "Incompatible"}
+                        <button
+                          type="button"
+                          data-testid={`models-group-toggle-${group.bucket}`}
+                          aria-expanded={!collapsed}
+                          aria-controls={`models-group-list-${group.bucket}`}
+                          onClick={() => toggleGroup(group.bucket)}
+                          style={groupToggleStyle}
+                        >
+                          {collapsed ? (
+                            <ChevronRight size={14} aria-hidden="true" />
+                          ) : (
+                            <ChevronDown size={14} aria-hidden="true" />
+                          )}
+                          <span>{group.label}</span>
+                          <span style={groupCountStyle}>{group.rows.length}</span>
+                        </button>
                       </li>
-                    ) : null}
-                    <ModelCard
-                      item={m}
-                      components={componentsFor(m, items)}
-                      hostVramGB={hostVramGB}
-                      gpuVendor={gpuVendor}
-                      progress={progress[m.id]}
-                      installing={Boolean(active[m.id])}
-                      favorite={favorites[tab] === m.id}
-                      rowError={rowErrors[m.id]}
-                      onFavorite={() => toggleFavorite(m.id)}
-                      onInstall={() => startInstall(m.id)}
-                      onCancel={() => cancelInstall(m.id)}
-                      onRemove={
-                        m.source === "registry"
-                          ? () => void handleRemove(m.id)
-                          : undefined
-                      }
-                      onReveal={
-                        m.absPath && client.reveal
-                          ? () => client.reveal?.(m.absPath as string)
-                          : undefined
-                      }
-                    />
-                  </Fragment>
-                );
-              })}
+                      {collapsed
+                        ? null
+                        : group.rows.map((m) => (
+                            <ModelCard
+                              key={m.id}
+                              item={m}
+                              components={componentsFor(m, items)}
+                              hostVramGB={hostVramGB}
+                              gpuVendor={gpuVendor}
+                              progress={progress[m.id]}
+                              installing={Boolean(active[m.id])}
+                              rowError={rowErrors[m.id]}
+                              onInstall={() => startInstall(m.id)}
+                              onCancel={() => cancelInstall(m.id)}
+                              onRemove={
+                                m.source === "registry"
+                                  ? () => void handleRemove(m.id)
+                                  : undefined
+                              }
+                              onReveal={
+                                m.absPath && client.reveal
+                                  ? () => client.reveal?.(m.absPath as string)
+                                  : undefined
+                              }
+                            />
+                          ))}
+                    </Fragment>
+                  );
+                })}
             </ul>
           )}
         </section>
@@ -441,9 +415,7 @@ interface ModelCardProps {
   gpuVendor?: string | null;
   progress?: InstallProgressDto;
   installing?: boolean;
-  favorite: boolean;
   rowError?: string;
-  onFavorite: () => void;
   onInstall: () => void;
   onCancel: () => void;
   onRemove?: () => void;
@@ -459,11 +431,17 @@ interface ModelCardProps {
  * name row with a steelblue Recommended pill, hangs a size pill plus round
  * compatibility and downloaded badges on the right, then prints description,
  * `Best for:`, the license note, and `Why this one:`. This mirrors
- * `nexus_installer.pages.typed_catalog.ModelCard` one element at a time. The
- * action row (star, download / delete) stays because this card can act and the
- * installer card cannot. It reverses the v2.4.6 Phase 6 decision to drop
- * `Best for` and `Why this one` from Settings: parity with the installer is
- * the operator's stated requirement.
+ * `nexus_installer.pages.typed_catalog.ModelCard` one element at a time. It
+ * reverses the v2.4.6 Phase 6 decision to drop `Best for` and `Why this one`
+ * from Settings: parity with the installer is the operator's stated requirement.
+ *
+ * v2.4.8 Phase 7 (T034), operator feedback 2026-09-07: the desktop card acts
+ * where the installer card only reports. The right cluster is the size pill
+ * followed by the one action that applies (delete when downloaded, download
+ * when compatible, progress while installing); there is no compatibility
+ * checkmark, no downloaded badge, and no star / action row under the body.
+ * Incompatible cards are disabled and translucent with no action at all; the
+ * group heading and the note under the name row already say why.
  */
 function Pill({
   text,
@@ -486,47 +464,6 @@ function Pill({
   );
 }
 
-/** A round filled icon badge whose meaning lives on the tooltip (installer `_icon_badge`). */
-function IconBadge({
-  glyph,
-  color,
-  tooltip,
-  testId,
-}: {
-  glyph: string;
-  color: string;
-  tooltip: string;
-  testId: string;
-}): JSX.Element {
-  return (
-    <span
-      data-testid={testId}
-      role="img"
-      aria-label={tooltip}
-      title={tooltip}
-      style={{
-        display: "inline-flex",
-        width: ICON_BADGE_PX,
-        height: ICON_BADGE_PX,
-        borderRadius: ICON_BADGE_PX / 2,
-        alignItems: "center",
-        justifyContent: "center",
-        color,
-        background: providerTint(color, 0.18),
-        border: `1px solid ${color}`,
-        fontSize: "var(--text-xs, 12px)",
-        fontWeight: 700,
-        lineHeight: 1,
-        flexShrink: 0,
-      }}
-    >
-      {glyph}
-    </span>
-  );
-}
-
-const ICON_BADGE_PX = 22;
-
 function ModelCard({
   item,
   components,
@@ -534,9 +471,7 @@ function ModelCard({
   gpuVendor,
   progress,
   installing,
-  favorite,
   rowError,
-  onFavorite,
   onInstall,
   onCancel,
   onRemove,
@@ -572,7 +507,9 @@ function ModelCard({
     border: fits
       ? `1px solid ${providerTint(accent, 0.3)}`
       : `1px dashed ${mutedBorder}`,
-    ...(overBudget ? { color: "var(--fg-muted)" } : null),
+    ...(overBudget
+      ? { color: "var(--fg-muted)", opacity: 0.45, pointerEvents: "none" as const }
+      : null),
   };
   return (
     <li
@@ -581,6 +518,7 @@ function ModelCard({
       data-downloaded={downloaded ? "true" : "false"}
       data-over-budget={overBudget ? "true" : "false"}
       data-provider-color={accent}
+      aria-disabled={overBudget ? true : undefined}
       style={card}
     >
       {/* --- Title row: name + fact pills (flow) | size, compatibility, downloaded --- */}
@@ -653,20 +591,18 @@ function ModelCard({
               border={fits ? accent : mutedBorder}
             />
           ) : null}
-          <IconBadge
-            testId={`models-compat-badge-${item.id}`}
-            glyph={fits ? "✓" : "!"}
-            color={fits ? STATUS_OK : STATUS_WARN}
-            tooltip={compatibility}
+          <RowActions
+            item={item}
+            progress={progress}
+            installing={installing}
+            downloaded={downloaded}
+            overBudget={overBudget}
+            selectedMissing={selectedMissing}
+            onInstall={onInstall}
+            onCancel={onCancel}
+            onRemove={onRemove}
+            onReveal={onReveal}
           />
-          {downloaded ? (
-            <IconBadge
-              testId={`models-downloaded-badge-${item.id}`}
-              glyph={"⤓"}
-              color={BADGE_DOWNLOADED}
-              tooltip="Downloaded"
-            />
-          ) : null}
         </div>
       </div>
       {/* --- Incompatibility note (only when the model does not fit) --- */}
@@ -727,45 +663,6 @@ function ModelCard({
           Why this one: {item.whyRecommended}
         </p>
       ) : null}
-      {/*
-        v2.4.6 Phase 6: star, downloaded, and delete share one centered
-        row under the body. The installer card has no actions; this one does.
-      */}
-      <div
-        data-testid={`models-actions-${item.id}`}
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "var(--space-2, 8px)",
-        }}
-      >
-        <Button
-          type="button"
-          testId={`models-favorite-${item.id}`}
-          aria-pressed={favorite}
-          aria-label={favorite ? "Unfavorite" : "Favorite"}
-          onClick={onFavorite}
-          variant="ghost"
-          style={starStyle(favorite)}
-        >
-          {favorite ? "★" : "☆"}
-        </Button>
-        <RowActions
-          item={item}
-          progress={progress}
-          installing={installing}
-          downloaded={downloaded}
-          overBudget={overBudget}
-          selectedMissing={selectedMissing}
-          hostVramGB={hostVramGB}
-          onInstall={onInstall}
-          onCancel={onCancel}
-          onRemove={onRemove}
-          onReveal={onReveal}
-        />
-      </div>
       {components.length > 0 ? (
         <p data-testid={`models-row-${item.id}-components`} style={copyStyle}>
           Components:{" "}
@@ -810,7 +707,6 @@ function RowActions({
   downloaded,
   overBudget,
   selectedMissing,
-  hostVramGB,
   onInstall,
   onCancel,
   onRemove,
@@ -822,12 +718,11 @@ function RowActions({
   downloaded: boolean;
   overBudget: boolean;
   selectedMissing: boolean;
-  hostVramGB?: number | null;
   onInstall: () => void;
   onCancel: () => void;
   onRemove?: () => void;
   onReveal?: () => void;
-}): JSX.Element {
+}): JSX.Element | null {
   if (installing && progress) {
     const total = progress.total ?? 0;
     const pct = total > 0 ? Math.min(100, (progress.bytes / total) * 100) : 0;
@@ -873,55 +768,30 @@ function RowActions({
     );
   }
   if (downloaded) {
-    return (
-      <div
+    // v2.4.8 Phase 7: the delete button alone says "downloaded"; no checkmark.
+    return onRemove ? (
+      <Button
+        type="button"
+        testId={`models-remove-${item.id}`}
+        aria-label="Remove"
+        variant="ghost"
+        onClick={onRemove}
         style={{
-          display: "flex",
-          gap: "var(--space-2, 8px)",
-          alignItems: "center",
+          color: MODELS_REMOVE_COLOR,
+          padding: 4,
+          minWidth: 0,
         }}
       >
-        <span
-          data-testid={`models-downloaded-${item.id}`}
-          aria-label="Downloaded"
-          style={{
-            display: "inline-flex",
-            color: MODELS_DOWNLOADED_COLOR,
-          }}
-        >
-          <CircleCheck size={16} aria-hidden="true" />
-          <span style={visuallyHiddenStyle}>Downloaded</span>
-        </span>
-        {onRemove ? (
-          <Button
-            type="button"
-            testId={`models-remove-${item.id}`}
-            aria-label="Remove"
-            variant="ghost"
-            onClick={onRemove}
-            style={{
-              color: MODELS_REMOVE_COLOR,
-              padding: 4,
-              minWidth: 0,
-            }}
-          >
-            <Trash2 size={16} aria-hidden="true" />
-            <span style={visuallyHiddenStyle}>Remove</span>
-          </Button>
-        ) : null}
-      </div>
-    );
+        <Trash2 size={16} aria-hidden="true" />
+        <span style={visuallyHiddenStyle}>Remove</span>
+      </Button>
+    ) : null;
   }
   if (overBudget) {
-    return (
-      <span
-        data-testid={`models-over-budget-${item.id}`}
-        style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}
-        title={`Needs ${item.vramGB} GB VRAM; this host has ${hostVramGB} GB.`}
-      >
-        Needs {item.vramGB} GB VRAM
-      </span>
-    );
+    // v2.4.8 Phase 7: an incompatible card offers no action. The Incompatible
+    // group heading and the note under the name row carry the reason, and the
+    // card itself is disabled and translucent.
+    return null;
   }
   const installLabel = selectedMissing ? "Retry" : "Download";
   return (
@@ -1041,18 +911,6 @@ function tabButtonStyle(active: boolean): CSSProperties {
   };
 }
 
-function starStyle(on: boolean): CSSProperties {
-  return {
-    appearance: "none",
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    fontSize: "1.25em",
-    lineHeight: 1,
-    color: on ? "var(--accent-warning, #fbbf24)" : "var(--fg-muted)",
-  };
-}
-
 export const MODELS_PAGE_GAP = "var(--space-3, 12px)";
 export const MODELS_HEADER_TO_TABS_GAP = "var(--space-1, 4px)";
 /** v2.4.8 Phase 4: installer card margins (14 px sides, 10 px top and bottom). */
@@ -1142,12 +1000,32 @@ const listStyle: CSSProperties = {
   overflowY: "auto",
 };
 
+/** v2.4.8 Phase 7: the three availability groups every tab renders, in order. */
+const GROUP_LABELS: readonly string[] = ["Downloaded", "Compatible", "Incompatible"];
+
 const groupHeadingStyle: CSSProperties = {
   margin: "var(--space-2, 8px) 0 0",
+  listStyle: "none",
+};
+
+const groupToggleStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "2px 4px 2px 0",
+  background: "transparent",
+  border: "none",
+  cursor: "pointer",
   color: "var(--fg-muted)",
   fontSize: "var(--text-xs, 12px)",
   fontWeight: 600,
   letterSpacing: "0.02em",
+  fontFamily: "inherit",
+};
+
+const groupCountStyle: CSSProperties = {
+  fontWeight: 400,
+  color: "var(--fg-muted)",
 };
 
 const cardStyle: CSSProperties = {
@@ -1195,6 +1073,5 @@ const chipStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-/** Installer `SUCCESS` / `WARNING` for the compatibility badge. */
-const STATUS_OK = "var(--status-ok, #22c55e)";
+/** Installer `WARNING`: the incompatibility note under the name row. */
 const STATUS_WARN = "var(--status-warn, #f59e0b)";

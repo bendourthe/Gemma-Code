@@ -5,7 +5,6 @@ import {
   ModelsSettings,
   MODELS_CARD_PADDING,
   MODELS_DOWNLOAD_COLOR,
-  MODELS_DOWNLOADED_COLOR,
   MODELS_HEADER_TO_TABS_GAP,
   MODELS_REMOVE_COLOR,
   type ModelsClient,
@@ -135,9 +134,11 @@ describe("Settings Models density (v2.4.3 Phase 4)", () => {
     expect(screen.getByTestId("models-size-gemma4:e4b").style.color).toBe(
       "rgb(34, 211, 238)",
     );
-    expect(
-      screen.getByTestId("models-compat-badge-gemma4:e4b"),
-    ).toHaveAccessibleName("Compatible - 6 GB VRAM");
+    // v2.4.8 Phase 7: no compatibility checkmark; size then delete.
+    expect(screen.queryByTestId("models-compat-badge-gemma4:e4b")).toBeNull();
+    const cluster = screen.getByTestId("models-badges-gemma4:e4b");
+    expect(cluster.children[0]).toBe(screen.getByTestId("models-size-gemma4:e4b"));
+    expect(cluster.contains(screen.getByTestId("models-remove-gemma4:e4b"))).toBe(true);
     expect(row.textContent).not.toContain("Also agentic");
     expect(row.textContent).not.toContain("Backend model:");
     expect(row.textContent).not.toContain("ID: gemma4:e4b");
@@ -147,17 +148,9 @@ describe("Settings Models density (v2.4.3 Phase 4)", () => {
     expect(screen.getByTestId("models-remove-gemma4:e4b").style.color).toBe(
       MODELS_REMOVE_COLOR,
     );
-    expect(screen.getByTestId("models-downloaded-gemma4:e4b").style.color).toBe(
-      MODELS_DOWNLOADED_COLOR,
-    );
-    // Installer parity: the violet downloaded badge sits on the title row in
-    // addition to the compatibility badge, never replacing it.
-    expect(
-      screen.getByTestId("models-downloaded-badge-gemma4:e4b"),
-    ).toHaveAccessibleName("Downloaded");
-    expect(
-      screen.getByTestId("models-downloaded-badge-gemma4:e4b").style.color,
-    ).toBe("rgb(167, 139, 250)");
+    // v2.4.8 Phase 7: the delete button alone marks a downloaded row.
+    expect(screen.queryByTestId("models-downloaded-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-downloaded-badge-gemma4:e4b")).toBeNull();
   });
 
   it("uses a blue download icon with the Download accessible name", async () => {
@@ -216,19 +209,14 @@ describe("Settings Models density (v2.4.4 Phase 6)", () => {
     expect(screen.getByTestId("models-row-gemma4:e4b")).toBeInTheDocument();
   });
 
-  it("lays the card actions out as one centered horizontal row", async () => {
+  it("renders no action row under the body; the title row carries the action", async () => {
     await mounted();
-    const actions = screen.getByTestId("models-actions-gemma4:e4b");
-    // As a column the star stacked above the download/delete control and made
-    // the grid row taller than the copy beside it.
-    expect(actions.style.flexDirection).toBe("row");
-    expect(actions.style.alignItems).toBe("center");
-    expect(actions.style.justifyContent).toBe("center");
+    // v2.4.8 Phase 7 (T034): the star and the centered action row are gone.
+    expect(screen.queryByTestId("models-actions-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-favorite-gemma4:e4b")).toBeNull();
+    const cluster = screen.getByTestId("models-badges-gemma4:e4b");
     expect(
-      actions.contains(screen.getByTestId("models-favorite-gemma4:e4b")),
-    ).toBe(true);
-    expect(
-      actions.contains(screen.getByTestId("models-remove-gemma4:e4b")),
+      cluster.contains(screen.getByTestId("models-remove-gemma4:e4b")),
     ).toBe(true);
   });
 
@@ -343,8 +331,8 @@ describe("Settings Models density (v2.4.4 Phase 6)", () => {
       screen.getByTestId("models-header-gemma-4-12b-it-gguf").contains(caps),
     ).toBe(true);
     expect(
-      screen.getByTestId("models-compat-badge-gemma-4-12b-it-gguf"),
-    ).toHaveAccessibleName("Compatible - 11 GB VRAM");
+      screen.queryByTestId("models-compat-badge-gemma-4-12b-it-gguf"),
+    ).toBeNull();
     expect(screen.getByTestId("models-size-gemma-4-12b-it-gguf").textContent).toMatch(
       /GB$/,
     );
@@ -365,9 +353,11 @@ describe("Settings Models density (v2.4.4 Phase 6)", () => {
     expect(
       screen.queryByTestId("models-row-gemma-4-12b-it-gguf-details"),
     ).toBeNull();
-    const actions = screen.getByTestId("models-actions-gemma-4-12b-it-gguf");
-    expect(actions.style.flexDirection).toBe("row");
-    expect(actions.style.alignItems).toBe("center");
-    expect(actions.style.justifyContent).toBe("center");
+    expect(screen.queryByTestId("models-actions-gemma-4-12b-it-gguf")).toBeNull();
+    expect(
+      screen
+        .getByTestId("models-badges-gemma-4-12b-it-gguf")
+        .contains(screen.getByTestId("models-remove-gemma-4-12b-it-gguf")),
+    ).toBe(true);
   });
 });
