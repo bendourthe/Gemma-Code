@@ -192,14 +192,27 @@ describe("MessageBubble pending pill", () => {
   });
 
   it("keeps Image/Video pending on the hero preset without the pill", () => {
-    const msg: ChatMessage = {
+    // v2.4.8: a studio job that has not reported a stage yet is loading
+    // its model, not creating; the studio rotator starts once the runtime
+    // says it is generating. Both states use the hero orb, never the pill.
+    const base: ChatMessage = {
       id: "p2",
       role: "assistant",
       content: "",
       pending: true,
       activity: "image-generation",
     };
-    render(<MessageBubble message={msg} />);
+    const { rerender } = render(<MessageBubble message={base} />);
+    const loading = screen.getByRole("img", { name: "Loading model" });
+    expect(loading).toHaveAttribute("data-orb-size", "hero");
+    expect(loading).not.toHaveAttribute("data-orb-pill");
+    expect(captionText()).toBe("Loading model...");
+
+    rerender(
+      <MessageBubble
+        message={{ ...base, progress: { step: 0, total: 0, stage: "generating" } }}
+      />,
+    );
     const orb = screen.getByRole("img", { name: /generating media/i });
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     expect(orb).not.toHaveAttribute("data-orb-pill");

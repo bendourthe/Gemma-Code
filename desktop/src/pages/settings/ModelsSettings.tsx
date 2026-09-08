@@ -356,9 +356,10 @@ export function ModelsSettings({
                         data-collapsed={collapsed ? "true" : "false"}
                         style={groupHeadingStyle}
                       >
-                        <button
+                        <Button
                           type="button"
-                          data-testid={`models-group-toggle-${group.bucket}`}
+                          variant="ghost"
+                          testId={`models-group-toggle-${group.bucket}`}
                           aria-expanded={!collapsed}
                           aria-controls={`models-group-list-${group.bucket}`}
                           onClick={() => toggleGroup(group.bucket)}
@@ -371,7 +372,7 @@ export function ModelsSettings({
                           )}
                           <span>{group.label}</span>
                           <span style={groupCountStyle}>{group.rows.length}</span>
-                        </button>
+                        </Button>
                       </li>
                       {collapsed
                         ? null
