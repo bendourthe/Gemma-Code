@@ -156,12 +156,12 @@ class TestHeaderSizing:
 class TestShellNavigation:
     def test_sidebar_back_only_before_install(self, qt_app: object) -> None:
         win, _pages = _build_window(qt_app)
-        win.switch_page(3)
+        win.switch_page(2)
         # Clicking a visited (<= current) section navigates back.
         win.sidebar.rows[1].click()
         assert win.current_index == 1
         # Clicking a forward section is ignored (Next + validation owns forward).
-        win.sidebar.rows[5].click()
+        win.sidebar.rows[4].click()
         assert win.current_index == 1
 
     def test_install_start_locks_choice_pages(self, qt_app: object) -> None:
@@ -297,8 +297,8 @@ class TestCategoryFlow:
         ok, msg = page.validate()
         assert ok is False
         assert "Image" in msg
-        # v2.2.9 Phase 5: Embeddings precedes Chat, so Image is tab index 3.
-        assert page._tabs.currentIndex() == 3  # switched to the Image tab
+        # Embeddings, Document, Chat, Agentic precede Image: tab index 4.
+        assert page._tabs.currentIndex() == 4  # switched to the Image tab
 
     def test_explicit_skip_decides_category(self, qt_app: object) -> None:
         page = self._page()

@@ -16,6 +16,7 @@ the import cost is paid once per pipeline kind.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 import threading
@@ -23,6 +24,7 @@ import traceback
 from typing import Any, Callable, Optional
 
 from . import device, registry, version
+from .pipelines import base as _pipelines_base
 
 
 JsonRpcParams = Optional[dict]
@@ -139,6 +141,11 @@ def _notify(method: str, params: dict[str, Any]) -> None:
     _emit({"jsonrpc": "2.0", "method": method, "params": params})
 
 
+# v2.4.8 Phase 8: pipeline stage notifications (`loading` / `generating`) ride
+# the same `progress` method the heartbeat uses, so the shell needs no new wire.
+_pipelines_base.set_progress_sink(lambda params: _notify("progress", params))
+
+
 def heartbeat_while(
     job_id: Any,
     method: str,
@@ -237,8 +244,31 @@ def _dispatch_with_heartbeat(
         beat.join(timeout=HEARTBEAT_INTERVAL_S)
 
 
+def warm_accelerator() -> None:
+    """Import torch on the main thread before any job thread needs it.
+
+    v2.4.8 follow-up (2026-09-07): job methods run on worker threads (see
+    `_dispatch_with_heartbeat`). When the FIRST request a runtime receives is a
+    job, torch is imported for the first time from that worker thread and the
+    import does not finish: the runtime keeps emitting heartbeats and never
+    reaches the first pipeline stage, so the shell sits on "Loading model..."
+    forever. Measured on the operator's host with the installed runtime: a
+    `health` call first (torch imported inline on the main thread) completes a
+    512px job in 27 s, while the same job sent as the first request produced 69
+    heartbeats (about 140 s) and not one stage event.
+
+    Importing here costs those same seconds once per spawn and makes every
+    runtime safe whatever its first request happens to be. Failures are
+    swallowed: a host without torch still answers `health` and `version`, and
+    a job still fails with its own typed not-ready error.
+    """
+    with contextlib.suppress(Exception):
+        device.detect()
+
+
 def main() -> int:
     handlers = build_handlers()
+    warm_accelerator()
     return serve(sys.stdin, handlers)
 
 

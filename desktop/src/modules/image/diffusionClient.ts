@@ -73,6 +73,13 @@ export interface ProgressEvent {
   readonly png?: string;
   readonly message?: string;
   readonly conditioningPreview?: string;
+  /** Bytes of weights read so far / to read while `stage` is `loading`. */
+  readonly loadedBytes?: number;
+  readonly totalBytes?: number;
+  /** Runtime estimate of seconds until the weights are loaded. */
+  readonly etaS?: number | null;
+  /** Module holding the GPU while `stage` is `queued`. */
+  readonly blockedBy?: string;
 }
 
 export interface SegmentCandidate {

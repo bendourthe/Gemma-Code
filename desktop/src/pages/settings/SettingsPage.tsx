@@ -15,6 +15,7 @@ import { VideoSettings } from "./VideoSettings";
 import type { VideoSettingsClient } from "./videoSettingsTypes";
 import { createMockVideoSettingsClient } from "./mockVideoSettingsClient";
 
+import { PreferencesSettings } from "./PreferencesSettings";
 import { ModelsSettings, type ModelsClient } from "./ModelsSettings";
 import { SkillsSettings, type SkillsSettingsClient } from "./SkillsSettings";
 import { SkillOptimizerSettings, type SkillOptimizerClient } from "./SkillOptimizerSettings";
@@ -39,6 +40,8 @@ import type { ArchivedChatsClient } from "./ArchivedChatsSettings";
 // v2.2.0 Phase 7: "data" hosts export/import; the retired User Profile page
 // redirects here rather than rendering a placeholder that read nothing.
 type SettingsTab =
+  // v2.4.8 follow-up: Preferences leads, and is where Settings opens.
+  | "preferences"
   | "models"
   | "skills"
   | "optimizer"
@@ -51,6 +54,7 @@ type SettingsTab =
   | "video";
 
 const SETTINGS_TABS: readonly SettingsTab[] = [
+  "preferences",
   "models",
   "skills",
   "optimizer",
@@ -106,7 +110,7 @@ export function SettingsPage({
   auditClient,
   videoClient,
   archivedChatsClient,
-  initialTab = "models",
+  initialTab = "preferences",
   hostVramGB = null,
   hostGpuVendor = null,
   payloadIdentity,
@@ -185,6 +189,14 @@ export function SettingsPage({
   return (
     <div data-testid="settings-shell" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <nav data-testid="settings-tabs" style={tabsStyle}>
+        <button
+          type="button"
+          data-testid="settings-tab-preferences"
+          onClick={() => setTab("preferences")}
+          style={tabButtonStyle(tab === "preferences")}
+        >
+          Preferences
+        </button>
         <button
           type="button"
           data-testid="settings-tab-models"
@@ -266,7 +278,9 @@ export function SettingsPage({
           Data
         </button>
       </nav>
-      {tab === "models" ? (
+      {tab === "preferences" ? (
+        <PreferencesSettings />
+      ) : tab === "models" ? (
         <ModelsSettings client={models} hostVramGB={hostVramGB} gpuVendor={hostGpuVendor} />
       ) : tab === "skills" ? (
         <SkillsSettings client={skills} />

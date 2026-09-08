@@ -24,7 +24,7 @@ import {
 // v2.4.6 Phase 5: Sessions History copy on every pillar. Aria labels stay
 // pillar-specific so screen readers can tell the panes apart.
 const IMAGE_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions History",
+  paneTitle: "Sessions",
   newItem: "New session",
   emptyCta: "Start a new session",
   treeAria: "Image sessions",
@@ -34,7 +34,7 @@ const IMAGE_COPY: FolderTreeCopy = {
 };
 
 const VIDEO_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions History",
+  paneTitle: "Sessions",
   newItem: "New session",
   emptyCta: "Start a new session",
   treeAria: "Video sessions",

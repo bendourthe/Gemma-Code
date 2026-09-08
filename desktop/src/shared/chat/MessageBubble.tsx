@@ -6,7 +6,8 @@
  * Assistant labels on normal turns. Tool cards keep their name.
  */
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { phaseFraction, progressLines } from "./generationProgress";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 import {
@@ -187,21 +188,28 @@ export function MessageBubble({
               cycles Thinking / Searching / Working / Solving with one stable
               accessible name. Image/Video pending stays the hero orb. */}
             <AgentStateOrb
-              activity={message.activity ?? "chat-streaming"}
+              activity={
+                isLoadingModel(message)
+                  ? "model-loading"
+                  : (message.activity ?? "chat-streaming")
+              }
               size={studioPending ? "hero" : "bubble"}
               showCaption
               rotateCaptions={!studioPending}
+              caption={isLoadingModel(message) ? loadingCaption(message) : undefined}
               accessibleName={
-                studioPending ? "Generating media" : "Generating reply"
+                isLoadingModel(message)
+                  ? loadingAccessibleName(message)
+                  : studioPending
+                    ? "Generating media"
+                    : "Generating reply"
               }
               surfaceId={`message-${message.id}`}
             />
-            {message.progress && message.progress.total > 0 && (
-              <progress
-                value={message.progress.step}
-                max={message.progress.total}
-              />
-            )}
+            <GenerationProgress
+              message={message}
+              caption={progressCaption(message)}
+            />
           </div>
         )}
         {mediaFailed ? (
@@ -285,6 +293,9 @@ function PendingMessage({
   message: ChatMessage;
   studioPending: boolean;
 }): JSX.Element {
+  // v2.4.8 follow-up: the model-loading state is centered on every tab, not
+  // only the studios; a chat reply that is loading takes the full row.
+  const centered = studioPending || isLoadingModel(message);
   return (
     <div
       data-testid={`message-pending-${message.id}`}
@@ -294,11 +305,11 @@ function PendingMessage({
         color: "var(--fg-muted)",
         display: "flex",
         flexDirection: "column",
-        alignItems: studioPending ? "center" : "flex-start",
+        alignItems: centered ? "center" : "flex-start",
         justifyContent: "center",
         gap: "var(--space-2)",
-        width: studioPending ? "100%" : "fit-content",
-        maxWidth: studioPending ? "100%" : "min(100%, 24rem)",
+        width: centered ? "100%" : "fit-content",
+        maxWidth: centered ? "100%" : "min(100%, 24rem)",
         // v2.4.4 Phase 1.1 (T001): no inline padding here. The pending row is
         // an assistant row and takes its left margin from the list gutter, the
         // same one a completed assistant bubble sits on.
@@ -309,18 +320,239 @@ function PendingMessage({
       }}
     >
       <AgentStateOrb
-        activity={message.activity ?? "chat-streaming"}
+        activity={
+          isLoadingModel(message)
+            ? "model-loading"
+            : (message.activity ?? "chat-streaming")
+        }
         size={studioPending ? "hero" : "bubble"}
         showCaption
-        rotateCaptions={!studioPending}
-        accessibleName={studioPending ? "Generating media" : "Generating reply"}
+        rotateCaptions={!studioPending && !isLoadingModel(message)}
+        caption={isLoadingModel(message) ? loadingCaption(message) : undefined}
+        accessibleName={
+          isLoadingModel(message)
+            ? loadingAccessibleName(message)
+            : studioPending
+              ? "Generating media"
+              : "Generating reply"
+        }
         surfaceId={`message-${message.id}`}
       />
-      {message.progress && message.progress.total > 0 ? (
-        <progress value={message.progress.step} max={message.progress.total} />
+      <GenerationProgress message={message} caption={progressCaption(message)} />
+    </div>
+  );
+}
+
+/**
+ * v2.4.8 Phase 8 -- a studio job is "loading the model" until the runtime says
+ * otherwise. Operator report (2026-09-07): after switching from Chat to Images
+ * the GPU sat idle for a while before the first sample, and the bubble already
+ * read "Creating...". Weights moving onto the GPU are not creation. The
+ * runtime now emits `stage: "loading"` before a pipeline is built and
+ * `stage: "generating"` once it is on the device; before any event, or while
+ * the stage is still `loading` with no step counted, the orb shows
+ * "Loading model...". A counted step or the `generating` stage flips it to the
+ * studio captions.
+ *
+ * v2.4.8 follow-up (2026-09-07): the sidecar now reports `queued` while the
+ * job waits for the GPU behind another module, and the runtime reports the
+ * weight bytes read while `loading`. Both are still "not creating yet"; the
+ * caption names which one it is, and a byte-level bar shows how far along.
+ */
+export function isLoadingModel(message: ChatMessage): boolean {
+  if (!isStudioPending(message)) {
+    // A chat reply says so explicitly (ChatPage watches Ollama residency);
+    // silence on a chat turn still means "thinking", never "loading".
+    return Boolean(message.pending && message.progress?.stage === "loading");
+  }
+  const progress = message.progress;
+  if (!progress) return true;
+  if (progress.step > 0) return false;
+  const stage = progress.stage ?? "loading";
+  return stage === "loading" || stage === "queued" || stage === "clearing";
+}
+
+/**
+ * Plain-language reasons the GPU is busy, by the scheduler module holding it.
+ * Operator feedback (2026-09-07): "(Images is using it)" read as jargon; say
+ * what is still running instead.
+ */
+const GPU_HOLDER_DETAIL: Record<string, string> = {
+  chat: "A chat reply is still being written.",
+  coding: "An agent task is still running.",
+  image: "Another image is still being generated.",
+  video: "Another video is still being generated.",
+};
+
+/** The line under the caption: an explicit note, else who holds the GPU. */
+export function queuedDetail(progress: LoadProgress | undefined): string | null {
+  if (progress?.detail) return progress.detail;
+  if (progress?.stage !== "queued" || !progress.blockedBy) return null;
+  return GPU_HOLDER_DETAIL[progress.blockedBy] ?? null;
+}
+
+type LoadProgress = NonNullable<ChatMessage["progress"]>;
+
+/** Whole-number percent of weight bytes read, or null before any byte count. */
+export function loadPercent(progress: LoadProgress | undefined): number | null {
+  if (!progress || !progress.totalBytes || progress.totalBytes <= 0) return null;
+  if (typeof progress.loadedBytes !== "number") return null;
+  const ratio = progress.loadedBytes / progress.totalBytes;
+  return Math.min(100, Math.max(0, Math.round(ratio * 100)));
+}
+
+/** "about 12 s left" / "about 2 min left", or null without a usable estimate. */
+export function loadEtaLabel(progress: LoadProgress | undefined): string | null {
+  const eta = progress?.etaS;
+  if (typeof eta !== "number" || !Number.isFinite(eta) || eta <= 0) return null;
+  if (eta < 60) return `about ${Math.max(1, Math.round(eta))} s left`;
+  return `about ${Math.max(1, Math.round(eta / 60))} min left`;
+}
+
+export function loadingCaption(message: ChatMessage): string {
+  const progress = message.progress;
+  if (progress?.stage === "queued") return "Waiting for the GPU to free up...";
+  if (progress?.stage === "clearing") return "Clearing the GPU...";
+  const pct = loadPercent(progress);
+  return pct === null ? "Loading model..." : `Loading model ${pct}%`;
+}
+
+function loadingAccessibleName(message: ChatMessage): string {
+  const stage = message.progress?.stage;
+  if (stage === "queued") return "Waiting for GPU";
+  return stage === "clearing" ? "Clearing the GPU" : "Loading model";
+}
+
+/**
+ * The caption shown above the bar. While generating, the studio rotator picks
+ * its own word, so a representative one keeps the bar from resizing per tick.
+ */
+function progressCaption(message: ChatMessage): string {
+  return isLoadingModel(message) ? loadingCaption(message) : "Generating...";
+}
+
+/**
+ * v2.4.8 follow-up (2026-09-07) -- one progress block for a running job.
+ *
+ * Operator report: a Wan video sat on a rotating word for fifteen minutes with
+ * no bar, no clock and no idea whether it was working. This renders whichever
+ * measurement the job currently has -- weight bytes while the model loads,
+ * sampling steps once it is generating -- plus a running clock, so silence is
+ * never the only signal. The bar is as wide as the caption above it.
+ */
+function GenerationProgress({
+  message,
+  caption,
+}: {
+  message: ChatMessage;
+  caption: string;
+}): JSX.Element | null {
+  const progress = message.progress;
+  const detail = queuedDetail(progress);
+  const totalElapsed = useElapsedSeconds(message.timestamp, !detail);
+  const samplingElapsed = useSamplingElapsed(message.id, progress);
+
+  if (detail) {
+    return (
+      <span
+        data-testid={`model-queued-detail-${message.id}`}
+        style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}
+      >
+        {detail}
+      </span>
+    );
+  }
+
+  const fraction = phaseFraction(progress);
+  const lines = progressLines({
+    progress,
+    totalElapsed,
+    samplingElapsed,
+    estimateSeconds: message.estimateSeconds,
+  });
+  if (fraction === null && !lines.primary && !lines.secondary) return null;
+
+  // The bar matches the caption's width so the two read as one unit.
+  const width = `${Math.max(18, caption.length)}ch`;
+  return (
+    <div
+      data-testid={`model-load-progress-${message.id}`}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "var(--space-1)",
+        maxWidth: "100%",
+      }}
+    >
+      {fraction === null ? null : (
+        <progress
+          className="nexus-progress"
+          value={Math.round(fraction * 1000)}
+          max={1000}
+          aria-label={`${Math.round(fraction * 100)}% complete`}
+          style={{ width }}
+        />
+      )}
+      {lines.primary ? (
+        <span
+          data-testid={`model-load-eta-${message.id}`}
+          style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}
+        >
+          {lines.primary}
+        </span>
+      ) : null}
+      {lines.secondary ? (
+        <span
+          data-testid={`generation-clock-${message.id}`}
+          style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)", opacity: 0.8 }}
+        >
+          {lines.secondary}
+        </span>
       ) : null}
     </div>
   );
+}
+
+/** Seconds since `startedAt`, ticking while `active`. Null without a start. */
+function useElapsedSeconds(startedAt: string | undefined, active: boolean): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active || !startedAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [active, startedAt]);
+  if (!startedAt || !active) return null;
+  const started = Date.parse(startedAt);
+  return Number.isFinite(started) ? Math.max(0, (now - started) / 1000) : null;
+}
+
+/**
+ * Seconds spent sampling, measured from the first counted step.
+ *
+ * The remaining-time estimate divides by steps completed, so it must not
+ * include the model load that came before them.
+ */
+function useSamplingElapsed(
+  messageId: string,
+  progress: ChatMessage["progress"],
+): number | null {
+  const startRef = useRef<{ id: string; at: number } | null>(null);
+  const counting = Boolean(progress && progress.total > 0 && progress.step > 0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!counting) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [counting]);
+  if (!counting) {
+    if (startRef.current?.id === messageId) startRef.current = null;
+    return null;
+  }
+  if (startRef.current?.id !== messageId) {
+    startRef.current = { id: messageId, at: Date.now() };
+  }
+  return Math.max(0, (now - startRef.current.at) / 1000);
 }
 
 function BubbleMeta({

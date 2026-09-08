@@ -1,0 +1,22 @@
+{
+  "description": "v2.4.8 Phase 4 (T015): provider (publisher) card colors shared by the installer picker (nexus_installer.constants.PROVIDER_COLORS / PROVIDER_FALLBACK / BADGE_RECOMMENDED / BADGE_DOWNLOADED) and desktop Settings > Models (shared/models/providerColors.ts). Dual-asserted from installer pytest and desktop vitest.",
+  "fallback": "#94a3b8",
+  "badgeRecommended": "#4682b4",
+  "badgeDownloaded": "#a78bfa",
+  "providers": {
+    "Google": "#22d3ee",
+    "Meta": "#60a5fa",
+    "Alibaba": "#a78bfa",
+    "DeepSeek": "#818cf8",
+    "NVIDIA": "#a3e635",
+    "Stability AI": "#f472b6",
+    "Black Forest Labs": "#fbbf24",
+    "Lightricks": "#fb923c",
+    "OpenAI": "#34d399",
+    "Nomic AI": "#2dd4bf",
+    "Liquid AI": "#38bdf8",
+    "Nous Research": "#c084fc",
+    "Thinking Machines": "#f97316",
+    "Community": "#94a3b8"
+  }
+}

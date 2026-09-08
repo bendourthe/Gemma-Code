@@ -99,7 +99,7 @@ export function normalizeCodingTab(value: string | null | undefined): Tab {
 }
 
 const CODING_FOLDER_TREE_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions History",
+  paneTitle: "Sessions",
   newItem: "New session",
   emptyCta: "Start a new session",
   treeAria: "Agent sessions",

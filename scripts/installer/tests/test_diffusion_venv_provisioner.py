@@ -395,7 +395,7 @@ class TestVerifiedProvisioning:
             stdout=json.dumps(
                 {
                     "pythonVersion": "3.11.9",
-                    "torchVersion": "2.3.0+cu121",
+                    "torchVersion": "2.5.1+cu121",
                     "cudaVersion": "12.1",
                     "cudaAvailable": True,
                     "gpuName": "Test GPU",
@@ -407,7 +407,39 @@ class TestVerifiedProvisioning:
         readiness = DiffusionVenvProvisioner._smoke(tmp_path, "cuda", lambda *_: None)
         assert readiness.status == "ready"
         assert readiness.cuda_available is True
+        assert readiness.torch_version == "2.5.1+cu121"
+
+    def test_torch_older_than_2_4_is_a_retryable_readiness_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # v2.4.8 Phase 8: the operator's venv carried torch 2.3.0+cu121, passed
+        # every smoke, and failed the first video generate with
+        # "module 'torch.nn' has no attribute 'RMSNorm'".
+        result = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {
+                    "pythonVersion": "3.12.3",
+                    "torchVersion": "2.3.0+cu121",
+                    "cudaVersion": "12.1",
+                    "cudaAvailable": True,
+                    "gpuName": "NVIDIA GeForce RTX 3080 Ti Laptop GPU",
+                }
+            ),
+            stderr="",
+        )
+        monkeypatch.setattr(venv_mod.subprocess, "run", lambda *a, **k: result)
+        readiness = DiffusionVenvProvisioner._smoke(tmp_path, "cuda", lambda *_: None)
+        assert readiness.status == "failed"
+        assert readiness.failure_code == "TORCH_TOO_OLD"
+        assert readiness.retryable is True
         assert readiness.torch_version == "2.3.0+cu121"
+        assert venv_mod.torch_too_old("2.3.0+cu121") is True
+        assert venv_mod.torch_too_old("2.4.0") is False
+        assert venv_mod.torch_too_old("2.5.1+cu121") is False
+        assert venv_mod.torch_too_old("") is False
+        assert venv_mod.torch_too_old("garbage") is False
 
     def test_cpu_only_torch_fails_cuda_readiness(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -418,7 +450,7 @@ class TestVerifiedProvisioning:
             stdout=json.dumps(
                 {
                     "pythonVersion": "3.11.9",
-                    "torchVersion": "2.3.0+cpu",
+                    "torchVersion": "2.5.1+cpu",
                     "cudaVersion": "",
                     "cudaAvailable": False,
                     "gpuName": "",

@@ -29,6 +29,7 @@ Pure logic: no Qt import, so it is unit-testable without an event loop.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -168,6 +169,16 @@ def fetch_ollama_tags(
 
 
 def default_ollama_root() -> Path:
+    """Ollama's model store: `OLLAMA_MODELS` when set, else `~/.ollama/models`.
+
+    The manifest fallback runs whenever the API probe fails (Ollama stopped, or
+    `localhost` resolving to IPv6 first on Windows). A user who relocated the
+    store via `OLLAMA_MODELS` would otherwise see none of their pulled models
+    pre-selected.
+    """
+    override = os.environ.get("OLLAMA_MODELS", "").strip()
+    if override:
+        return Path(override).expanduser()
     return Path.home() / ".ollama" / "models"
 
 

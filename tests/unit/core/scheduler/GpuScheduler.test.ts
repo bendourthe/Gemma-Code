@@ -50,6 +50,33 @@ describe("GpuScheduler", () => {
     ({ bus, events } = makeBusAndRecorder());
   });
 
+  // v2.4.8 follow-up: a studio page may take the GPU from the running job.
+  it("cancelActive aborts the running job and reports idle when nothing runs", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 24 });
+    expect(sched.cancelActive()).toBe(false);
+    let aborted = false;
+    const handle = await sched.enqueue(
+      makeJob({
+        moduleId: "image",
+        jobType: "txt2img",
+        estimatedVramGB: 6,
+        run: (signal: AbortSignal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => {
+              aborted = true;
+              reject(new Error("aborted"));
+            });
+          }),
+      }),
+    );
+    expect(sched.snapshot().active?.id).toBe(handle.id);
+    expect(sched.cancelActive()).toBe(true);
+    await expect(handle.completion).rejects.toBeDefined();
+    expect(aborted).toBe(true);
+    expect(sched.snapshot().active).toBeNull();
+    expect(events.some((e) => e.kind === "job.failed" || e.kind === "job.cancelled")).toBe(true);
+  });
+
   it("rejects a job whose estimatedVramGB exceeds free VRAM", async () => {
     const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 4 });
     await expect(

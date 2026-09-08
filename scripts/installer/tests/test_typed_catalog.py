@@ -528,17 +528,17 @@ class TestTypedCatalogPage:
         # v2.2.9 Phase 5 (T010): Embeddings is the first tab, before Chat.
         assert labels == [
             "Embeddings",
+            "Document",
             "Chat",
             "Agentic",
             "Image",
             "Video",
             "Audio",
-            "Document",
         ]
 
     def test_audio_tab_shows_empty_state(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
-        assert page._tabs.tabText(5).replace("\u2713 ", "") == "Audio"
+        assert page._tabs.tabText(6).replace("\u2713 ", "") == "Audio"
 
     def test_gpu_tier_defaults_pre_ticked(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)
@@ -1086,14 +1086,15 @@ class TestPhase3Collapse:
     def test_tab_order_matches_dod_sections(self) -> None:
         keys = [key for key, _, _ in TYPE_TABS]
         # v2.2.9 Phase 5 (T010): Embeddings leads, before Chat.
+        # Document follows Embeddings (the retrieval side of the catalog).
         assert keys == [
             "embeddings",
+            "document",
             "chat",
             "agentic",
             "image",
             "video",
             "audio",
-            "document",
         ]
 
 

@@ -15,6 +15,7 @@ import type {
   ListedModelDto,
   ModelType,
 } from "../../pages/settings/modelsTypes";
+import { pickerOrder, recommendationKind } from "./catalogTabs";
 
 export type TaskKey =
   "chat" | "agentic" | "image" | "video" | "audio" | "document";
@@ -75,16 +76,26 @@ export function installedForTask(
       owned.has(m.id),
   );
   if (!snapshot) return ready;
-  const rank = new Map<string, number>();
-  snapshot.orderedIds.forEach((id, i) => rank.set(id, i));
-  snapshot.downloadedSinceInstall.forEach((id, i) => {
-    if (!rank.has(id)) rank.set(id, snapshot.orderedIds.length + i);
+  // v2.4.8 Phase 5 (T021): installer picker order -- catalog tier first, then
+  // installer order, then in-app downloads -- so `ready[0]` is the top
+  // recommendation a fresh session should default to.
+  return pickerOrder(ready, {
+    recommendOrder: [
+      ...snapshot.orderedIds,
+      ...snapshot.downloadedSinceInstall,
+    ],
   });
-  return [...ready].sort(
-    (a, b) => (rank.get(a.id) ?? 10_000) - (rank.get(b.id) ?? 10_000),
-  );
 }
 
+/**
+ * v2.4.8 Phase 5 (T021): a snapshot recommendation is honored unless the
+ * catalog disagrees. Operator evidence (2026-09-06): the on-disk snapshot named
+ * `gpt-oss:20b` as the agentic pick while the catalog tags Gemma 4 12B as the
+ * recommendation, and the Agents session opened on gpt-oss. When the snapshot's
+ * pick carries no `required` / `recommended` tag and some ready row does, the
+ * first tagged row in picker order wins. A snapshot pick that is itself tagged,
+ * or a catalog with no tagged rows at all, behaves exactly as before.
+ */
 export function resolveDefaultId(
   ready: readonly ListedModelDto[],
   opts: {
@@ -101,8 +112,14 @@ export function resolveDefaultId(
   ) {
     return opts.favorite;
   }
-  if (opts.recommended && ready.some((m) => m.id === opts.recommended))
-    return opts.recommended;
+  const pick = opts.recommended
+    ? ready.find((m) => m.id === opts.recommended)
+    : undefined;
+  if (pick) {
+    if (recommendationKind(pick) !== "compatible") return pick.id;
+    const endorsed = ready.find((m) => recommendationKind(m) !== "compatible");
+    return endorsed ? endorsed.id : pick.id;
+  }
   return ready[0]?.id ?? "";
 }
 

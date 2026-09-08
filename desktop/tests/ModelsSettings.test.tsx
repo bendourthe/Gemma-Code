@@ -12,7 +12,6 @@ import {
   type ModelsClient,
   type InstallHandle,
 } from "../src/pages/settings/ModelsSettings";
-import { FAVORITE_STORAGE_PREFIX } from "../src/shared/models/selectionPolicy";
 import type {
   DiskUsageDto,
   InstallProgressDto,
@@ -258,11 +257,12 @@ describe("ModelsSettings", () => {
     const list = screen.getByTestId("models-list");
     expect(Array.from(list.children).map((child) => child.textContent)).toEqual(
       [
-        "Downloaded",
+        // v2.4.8 Phase 7: each heading is a chevron toggle with a row count.
+        "Downloaded1",
         expect.stringContaining("Downloaded"),
-        "Available to download",
+        "Compatible1",
         expect.stringContaining("Available"),
-        "Incompatible",
+        "Incompatible1",
         expect.stringContaining("Incompatible"),
       ],
     );
@@ -311,9 +311,10 @@ describe("ModelsSettings", () => {
       },
     ];
     await loaded(ctx);
-    expect(
-      screen.getByTestId("models-downloaded-gemma-4-12b-it-gguf"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-gemma-4-12b-it-gguf")).toHaveAttribute(
+      "data-downloaded",
+      "true",
+    );
     expect(
       screen.getByTestId("models-row-gemma-4-12b-it-gguf"),
     ).toHaveAttribute("data-downloaded", "true");
@@ -366,10 +367,14 @@ describe("ModelsSettings", () => {
       await Promise.resolve();
     });
     await waitFor(() => {
-      expect(
-        screen.getByTestId("models-downloaded-qwen2.5-coder:7b"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("models-row-qwen2.5-coder:7b")).toHaveAttribute(
+        "data-downloaded",
+        "true",
+      );
     });
+    // v2.4.8 Phase 7: delete replaces the download button in the title row.
+    expect(screen.getByTestId("models-remove-qwen2.5-coder:7b")).toBeInTheDocument();
+    expect(screen.queryByTestId("models-install-qwen2.5-coder:7b")).toBeNull();
   });
 
   it("surfaces a row error when download fails instead of flipping to Downloaded", async () => {
@@ -386,9 +391,11 @@ describe("ModelsSettings", () => {
         screen.getByTestId("models-row-error-qwen2.5-coder:7b").textContent,
       ).toMatch(/disk full/i);
     });
-    expect(
-      screen.queryByTestId("models-downloaded-qwen2.5-coder:7b"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("models-row-qwen2.5-coder:7b")).toHaveAttribute(
+      "data-downloaded",
+      "false",
+    );
+    expect(screen.queryByTestId("models-remove-qwen2.5-coder:7b")).toBeNull();
   });
 
   it("cancel during download removes the progress bar", async () => {
@@ -435,7 +442,15 @@ describe("ModelsSettings", () => {
   it("renders the disk-usage summary", async () => {
     await loaded(client());
     await waitFor(() => {
+      // v2.4.8 follow-up: compact copy ("182 GB used" / "206 GB free") so
+      // the summary shares the tab row; the full sentence is the bar's value.
       expect(screen.getByTestId("models-disk-summary").textContent).toMatch(
+        /used/,
+      );
+      expect(screen.getByTestId("models-disk-summary").textContent).toMatch(
+        /free/,
+      );
+      expect(screen.getByTestId("models-disk-summary").textContent).not.toMatch(
         /used by models/,
       );
       expect(
@@ -480,9 +495,10 @@ describe("ModelsSettings", () => {
     expect(
       screen.getByTestId("models-row-nomic-embed-text"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("models-downloaded-nomic-embed-text"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-nomic-embed-text")).toHaveAttribute(
+      "data-downloaded",
+      "true",
+    );
   });
 
   it("places audio models on the Audio tab", async () => {
@@ -514,16 +530,26 @@ describe("ModelsSettings", () => {
       expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
     );
     fireEvent.click(screen.getByTestId("models-tab-audio"));
-    expect(screen.getByTestId("models-icon-audio")).toBeInTheDocument();
+    // v2.4.8 Phase 4: the installer card carries no type icon, so neither does
+    // this one. The row and its OpenAI provider color are the evidence.
+    expect(screen.queryByTestId("models-icon-audio")).toBeNull();
     expect(screen.getByTestId("models-row-faster-whisper")).toBeInTheDocument();
   });
 
   it("disables Download on over-budget entries", async () => {
     await loaded(client(), { hostVramGB: 8 });
     fireEvent.click(screen.getByTestId("models-tab-video"));
-    expect(
-      screen.getByTestId("models-over-budget-ltx-video"),
-    ).toBeInTheDocument();
+    // v2.4.8 Phase 7: an incompatible card offers no action at all and is
+    // disabled and translucent under the Incompatible heading.
+    expect(screen.queryByTestId("models-install-ltx-video")).toBeNull();
+    expect(screen.queryByTestId("models-over-budget-ltx-video")).toBeNull();
+    expect(screen.getByTestId("models-row-ltx-video")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByTestId("models-row-ltx-video").style.opacity).toBe("0.45");
+    expect(screen.getByTestId("models-row-ltx-video").style.pointerEvents).toBe("none");
+    expect(screen.getByTestId("models-group-2").textContent).toMatch(/^Incompatible/);
     expect(screen.getByTestId("models-row-ltx-video")).toHaveAttribute(
       "data-over-budget",
       "true",
@@ -657,7 +683,13 @@ describe("ModelsSettings", () => {
     expect(
       screen.getByTestId("models-row-lfm2.5:2.6b-description").textContent,
     ).toMatch(/On-device agentic/);
-    expect(screen.queryByTestId("models-row-lfm2.5:2.6b-best-for")).toBeNull();
+    // v2.4.8 Phase 4 (T016): Best for and Why this one print exactly as the
+    // installer card prints them (the v2.4.6 removal is reversed for parity).
+    expect(
+      screen.getByTestId("models-row-lfm2.5:2.6b-best-for").textContent,
+    ).toBe("Best for: Tool calling on CPU");
+    // The installer prints Why this one only for recommended picks; this
+    // fixture row carries whyRecommended but no recommended tag.
     expect(screen.queryByTestId("models-row-lfm2.5:2.6b-why")).toBeNull();
     expect(screen.getByTestId("models-row-lfm2.5:2.6b")).toHaveAttribute(
       "data-compact",
@@ -718,26 +750,32 @@ describe("ModelsSettings", () => {
       expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument(),
     );
     fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
-      /Company: Liquid AI/,
-    );
-    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
-      /Country: USA/,
-    );
-    expect(screen.getByTestId("models-facts-lfm2.5:2.6b").textContent).toMatch(
-      /Released: August 2026/,
-    );
+    // v2.4.8 Phase 4 (T016): the installer name-row grammar. Every fact pill
+    // (Company, Country, Agentic, Context window, Multimodal, License,
+    // Released) sits on the name row after the display name; there is no
+    // separate Requirements row.
+    expect(screen.queryByTestId("models-facts-lfm2.5:2.6b")).toBeNull();
     const pillRow = screen.getByTestId("models-pills-lfm2.5:2.6b");
     expect(Array.from(pillRow.children).map((c) => c.textContent)).toEqual([
+      "Company: Liquid AI",
+      "Country: USA",
       "Agentic: Yes",
       "Context window: 128k tokens",
       "Multimodal: No",
       "License: LFM Open License v1.0",
+      "Released: August 2026",
     ]);
     const header = screen.getByTestId("models-header-lfm2.5:2.6b");
     expect(screen.queryByTestId("models-row-lfm2.5:2.6b-details")).toBeNull();
-    expect(header.contains(pillRow)).toBe(false);
+    expect(header.contains(pillRow)).toBe(true);
     expect(header.firstChild?.textContent).toBe("LFM2.5 2.6B");
+    // Liquid AI is sky in the shared provider fixture: name and card tint.
+    expect((header.firstChild as HTMLElement).style.color).toBe(
+      "rgb(56, 189, 248)",
+    );
+    expect(
+      screen.getByTestId("models-row-lfm2.5:2.6b").getAttribute("data-provider-color"),
+    ).toBe("#38bdf8");
     // The split-window row derives its pill from the in-window.
     expect(screen.getByTestId("models-pills-split-ctx").textContent).toContain(
       "Context window: 32k tokens",
@@ -756,16 +794,85 @@ describe("ModelsSettings", () => {
     expect(screen.getByTestId("models-row-ltx-video")).toBeInTheDocument();
   });
 
-  it("favorite is one-per-tab and writes the Phase 2 storage key", async () => {
+  // v2.4.8 Phase 7 (T034): operator feedback 2026-09-07. No star, no
+  // checkmark, no action row under the body; the title row carries the size
+  // pill and the one action that applies.
+  it("puts size then delete in the title row and renders no star or action row", async () => {
     await loaded(client());
-    fireEvent.click(screen.getByTestId("models-favorite-gemma4:e4b"));
-    expect(screen.getByTestId("models-favorite-gemma4:e4b")).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    expect(screen.queryByTestId("models-favorite-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-actions-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-downloaded-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-compat-badge-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-downloaded-badge-gemma4:e4b")).toBeNull();
+    const cluster = screen.getByTestId("models-badges-gemma4:e4b");
+    const children = Array.from(cluster.children);
+    expect(children[0]).toBe(screen.getByTestId("models-size-gemma4:e4b"));
+    expect(cluster.contains(screen.getByTestId("models-remove-gemma4:e4b"))).toBe(true);
+    expect(
+      screen.getByTestId("models-title-row-gemma4:e4b").contains(cluster),
+    ).toBe(true);
+    // A compatible, not-yet-downloaded row gets the download button instead.
+    fireEvent.click(screen.getByTestId("models-tab-agentic"));
+    const agenticCluster = screen.getByTestId("models-badges-qwen2.5-coder:7b");
+    expect(
+      agenticCluster.contains(screen.getByTestId("models-install-qwen2.5-coder:7b")),
+    ).toBe(true);
+    expect(screen.queryByTestId("models-remove-qwen2.5-coder:7b")).toBeNull();
+  });
+
+  it("groups every tab as Downloaded, Compatible, Incompatible with collapsible headings", async () => {
+    const ctx = client();
+    ctx.state.items = [
+      ...ctx.state.items,
+      {
+        id: "big-chat",
+        displayName: "Big Chat",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 40,
+      },
+      {
+        id: "small-chat",
+        displayName: "Small Chat",
+        type: "llm",
+        task: "chat",
+        installed: false,
+        source: "catalog-only",
+        vramGB: 4,
+      },
+    ];
+    await loaded(ctx, { hostVramGB: 16 });
+    const headings = screen
+      .getAllByTestId(/^models-group-\d$/)
+      .map((el) => el.textContent);
+    expect(headings).toEqual(["Downloaded1", "Compatible1", "Incompatible1"]);
+    // Heading order is the list order: downloaded rows sit under Downloaded.
+    const list = screen.getByTestId("models-list");
+    const order = Array.from(list.children).map(
+      (el) => el.getAttribute("data-testid") ?? "",
     );
-    expect(window.localStorage.getItem(`${FAVORITE_STORAGE_PREFIX}chat`)).toBe(
-      "gemma4:e4b",
-    );
+    expect(order.indexOf("models-group-0")).toBeLessThan(order.indexOf("models-row-gemma4:e4b"));
+    expect(order.indexOf("models-row-gemma4:e4b")).toBeLessThan(order.indexOf("models-group-1"));
+    expect(order.indexOf("models-group-1")).toBeLessThan(order.indexOf("models-row-small-chat"));
+    expect(order.indexOf("models-row-small-chat")).toBeLessThan(order.indexOf("models-group-2"));
+    expect(order.indexOf("models-group-2")).toBeLessThan(order.indexOf("models-row-big-chat"));
+    // Collapse Compatible: its rows disappear, the others stay.
+    const toggle = screen.getByTestId("models-group-toggle-1");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("models-group-1")).toHaveAttribute("data-collapsed", "true");
+    expect(screen.queryByTestId("models-row-small-chat")).toBeNull();
+    expect(screen.getByTestId("models-row-gemma4:e4b")).toBeInTheDocument();
+    expect(screen.getByTestId("models-row-big-chat")).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("models-row-small-chat")).toBeInTheDocument();
+    // A tab with a single group still shows its heading.
+    fireEvent.click(screen.getByTestId("models-tab-agentic"));
+    expect(screen.getByTestId("models-group-1").textContent).toBe("Compatible1");
+    expect(screen.queryByTestId("models-group-0")).toBeNull();
   });
 
   it("does not contain a raw select element (installer tabs replace Type/Family/Status)", async () => {
@@ -842,25 +949,33 @@ describe("ModelsSettings", () => {
     );
     expect(rows[1]).toHaveAttribute("data-testid", "models-row-sana-1.6b-4k");
     expect(rows[1]).toHaveAttribute("data-over-budget", "true");
+    // v2.4.8 Phase 4 (T016): compatibility is a round badge whose wording is
+    // the tooltip, plus a note under the name row when the model does not fit.
+    // v2.4.8 Phase 7: no compatibility checkmark; the incompatible row keeps
+    // its note, loses its download button, and sits under Incompatible.
+    expect(screen.queryByTestId("models-compat-badge-sana-1.6b-4k")).toBeNull();
     expect(
-      screen.getByTestId("models-compatibility-sana-1.6b-4k").textContent,
+      screen.getByTestId("models-row-sana-1.6b-4k-incompatible").textContent,
     ).toBe("Incompatible - needs 20 GB VRAM");
+    expect(screen.queryByTestId("models-install-sana-1.6b-4k")).toBeNull();
+    expect(screen.getByTestId("models-install-sana-sprint-1024")).toBeInTheDocument();
+    expect(screen.getByTestId("models-group-2").textContent).toBe("Incompatible1");
     expect(
       screen.getByTestId("models-badge-sana-sprint-1024").textContent,
     ).toBe("Recommended");
-    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
-      /Company: NVIDIA/,
-    );
-    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
-      /Country: USA/,
-    );
-    expect(screen.getByTestId("models-facts-sana-1.6b-4k").textContent).toMatch(
-      /Released: September 2025/,
-    );
+    expect(
+      screen.getByTestId("models-badge-sana-sprint-1024").style.color,
+    ).toBe("rgb(70, 130, 180)");
+    expect(screen.queryByTestId("models-facts-sana-1.6b-4k")).toBeNull();
     const pills = Array.from(
       screen.getByTestId("models-pills-sana-1.6b-4k").children,
     ).map((c) => c.textContent);
-    expect(pills).toEqual(["Guardrails: Censored"]);
+    expect(pills).toEqual([
+      "Company: NVIDIA",
+      "Country: USA",
+      "Guardrails: Censored",
+      "Released: September 2025",
+    ]);
   });
 
   it("shows Retry when Qwen 3.5 4B was selected at install but is not on disk", async () => {

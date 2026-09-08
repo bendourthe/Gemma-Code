@@ -15,6 +15,33 @@ import pytest
 from runtimes.diffusion import main
 
 
+def test_warm_accelerator_imports_torch_up_front(monkeypatch: pytest.MonkeyPatch):
+    """v2.4.8 follow-up: job methods run on worker threads, and a first torch
+    import from one of those never finishes on Windows. The runtime imports it
+    on the main thread at startup instead."""
+    seen: list[str] = []
+    monkeypatch.setattr(main.device, "detect", lambda: seen.append("detect"))
+    main.warm_accelerator()
+    assert seen == ["detect"]
+
+
+def test_warm_accelerator_never_fails_the_runtime(monkeypatch: pytest.MonkeyPatch):
+    def boom():
+        raise RuntimeError("no torch on this host")
+
+    monkeypatch.setattr(main.device, "detect", boom)
+    main.warm_accelerator()  # a torch-less host still answers health/version
+
+
+def test_main_warms_before_it_serves(monkeypatch: pytest.MonkeyPatch):
+    order: list[str] = []
+    monkeypatch.setattr(main, "build_handlers", lambda: {})
+    monkeypatch.setattr(main, "warm_accelerator", lambda: order.append("warm"))
+    monkeypatch.setattr(main, "serve", lambda _stream, _handlers: order.append("serve") or 0)
+    assert main.main() == 0
+    assert order == ["warm", "serve"]
+
+
 def call(line: str, handlers: dict, capsys: pytest.CaptureFixture[str]) -> dict:
     main.dispatch(line, handlers)
     captured = capsys.readouterr()

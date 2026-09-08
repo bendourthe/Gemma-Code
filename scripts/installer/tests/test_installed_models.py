@@ -275,8 +275,18 @@ class TestReportDefaults:
         assert report.probe_errors == ()
 
 
-def test_default_ollama_root_is_under_home() -> None:
+def test_default_ollama_root_is_under_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
     assert default_ollama_root() == Path.home() / ".ollama" / "models"
+
+
+def test_default_ollama_root_honors_ollama_models_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A relocated store must still count its pulled models as downloaded, or
+    # none of them would be pre-selected on the Models page.
+    monkeypatch.setenv("OLLAMA_MODELS", str(tmp_path / "store"))
+    assert default_ollama_root() == tmp_path / "store"
 
 
 def test_manifest_json_is_not_parsed(tmp_path: Path) -> None:

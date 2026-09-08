@@ -29,6 +29,9 @@ import {
   type GenerationPillar,
 } from "./GenerationDatabase.js";
 
+/** Error recorded on interactive jobs a restart found unfinished. */
+export const INTERRUPTED_BY_RESTART = "Interrupted by app restart";
+
 export type GenerationJobState =
   "queued" | "running" | "interrupted" | "done" | "failed";
 
@@ -115,13 +118,30 @@ export class GenerationQueue {
   }
 
   /**
-   * Ordinary running jobs are re-queued. Enhancement processes are never
+   * Ordinary batch jobs are re-queued. Enhancement processes are never
    * resumed blindly: they remain interrupted and retryable.
+   *
+   * v2.4.8 follow-up (2026-09-07): interactive jobs do not survive a restart.
+   * Nobody is polling them any more (the page that submitted them is gone), yet
+   * they were re-queued first and re-run on the next launch, holding the GPU
+   * slot in front of every new request. Operator report: a request from 12:44
+   * was still being re-claimed at 17:05 with three newer requests queued
+   * behind it. They are now failed with an explicit reason.
    */
   recover(): void {
     const ts = this._now().toISOString();
     const recover = this._db.transaction(() => {
       this._recoverEnhancements(ts);
+      this._db
+        .prepare(
+          `UPDATE jobs SET state = 'failed', error = ?, updated_at = ?
+           WHERE priority = 'interactive'
+             AND state IN ('queued', 'running', 'interrupted')
+             AND NOT EXISTS (
+               SELECT 1 FROM enhancement_runs WHERE child_job_id = jobs.id
+             )`,
+        )
+        .run(INTERRUPTED_BY_RESTART, ts);
       this._db
         .prepare(
           `UPDATE jobs SET state = 'interrupted', updated_at = ?

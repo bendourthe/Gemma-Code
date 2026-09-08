@@ -130,7 +130,7 @@ export interface FolderTreeCopy {
 }
 
 export const CHAT_FOLDER_TREE_COPY: FolderTreeCopy = {
-  paneTitle: "Sessions History",
+  paneTitle: "Sessions",
   newItem: "New session",
   emptyCta: "Start a new session",
   treeAria: "Session folders",
@@ -878,10 +878,26 @@ export function FolderTree({
       style={{
         display: "flex",
         flexDirection: collapsed ? "column" : "row",
-        gap: "var(--space-1)",
+        // v2.4.8 follow-up: same gap and icon size as a row's action cluster so
+        // the header icons line up in columns with the icons on each row.
+        gap: 2,
         alignItems: "center",
       }}
     >
+      {/* v2.4.8 follow-up: New session leads, then New folder, Archive, Delete. */}
+      <button
+        type="button"
+        data-testid="folder-tree-new-chat"
+        aria-label={copy.newItem}
+        title={copy.newItem}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCreateChat(null);
+        }}
+        style={iconButtonStyle}
+      >
+        <MessageCirclePlus size={12} aria-hidden />
+      </button>
       {!readOnlyFolders ? (
         <button
           type="button"
@@ -894,22 +910,9 @@ export function FolderTree({
           }}
           style={iconButtonStyle}
         >
-          <FolderPlus size={14} aria-hidden />
+          <FolderPlus size={12} aria-hidden />
         </button>
       ) : null}
-      <button
-        type="button"
-        data-testid="folder-tree-new-chat"
-        aria-label={copy.newItem}
-        title={copy.newItem}
-        onClick={(e) => {
-          e.stopPropagation();
-          onCreateChat(null);
-        }}
-        style={iconButtonStyle}
-      >
-        <MessageCirclePlus size={14} aria-hidden />
-      </button>
       {/*
         v2.4.4 Phase 2.3 (T007): whole-list actions live on the header next to
         the create actions. Both are disabled on an empty list, and each is
@@ -930,7 +933,7 @@ export function FolderTree({
           }}
           style={iconButtonStyle}
         >
-          <Archive size={14} aria-hidden />
+          <Archive size={12} aria-hidden />
         </button>
       ) : null}
       <button
@@ -946,14 +949,15 @@ export function FolderTree({
         }}
         style={iconButtonStyle}
       >
-        <Trash2 size={14} aria-hidden />
+        <Trash2 size={12} aria-hidden />
       </button>
     </span>
   );
 
   // v2.4.6 Phase 5: empty and filled trees share this header so the hairline
-  // always sits above "Sessions History". Create actions sit after the title
-  // (flex-start), not flush right. Compact rail hides the text, not the icons.
+  // always sits above "Sessions History". v2.4.8 follow-up: the title stays
+  // left and the four actions sit flush right (space-between). Compact rail
+  // hides the text, not the icons.
   // paddingTop stays 0: HISTORY_HAIRLINE_GAP on the sidebar rule is the only
   // vertical gap between Videos and this title.
   const header = (
@@ -962,11 +966,13 @@ export function FolderTree({
       style={{
         display: "flex",
         flexDirection: collapsed ? "column" : "row",
-        justifyContent: "flex-start",
+        justifyContent: collapsed ? "flex-start" : "space-between",
         alignItems: "center",
+        // Right padding matches a row's (--space-2) so the last header icon
+        // sits in the same column as each row's Delete icon.
         padding: collapsed
           ? "0 0 var(--space-2)"
-          : "0 var(--space-3) var(--space-2)",
+          : "0 var(--space-2) var(--space-2) var(--space-3)",
         paddingTop: 0,
         gap: "var(--space-1)",
       }}
@@ -974,7 +980,9 @@ export function FolderTree({
       {collapsed ? null : (
         <span
           data-testid="folder-tree-title"
-          style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}
+          // v2.4.8 Phase 3 (T011): same type as the nav labels (`.nexus-nav-link`
+          // sets --fg-1 at --text-sm), so Sessions reads as a peer of Videos.
+          style={{ color: "var(--fg-1)", fontSize: "var(--text-sm)" }}
         >
           {copy.paneTitle}
         </span>

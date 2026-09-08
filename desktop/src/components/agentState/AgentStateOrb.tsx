@@ -45,6 +45,11 @@ export interface AgentStateOrbProps {
    */
   rotateCaptions?: boolean;
   /**
+   * v2.4.8 Phase 8: a fixed caption that overrides the mapping label and the
+   * studio rotator (e.g. "Loading model..." before sampling starts).
+   */
+  caption?: string;
+  /**
    * Stable accessible name. Required so a rotating caption never floods a
    * screen reader; defaults to "Generating reply" while rotating.
    */
@@ -74,6 +79,7 @@ export function AgentStateOrb({
   size = "inline",
   showCaption = false,
   rotateCaptions = false,
+  caption,
   accessibleName,
   surfaceId,
   className,
@@ -96,11 +102,13 @@ export function AgentStateOrb({
   const studio = isStudioActivity(activity);
   const studioCaption = useStudioCaptionRotator(studio && showCaption && !reduce);
   const captionShown = showCaption || rotateCaptions;
-  const captionText = rotateCaptions
-    ? rotatingCaption
-    : studio
-      ? studioCaption
-      : `${mapping.label}...`;
+  const captionText =
+    caption ??
+    (rotateCaptions
+      ? rotatingCaption
+      : studio
+        ? studioCaption
+        : `${mapping.label}...`);
   const engineState = rotateCaptions ? pendingCaptionState(rotatingCaption) : mapping.state;
   const hostLabel =
     accessibleName ?? (rotateCaptions ? "Generating reply" : `Agent ${mapping.label.toLowerCase()}`);

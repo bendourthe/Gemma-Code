@@ -27,12 +27,12 @@ describe("StudioHistoryPane", () => {
     );
     expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
     expect(screen.getByText("Fox portrait")).toBeInTheDocument();
-    // v2.4.6 Phase 5: Sessions History copy on every pillar.
+    // v2.4.6 Phase 5: Sessions copy on every pillar.
     expect(screen.getByTestId("folder-tree-new-chat")).toHaveAttribute(
       "title",
       "New session",
     );
-    expect(screen.getByText("Sessions History")).toBeInTheDocument();
+    expect(screen.getByText("Sessions")).toBeInTheDocument();
   });
 
   it("keeps new/folder actions without a second-column collapse pill", () => {
@@ -89,7 +89,7 @@ describe("StudioHistoryPane", () => {
     );
   });
 
-  // v2.4.6 Phase 5: studio panes use Sessions History copy.
+  // v2.4.6 Phase 5: studio panes use Sessions copy.
   it("video pane matches image width and Session copy", () => {
     const client = new InMemoryStudioExplorerClient("video");
     render(
@@ -103,7 +103,7 @@ describe("StudioHistoryPane", () => {
       /start a new session/i,
     );
     expect(screen.getByText("No sessions yet.")).toBeInTheDocument();
-    expect(screen.getByText("Sessions History")).toBeInTheDocument();
+    expect(screen.getByText("Sessions")).toBeInTheDocument();
     expect(screen.queryByText(/start a new chat/i)).toBeNull();
     expect(screen.queryByTestId("video-history-collapse-toggle")).toBeNull();
   });
@@ -121,7 +121,7 @@ describe("StudioHistoryPane", () => {
       /start a new session/i,
     );
     expect(screen.getByText("No sessions yet.")).toBeInTheDocument();
-    expect(screen.getByText("Sessions History")).toBeInTheDocument();
+    expect(screen.getByText("Sessions")).toBeInTheDocument();
     expect(screen.queryByText("Chats")).toBeNull();
   });
 

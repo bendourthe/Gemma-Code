@@ -494,6 +494,10 @@ button {
 /* Single reduced-motion gate (v1.17.0 Phase 1). CSS animations halt here;
  * JS-driven loops (constellation) read the matching useReducedMotion hook. */
 @media (prefers-reduced-motion: reduce) {
+  /* v2.4.8 follow-up: the generation bar animates its fill. */
+  .nexus-progress::-webkit-progress-value {
+    transition: none;
+  }
   .nexus-floating-logo {
     animation: none;
   }
@@ -518,4 +522,41 @@ button {
   .nexus-metal-canvas {
     display: none;
   }
+}
+
+/*
+ * v2.4.8 follow-up (2026-09-07) -- the generation progress bar.
+ *
+ * Operator feedback: the default `<progress>` read as a grey system widget.
+ * It stays a real <progress> (screen readers and tests need the value), and
+ * the pseudo-elements give it the app's rounded, accented look. Width is set
+ * inline so the bar matches the caption above it.
+ */
+.nexus-progress {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  background-color: color-mix(in srgb, var(--fg-0) 12%, transparent);
+  color: var(--nexus-progress-accent, var(--accent-chatbot));
+  accent-color: var(--nexus-progress-accent, var(--accent-chatbot));
+}
+.nexus-progress::-webkit-progress-bar {
+  background-color: color-mix(in srgb, var(--fg-0) 12%, transparent);
+  border-radius: 999px;
+}
+.nexus-progress::-webkit-progress-value {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--nexus-progress-accent, var(--accent-chatbot)) 70%, transparent),
+    var(--nexus-progress-accent, var(--accent-chatbot))
+  );
+  border-radius: 999px;
+  transition: width 240ms ease-out;
+}
+.nexus-progress::-moz-progress-bar {
+  background: var(--nexus-progress-accent, var(--accent-chatbot));
+  border-radius: 999px;
 }

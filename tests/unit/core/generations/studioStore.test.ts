@@ -5,7 +5,10 @@ import { describe, expect, it, afterEach } from "vitest";
 import { expandBatch, MAX_BATCH_EXPANSION } from "../../../../core/generations/batchExpand.js";
 import { contentHash } from "../../../../core/generations/contentHash.js";
 import { GenerationIndex } from "../../../../core/generations/GenerationIndex.js";
-import { GenerationQueue } from "../../../../core/generations/GenerationQueue.js";
+import {
+  GenerationQueue,
+  INTERRUPTED_BY_RESTART,
+} from "../../../../core/generations/GenerationQueue.js";
 import { resolveStudioDbPath } from "../../../../core/generations/paths.js";
 import { pumpOnce } from "../../../../core/generations/queuePump.js";
 import { redactWorkflow } from "../../../../core/generations/redactWorkflow.js";
@@ -138,7 +141,7 @@ describe("redactWorkflow", () => {
 });
 
 describe("GenerationQueue", () => {
-  it("re-queues interrupted jobs on recover without duplicating ids", () => {
+  it("re-queues interrupted batch jobs on recover without duplicating ids", () => {
     const q = new GenerationQueue({ dbPath: ":memory:" });
     queues.push(q);
     q.enqueue({
@@ -146,12 +149,46 @@ describe("GenerationQueue", () => {
       pillar: "image",
       jobType: "txt2img",
       parameters: { prompt: "fox" },
+      priority: "batch",
     });
     q.markRunning("job-a");
     q.recover();
     expect(q.get("job-a")?.state).toBe("queued");
     q.recover();
     expect(q.list(["queued"])).toHaveLength(1);
+  });
+
+  // v2.4.8 follow-up (2026-09-07): an interactive job from a previous run was
+  // re-queued on every launch and re-run, holding the single GPU slot in front
+  // of each new request while nobody was polling it any more. Operator host:
+  // one such job from 12:44 was still being re-claimed at 17:05 with three
+  // newer requests waiting behind it.
+  it("fails interactive jobs left unfinished by a previous process", () => {
+    const q = new GenerationQueue({ dbPath: ":memory:" });
+    queues.push(q);
+    q.enqueue({
+      id: "job-live",
+      pillar: "image",
+      jobType: "txt2img",
+      parameters: { prompt: "fox" },
+    });
+    q.markRunning("job-live");
+    q.enqueue({
+      id: "job-waiting",
+      pillar: "image",
+      jobType: "txt2img",
+      parameters: { prompt: "cat" },
+    });
+    q.recover();
+    expect(q.get("job-live")).toMatchObject({
+      state: "failed",
+      error: INTERRUPTED_BY_RESTART,
+    });
+    expect(q.get("job-waiting")).toMatchObject({
+      state: "failed",
+      error: INTERRUPTED_BY_RESTART,
+    });
+    expect(q.list(["queued"])).toHaveLength(0);
   });
 
   it("expands a seed batch into child jobs", () => {

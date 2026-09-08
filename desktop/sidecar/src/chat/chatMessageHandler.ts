@@ -52,6 +52,9 @@ export function createChatMessageHandler(
     const events: ChatSessionEventT[] = [];
     const usage = newUsage();
     let thinking = "";
+    // v2.4.8 Phase 1 (T002): the visible reply is accumulated so the provider
+    // total can be split between reasoning and output by text proportion.
+    let reply = "";
     let reasoningCaptured = 0;
     try {
       for await (const chunk of llm.streamChat(
@@ -72,19 +75,22 @@ export function createChatMessageHandler(
           }
         }
         const delta = chunk.message?.content ?? "";
-        if (delta) events.push({ kind: "token", text: delta });
+        if (delta) {
+          reply += delta;
+          events.push({ kind: "token", text: delta });
+        }
         if (chunk.done) break;
       }
       events.push({
         kind: "done",
         finishReason: "stop",
-        ...doneUsageFields(turnUsageFromCollected(usage, thinking)),
+        ...doneUsageFields(turnUsageFromCollected(usage, thinking, reply)),
       });
     } catch (err) {
       events.push({
         kind: "done",
         finishReason: `error: ${err instanceof Error ? err.message : String(err)}`,
-        ...doneUsageFields(turnUsageFromCollected(usage, thinking)),
+        ...doneUsageFields(turnUsageFromCollected(usage, thinking, reply)),
       });
     }
     return events;

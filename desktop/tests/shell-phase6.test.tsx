@@ -16,6 +16,7 @@ import userEvent from "@testing-library/user-event";
 
 import { Sidebar } from "../src/components/Sidebar";
 import { GpuStatusFooter } from "../src/components/GpuStatusFooter";
+import { setModelActivity } from "../src/lib/modelActivity";
 import { ApprovalsBell } from "../src/components/ApprovalsBell";
 import type {
   LocalModelTelemetry,
@@ -119,11 +120,56 @@ describe("GPU status footer", () => {
     expect(footer.textContent).toContain("unavailable");
   });
 
-  it("renders utilization and free VRAM when a sample arrives", () => {
+  it("renders the GPU usage label left and the percentage right, free VRAM in the tooltip", () => {
     render(<GpuStatusFooter compact={false} stream={streamOf(sample())} />);
     const footer = screen.getByTestId("gpu-status-footer");
-    expect(footer.textContent).toContain("GPU 41%");
-    expect(footer.textContent).toContain("4.8 GB free");
+    // v2.4.8 follow-up: "GPU usage" on the left, "41%" on the right; the free
+    // VRAM figure moved to the tooltip so the row is label + percentage only.
+    expect(footer.textContent).toContain("GPU usage");
+    expect(screen.getByTestId("gpu-status-footer-gpu-pct").textContent).toBe("41%");
+    expect(footer.textContent).not.toContain("GB free");
+    expect(footer.getAttribute("title")).toContain("Free VRAM: 4.8 GB");
+  });
+
+  it("names the model a studio page is loading, muted and flush right of Local model", () => {
+    setModelActivity({ pillar: "image", modelLabel: "RealVisXL V5.0" });
+    try {
+      render(
+        <GpuStatusFooter
+          compact={false}
+          stream={streamOf(sample({ gpuPct: 0, idle: false, modelName: "Local model", paramSize: "" }))}
+        />,
+      );
+      expect(screen.getByTestId("gpu-status-footer-headline").textContent).toBe("Local model");
+      const model = screen.getByTestId("gpu-status-footer-model");
+      expect(model.textContent).toBe("RealVisXL V5.0");
+      expect(model.style.color).toBe("var(--fg-muted)");
+      expect(model.style.marginLeft).toBe("auto");
+      expect(screen.getByTestId("gpu-status-footer-gpu-pct").textContent).toBe("0%");
+    } finally {
+      setModelActivity(null);
+    }
+  });
+
+  it("shows Local model with the loading model even when the sample is idle", () => {
+    setModelActivity({ pillar: "video", modelLabel: "Wan 2.1 T2V 1.3B" });
+    try {
+      render(<GpuStatusFooter compact={false} stream={streamOf(sample({ idle: true }))} />);
+      expect(screen.getByTestId("gpu-status-footer-headline").textContent).toBe("Local model");
+      expect(screen.getByTestId("gpu-status-footer-model").textContent).toBe("Wan 2.1 T2V 1.3B");
+    } finally {
+      setModelActivity(null);
+    }
+  });
+
+  it("drops the headline row while idle so the card is the bar plus one line", () => {
+    render(<GpuStatusFooter compact={false} stream={streamOf(sample({ idle: true }))} />);
+    const footer = screen.getByTestId("gpu-status-footer");
+    expect(footer.textContent).not.toContain("Idle");
+    expect(screen.queryByTestId("gpu-status-footer-headline")).toBeNull();
+    expect(screen.queryByTestId("gpu-status-footer-model")).toBeNull();
+    expect(footer.textContent).toContain("GPU usage");
+    expect(screen.getByTestId("gpu-status-footer-gpu-pct").textContent).toBe("41%");
   });
 
   it("marks a stale sample rather than presenting it as current", () => {
@@ -153,13 +199,16 @@ describe("GPU status footer", () => {
     const footer = screen.getByTestId("gpu-status-footer");
     expect(footer.textContent).not.toContain("Idle");
     expect(footer.textContent).toContain("gemma4");
+    expect(screen.getByTestId("gpu-status-footer-headline").textContent).toBe(
+      "gemma4 e4b",
+    );
   });
 
   it("collapses to a slim mark with the numbers in its tooltip", () => {
     render(<GpuStatusFooter compact stream={streamOf(sample())} />);
     const footer = screen.getByTestId("gpu-status-footer");
     expect(footer.getAttribute("title")).toContain("Free VRAM");
-    expect(footer.textContent).not.toContain("GPU 41%");
+    expect(footer.textContent).not.toContain("GPU usage");
   });
 
   it("is not fixed-positioned anywhere (the dock covered the buttons)", () => {

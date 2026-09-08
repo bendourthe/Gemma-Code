@@ -16,6 +16,7 @@ import { Copy, Download, FileJson, ImagePlus } from "lucide-react";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { Button } from "../../components/ui";
 import { formatInferenceError } from "../../lib/inferenceRpcError";
+import { setModelActivity } from "../../lib/modelActivity";
 import {
   isBackendDownMessage,
   isSidecarFailureMessage,
@@ -29,6 +30,20 @@ import {
   type ResidencySessionMemory,
   type SchedulerActiveJob,
 } from "../../shared/models/schedulerResidency";
+import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
+import {
+  cancelActiveGpuJob,
+  gpuSwitchBody,
+  gpuSwitchTitle,
+  queuedHolder,
+  resolveGpuHolder,
+  type GpuSwitchPrompt,
+} from "../../shared/models/gpuBusy";
+import {
+  askBeforeModelSwitch,
+  setAskBeforeModelSwitch,
+} from "../../shared/models/modelSwitchPreference";
+import { estimateGenerationSeconds } from "../../shared/chat/generationProgress";
 import {
   ModelSwitchChip,
   ModelSwitchDialog,
@@ -298,7 +313,25 @@ export function ImageStudioPage({
   const [activeJob, setActiveJob] = useState<{
     jobId: string;
     messageId: string;
+    /** v2.4.8 follow-up: the session the job belongs to (may not be visible). */
+    sessionId: string | null;
   } | null>(null);
+  // v2.4.8 follow-up: the pending assistant bubble of the running job, so a
+  // session switch and back shows it again; and where its turns persist.
+  const pendingTurnRef = useRef<{ sessionId: string | null; assistant: ChatMessage } | null>(null);
+  const jobSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeJob) pendingTurnRef.current = null;
+  }, [activeJob]);
+  // v2.4.8 follow-up: another task holds the GPU; ask before starting.
+  const [busyConfirm, setBusyConfirm] = useState<GpuSwitchPrompt | null>(null);
+  // One switch question per job: the first `queued` report opens it.
+  const queuedPromptedRef = useRef<Set<string>>(new Set());
+  // v2.4.8 follow-up: the seconds between "Switch and start" and the job
+  // starting are the GPU actually being cleared; say so rather than freeze.
+  const [clearingFor, setClearingFor] = useState<string | null>(null);
+  const [askDialog, setAskDialog] = useState(() => askBeforeModelSwitch());
+  const jobIdRef = useRef<string | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
   const [formEpoch, setFormEpoch] = useState(0);
   const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
@@ -314,12 +347,46 @@ export function ImageStudioPage({
   } | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> raw png
+  // v2.4.8 Phase 8: last explicit runtime stage per message; heartbeats carry
+  // no stage, so the previous one is kept until `generating` arrives.
+  const stageByMessage = useRef<Map<string, string>>(new Map());
+  // v2.4.8 follow-up: last byte-level load report per message; heartbeats carry
+  // no byte counts, so the previous report is kept between them.
+  const loadByMessage = useRef<
+    Map<string, { loadedBytes: number; totalBytes: number; etaS?: number | null }>
+  >(new Map());
 
   useEffect(() => {
     if (pendingReplace) setAdvancedOpen(true);
   }, [pendingReplace]);
 
   const isGenerating = activeJob !== null;
+  // v2.4.8 follow-up: a transient row while the GPU is handed over, so the
+  // seconds after "Switch and start" are never silent.
+  const shownMessages = useMemo<readonly ChatMessage[]>(
+    () =>
+      clearingFor === null
+        ? messages
+        : [
+            ...messages,
+            {
+              id: "image-gpu-clearing",
+              role: "assistant" as const,
+              content: "",
+              pending: true,
+              activity: "image-generation" as const,
+              progress: {
+                step: 0,
+                total: 0,
+                stage: "clearing",
+                detail: `Unloading ${clearingFor}.`,
+              },
+            },
+          ],
+    [messages, clearingFor],
+  );
+  const selectedModelName =
+    models.find((m) => m.id === selectedModelId)?.displayName ?? selectedModelId;
 
   // Load the installed image models for the selector (Phase 4 feed). Falls back
   // to a single default model when the sidecar is unavailable (dev/tests) so
@@ -399,7 +466,8 @@ export function ImageStudioPage({
       mediaRef?: string | null;
     }): void => {
       if (backendDown) return;
-      const sessionId = activeSessionIdRef.current;
+      // A completion for a job started in another session persists there.
+      const sessionId = jobSessionRef.current ?? activeSessionIdRef.current;
       if (!sessionId || !studioClient.appendTurn) return;
       try {
         void Promise.resolve(
@@ -496,7 +564,17 @@ export function ImageStudioPage({
         lastPngB64Ref.current = lastRef?.toLowerCase().startsWith("data:")
           ? lastRef
           : null;
-        setMessages(studioTurnsToChatMessages(turns, { outputExists }));
+        const rows = studioTurnsToChatMessages(turns, { outputExists });
+        // v2.4.8 follow-up: a job still running for this session keeps its
+        // pending bubble when the session is re-opened.
+        const pendingTurn = pendingTurnRef.current;
+        setMessages(
+          pendingTurn &&
+            pendingTurn.sessionId === sessionId &&
+            !rows.some((m) => m.id === pendingTurn.assistant.id)
+            ? [...rows, pendingTurn.assistant]
+            : rows,
+        );
       };
       const turnsMaybe = studioClient.listTurns?.(sessionId) ?? [];
       const sessionMaybe = studioClient.getSession(sessionId);
@@ -554,6 +632,17 @@ export function ImageStudioPage({
     hydrateSession(initialSessionId);
   }, [initialSessionId, hydrateSession]);
 
+  // v2.4.8 follow-up: name the model this job uses so the sidebar GPU card can
+  // show it next to "Local model" for as long as the job runs.
+  useEffect(() => {
+    if (!activeJob) return;
+    const label =
+      models.find((candidate) => candidate.id === selectedModelId)?.displayName ??
+      selectedModelId;
+    setModelActivity({ pillar: "image", modelLabel: label });
+    return () => setModelActivity(null);
+  }, [activeJob, models, selectedModelId]);
+
   const advanceFromEvents = useCallback(
     (
       events: readonly ProgressEvent[],
@@ -564,7 +653,40 @@ export function ImageStudioPage({
         if (event.kind === "progress") {
           const step = event.step ?? 0;
           const total = event.totalSteps ?? 0;
-          patchMessage(messageId, { progress: { step, total } });
+          // v2.4.8 follow-up: a queued job asks to take the GPU instead of
+          // showing a waiting message; the bubble stays on "Loading model".
+          if (event.stage === "queued") {
+            const jobId = jobIdRef.current;
+            if (jobId && !queuedPromptedRef.current.has(jobId)) {
+              queuedPromptedRef.current.add(jobId);
+              setBusyConfirm({
+                kind: "queued",
+                holder: queuedHolder(event.blockedBy),
+                jobId,
+                messageId,
+              });
+            }
+            continue;
+          }
+          const stage =
+            event.stage ?? stageByMessage.current.get(messageId) ?? "loading";
+          stageByMessage.current.set(messageId, stage);
+          if (typeof event.totalBytes === "number") {
+            loadByMessage.current.set(messageId, {
+              loadedBytes: event.loadedBytes ?? 0,
+              totalBytes: event.totalBytes,
+              etaS: event.etaS,
+            });
+          }
+          patchMessage(messageId, {
+            progress: {
+              step,
+              total,
+              stage,
+              ...(loadByMessage.current.get(messageId) ?? {}),
+              ...(event.blockedBy ? { blockedBy: event.blockedBy } : {}),
+            },
+          });
         } else if (event.kind === "complete") {
           done = true;
           const png = event.png ?? "";
@@ -673,7 +795,10 @@ export function ImageStudioPage({
         try {
           const events = await client.drainEvents(activeJob.jobId);
           if (cancelled) return;
+          jobSessionRef.current = activeJob.sessionId;
+          jobIdRef.current = activeJob.jobId;
           const { done } = advanceFromEvents(events, activeJob.messageId);
+          jobSessionRef.current = null;
           if (done) {
             cancelled = true;
             clearInterval(timer);
@@ -743,12 +868,35 @@ export function ImageStudioPage({
       attachments: readonly string[],
       residencyApproved = false,
       retryAssistantId?: string,
+      busyApproved = false,
     ): Promise<void> => {
       stickNow();
       if (isGenerating) return;
       // v2.2.0 Phase 4: ask the policy before doing GPU work. A `confirm`
       // verdict opens the dialog and returns; the user's answer re-enters
       // this path. Everything else proceeds immediately.
+      // v2.4.8 follow-up: another task holds the GPU (often a job from a
+      // session no longer on screen) or simply still loaded on it (Ollama
+      // keeps a chat model resident for minutes after its last reply). Ask
+      // before taking it. Either answer settles the GPU question, so the
+      // residency policy below then only checks that the model is installed.
+      if (!busyApproved && !residencyApproved && askBeforeModelSwitch()) {
+        const holder = await resolveGpuHolder({
+          active: activeSchedulerJob,
+          targetModelId: selectedModelId,
+          nameFor: (id) => models.find((m) => m.id === id)?.displayName ?? id,
+        });
+        if (holder) {
+          setBusyConfirm({
+            kind: "submit",
+            holder,
+            text,
+            attachments,
+            ...(retryAssistantId ? { retryAssistantId } : {}),
+          });
+          return;
+        }
+      }
       if (!residencyApproved) {
         const selected = models.find((m) => m.id === selectedModelId);
         const verdict = residency.request({
@@ -760,11 +908,14 @@ export function ImageStudioPage({
           activeJob: busyContextFromScheduler(activeSchedulerJob),
           installed: Boolean(selected?.installed),
         });
-        if (verdict.kind === "confirm") {
+        if (verdict.kind === "confirm" && !busyApproved) {
           pendingPromptRef.current = { text, attachments };
           return;
         }
-        if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+        if (
+          verdict.kind === "not-installed" ||
+          (verdict.kind === "defer" && !busyApproved)
+        ) {
           setMessages((prev) => [
             ...prev,
             withLiveTimestamp({
@@ -856,6 +1007,12 @@ export function ImageStudioPage({
         content: "",
         pending: true,
         activity: "image-generation",
+        estimateSeconds: estimateGenerationSeconds({
+          pillar: "image",
+          width: values.width,
+          height: values.height,
+          steps: values.steps,
+        }),
       };
       if (retryAssistantId) {
         patchMessage(assistantId, {
@@ -874,6 +1031,10 @@ export function ImageStudioPage({
         await ensureSession(text);
         persistTurn({ role: "user", content: text });
       }
+      pendingTurnRef.current = {
+        sessionId: activeSessionIdRef.current,
+        assistant: withLiveTimestamp(assistantMsg),
+      };
       mediaRetryRef.current = {
         assistantId,
         text,
@@ -940,7 +1101,11 @@ export function ImageStudioPage({
             sourceImage,
             mask,
           });
-          setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
+          setActiveJob({
+            jobId: accepted.jobId,
+            messageId: assistantId,
+            sessionId: activeSessionIdRef.current,
+          });
           return;
         }
 
@@ -996,7 +1161,11 @@ export function ImageStudioPage({
             pixels: intent.pixels ?? 128,
           });
         }
-        setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
+        setActiveJob({
+          jobId: accepted.jobId,
+          messageId: assistantId,
+          sessionId: activeSessionIdRef.current,
+        });
       } catch (err) {
         if (!(await markMediaRuntimeFailure(assistantId, err))) {
           patchMessage(assistantId, {
@@ -1148,6 +1317,7 @@ export function ImageStudioPage({
       setActiveJob({
         jobId: accepted.jobId,
         messageId: pendingReplace.assistantId,
+        sessionId: activeSessionIdRef.current,
       });
       setPendingReplace(null);
     },
@@ -1264,6 +1434,54 @@ export function ImageStudioPage({
       >
         models settings
       </a>
+      {busyConfirm && (
+        <ConfirmDialog
+          testId="image-gpu-busy-confirm"
+          title={gpuSwitchTitle("image", selectedModelName)}
+          body={gpuSwitchBody(busyConfirm.holder, selectedModelName).map((line) => (
+            <p key={line} style={{ margin: "0 0 var(--space-1)" }}>
+              {line}
+            </p>
+          ))}
+          checkbox={{
+            label: "Do not show this again",
+            checked: !askDialog,
+            onChange: (hide) => {
+              setAskDialog(!hide);
+              setAskBeforeModelSwitch(!hide);
+            },
+          }}
+          confirmLabel="Switch and start"
+          cancelLabel={busyConfirm.kind === "queued" ? "Stop this request" : "Cancel"}
+          onCancel={() => {
+            const next = busyConfirm;
+            setBusyConfirm(null);
+            if (next.kind === "queued") {
+              void queueClient.cancel(next.jobId).catch(() => undefined);
+              patchMessage(next.messageId, {
+                pending: false,
+                progress: undefined,
+                content: "Stopped.",
+              });
+              setActiveJob(null);
+            }
+          }}
+          onConfirm={() => {
+            const next = busyConfirm;
+            setBusyConfirm(null);
+            // Say what is happening while the GPU is actually being cleared.
+            setClearingFor(next.holder.label);
+            void cancelActiveGpuJob()
+              .catch(() => false)
+              .then(() => {
+                setClearingFor(null);
+                return next.kind === "submit"
+                  ? handleSubmit(next.text, next.attachments, false, next.retryAssistantId, true)
+                  : undefined;
+              });
+          }}
+        />
+      )}
       {residency.pending && (
         <ModelSwitchDialog
           pending={residency.pending}
@@ -1343,7 +1561,7 @@ export function ImageStudioPage({
             </p>
           ) : (
             <MessageList
-              messages={messages}
+              messages={shownMessages}
               enableTools={false}
               onMediaError={handleMediaError}
               renderAfter={(m) =>

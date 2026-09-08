@@ -1,4 +1,9 @@
-"""GPU detection page: probe system GPUs and recommend a model tier."""
+"""GPU detection: probe system GPUs and recommend a model tier.
+
+Detection functions plus the background worker. The result is shown as a
+prerequisite row on the Welcome page (`pages.prerequisites`), which writes the
+hardware fields into `InstallerState`.
+"""
 
 from __future__ import annotations
 
@@ -6,31 +11,10 @@ import json
 import os
 import subprocess
 import sys
-from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFontMetrics
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import QThread, pyqtSignal
 
-from nexus_installer.constants import (
-    ACCENT,
-    BG_CARD,
-    BORDER,
-    FS_BODY,
-    FS_CAPTION,
-    FS_H2,
-    FS_H3,
-    SUCCESS,
-    TEXT_SECONDARY,
-    WARNING,
-)
-from nexus_installer.engine.host_detect import detect_total_ram_gb
 from nexus_installer.engine.platform_utils import no_window_kwargs
-from nexus_installer.vram_display import display_vram_gb
-from nexus_installer.widgets.callout_box import CalloutBox
-
-if TYPE_CHECKING:
-    from nexus_installer.installer_state import InstallerState
 
 DETECTION_TIMEOUT = 5
 
@@ -288,192 +272,3 @@ class _GpuDetectionWorker(QThread):
     def run(self) -> None:
         name, vendor, vram = detect_gpu()
         self.finished.emit(name, vendor, vram)
-
-
-# ---------------------------------------------------------------------------
-# Page widget
-# ---------------------------------------------------------------------------
-
-
-class GpuDetectionPage(QWidget):
-    """GPU detection page with detection results and model recommendation."""
-
-    def __init__(
-        self,
-        state: InstallerState,
-        parent: QWidget | None = None,
-        *,
-        compact: bool = False,
-    ) -> None:
-        super().__init__(parent)
-        self._state = state
-        self._compact = compact
-        self._detection_done = False
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8 if compact else 16)
-
-        title = QLabel("GPU Detection")
-        if compact:
-            title.setStyleSheet(
-                f"font-size: {FS_H3}px; font-weight: 600; background: transparent;"
-            )
-        else:
-            title.setObjectName("pageTitle")
-        layout.addWidget(title)
-
-        self._status_label = QLabel("Detecting GPU...")
-        self._status_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_BODY}px; background: transparent;"
-        )
-        layout.addWidget(self._status_label)
-
-        # GPU info card
-        self._gpu_card = QWidget()
-        pad = 8 if compact else 16
-        self._gpu_card.setStyleSheet(
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: {pad}px;"
-        )
-        gpu_card_layout = QVBoxLayout(self._gpu_card)
-
-        self._gpu_name_label = QLabel("")
-        self._gpu_line_full = ""
-        self._gpu_line_name = ""
-        self._gpu_line_suffix = ""
-        name_px = FS_H3 if compact else FS_H2
-        self._gpu_name_label.setStyleSheet(
-            f"font-size: {name_px}px; font-weight: bold; background: transparent;"
-        )
-        self._gpu_name_label.setWordWrap(not compact)
-        gpu_card_layout.addWidget(self._gpu_name_label)
-
-        self._gpu_detail_label = QLabel("")
-        self._gpu_detail_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
-            f"background: transparent;"
-        )
-        gpu_card_layout.addWidget(self._gpu_detail_label)
-        if compact:
-            self._gpu_detail_label.setVisible(False)
-
-        self._gpu_card.setVisible(False)
-        layout.addWidget(self._gpu_card)
-
-        # Model recommendation callout
-        self._rec_callout = CalloutBox(title="Recommended Model")
-        self._rec_model_label = QLabel("")
-        self._rec_model_label.setStyleSheet(
-            f"color: {ACCENT}; font-size: {FS_H3}px; font-weight: bold; "
-            f"background: transparent;"
-        )
-        self._rec_callout.add_item(self._rec_model_label)
-
-        self._rec_desc_label = QLabel("")
-        self._rec_desc_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
-            f"background: transparent;"
-        )
-        self._rec_callout.add_item(self._rec_desc_label)
-
-        self._rec_callout.setVisible(False)
-        layout.addWidget(self._rec_callout)
-
-        if not compact:
-            layout.addStretch()
-
-        # Start detection
-        self._worker = _GpuDetectionWorker()
-        self._worker.finished.connect(self._on_detection_complete)
-        self._worker.start()
-
-    def _on_detection_complete(self, name: str, vendor: str, vram_mb: int) -> None:
-        self._detection_done = True
-        self._state.gpu_vendor = vendor
-        self._state.gpu_name = name
-        self._state.vram_mb = vram_mb
-        self._state.apply_total_ram_gb(detect_total_ram_gb())
-
-        if name:
-            self._status_label.setText("GPU detected successfully.")
-            self._status_label.setStyleSheet(
-                f"color: {SUCCESS}; font-size: {FS_BODY}px; background: transparent;"
-            )
-
-            shown_gb = display_vram_gb(vram_mb)
-            vendor_txt = vendor.capitalize() if vendor else "Unknown"
-            if self._compact:
-                self._gpu_line_name = name
-                self._gpu_line_suffix = (
-                    f" | Vendor: {vendor_txt} | {shown_gb} GB VRAM"
-                )
-                self._gpu_line_full = f"{name}{self._gpu_line_suffix}"
-                self._gpu_name_label.setText(self._gpu_line_full)
-                self._apply_gpu_elide()
-                self._gpu_detail_label.setVisible(False)
-            else:
-                self._gpu_name_label.setText(name)
-                vram_text = (
-                    f"{shown_gb} GB VRAM" if vram_mb > 0 else "VRAM not available"
-                )
-                self._gpu_detail_label.setText(
-                    f"Vendor: {vendor.capitalize()}  |  {vram_text}"
-                )
-            self._gpu_card.setVisible(True)
-        else:
-            self._status_label.setText(
-                "No dedicated GPU detected. CPU-only mode will be used."
-            )
-            self._status_label.setStyleSheet(
-                f"color: {WARNING}; font-size: {FS_BODY}px; background: transparent;"
-            )
-            self._gpu_card.setVisible(False)
-
-        # Model recommendation
-        model_name, model_label, model_desc = recommend_model(vram_mb)
-        self._state.recommended_model = model_name
-        self._state.selected_model = model_name
-
-        self._rec_model_label.setText(f"{model_name}  ({model_label})")
-        self._rec_desc_label.setText(model_desc)
-        if not self._compact:
-            self._rec_callout.setVisible(True)
-
-    def showEvent(self, event: object) -> None:  # noqa: N802
-        super().showEvent(event)  # type: ignore[misc]
-        self._apply_gpu_elide()
-
-    def resizeEvent(self, event: object) -> None:  # noqa: N802
-        super().resizeEvent(event)  # type: ignore[misc]
-        self._apply_gpu_elide()
-
-    def _apply_gpu_elide(self) -> None:
-        if not self._compact or not self._gpu_line_full:
-            return
-        self._gpu_name_label.setToolTip(self._gpu_line_full)
-        width = self._gpu_name_label.width() - 8
-        if width < 80:
-            self._gpu_name_label.setText(self._gpu_line_full)
-            return
-        metrics = QFontMetrics(self._gpu_name_label.font())
-        suffix = self._gpu_line_suffix
-        suffix_w = metrics.horizontalAdvance(suffix) if suffix else 0
-        if not suffix or suffix_w + 24 > width:
-            self._gpu_name_label.setText(
-                metrics.elidedText(
-                    self._gpu_line_full, Qt.TextElideMode.ElideRight, width
-                )
-            )
-            return
-        name_w = max(24, width - suffix_w)
-        elided_name = metrics.elidedText(
-            self._gpu_line_name, Qt.TextElideMode.ElideRight, name_w
-        )
-        self._gpu_name_label.setText(f"{elided_name}{suffix}")
-
-    def validate(self) -> tuple[bool, str]:
-        """Block Next until the GPU probe has finished (CPU-only is a result)."""
-        if not self._detection_done:
-            return False, "Still detecting GPU..."
-        return True, ""

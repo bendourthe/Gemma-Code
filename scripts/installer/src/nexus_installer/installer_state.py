@@ -79,6 +79,9 @@ class InstallerState:
     selected_models_gb: float = 0.0
     disk_reserve_gb: int = DEFAULT_DISK_RESERVE_GB
     install_vscode_extension: bool = True
+    # Welcome-page feature toggles: launcher shortcuts for the desktop app.
+    add_start_menu_shortcut: bool = True
+    add_desktop_shortcut: bool = True
     # v2.1 DF-15 -- opt-in Unsloth Core venv. Off by default. LGPL zoo notice
     # is shown next to the checkbox.
     install_unsloth: bool = False

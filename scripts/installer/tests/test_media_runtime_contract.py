@@ -65,8 +65,7 @@ def test_sana_video_uses_complete_pinned_diffusers_pipeline() -> None:
         model for model in catalog["models"] if model["id"] == "sana-video-2b-720p"
     )
     assert (
-        sana["source"]["repo"]
-        == "Efficient-Large-Model/SANA-Video_2B_720p_diffusers"
+        sana["source"]["repo"] == "Efficient-Large-Model/SANA-Video_2B_720p_diffusers"
     )
     assert sana["weights"]["layoutVersion"] == 2
     files = {item["path"]: item["sha256"] for item in sana["weights"]["files"]}
@@ -193,14 +192,33 @@ def test_diffusers_stays_pinned_never_floating() -> None:
         assert entries[0].startswith("diffusers==")
 
 
-def test_torch_pin_is_unchanged_by_the_diffusers_bump() -> None:
-    # 0.36.0 declares no torch or transformers upper bound, so the existing
-    # cu121 stack stays valid. Pinning that fact keeps a later bump honest.
+def test_torch_pin_meets_the_sana_video_minimum() -> None:
+    # v2.4.8 Phase 8: diffusers 0.36's SANA-Video pipeline imports
+    # torch.nn.RMSNorm (torch 2.4+). The 2.3.0 pin passed every smoke and
+    # failed the first video generate on the operator host. Both lock files
+    # now pin the 2.5.1 cu121 stack with verified wheels for every CUDA target.
     repair_lock = _json(REPO_ROOT / "runtimes" / "diffusion" / "runtime-lock.json")
+    build_lock = _json(
+        REPO_ROOT / "scripts" / "installer" / "build" / "versions.lock.json"
+    )["diffusion"]
     assert _pinned_version(repair_lock["runtimeRequirements"], "transformers") == (
         4,
         53,
         2,
     )
-    for target in repair_lock["targets"].values():
-        assert "torch==2.3.0" in target["torchRequirements"]
+    for lock in (repair_lock, build_lock):
+        for key, target in lock["targets"].items():
+            assert "torch==2.5.1" in target["torchRequirements"], key
+            assert "torchvision==0.20.1" in target["torchRequirements"], key
+            assert "torchaudio==2.5.1" in target["torchRequirements"], key
+            if target["backend"] == "cuda":
+                names = sorted(a["filename"] for a in target["referenceArtifacts"])
+                assert len(names) == 6, key
+                assert all("2.5.1+cu121" in n or "0.20.1+cu121" in n for n in names), (
+                    key
+                )
+                assert all(
+                    a["size"] > 0 and len(a["sha256"]) == 64
+                    for a in target["referenceArtifacts"]
+                )
+    assert repair_lock["targets"] == build_lock["targets"]

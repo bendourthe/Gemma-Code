@@ -496,6 +496,17 @@ export class GpuScheduler {
     return handle;
   }
 
+  /**
+   * v2.4.8 follow-up: abort the running job from another surface (a studio
+   * page asking to take the GPU). Returns false when nothing is running. The
+   * pump tags the final state once `run()` rejects.
+   */
+  cancelActive(): boolean {
+    if (!this._active) return false;
+    this._cancel(this._active);
+    return true;
+  }
+
   snapshot(): SchedulerSnapshot {
     const active = this._active
       ? {

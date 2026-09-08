@@ -17,6 +17,8 @@ callback (no torch import).
 
 from __future__ import annotations
 
+import contextlib
+
 import os
 import re
 import time
@@ -255,6 +257,11 @@ def torch_cuda_state() -> str:
       while this Python environment still has no CUDA torch.
     - ``"no-gpu"``: torch is a CUDA build but no usable CUDA device was
       detected (``torch.cuda.is_available()`` is false).
+    - ``"torch-too-old"`` (v2.4.8 Phase 8): a CUDA torch with a device, but
+      older than ``MIN_TORCH_VERSION``. diffusers 0.36's SANA-Video pipeline
+      imports ``torch.nn.RMSNorm`` (torch 2.4+); the operator's 2.3.0 venv
+      passed every readiness probe and failed the first video generate with
+      an AttributeError.
     """
     try:
         import torch  # type: ignore[import-not-found]
@@ -264,11 +271,122 @@ def torch_cuda_state() -> str:
     if not cuda_build:
         return "no-cuda-torch"
     try:
-        if getattr(torch, "cuda", None) and torch.cuda.is_available():
-            return "ok"
+        if not (getattr(torch, "cuda", None) and torch.cuda.is_available()):
+            return "no-gpu"
     except Exception:
         return "no-gpu"
-    return "no-gpu"
+    if torch_too_old(str(getattr(torch, "__version__", "") or "")):
+        return "torch-too-old"
+    return "ok"
+
+
+# ---------------------------------------------------------------------------
+# v2.4.8 Phase 8: explicit pipeline stage notifications.
+#
+# Loading SANA / Wan weights onto the GPU takes tens of seconds, during which
+# the desktop had only heartbeats (no step, no stage) and showed the same
+# "Creating..." caption it shows while sampling. `main.py` installs a sink that
+# forwards these as JSON-RPC `progress` notifications; `real_execute` emits
+# `loading` before a pipeline is built and `generating` once it is on the
+# device, so the shell can show "Loading model..." honestly and switch when
+# sampling actually starts.
+# ---------------------------------------------------------------------------
+_PROGRESS_SINK: Optional[Callable[[dict], None]] = None
+
+
+def set_progress_sink(sink: Optional[Callable[[dict], None]]) -> None:
+    """Install (or clear) the process-wide progress notification sink."""
+    global _PROGRESS_SINK
+    _PROGRESS_SINK = sink
+
+
+def emit_stage(job_id: str, stage: str, **extra: Any) -> None:
+    """Emit a `progress` notification carrying a stage and optional counters."""
+    if _PROGRESS_SINK is None or not job_id:
+        return
+    # A broken sink must never fail a job.
+    with contextlib.suppress(Exception):
+        _PROGRESS_SINK({"kind": "progress", "jobId": job_id, "stage": stage, **extra})
+
+
+def step_progress_callback(job_id: str, total_steps: int) -> Callable:
+    """A diffusers `callback_on_step_end` that reports sampling progress.
+
+    v2.4.8 follow-up (2026-09-07): until now the only thing a running job sent
+    while sampling was a liveness heartbeat, so a Wan video (30 steps over 96
+    frames, tens of minutes on a laptop GPU) looked identical to a hung one.
+    Counting steps is the honest signal: the shell turns it into a real bar
+    and an estimate that corrects itself from the measured step rate.
+    """
+
+    def on_step_end(_pipe, step_index, _timestep, callback_kwargs):
+        emit_stage(
+            job_id,
+            "generating",
+            step=int(step_index) + 1,
+            totalSteps=int(total_steps),
+        )
+        return callback_kwargs
+
+    return on_step_end
+
+
+def step_callback_kwargs(pipe: Any, job_id: str, total_steps: int) -> dict:
+    """`{callback_on_step_end: ...}` when this pipeline accepts it, else `{}`.
+
+    Not every Diffusers pipeline takes the callback, and passing it to one that
+    does not is a TypeError that would fail the whole job. The signature is
+    inspected so an older or exotic pipeline simply reports no step counts.
+    """
+    if not job_id or total_steps <= 0:
+        return {}
+    try:
+        import inspect
+
+        parameters = inspect.signature(pipe.__call__).parameters
+        if "callback_on_step_end" not in parameters:
+            return {}
+    except Exception:  # noqa: BLE001 - never fail a job over introspection
+        return {}
+    return {"callback_on_step_end": step_progress_callback(job_id, total_steps)}
+
+
+#: The oldest torch the diffusion runtime accepts (mirrors the installer's
+#: ``diffusion_venv_provisioner.MIN_TORCH_VERSION`` and the sidecar's
+#: ``runtimeFactory.MIN_TORCH_VERSION``).
+MIN_TORCH_VERSION: tuple[int, int] = (2, 4)
+
+
+def torch_too_old(version: str) -> bool:
+    """True when ``version`` (``"2.3.0+cu121"``) is below ``MIN_TORCH_VERSION``.
+
+    Unparseable versions are never "too old": the other probes report their
+    own reason and this guard must not mask them.
+    """
+    core = version.split("+", 1)[0].strip()
+    parts = core.split(".")
+    try:
+        major = int(parts[0])
+        minor = int(parts[1]) if len(parts) > 1 else 0
+    except (ValueError, IndexError):
+        return False
+    return (major, minor) < MIN_TORCH_VERSION
+
+
+def torch_too_old_message(kind: str) -> str:
+    """Kind 4 (v2.4.8 Phase 8): torch is present but below the pipeline floor."""
+    try:
+        import torch  # type: ignore[import-not-found]
+
+        version = str(getattr(torch, "__version__", "") or "unknown")
+    except Exception:  # pragma: no cover - torch import already succeeded upstream
+        version = "unknown"
+    return (
+        f"{kind} runtime is not ready: torch {version} is older than "
+        f"{MIN_TORCH_VERSION[0]}.{MIN_TORCH_VERSION[1]} (the video pipeline "
+        "needs torch.nn.RMSNorm); repair the media runtime from "
+        "Settings > Video or re-run the installer"
+    )
 
 
 def cuda_torch_missing_message(kind: str) -> str:
@@ -298,11 +416,14 @@ def gpu_unavailable_message(kind: str) -> str:
 
 
 def accelerator_not_ready(kind: str) -> RuntimeNotReady:
-    """Typed accelerator failure: CUDA-torch-missing vs GPU-not-available."""
-    if torch_cuda_state() == "no-cuda-torch":
+    """Typed accelerator failure: CUDA-torch-missing, GPU-not-available, or torch-too-old."""
+    state = torch_cuda_state()
+    if state == "no-cuda-torch":
         return RuntimeNotReady(
             cuda_torch_missing_message(kind), kind="cuda-torch-missing"
         )
+    if state == "torch-too-old":
+        return RuntimeNotReady(torch_too_old_message(kind), kind="torch-too-old")
     return RuntimeNotReady(gpu_unavailable_message(kind), kind="gpu-not-available")
 
 
@@ -326,6 +447,8 @@ def classify_runtime_not_ready(kind: str, model_id: Optional[str]) -> RuntimeNot
         )
     if state == "no-gpu":
         return RuntimeNotReady(gpu_unavailable_message(kind), kind="gpu-not-available")
+    if state == "torch-too-old":
+        return RuntimeNotReady(torch_too_old_message(kind), kind="torch-too-old")
     if model_id and resolve_weights_dir(model_id) is None:
         return RuntimeNotReady(
             weights_missing_message(kind, model_id), kind="weights-missing"

@@ -155,4 +155,78 @@ describe("MediaComposer", () => {
     expect(screen.queryByTestId("media-composer-stop")).toBeNull();
     expect(screen.getByTestId("media-composer-submit")).toBeDisabled();
   });
+
+  // v2.4.8 Phase 2 (T008): operator screenshot 2 (2026-09-06) showed the
+  // overflow menu staying open after the user moved on. Both composer menus
+  // now close on an outside pointer and on Escape, and stay open on an
+  // inside pointer.
+  describe("v2.4.8 menu dismissal", () => {
+    const overflowActions = [
+      { id: "persona", label: "Persona", onSelect: vi.fn() },
+    ];
+    const voiceModes = [
+      { id: "dictate", label: "Dictate", active: true, onSelect: vi.fn() },
+    ];
+
+    it("closes the overflow menu on a pointer outside it", () => {
+      render(
+        <MediaComposer onSubmit={vi.fn()} overflowActions={overflowActions} />,
+      );
+      fireEvent.click(screen.getByTestId("media-composer-overflow-toggle"));
+      expect(
+        screen.getByTestId("media-composer-overflow-menu"),
+      ).toBeInTheDocument();
+      fireEvent.pointerDown(document.body);
+      expect(screen.queryByTestId("media-composer-overflow-menu")).toBeNull();
+    });
+
+    it("keeps the overflow menu open on a pointer inside it", () => {
+      render(
+        <MediaComposer onSubmit={vi.fn()} overflowActions={overflowActions} />,
+      );
+      fireEvent.click(screen.getByTestId("media-composer-overflow-toggle"));
+      fireEvent.pointerDown(screen.getByTestId("media-composer-overflow-menu"));
+      expect(
+        screen.getByTestId("media-composer-overflow-menu"),
+      ).toBeInTheDocument();
+    });
+
+    it("closes the overflow menu on Escape", () => {
+      render(
+        <MediaComposer onSubmit={vi.fn()} overflowActions={overflowActions} />,
+      );
+      fireEvent.click(screen.getByTestId("media-composer-overflow-toggle"));
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByTestId("media-composer-overflow-menu")).toBeNull();
+    });
+
+    it("still toggles the overflow menu from its own button", () => {
+      render(
+        <MediaComposer onSubmit={vi.fn()} overflowActions={overflowActions} />,
+      );
+      const toggle = screen.getByTestId("media-composer-overflow-toggle");
+      fireEvent.pointerDown(toggle);
+      fireEvent.click(toggle);
+      expect(
+        screen.getByTestId("media-composer-overflow-menu"),
+      ).toBeInTheDocument();
+      fireEvent.pointerDown(toggle);
+      fireEvent.click(toggle);
+      expect(screen.queryByTestId("media-composer-overflow-menu")).toBeNull();
+    });
+
+    it("closes the mic menu on an outside pointer and on Escape", () => {
+      render(
+        <MediaComposer onSubmit={vi.fn()} audioEnabled voiceModes={voiceModes} />,
+      );
+      const toggle = screen.getByTestId("media-composer-mic-menu-toggle");
+      fireEvent.click(toggle);
+      expect(screen.getByTestId("media-composer-mic-menu")).toBeInTheDocument();
+      fireEvent.pointerDown(document.body);
+      expect(screen.queryByTestId("media-composer-mic-menu")).toBeNull();
+      fireEvent.click(toggle);
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByTestId("media-composer-mic-menu")).toBeNull();
+    });
+  });
 });

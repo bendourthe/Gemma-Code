@@ -13,8 +13,12 @@ import type {
   ListedModelDto,
   ModelType,
 } from "../../pages/settings/modelsTypes";
+import {
+  readDefaultModel,
+  readModelOrder,
+} from "./modelPreferences";
 import { GET_MORE_MODELS_ID, installedModelsForType } from "./installedFeed";
-import { catalogTabsFor, type CatalogTab } from "./catalogTabs";
+import { catalogTabsFor, pickerOrder, type CatalogTab } from "./catalogTabs";
 
 const EMPTY_OWNED = new Set<string>();
 
@@ -60,7 +64,7 @@ export function QuickModelSwitcher({
   testId = "quick-model-switcher",
   harnessLabel,
   harnessSelectorEnabled,
-  hostVramGB: _hostVramGB = null,
+  hostVramGB = null,
   catalogTab,
   recommendOrder,
 }: QuickModelSwitcherProps): JSX.Element {
@@ -70,13 +74,17 @@ export function QuickModelSwitcher({
     const onTab = installedModelsForType(models, taskType, owned).filter((m) =>
       catalogTabsFor(m).includes(tab),
     );
-    const rank = new Map(
-      (recommendOrder ?? []).map((id, index) => [id, index]),
-    );
-    return [...onTab].sort(
-      (a, b) => (rank.get(a.id) ?? 10_000) - (rank.get(b.id) ?? 10_000),
-    );
-  }, [models, taskType, ownedIds, catalogTab, recommendOrder]);
+    // v2.4.8 Phase 5 (T020): installer picker order. Catalog tier first, the
+    // snapshot's recommend order as the tie-break, so a stale snapshot that
+    // names an untagged model cannot push the catalog recommendation down.
+    // v2.4.8 follow-up: the user's own order from Settings > Preferences
+    // comes first; everything they have not placed keeps the installer order.
+    return pickerOrder(onTab, {
+      hostVramGB,
+      ...(recommendOrder ? { recommendOrder } : {}),
+      userOrder: readModelOrder(tab),
+    });
+  }, [models, taskType, ownedIds, catalogTab, recommendOrder, hostVramGB]);
 
   const options = useMemo(
     () => [
@@ -97,19 +105,26 @@ export function QuickModelSwitcher({
     onChange(id);
   }
 
+  // The user's default for this category wins over the first listed row when
+  // the parent is holding an id that is not installed.
+  const preferred = useMemo(() => {
+    const tab = catalogTab ?? catalogTabForTask(taskType);
+    const chosen = readDefaultModel(tab);
+    return chosen && ready.some((m) => m.id === chosen) ? chosen : ready[0]?.id;
+  }, [catalogTab, taskType, ready]);
+
   const selectValue = ready.some((m) => m.id === value)
     ? value
-    : (ready[0]?.id ?? GET_MORE_MODELS_ID);
+    : (preferred ?? GET_MORE_MODELS_ID);
 
   // v2.2.4 Phase 2: never display ready[0] while parent state stays on a
   // missing id. Sync once so send uses the same id the <select> shows.
   useEffect(() => {
-    const first = ready[0];
-    if (!first) return;
+    if (ready.length === 0 || !preferred) return;
     if (!ready.some((m) => m.id === value)) {
-      onChange(first.id);
+      onChange(preferred);
     }
-  }, [ready, value, onChange]);
+  }, [ready, value, onChange, preferred]);
 
   return (
     <ModelSelector

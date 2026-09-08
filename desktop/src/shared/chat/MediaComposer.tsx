@@ -12,6 +12,7 @@
  */
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -23,7 +24,9 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from "react";
-import { Send, Square } from "lucide-react";
+import { Plus, Send, Square, UserRound } from "lucide-react";
+import type { RefObject } from "react";
+import { useDismissOnOutside } from "../ui/useDismissOnOutside";
 import {
   AccentBeam,
   type AccentBeamAccentToken,
@@ -81,6 +84,22 @@ export interface MediaComposerProps {
    * always-visible label. Omitted by default, so the studios are unchanged.
    */
   overflowActions?: readonly ComposerOverflowAction[];
+  /**
+   * v2.4.8 follow-up: a dedicated Persona button (person icon) in the right
+   * control cluster. It opens the persona box directly; there is no menu in
+   * between. Chat passes it; the studios leave it out.
+   */
+  personaAction?: ComposerPersonaAction;
+}
+
+/** The Persona toggle in the right control cluster. */
+export interface ComposerPersonaAction {
+  readonly active: boolean;
+  /** Test id override so callers keep stable hooks (e.g. chat-persona-toggle). */
+  readonly testId?: string;
+  /** Lets the caller count the toggle as part of the popover's dismiss surface. */
+  readonly toggleRef?: RefObject<HTMLButtonElement | null>;
+  onToggle(): void;
 }
 
 /** One entry in the mic dropdown. */
@@ -168,6 +187,7 @@ export function MediaComposer({
   micRecorder: micRecorderOverride,
   voiceModes = [],
   overflowActions = [],
+  personaAction,
 }: MediaComposerProps): JSX.Element {
   const [text, setText] = useState("");
   // v2.2.0 Phase 5 (5.4): mic menu + auto-grow ref (focus state already exists).
@@ -175,6 +195,21 @@ export function MediaComposer({
   const [overflowOpen, setOverflowOpen] = useState(false);
   const hasOverflow = overflowActions.length > 0;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // v2.4.8 Phase 2 (T006): both menus close on an outside pointer or Escape.
+  // Each surface is its menu plus its toggle, so the toggle keeps toggling.
+  const micMenuRef = useRef<HTMLDivElement>(null);
+  const micToggleRef = useRef<HTMLButtonElement>(null);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
+  const overflowToggleRef = useRef<HTMLButtonElement>(null);
+  const micSurface = useMemo(() => [micMenuRef, micToggleRef], []);
+  const overflowSurface = useMemo(
+    () => [overflowMenuRef, overflowToggleRef],
+    [],
+  );
+  const closeMicMenu = useCallback(() => setMicMenuOpen(false), []);
+  const closeOverflow = useCallback(() => setOverflowOpen(false), []);
+  useDismissOnOutside(micSurface, micMenuOpen, closeMicMenu);
+  useDismissOnOutside(overflowSurface, overflowOpen, closeOverflow);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -457,6 +492,7 @@ export function MediaComposer({
                     type="button"
                     aria-label="Voice options"
                     data-testid="media-composer-mic-menu-toggle"
+                    ref={micToggleRef}
                     aria-expanded={micMenuOpen}
                     disabled={disabled}
                     onClick={() => setMicMenuOpen((v) => !v)}
@@ -476,13 +512,29 @@ export function MediaComposer({
                 onClick={() => fileInputRef.current?.click()}
                 style={clusterIconStyle}
               >
-                +
+                <Plus size={18} aria-hidden="true" />
               </button>
+              {personaAction ? (
+                <button
+                  type="button"
+                  aria-label="Persona"
+                  title="Persona"
+                  data-testid={personaAction.testId ?? "media-composer-persona"}
+                  ref={personaAction.toggleRef}
+                  aria-pressed={personaAction.active}
+                  disabled={disabled}
+                  onClick={() => personaAction.onToggle()}
+                  style={clusterIconStyle}
+                >
+                  <UserRound size={18} aria-hidden="true" />
+                </button>
+              ) : null}
               {hasOverflow ? (
                 <button
                   type="button"
                   aria-label="More composer options"
                   data-testid="media-composer-overflow-toggle"
+                  ref={overflowToggleRef}
                   aria-expanded={overflowOpen}
                   disabled={disabled}
                   onClick={() => setOverflowOpen((v) => !v)}
@@ -518,6 +570,7 @@ export function MediaComposer({
             {overflowOpen && hasOverflow ? (
               <div
                 data-testid="media-composer-overflow-menu"
+                ref={overflowMenuRef}
                 role="menu"
                 aria-label="More composer options"
                 style={micMenuStyle}
@@ -545,6 +598,7 @@ export function MediaComposer({
             {micMenuOpen && audioEnabled ? (
               <div
                 data-testid="media-composer-mic-menu"
+                ref={micMenuRef}
                 role="menu"
                 aria-label="Voice options"
                 style={micMenuStyle}

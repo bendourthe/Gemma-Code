@@ -274,7 +274,7 @@ describe("VideoLabPage (chat)", () => {
     ).toHaveLength(1);
   });
 
-  it("does not generate until a conflicting active model switch is approved", async () => {
+  it("does not generate until the user chooses to cancel the conflicting active job", async () => {
     const client = new InMemoryVideoClient();
     render(
       <VideoLabPage
@@ -296,12 +296,12 @@ describe("VideoLabPage (chat)", () => {
     });
     fireEvent.click(screen.getByTestId("media-composer-submit"));
     expect(
-      await screen.findByTestId("model-switch-dialog"),
+      await screen.findByTestId("video-gpu-busy-confirm"),
     ).toBeInTheDocument();
     expect(client.lastRequest).toBeNull();
-    fireEvent.click(screen.getByTestId("model-switch-dialog-switch"));
+    fireEvent.click(screen.getByTestId("video-gpu-busy-confirm-confirm"));
     await waitFor(() => expect(client.lastRequest?.mode).toBe("text2video"));
-    expect(screen.queryByTestId("model-switch-dialog")).toBeNull();
+    expect(screen.queryByTestId("video-gpu-busy-confirm")).toBeNull();
   });
 
   it("an attached image routes to image2video with the source image", async () => {
@@ -445,15 +445,24 @@ describe("VideoLabPage (chat)", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("media-composer-submit"));
     });
-    const orb = await screen.findByRole("img", { name: /generating media/i });
-    expect(orb).toHaveAttribute("data-agent-activity", "video-generation");
+    // v2.4.8 Phase 8: before the runtime reports a stage or a counted step the
+    // orb reads "Loading model..." (weights moving onto the GPU are not
+    // creation); once sampling starts it rotates the studio captions.
+    const orb = await screen.findByRole("img", {
+      name: /loading model|generating media/i,
+    });
+    expect(orb).toHaveAttribute(
+      "data-agent-activity",
+      expect.stringMatching(/^(model-loading|video-generation)$/),
+    );
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     // v2.4.4 Phase 5.3: one of Creating / Crafting / Generating, never Shaping.
     expect(screen.queryByText("Shaping...")).toBeNull();
     expect(
-      STUDIO_PENDING_CAPTIONS.some(
-        (caption) => screen.queryByText(caption) !== null,
-      ),
+      screen.queryByText("Loading model...") !== null ||
+        STUDIO_PENDING_CAPTIONS.some(
+          (caption) => screen.queryByText(caption) !== null,
+        ),
     ).toBe(true);
     // The old assertion here was `queryByText("Generating...")` is null, which
     // meant "no separate status label besides the orb". "Generating..." is now
@@ -645,48 +654,11 @@ describe("VideoLabPage (chat)", () => {
     ).toBe(true);
   });
 
-  it("timeline comments round-trip into the next generation prompt", async () => {
-    const client = new InMemoryVideoClient();
-    render(
-      <VideoLabPage
-        client={client}
-        modelsClient={videoModels()}
-        drainIntervalMs={20}
-        resolveMp4Url={(p) => `mock://${p}`}
-      />,
-    );
-    client.scriptEvents("mem-video-1", [
-      { kind: "complete", jobId: "mem-video-1", outputPath: "/tmp/clip.mp4" },
-    ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
-      target: { value: "a fox" },
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("media-composer-submit"));
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(60);
-      await Promise.resolve();
-    });
-    const add = await screen.findByTestId(/-add-comment$/);
-    await act(async () => {
-      fireEvent.click(add);
-    });
-    client.scriptEvents("mem-video-2", [
-      { kind: "complete", jobId: "mem-video-2", outputPath: "/tmp/clip2.mp4" },
-    ]);
-    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
-      target: { value: "again" },
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("media-composer-submit"));
-    });
-    await waitFor(() =>
-      expect(
-        (client.lastRequest?.request as { prompt: string }).prompt,
-      ).toMatch(/Frame notes:/),
-    );
-  });
+  // v2.4.8 follow-up (2026-09-07): the inline frame-by-frame previewer was
+  // removed because it repeated the finished clip at full width under the
+  // bubble that already plays it. Per-frame comments were written only by
+  // that previewer, so the round-trip they fed no longer has an entry point;
+  // the prompt suffix stays wired for a future previewer.
 
   it("lists an injected video session in the history pane", () => {
     const explorer = new InMemoryStudioExplorerClient("video");

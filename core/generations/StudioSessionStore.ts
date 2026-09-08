@@ -568,7 +568,7 @@ export class StudioSessionStore {
       .all(pillar);
     const sessionRows = this.db
       .prepare<unknown[], SessionRow>(
-        `SELECT * FROM studio_sessions WHERE pillar = ? AND archived_at IS NULL ORDER BY title ASC`,
+        `SELECT * FROM studio_sessions WHERE pillar = ? AND archived_at IS NULL ORDER BY created_at DESC, title ASC`,
       )
       .all(pillar);
     const byParent = new Map<string | null, StudioFolder[]>();

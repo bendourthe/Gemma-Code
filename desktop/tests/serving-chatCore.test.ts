@@ -227,11 +227,13 @@ describe("collectUsage", () => {
     collectUsage(
       chunk({
         prompt_eval_count: 10,
-        eval_count: 4,
+        eval_count: 10,
         usage: { reasoning_tokens: 6 },
       }),
       usage,
     );
+    // v2.4.8 Phase 1: an explicit reasoning count is subtracted from the
+    // completion total (10 total, 6 reasoning -> 4 output), never added to it.
     expect(turnUsageFromCollected(usage)).toEqual({
       inputTokens: 10,
       reasoningTokens: 6,
@@ -242,6 +244,74 @@ describe("collectUsage", () => {
       inputTokens: null,
       reasoningTokens: 1,
       outputTokens: null,
+    });
+  });
+
+  // v2.4.8 Phase 1 (T003): Ollama's eval_count already includes thinking
+  // tokens. Screenshot 1 (2026-09-06) showed `(126 tokens)` split as 54
+  // reasoning / 72 output for a five-line thought and a nine-token reply; the
+  // provider total was 72 and the bytes/4 estimate had been added on top.
+  describe("v2.4.8 token split", () => {
+    const THINKING =
+      'The user said "Hi".\nThe user is greeting me.\nI am "Nexus," a helpful, concise local AI assistant.\nRespond in a friendly and helpful manner, keeping it concise.\n\nPlan:\n1. Acknowledge the greeting.\n2. Offer assistance.';
+    const REPLY = "Hello! How can I help you today?";
+
+    it("keeps the provider total and splits it by text proportion", () => {
+      const usage = newUsage();
+      collectUsage(chunk({ prompt_eval_count: 30, eval_count: 72 }), usage);
+      const turn = turnUsageFromCollected(usage, THINKING, REPLY);
+      expect(turn.inputTokens).toBe(30);
+      expect((turn.reasoningTokens ?? 0) + (turn.outputTokens ?? 0)).toBe(72);
+      expect(turn.reasoningTokens).toBeGreaterThan(turn.outputTokens ?? 0);
+      // 215 thinking bytes against 32 reply bytes: 72 * 215 / 247 = 62.7.
+      expect(turn).toEqual({ inputTokens: 30, reasoningTokens: 63, outputTokens: 9 });
+    });
+
+    it("never double-counts: the sum of the parts equals eval_count", () => {
+      for (const total of [1, 7, 72, 1001]) {
+        const usage = newUsage();
+        collectUsage(chunk({ eval_count: total }), usage);
+        const turn = turnUsageFromCollected(usage, THINKING, REPLY);
+        expect((turn.reasoningTokens ?? 0) + (turn.outputTokens ?? 0)).toBe(total);
+      }
+    });
+
+    it("reports output equal to the total when there was no thinking", () => {
+      const usage = newUsage();
+      collectUsage(chunk({ prompt_eval_count: 5, eval_count: 40 }), usage);
+      expect(turnUsageFromCollected(usage, "", REPLY)).toEqual({
+        inputTokens: 5,
+        reasoningTokens: null,
+        outputTokens: 40,
+      });
+    });
+
+    it("attributes the whole total to reasoning when the reply is empty", () => {
+      const usage = newUsage();
+      collectUsage(chunk({ eval_count: 20 }), usage);
+      expect(turnUsageFromCollected(usage, THINKING, "")).toEqual({
+        inputTokens: 0,
+        reasoningTokens: 20,
+        outputTokens: 0,
+      });
+    });
+
+    it("floors output at zero when explicit reasoning exceeds completion", () => {
+      const usage = newUsage();
+      collectUsage(
+        chunk({ usage: { completion_tokens: 3, reasoning_tokens: 6 } }),
+        usage,
+      );
+      expect(turnUsageFromCollected(usage, THINKING, REPLY).outputTokens).toBe(0);
+    });
+
+    it("still estimates reasoning from thinking bytes when nothing was reported", () => {
+      const usage = newUsage();
+      expect(turnUsageFromCollected(usage, THINKING, REPLY)).toEqual({
+        inputTokens: null,
+        reasoningTokens: Math.ceil(215 / 4),
+        outputTokens: null,
+      });
     });
   });
 });

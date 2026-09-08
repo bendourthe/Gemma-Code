@@ -333,3 +333,119 @@ class TestSelectionSnapshotWrite:
             (tmp_path / ".nexus" / "selected-models.json").read_text(encoding="utf-8")
         )
         assert data["orderedIds"] == ["qwen3.5:4b", "qwen3.5:9b"]
+
+
+class TestRecommendedByTask:
+    """v2.4.8 Phase 5 (T021): the snapshot recommendation is the picker's own.
+
+    Operator evidence (2026-09-06): ``~/.nexus/selected-models.json`` carried
+    ``chat: embeddinggemma`` and ``agentic: gpt-oss:20b`` for a selection whose
+    picker ranks Gemma 4 12B first on both tabs.
+    """
+
+    CATALOG = {
+        "embeddinggemma": {"id": "embeddinggemma", "type": "embed", "task": "embed"},
+        "nomic-embed-text": {"id": "nomic-embed-text", "type": "embed"},
+        "unlimited-ocr-3b": {
+            "id": "unlimited-ocr-3b",
+            "type": "document",
+            "task": "document",
+        },
+        "gemma-4-12b-it-gguf": {
+            "id": "gemma-4-12b-it-gguf",
+            "type": "llm",
+            "task": "chat",
+            "agentic": True,
+            "tags": ["recommended"],
+            "releaseDate": "2026-05-01",
+        },
+        "inkling-small": {
+            "id": "inkling-small",
+            "type": "llm",
+            "task": "chat",
+            "agentic": True,
+            "releaseDate": "2026-07-01",
+        },
+        "gpt-oss:20b": {
+            "id": "gpt-oss:20b",
+            "type": "llm",
+            "task": "agentic",
+            "agentic": True,
+            "releaseDate": "2025-08-05",
+        },
+        "lfm2.5:2.6b": {
+            "id": "lfm2.5:2.6b",
+            "type": "llm",
+            "task": "agentic",
+            "agentic": True,
+            "releaseDate": "2026-08-04",
+        },
+        "juggernaut-xl-v9": {
+            "id": "juggernaut-xl-v9",
+            "type": "image",
+            "task": "image",
+            "tags": ["recommended"],
+        },
+        "realvisxl-v5": {"id": "realvisxl-v5", "type": "image", "task": "image"},
+        "sana-video-2b-720p": {"id": "sana-video-2b-720p", "type": "video"},
+    }
+
+    OPERATOR_ORDER = [
+        "embeddinggemma",
+        "nomic-embed-text",
+        "unlimited-ocr-3b",
+        "gemma-4-12b-it-gguf",
+        "inkling-small",
+        "gpt-oss:20b",
+        "lfm2.5:2.6b",
+        "juggernaut-xl-v9",
+        "realvisxl-v5",
+        "sana-video-2b-720p",
+    ]
+
+    def _patch_catalog(self, monkeypatch: pytest.MonkeyPatch, catalog: dict) -> None:
+        from nexus_installer.engine import model_router
+
+        monkeypatch.setattr(model_router, "load_catalog_index", lambda _path: catalog)
+
+    def test_operator_selection_recommends_gemma_on_chat_and_agentic(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_catalog(monkeypatch, self.CATALOG)
+        rec = rp._recommended_by_task(list(self.OPERATOR_ORDER))
+        assert rec == {
+            "chat": "gemma-4-12b-it-gguf",
+            "agentic": "gemma-4-12b-it-gguf",
+            "image": "juggernaut-xl-v9",
+            "video": "sana-video-2b-720p",
+        }
+
+    def test_embedding_models_are_never_a_chat_recommendation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_catalog(monkeypatch, self.CATALOG)
+        rec = rp._recommended_by_task(["embeddinggemma", "nomic-embed-text"])
+        assert "chat" not in rec
+        assert rec == {}
+
+    def test_untagged_rows_fall_back_to_newest_then_selection_order(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        catalog = {
+            k: v
+            for k, v in self.CATALOG.items()
+            if k in ("gpt-oss:20b", "lfm2.5:2.6b", "inkling-small")
+        }
+        self._patch_catalog(monkeypatch, catalog)
+        rec = rp._recommended_by_task(["gpt-oss:20b", "lfm2.5:2.6b", "inkling-small"])
+        # Agentic: lfm (2026-08-04) is newer than gpt-oss (2025-08-05).
+        assert rec["agentic"] == "lfm2.5:2.6b"
+        # Chat: only inkling sits on the Chat tab.
+        assert rec["chat"] == "inkling-small"
+
+    def test_uncatalogued_ids_are_skipped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_catalog(monkeypatch, self.CATALOG)
+        rec = rp._recommended_by_task(["not-in-catalog", "realvisxl-v5"])
+        assert rec == {"image": "realvisxl-v5"}

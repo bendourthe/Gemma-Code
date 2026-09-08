@@ -5,7 +5,6 @@ import {
   ModelsSettings,
   MODELS_CARD_PADDING,
   MODELS_DOWNLOAD_COLOR,
-  MODELS_DOWNLOADED_COLOR,
   MODELS_HEADER_TO_TABS_GAP,
   MODELS_REMOVE_COLOR,
   type ModelsClient,
@@ -122,15 +121,24 @@ describe("Settings Models density (v2.4.3 Phase 4)", () => {
     expect(
       screen.getByTestId("models-row-gemma4:e4b-description"),
     ).toHaveTextContent("A compact chat model.");
-    const facts = screen.getByTestId("models-facts-gemma4:e4b");
-    expect(facts.style.flexWrap).toBe("wrap");
-    expect(facts.textContent).toMatch(/Requirements:/);
-    expect(facts.textContent).toMatch(/Storage \(/);
-    expect(facts.textContent).toMatch(/VRAM \(6 GB\)/);
-    expect(facts.textContent).toMatch(/Company: Google/);
+    // v2.4.8 Phase 4 (T016): installer name-row grammar. No Requirements row;
+    // the size is a pill in the provider color and compatibility is a round
+    // badge whose wording is the tooltip.
+    expect(screen.queryByTestId("models-facts-gemma4:e4b")).toBeNull();
+    const header = screen.getByTestId("models-header-gemma4:e4b");
+    expect(header.style.flexWrap).toBe("wrap");
+    expect(header.textContent).toMatch(/Company: Google/);
     expect(screen.getByTestId("models-pills-gemma4:e4b").textContent).toMatch(
       /License: Gemma Terms of Use/,
     );
+    expect(screen.getByTestId("models-size-gemma4:e4b").style.color).toBe(
+      "rgb(34, 211, 238)",
+    );
+    // v2.4.8 Phase 7: no compatibility checkmark; size then delete.
+    expect(screen.queryByTestId("models-compat-badge-gemma4:e4b")).toBeNull();
+    const cluster = screen.getByTestId("models-badges-gemma4:e4b");
+    expect(cluster.children[0]).toBe(screen.getByTestId("models-size-gemma4:e4b"));
+    expect(cluster.contains(screen.getByTestId("models-remove-gemma4:e4b"))).toBe(true);
     expect(row.textContent).not.toContain("Also agentic");
     expect(row.textContent).not.toContain("Backend model:");
     expect(row.textContent).not.toContain("ID: gemma4:e4b");
@@ -140,12 +148,9 @@ describe("Settings Models density (v2.4.3 Phase 4)", () => {
     expect(screen.getByTestId("models-remove-gemma4:e4b").style.color).toBe(
       MODELS_REMOVE_COLOR,
     );
-    expect(screen.getByTestId("models-downloaded-gemma4:e4b").style.color).toBe(
-      MODELS_DOWNLOADED_COLOR,
-    );
-    expect(
-      screen.getByTestId("models-compatibility-gemma4:e4b"),
-    ).toBeInTheDocument();
+    // v2.4.8 Phase 7: the delete button alone marks a downloaded row.
+    expect(screen.queryByTestId("models-downloaded-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-downloaded-badge-gemma4:e4b")).toBeNull();
   });
 
   it("uses a blue download icon with the Download accessible name", async () => {
@@ -204,19 +209,14 @@ describe("Settings Models density (v2.4.4 Phase 6)", () => {
     expect(screen.getByTestId("models-row-gemma4:e4b")).toBeInTheDocument();
   });
 
-  it("lays the card actions out as one centered horizontal row", async () => {
+  it("renders no action row under the body; the title row carries the action", async () => {
     await mounted();
-    const actions = screen.getByTestId("models-actions-gemma4:e4b");
-    // As a column the star stacked above the download/delete control and made
-    // the grid row taller than the copy beside it.
-    expect(actions.style.flexDirection).toBe("row");
-    expect(actions.style.alignItems).toBe("center");
-    expect(actions.style.justifyContent).toBe("center");
+    // v2.4.8 Phase 7 (T034): the star and the centered action row are gone.
+    expect(screen.queryByTestId("models-actions-gemma4:e4b")).toBeNull();
+    expect(screen.queryByTestId("models-favorite-gemma4:e4b")).toBeNull();
+    const cluster = screen.getByTestId("models-badges-gemma4:e4b");
     expect(
-      actions.contains(screen.getByTestId("models-favorite-gemma4:e4b")),
-    ).toBe(true);
-    expect(
-      actions.contains(screen.getByTestId("models-remove-gemma4:e4b")),
+      cluster.contains(screen.getByTestId("models-remove-gemma4:e4b")),
     ).toBe(true);
   });
 
@@ -237,35 +237,35 @@ describe("Settings Models density (v2.4.4 Phase 6)", () => {
     expect(text).not.toContain("ID: gemma4:e4b");
     expect(text).not.toContain("Also agentic");
     expect(text).not.toContain("Backend model:");
-    expect(text).not.toContain("Best for");
-    expect(text).not.toContain("Why this one");
   });
 
-  it("renders pills with the label visually distinct from the value", async () => {
+  // v2.4.8 Phase 4 (T016): installer `_pill` is one color at caption size with
+  // a 9 px radius. The v2.4.4 label / value split is gone for parity.
+  it("renders pills as one-color installer chips", async () => {
     await mounted();
     const pills = screen.getByTestId("models-pills-gemma4:e4b");
-    // The label half only, not the enclosing chip whose text starts the same.
-    const label = Array.from(pills.querySelectorAll("span")).find(
-      (el) => (el.textContent ?? "").trim() === "License:",
-    );
-    expect(label).toBeDefined();
-    expect((label as HTMLElement).style.color).toBe("var(--fg-muted)");
-    const value = (label as HTMLElement)
-      .nextElementSibling as HTMLElement | null;
-    expect(value).not.toBeNull();
-    expect(value!.style.color).toBe("var(--fg-0)");
-    expect(value!.textContent).toBe("Gemma Terms of Use");
+    const license = Array.from(pills.children).find((el) =>
+      (el.textContent ?? "").startsWith("License:"),
+    ) as HTMLElement | undefined;
+    expect(license).toBeDefined();
+    expect(license!.textContent).toBe("License: Gemma Terms of Use");
+    expect(license!.children.length).toBe(0);
+    expect(license!.style.color).toBe("var(--fg-muted)");
+    expect(license!.style.borderRadius).toBe("9px");
+    expect(license!.style.padding).toBe("1px 8px");
+    expect(license!.style.fontSize).toBe("var(--text-xs, 12px)");
   });
 
-  it("does not render Best for or Why this one", async () => {
+  // v2.4.8 Phase 4 (T016): Best for and Why this one return, exactly as the
+  // installer card prints them, when the catalog row carries the data. The
+  // dense Gemma fixture carries strengths but no whyRecommended, so the card
+  // prints Best for and omits Why this one.
+  it("renders Best for and Why this one only when the row carries them", async () => {
     await mounted();
-    expect(screen.queryByTestId("models-row-gemma4:e4b-best-for")).toBeNull();
-    fireEvent.click(screen.getByTestId("models-tab-agentic"));
-    await screen.findByTestId("models-row-qwen2.5-coder:7b");
     expect(
-      screen.queryByTestId("models-row-qwen2.5-coder:7b-best-for"),
-    ).toBeNull();
-    expect(screen.queryByTestId("models-row-qwen2.5-coder:7b-why")).toBeNull();
+      screen.getByTestId("models-row-gemma4:e4b-best-for").textContent,
+    ).toBe("Best for: Everyday questions, Laptop GPUs");
+    expect(screen.queryByTestId("models-row-gemma4:e4b-why")).toBeNull();
   });
 
   it("matches the Gemma 4 12B three-line operator card", async () => {
@@ -312,19 +312,39 @@ describe("Settings Models density (v2.4.4 Phase 6)", () => {
     expect(
       screen.getByTestId("models-header-gemma-4-12b-it-gguf"),
     ).toHaveTextContent("Gemma 4 12B");
-    const requirements = screen.getByTestId("models-facts-gemma-4-12b-it-gguf");
-    expect(requirements.textContent).toMatch(/Requirements:/);
-    expect(requirements.textContent).toMatch(/Storage \(/);
-    expect(requirements.textContent).toMatch(/VRAM \(11 GB\)/);
-    expect(requirements.textContent).toMatch(/Company: Google/);
-    expect(requirements.textContent).toMatch(/Country: USA/);
-    expect(requirements.textContent).toMatch(/Released: May 2026/);
+    // v2.4.8 Phase 4 (T016): the installer name row. Every fact pill follows
+    // the name in the locked v2.2.9 order; size and compatibility sit on the
+    // right as a provider-colored pill and a round badge.
+    expect(screen.queryByTestId("models-facts-gemma-4-12b-it-gguf")).toBeNull();
     const caps = screen.getByTestId("models-pills-gemma-4-12b-it-gguf");
-    expect(caps.textContent).toMatch(/Agentic: Yes/);
-    expect(caps.textContent).toMatch(/Context window: 262k tokens/);
-    expect(caps.textContent).toMatch(/Multimodal: Yes/);
-    expect(caps.textContent).toMatch(/Guardrails: Censored/);
-    expect(caps.textContent).toMatch(/License: Gemma Terms of Use/);
+    expect(Array.from(caps.children).map((c) => c.textContent)).toEqual([
+      "Company: Google",
+      "Country: USA",
+      "Agentic: Yes",
+      "Context window: 262k tokens",
+      "Multimodal: Yes",
+      "Guardrails: Censored",
+      "License: Gemma Terms of Use",
+      "Released: May 2026",
+    ]);
+    expect(
+      screen.getByTestId("models-header-gemma-4-12b-it-gguf").contains(caps),
+    ).toBe(true);
+    expect(
+      screen.queryByTestId("models-compat-badge-gemma-4-12b-it-gguf"),
+    ).toBeNull();
+    expect(screen.getByTestId("models-size-gemma-4-12b-it-gguf").textContent).toMatch(
+      /GB$/,
+    );
+    const row = screen.getByTestId("models-row-gemma-4-12b-it-gguf");
+    expect(row.getAttribute("data-provider-color")).toBe("#22d3ee");
+    expect(row.style.background).toBe(
+      "color-mix(in srgb, rgb(34, 211, 238) 9%, transparent)",
+    );
+    expect(row.style.border).toBe(
+      "1px solid color-mix(in srgb, rgb(34, 211, 238) 30%, transparent)",
+    );
+    expect(row.style.borderRadius).toBe("8px");
     expect(
       screen.getByTestId("models-row-gemma-4-12b-it-gguf-description"),
     ).toHaveTextContent(
@@ -333,9 +353,11 @@ describe("Settings Models density (v2.4.4 Phase 6)", () => {
     expect(
       screen.queryByTestId("models-row-gemma-4-12b-it-gguf-details"),
     ).toBeNull();
-    const actions = screen.getByTestId("models-actions-gemma-4-12b-it-gguf");
-    expect(actions.style.flexDirection).toBe("row");
-    expect(actions.style.alignItems).toBe("center");
-    expect(actions.style.justifyContent).toBe("center");
+    expect(screen.queryByTestId("models-actions-gemma-4-12b-it-gguf")).toBeNull();
+    expect(
+      screen
+        .getByTestId("models-badges-gemma-4-12b-it-gguf")
+        .contains(screen.getByTestId("models-remove-gemma-4-12b-it-gguf")),
+    ).toBe(true);
   });
 });

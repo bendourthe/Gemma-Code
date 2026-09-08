@@ -45,6 +45,7 @@ from nexus_installer.theme import generate_stylesheet
 from nexus_installer.widgets.background import BackgroundWidget
 from nexus_installer.widgets.footer import Footer
 from nexus_installer.widgets.header import HEADER_STEP_PX, Header
+from nexus_installer.widgets.selectable_text import make_labels_selectable
 from nexus_installer.widgets.sidebar import Sidebar
 from nexus_installer.widgets.step_indicator import StepIndicator
 from nexus_installer.widgets.title_bar import TitleBar
@@ -243,6 +244,11 @@ class InstallerWindow(QMainWindow):
         QShortcut(Qt.Key.Key_Return, self, self._go_next)
         QShortcut(Qt.Key.Key_Escape, self, self._go_back)
 
+        # Every label in the chrome is selectable, so the step counter, brand
+        # and footer text can be copied. Pages get the same treatment on every
+        # switch (see `switch_page`).
+        make_labels_selectable(central)
+
     @property
     def header(self) -> Header:
         return self._header
@@ -331,6 +337,11 @@ class InstallerWindow(QMainWindow):
         # section's progression / lock state.
         self._refresh_navigation()
         self._refresh_footer()
+
+        # Every label on the page is selectable, so paths, versions, model
+        # names and error text can be copied out of the wizard. Done after the
+        # show so labels built in showEvent handlers are covered too.
+        make_labels_selectable(page)
 
     def show_first_page(self) -> None:
         """Display the first registered page."""

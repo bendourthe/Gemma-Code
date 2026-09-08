@@ -186,7 +186,7 @@ class TestReviewEstimate:
         )
         text = self._summary(state)
         # 0 pending + 2 GB venv/extension overhead.
-        assert "~2 GB to download" in text
+        assert "REQUIRED DOWNLOAD: ~2 GB" in text
         # The catalog-wide figure must not appear anywhere on the card.
         assert "157" not in text
         assert "under 5 minutes" in text
@@ -200,11 +200,11 @@ class TestReviewEstimate:
         # zero pending count and the size agree rather than matching a
         # sentence that no longer exists.
         assert "TO DOWNLOAD" in text
-        assert "~2 GB to download" in text
+        assert "REQUIRED DOWNLOAD: ~2 GB" in text
         assert "157" not in text
 
     def test_partially_downloaded_selection_states_both_figures(self, qt_app) -> None:
         state = _state(selected_gb=194.4, selection_pending_gb=18.0)
         text = self._summary(state)
-        assert "~20 GB to download" in text  # 18 pending + 2 overhead
+        assert "REQUIRED DOWNLOAD: ~20 GB" in text  # 18 pending + 2 overhead
         assert "176.4 GB already downloaded" in text

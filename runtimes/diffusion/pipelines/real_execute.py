@@ -24,7 +24,8 @@ import traceback
 import uuid
 from pathlib import Path
 
-from . import base
+from .. import vram_lifecycle
+from . import base, load_progress
 from .base import (
     ExecutionContext,
     PipelineOutput,
@@ -268,8 +269,11 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
         if ctx.mode == "img2img":
             if not ctx.params.source_image:
                 raise RuntimeNotReady("img2img requires source image bytes")
-            pipe = _load_image_pipe(weights, model_id)
+            base.emit_stage(ctx.job_id, "loading")
+            with load_progress.track_model_load(ctx.job_id, weights):
+                pipe = _load_image_pipe(weights, model_id)
             _move_pipe(pipe, ctx.offload_strategy)
+            base.emit_stage(ctx.job_id, "generating")
             source = _decode_pil(ctx.params.source_image)
             source_digest = _image_digest(_png_bytes(source))
             # v2.4.4 Phase 3.2: an explicit None check, not `or`. A caller that
@@ -290,14 +294,18 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
                 width=ctx.params.width,
                 height=ctx.params.height,
                 **seeded,
+                **base.step_callback_kwargs(pipe, ctx.job_id, ctx.params.steps),
             )
         elif ctx.mode in {"inpaint", "outpaint"}:
             raise RuntimeNotReady(
                 f"image runtime is not ready: {ctx.mode} weights path is not wired"
             )
         else:
-            pipe = _load_text_pipe(weights, model_id)
+            base.emit_stage(ctx.job_id, "loading")
+            with load_progress.track_model_load(ctx.job_id, weights):
+                pipe = _load_text_pipe(weights, model_id)
             _move_pipe(pipe, ctx.offload_strategy)
+            base.emit_stage(ctx.job_id, "generating")
             result = pipe(
                 prompt=ctx.params.prompt,
                 negative_prompt=ctx.params.negative_prompt or None,
@@ -306,6 +314,7 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
                 width=ctx.params.width,
                 height=ctx.params.height,
                 **seeded,
+                **base.step_callback_kwargs(pipe, ctx.job_id, ctx.params.steps),
             )
         image = result.images[0]
         png = _png_bytes(image)
@@ -337,6 +346,11 @@ def image_execute(ctx: ExecutionContext) -> PipelineOutput:
         raise RuntimeNotReady(
             f"image runtime is not ready: {type(exc).__name__}: {exc}"
         ) from exc
+    finally:
+        # v2.4.8 follow-up: give the VRAM back so the chat model can come back
+        # onto the GPU. Without this the torch caching allocator kept the SDXL
+        # weights' worth of VRAM reserved between jobs.
+        vram_lifecycle.release_vram()
 
 
 _SANA_VIDEO_LAYOUT_FILES = (
@@ -431,8 +445,11 @@ def _run_real_video(ctx: VideoExecutionContext, kind: str) -> VideoPipelineOutpu
         import torch  # type: ignore[import-not-found]
         from diffusers.utils import export_to_video  # type: ignore[import-not-found]
 
-        pipe = _load_video_pipeline(kind, weights)
+        base.emit_stage(ctx.job_id, "loading")
+        with load_progress.track_model_load(ctx.job_id, weights):
+            pipe = _load_video_pipeline(kind, weights)
         _move_pipe(pipe, ctx.offload_strategy)
+        base.emit_stage(ctx.job_id, "generating")
         requested_frames = max(1, ctx.params.duration_seconds * ctx.params.fps)
         num_frames = ((requested_frames - 1 + 3) // 4) * 4 + 1
         width = _align_spatial(ctx.params.width)
@@ -449,6 +466,7 @@ def _run_real_video(ctx: VideoExecutionContext, kind: str) -> VideoPipelineOutpu
             "generator": torch.Generator(device=generator_device).manual_seed(
                 ctx.params.seed
             ),
+            **base.step_callback_kwargs(pipe, ctx.job_id, ctx.params.steps),
         }
         result = pipe(**kwargs)
         frames = _clip_frames_for_export(result)

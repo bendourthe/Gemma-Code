@@ -280,12 +280,19 @@ describe("transcript gutters (v2.4.4 Phase 1)", () => {
  * still working rather than hung.
  */
 describe("studio pending captions (v2.4.4 Phase 5)", () => {
-  it("offers exactly Creating, Crafting, and Generating", () => {
-    expect([...STUDIO_PENDING_CAPTIONS]).toEqual([
+  it("offers a wide pool led by Creating, Crafting, and Generating", () => {
+    // v2.4.8 follow-up: more words, picked at random on every tick.
+    expect([...STUDIO_PENDING_CAPTIONS].slice(0, 3)).toEqual([
       "Creating...",
       "Crafting...",
       "Generating...",
     ]);
+    expect(STUDIO_PENDING_CAPTIONS.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(STUDIO_PENDING_CAPTIONS).size).toBe(STUDIO_PENDING_CAPTIONS.length);
+    // One shuffled order per prompt, then that order repeats: every word
+    // shows before any repeats.
+    const order = shuffleStudioCaptions();
+    expect([...order].sort()).toEqual([...STUDIO_PENDING_CAPTIONS].sort());
     // "Shaping" was the static label and must not come back.
     expect(STUDIO_PENDING_CAPTIONS).not.toContain("Shaping...");
   });
