@@ -77,14 +77,17 @@ class TestConfigurationPanel:
         assert state.add_start_menu_shortcut is False
         assert state.add_desktop_shortcut is False
 
-    def test_validate_delegates_to_the_install_path(self, qt_app) -> None:
+    def test_validate_delegates_to_the_install_path(self, qt_app, tmp_path) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage
 
         ok, msg = ConfigurationPage(InstallerState(install_path="")).validate()
         assert ok is False
         assert "empty" in msg.lower()
-        ok, _ = ConfigurationPage(InstallerState()).validate()
-        assert ok is True
+        # A writable path: the assertion is about delegation, not about
+        # whether this host may write to the default install directory.
+        state = InstallerState(install_path=str(tmp_path / "NexusAI"))
+        ok, msg = ConfigurationPage(state).validate()
+        assert ok is True, msg
 
     def test_path_edits_flow_into_state(self, qt_app) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage

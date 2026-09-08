@@ -113,11 +113,13 @@ class TestWelcomeHostsPrerequisites:
             assert ok is False
             assert "empty" in msg.lower()
 
-    def test_validate_delegates_to_the_panel(self, qt_app) -> None:
+    def test_validate_delegates_to_the_panel(self, qt_app, tmp_path) -> None:
         from nexus_installer.pages.welcome import WelcomePage
 
         with _no_probes():
-            page = WelcomePage(InstallerState())
+            # A writable path: this asserts delegation, not whether the
+            # host may write to the default install directory.
+            page = WelcomePage(InstallerState(install_path=str(tmp_path / "NexusAI")))
             ok, msg = page.validate()
             assert ok is False
             assert "disk" in msg.lower()
