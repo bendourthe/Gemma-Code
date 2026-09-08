@@ -9,7 +9,10 @@ import {
   type GenerationEnhancementMetadata,
 } from "../../../../core/generations/GenerationDatabase.js";
 import { GenerationIndex } from "../../../../core/generations/GenerationIndex.js";
-import { GenerationQueue } from "../../../../core/generations/GenerationQueue.js";
+import {
+  GenerationQueue,
+  INTERRUPTED_BY_RESTART,
+} from "../../../../core/generations/GenerationQueue.js";
 import {
   contentHash,
   contentHashFile,
@@ -440,6 +443,57 @@ describe("GenerationDatabase shared storage", () => {
         workflow: {},
       }),
     ).toThrow(/completed job/);
+  });
+
+  // v2.4.8 follow-up (2026-09-07): an interactive job from a previous run was
+  // re-queued first on every launch and re-run, holding the GPU in front of
+  // each new request while nobody was polling it any more.
+  it("fails unfinished interactive jobs on restart and re-queues batch jobs", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "nexus-interactive-recovery-"));
+    tempDirs.push(dir);
+    const dbPath = path.join(dir, "studio.db");
+    const first = shared(dbPath);
+    first.queue.enqueue({
+      id: "interactive-running",
+      pillar: "image",
+      jobType: "txt2img",
+      parameters: { prompt: "a" },
+      priority: "interactive",
+    });
+    first.queue.markRunning("interactive-running");
+    first.queue.enqueue({
+      id: "interactive-queued",
+      pillar: "image",
+      jobType: "txt2img",
+      parameters: { prompt: "b" },
+      priority: "interactive",
+    });
+    first.queue.enqueue({
+      id: "batch-running",
+      pillar: "image",
+      jobType: "txt2img",
+      parameters: { prompt: "c" },
+      priority: "batch",
+    });
+    first.queue.markRunning("batch-running");
+    first.queue.close();
+    first.index.close();
+    first.database.close();
+
+    const second = shared(dbPath);
+    expect(second.queue.get("interactive-running")).toMatchObject({
+      state: "failed",
+      error: INTERRUPTED_BY_RESTART,
+    });
+    expect(second.queue.get("interactive-queued")).toMatchObject({
+      state: "failed",
+      error: INTERRUPTED_BY_RESTART,
+    });
+    expect(second.queue.get("batch-running")?.state).toBe("queued");
+    expect(second.queue.nextQueued()?.id).toBe("batch-running");
+    second.queue.close();
+    second.index.close();
+    second.database.close();
   });
 
   it("leaves a restarted running enhancement interrupted and retryable", () => {

@@ -499,7 +499,7 @@ export class ChatExplorerStore {
       .prepare<unknown[], FolderRow>(`SELECT * FROM chat_folders ORDER BY name ASC`)
       .all();
     const chats = this._db
-      .prepare<unknown[], ChatRow>(`SELECT * FROM chat_chats WHERE archived_at IS NULL ORDER BY title ASC`)
+      .prepare<unknown[], ChatRow>(`SELECT * FROM chat_chats WHERE archived_at IS NULL ORDER BY created_at DESC, title ASC`)
       .all();
     const byParent = new Map<string | null, Folder[]>();
     for (const row of folders) {

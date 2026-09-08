@@ -301,12 +301,54 @@ def set_progress_sink(sink: Optional[Callable[[dict], None]]) -> None:
 
 
 def emit_stage(job_id: str, stage: str, **extra: Any) -> None:
-    """Emit a `progress` notification carrying only a stage (no step counts)."""
+    """Emit a `progress` notification carrying a stage and optional counters."""
     if _PROGRESS_SINK is None or not job_id:
         return
     # A broken sink must never fail a job.
     with contextlib.suppress(Exception):
         _PROGRESS_SINK({"kind": "progress", "jobId": job_id, "stage": stage, **extra})
+
+
+def step_progress_callback(job_id: str, total_steps: int) -> Callable:
+    """A diffusers `callback_on_step_end` that reports sampling progress.
+
+    v2.4.8 follow-up (2026-09-07): until now the only thing a running job sent
+    while sampling was a liveness heartbeat, so a Wan video (30 steps over 96
+    frames, tens of minutes on a laptop GPU) looked identical to a hung one.
+    Counting steps is the honest signal: the shell turns it into a real bar
+    and an estimate that corrects itself from the measured step rate.
+    """
+
+    def on_step_end(_pipe, step_index, _timestep, callback_kwargs):
+        emit_stage(
+            job_id,
+            "generating",
+            step=int(step_index) + 1,
+            totalSteps=int(total_steps),
+        )
+        return callback_kwargs
+
+    return on_step_end
+
+
+def step_callback_kwargs(pipe: Any, job_id: str, total_steps: int) -> dict:
+    """`{callback_on_step_end: ...}` when this pipeline accepts it, else `{}`.
+
+    Not every Diffusers pipeline takes the callback, and passing it to one that
+    does not is a TypeError that would fail the whole job. The signature is
+    inspected so an older or exotic pipeline simply reports no step counts.
+    """
+    if not job_id or total_steps <= 0:
+        return {}
+    try:
+        import inspect
+
+        parameters = inspect.signature(pipe.__call__).parameters
+        if "callback_on_step_end" not in parameters:
+            return {}
+    except Exception:  # noqa: BLE001 - never fail a job over introspection
+        return {}
+    return {"callback_on_step_end": step_progress_callback(job_id, total_steps)}
 
 
 #: The oldest torch the diffusion runtime accepts (mirrors the installer's

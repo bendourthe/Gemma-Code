@@ -67,6 +67,8 @@ import {
   ModelsRemoveRequest,
   ModelsInstallDrainRequest,
   ModelsInstallCancelRequest,
+  ModelsEmptyRequest,
+  ModelsWarmRequest,
   ServingSetEnabledRequest,
   type ServingStatusResponseT,
   AcpSetEnabledRequest,
@@ -163,9 +165,21 @@ import { SkillOptimizerManager } from "./coding/skillOptimizerManager.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { memorySnapshot, traceSubscribe } from "./coding/panelData.js";
 import {
+  type DiffusionEvent,
   type DiffusionRuntimeClient,
   InMemoryDiffusionRuntime,
 } from "./diffusion/runtimeClient.js";
+import { queuedStageEvent } from "./diffusion/queuedStage.js";
+import { foldModelId } from "../../../core/registry/modelAliases.js";
+import {
+  catalogNamesByOllamaTag,
+  displayNameForResident,
+  evictOllamaIfTight,
+  evictOllamaModels,
+  listResidentOllamaModels,
+  ollamaBaseUrl,
+  warmOllamaModel,
+} from "./models/ollamaResidency.js";
 import type { MediaRuntimeService } from "./diffusion/runtimeFactory.js";
 import {
   buildJobRequest,
@@ -796,6 +810,11 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
           },
           onError: (event) => recordCompletion(studio, event),
           run: async (job) => {
+            // v2.4.8 follow-up: hand the GPU over. With the chat model still
+            // resident the diffusion runtime lands in CPU offload and an image
+            // takes minutes instead of seconds, so evict Ollama's residents
+            // when the media model would not fit beside them.
+            await evictOllamaForJob(job.pillar);
             if (job.pillar === "video") {
               const result = await buildVideoJobRequest(
                 job.jobType as "text2video" | "image2video" | "audio2video",
@@ -844,6 +863,27 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
   } finally {
     if (studio.pump.active === drain) studio.pump.active = null;
     if (studio.pump.requested && !studio.pump.closing) void pumpStudio(ctx);
+  }
+}
+
+/** VRAM a media model needs on the GPU (SDXL class / Wan 1.3B class). */
+const MEDIA_MODEL_VRAM_GB: Record<"image" | "video", number> = { image: 6.9, video: 8 };
+
+async function evictOllamaForJob(pillar: "image" | "video"): Promise<void> {
+  try {
+    const { sample } = await sampleGpu();
+    const evicted = await evictOllamaIfTight({
+      freeVramGB: sample ? sample.freeVramGB : null,
+      modelVramGB: MEDIA_MODEL_VRAM_GB[pillar],
+      baseUrl: ollamaBaseUrl(),
+    });
+    if (evicted.length > 0) {
+      process.stderr.write(
+        `[nexus-sidecar] evicted ollama models before ${pillar} job: ${evicted.join(", ")}\n`,
+      );
+    }
+  } catch {
+    // Eviction is best-effort; the job proceeds either way.
   }
 }
 
@@ -1009,6 +1049,30 @@ export const handlers: Record<Method, HandlerFn> = {
   "models.diskUsage": async (_params, ctx) => {
     const { service } = await resolveModelsRuntime(ctx);
     return service.diskUsage();
+  },
+  // v2.4.8 follow-up: the renderer polls this while a chat turn waits for its
+  // model, and after a model switch, to show "Loading model" honestly.
+  "models.resident": async (params) => {
+    ModelsEmptyRequest.parse(params ?? {});
+    const models = await listResidentOllamaModels(ollamaBaseUrl());
+    // Name them as the rest of the app does ("Gemma 4 12B", not "gemma4:12b").
+    let byTag = new Map<string, string>();
+    try {
+      const { loadCatalog } = await import("../../../core/registry/catalog.js");
+      byTag = catalogNamesByOllamaTag((await loadCatalog()).models);
+    } catch {
+      // No catalog: the raw tag is still an honest answer.
+    }
+    return {
+      models: models.map((model) => ({
+        ...model,
+        displayName: displayNameForResident(model.name, byTag),
+      })),
+    };
+  },
+  "models.warm": async (params) => {
+    const req = ModelsWarmRequest.parse(params ?? {});
+    return warmOllamaModel(foldModelId(req.modelId), ollamaBaseUrl());
   },
   "models.install.drainEvents": async (params, ctx) => {
     const req = ModelsInstallDrainRequest.parse(params ?? {});
@@ -1778,7 +1842,14 @@ export const handlers: Record<Method, HandlerFn> = {
     const req = DiffusionDrainEventsRequest.parse(params ?? {});
     const runtimeEvents = ctx.diffusion.drainEvents(req.jobId);
     const extras = ctx.studio ? takeCompletions(ctx.studio, req.jobId) : [];
-    return { events: [...runtimeEvents, ...extras] };
+    const events: DiffusionEvent[] = [...runtimeEvents, ...extras];
+    if (events.length === 0) {
+      // v2.4.8 follow-up: name the wait while the job has not reached the
+      // runtime, instead of leaving a silence the bubble reads as loading.
+      const queued = queuedStageEvent(ctx.studio, req.jobId);
+      if (queued) events.push(queued);
+    }
+    return { events };
   },
   "diffusion.workflow.extract": async (params, ctx) => {
     const req = DiffusionWorkflowExtractRequest.parse(params ?? {});
@@ -1957,6 +2028,35 @@ export const handlers: Record<Method, HandlerFn> = {
     else await settings.delete(VIDEO2X_SETTING_KEY);
     const stored = await settings.get<string>(VIDEO2X_SETTING_KEY);
     return video2xPathSnapshot(stored, process.env);
+  },
+  // v2.4.8 follow-up: clear the GPU so a studio page can load its model now.
+  // The running scheduler job is cancelled (a studio job in the queue with its
+  // handle aborted; a chat or agent turn through the scheduler), the Python
+  // runtime is restarted because it has no per-job cancel (it respawns lazily
+  // on the next call), and Ollama's resident models are evicted.
+  "generation.scheduler.cancelActive": async (params, ctx) => {
+    GenerationSchedulerSnapshotRequest.parse(params ?? {});
+    const studio = resolveStudio(ctx);
+    const active = studio.scheduler.snapshot().active;
+    if (active) {
+      if (active.moduleId === "image" || active.moduleId === "video") {
+        studio.queue.cancel(active.id);
+        studio.activeHandles.get(active.id)?.cancel();
+        await ctx.diffusion.shutdown();
+      } else {
+        studio.scheduler.cancelActive();
+      }
+      process.stderr.write(
+        `[nexus-sidecar] cancelled active gpu job ${active.id} (${active.moduleId}) on request\n`,
+      );
+    }
+    const evicted = await evictOllamaModels(ollamaBaseUrl());
+    if (evicted.length > 0) {
+      process.stderr.write(`[nexus-sidecar] evicted ollama models on request: ${evicted.join(", ")}\n`);
+    }
+    return {
+      cancelled: active ? { id: active.id, moduleId: active.moduleId } : null,
+    };
   },
   "generation.scheduler.snapshot": async (params, ctx) => {
     GenerationSchedulerSnapshotRequest.parse(params ?? {});

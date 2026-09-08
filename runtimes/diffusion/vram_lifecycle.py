@@ -56,6 +56,16 @@ def _publish(event: TelemetryEvent) -> None:
         _publisher(event)
 
 
+def release_vram() -> None:
+    """Drop cached CUDA blocks after a job so another runtime can use them.
+
+    v2.4.8 follow-up: image jobs ran outside `vram_scope`, so the weights'
+    VRAM stayed reserved by the caching allocator after the picture was done.
+    Safe without torch or CUDA (both helpers no-op).
+    """
+    _empty_cache()
+
+
 def _vram_allocated_bytes() -> Optional[int]:
     """Read `torch.cuda.memory_allocated()` if available, else None."""
     try:  # pragma: no cover - exercised on CUDA hosts

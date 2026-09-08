@@ -37,6 +37,9 @@ export const IPC_METHODS = [
   // v1.15.0 Phase 4 (Issue 3) -- Settings > Models registry management.
   "models.remove",
   "models.diskUsage",
+  // v2.4.8 follow-up: what Ollama holds on the GPU, and load a model now.
+  "models.resident",
+  "models.warm",
   "models.install.drainEvents",
   "models.install.cancel",
   // v1.16.0 Phase 1 (adoption item A1) -- local serving gateway control surface.
@@ -173,6 +176,8 @@ export const IPC_METHODS = [
   "video.video2xPath.set",
   // v2.2.3 Phase 5 -- read-only Studio GPU occupancy for submit-time gates.
   "generation.scheduler.snapshot",
+  // v2.4.8 follow-up: a studio page may take the GPU from a running task.
+  "generation.scheduler.cancelActive",
   // v2.1.0 Phase 5 -- local Unsloth Core fine-tuning pillar.
   "tuning.status",
   "tuning.provision",
@@ -1854,6 +1859,13 @@ export const GenerationSchedulerSnapshotResponse = z
     foregroundModule: GenerationSchedulerModuleId.nullable(),
   })
   .strict();
+export const GenerationSchedulerCancelActiveResponse = z
+  .object({
+    cancelled: z
+      .object({ id: z.string().min(1), moduleId: GenerationSchedulerModuleId })
+      .nullable(),
+  })
+  .strict();
 export type GenerationSchedulerSnapshotResponseT = z.infer<
   typeof GenerationSchedulerSnapshotResponse
 >;
@@ -2198,6 +2210,24 @@ export type ModelsRemoveRequestT = z.infer<typeof ModelsRemoveRequest>;
 
 export const ModelsOkResponse = z.object({ ok: z.literal(true) }).strict();
 export type ModelsOkResponseT = z.infer<typeof ModelsOkResponse>;
+
+// v2.4.8 follow-up: Ollama residency (`/api/ps`) and a warm-up load.
+export const ModelsResidentResponse = z.object({
+  models: z.array(
+    z.object({
+      name: z.string(),
+      sizeBytes: z.number(),
+      sizeVramBytes: z.number(),
+      displayName: z.string().optional(),
+    }),
+  ),
+});
+export type ModelsResidentResponseT = z.infer<typeof ModelsResidentResponse>;
+
+export const ModelsWarmRequest = z.object({ modelId: z.string().min(1) }).strict();
+export type ModelsWarmRequestT = z.infer<typeof ModelsWarmRequest>;
+export const ModelsWarmResponse = z.object({ ok: z.boolean(), status: z.number() });
+export type ModelsWarmResponseT = z.infer<typeof ModelsWarmResponse>;
 
 export const ModelsDiskUsageResponse = z
   .object({
@@ -2894,6 +2924,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: ModelsDiskUsageResponse,
     implemented: true,
   },
+  "models.resident": {
+    request: ModelsEmptyRequest,
+    response: ModelsResidentResponse,
+    implemented: true,
+  },
+  "models.warm": {
+    request: ModelsWarmRequest,
+    response: ModelsWarmResponse,
+    implemented: true,
+  },
   "models.install.drainEvents": {
     request: ModelsInstallDrainRequest,
     response: ModelsInstallDrainResponse,
@@ -3493,6 +3533,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "generation.scheduler.snapshot": {
     request: GenerationSchedulerSnapshotRequest,
     response: GenerationSchedulerSnapshotResponse,
+    implemented: true,
+  },
+  "generation.scheduler.cancelActive": {
+    request: GenerationSchedulerSnapshotRequest,
+    response: GenerationSchedulerCancelActiveResponse,
     implemented: true,
   },
   "tuning.status": {

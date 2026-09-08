@@ -29,6 +29,13 @@ export interface DiffusionProgressEvent {
   readonly message?: string;
   readonly offloadStrategy?: string;
   readonly conditioningPreview?: string;
+  /** Bytes of weights read so far / to read while `stage` is `loading`. */
+  readonly loadedBytes?: number;
+  readonly totalBytes?: number;
+  /** Runtime estimate of seconds until the weights are loaded. */
+  readonly etaS?: number | null;
+  /** Module holding the GPU while `stage` is `queued` (sidecar-synthesized). */
+  readonly blockedBy?: string;
 }
 
 export type DiffusionEvent =
@@ -162,6 +169,8 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
   private readonly events = new Map<string, DiffusionEvent[]>();
   private nextId = 1;
   private stderrTail = "";
+  /** Resolves once the freshly spawned runtime has answered `health`. */
+  private warmup: Promise<void> | null = null;
 
   constructor(private readonly options: ChildProcessRuntimeOptions = {}) {}
 
@@ -195,6 +204,7 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
       this.failPending(new Error("diffusion-runtime-exited"));
       this.child = null;
       this.rl = null;
+      this.warmup = null;
     });
     child.on("error", (err: Error) => {
       this.failPending(err);
@@ -230,8 +240,16 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
       }
       return;
     }
-    // Notification (no id) -- event for a job.
-    const event = parsed as Record<string, unknown> & { jobId?: string };
+    // Notification (no id) -- event for a job. The Python runtime speaks
+    // JSON-RPC, so its payload sits under `params`; a bare object (in-memory
+    // fixtures, older emitters) carries the fields at the top level. Reading
+    // only the top level dropped every loading / generating / heartbeat event
+    // the runtime sent (v2.4.8 follow-up, 2026-09-07), which is why the bubble
+    // never left "Loading model..." no matter what the runtime was doing.
+    const params = parsed.params;
+    const event = (
+      params && typeof params === "object" && !Array.isArray(params) ? params : parsed
+    ) as Record<string, unknown> & { jobId?: string };
     if (typeof event.jobId === "string") {
       const queue = this.events.get(event.jobId) ?? [];
       queue.push(event as unknown as DiffusionEvent);
@@ -239,14 +257,56 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
     }
   }
 
+  /**
+   * v2.4.8 follow-up (2026-09-07): never let a job be the first request a
+   * freshly spawned runtime sees. Job methods run on the runtime's worker
+   * threads, and a first torch import from one of those does not finish on
+   * Windows -- the runtime heartbeats forever without reaching a pipeline
+   * stage. `health` is a control method: it runs inline on the runtime's main
+   * thread, so awaiting it once imports torch where it is safe. The runtime
+   * also warms itself at startup; this gate keeps an older runtime working.
+   */
+  private warm(): Promise<void> {
+    if (!this.warmup) {
+      this.warmup = this.request<unknown>(
+        "health",
+        {},
+        // A client that configured a short request timeout gets a short
+        // warm-up too, so the gate never outlives the call it guards.
+        this.options.readyTimeoutMs ??
+          this.options.requestTimeoutMs ??
+          DEFAULT_DIFFUSION_REQUEST_TIMEOUT_MS,
+      ).then(
+        () => undefined,
+        // A runtime that cannot answer health still gets the job: it fails
+        // with its own typed error rather than being blocked here.
+        () => undefined,
+      );
+    }
+    return this.warmup;
+  }
+
   async call<T = unknown>(
     method: string,
     params: Record<string, unknown>,
   ): Promise<T> {
+    this.ensureSpawned();
+    if (method !== "health" && method !== "version") await this.warm();
+    return this.request<T>(
+      method,
+      params,
+      diffusionRequestTimeoutMs(method, this.options.requestTimeoutMs),
+    );
+  }
+
+  private request<T = unknown>(
+    method: string,
+    params: Record<string, unknown>,
+    timeoutMs: number,
+  ): Promise<T> {
     const child = this.ensureSpawned();
     const id = this.nextId++;
     const payload = JSON.stringify({ jsonrpc: "2.0", id, method, params });
-    const timeoutMs = diffusionRequestTimeoutMs(method, this.options.requestTimeoutMs);
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.pending.delete(id)) {
@@ -296,5 +356,6 @@ export class ChildProcessDiffusionRuntime implements DiffusionRuntimeClient {
     }
     this.failPending(new Error("diffusion-runtime-shutdown"));
     this.events.clear();
+    this.warmup = null;
   }
 }

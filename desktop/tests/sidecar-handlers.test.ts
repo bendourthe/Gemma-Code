@@ -63,6 +63,10 @@ describe("sidecar handlers", () => {
           "models.diskUsage",
           "models.install.drainEvents",
           "models.install.cancel",
+          // v2.4.8 follow-up wired Ollama residency and warm-up.
+          "models.resident",
+          "models.warm",
+          "generation.scheduler.cancelActive",
           // v1.16.0 Phase 1 wired the local serving-gateway control surface.
           "serving.status",
           "serving.setEnabled",
