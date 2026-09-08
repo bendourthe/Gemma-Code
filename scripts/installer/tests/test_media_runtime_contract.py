@@ -65,8 +65,7 @@ def test_sana_video_uses_complete_pinned_diffusers_pipeline() -> None:
         model for model in catalog["models"] if model["id"] == "sana-video-2b-720p"
     )
     assert (
-        sana["source"]["repo"]
-        == "Efficient-Large-Model/SANA-Video_2B_720p_diffusers"
+        sana["source"]["repo"] == "Efficient-Large-Model/SANA-Video_2B_720p_diffusers"
     )
     assert sana["weights"]["layoutVersion"] == 2
     files = {item["path"]: item["sha256"] for item in sana["weights"]["files"]}

@@ -65,8 +65,8 @@ from nexus_installer.catalog_tab_sort import (
 )
 from nexus_installer.constants import (
     ACCENT,
-    BG_CARD,
-    BORDER,
+    BADGE_DOWNLOADED,
+    BADGE_RECOMMENDED,
     BORDER_STRONG,
     ERROR,
     FAMILY_TO_PUBLISHER,
@@ -76,11 +76,11 @@ from nexus_installer.constants import (
     SUCCESS,
     TEXT_BODY,
     TEXT_MUTED,
-    TEXT_PRIMARY,
     TEXT_SECONDARY,
     WARNING,
     provider_color,
     publisher_for_family,
+    rgba_css,
 )
 from nexus_installer.engine.hf_weights_puller import resolve_models_root
 from nexus_installer.engine.installed_models import (
@@ -98,6 +98,7 @@ from nexus_installer.tier_defaults import (
 )
 from nexus_installer.vram_display import display_vram_gb
 from nexus_installer.widgets.model_checkbox import ModelCheckBox
+from nexus_installer.widgets.selectable_text import make_labels_selectable
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
@@ -108,6 +109,10 @@ TYPE_TABS: tuple[tuple[str, str, str], ...] = (
     # v2.2.9 Phase 5 (T010): Embeddings is its own first tab; embed rows no
     # longer park on Chat. Mirrored by desktop CATALOG_TAB_DEFS.
     ("embeddings", "Embeddings", "[E]"),
+    # Document OCR / parsing sits right after Embeddings (both are the
+    # retrieval side of the catalog); without a tab here `load_catalog_models`
+    # drops any entry whose tab resolves to None.
+    ("document", "Document", "[D]"),
     ("chat", "Chat", "[C]"),
     # v1.9.0 Phase 4 (T404): renamed from "Agentic Coding"; the tab now lists
     # agentic-capable chat models (the Gemma 4 family) alongside the coding
@@ -116,10 +121,6 @@ TYPE_TABS: tuple[tuple[str, str, str], ...] = (
     ("image", "Image", "[I]"),
     ("video", "Video", "[V]"),
     ("audio", "Audio", "[A]"),
-    # v1.16.0 Phase 3 (adoption item A5): document OCR / parsing. Without a tab
-    # here, `load_catalog_models` drops any entry whose tab resolves to None, so
-    # the two document models would be silently invisible in the picker.
-    ("document", "Document", "[D]"),
 )
 
 # Fallback when an entry carries no `task` field: catalog `type` -> tab.
@@ -657,6 +658,26 @@ def _pill(
     return chip
 
 
+#: Diameter of the round icon badges (compatibility, downloaded) on a card.
+_ICON_BADGE_PX = 22
+
+
+def _icon_badge(glyph: str, *, color: str, tooltip: str, object_name: str) -> QLabel:
+    """A round filled icon badge whose meaning lives on the tooltip."""
+    badge = QLabel(glyph)
+    badge.setObjectName(object_name)
+    badge.setToolTip(tooltip)
+    badge.setAccessibleName(tooltip)
+    badge.setFixedSize(_ICON_BADGE_PX, _ICON_BADGE_PX)
+    badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    badge.setStyleSheet(
+        f"color: {color}; background-color: {rgba_css(color, 0.18)}; "
+        f"border: 1px solid {color}; border-radius: {_ICON_BADGE_PX // 2}px; "
+        f"font-size: {FS_CAPTION}px; font-weight: bold;"
+    )
+    return badge
+
+
 @dataclass
 class _ModelCardState:
     """Track a card's checkbox + the model it represents."""
@@ -807,9 +828,11 @@ class _ModelCard(QWidget):
         # rendered as its own boxed pill -- the pre-Phase-5 look).
         self.setObjectName("modelCard")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # The card carries a hint of its provider's color, so a Google card
+        # and an Alibaba card read differently before a single word is read.
         self.setStyleSheet(
-            f"QWidget#modelCard {{ background-color: {BG_CARD}; "
-            f"border: 1px solid {BORDER}; border-radius: 8px; }}"
+            f"QWidget#modelCard {{ background-color: {rgba_css(accent, 0.09)}; "
+            f"border: 1px solid {rgba_css(accent, 0.30)}; border-radius: 8px; }}"
         )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
@@ -829,7 +852,8 @@ class _ModelCard(QWidget):
         #: False when the model needs more VRAM/RAM than the host has -- the
         #: page reads this to disable + dim the card (v1.13.0 Phase 4).
         self.fits = fits
-        title_color = TEXT_PRIMARY if fits else TEXT_MUTED
+        # The name takes the provider color; incompatible cards stay muted.
+        title_color = accent if fits else TEXT_MUTED
 
         # --- Title row: [checkbox] name  [status badge]  [disk] ---
         title_row = QHBoxLayout()
@@ -861,31 +885,40 @@ class _ModelCard(QWidget):
         if model.is_required:
             header_flow.addWidget(_pill("Required", color=accent, border=accent))
         elif recommended:
-            header_flow.addWidget(_pill("Recommended", color=accent, border=accent))
+            header_flow.addWidget(
+                _pill("Recommended", color=BADGE_RECOMMENDED, border=BADGE_RECOMMENDED)
+            )
         if model.tool_calling_verified:
             header_flow.addWidget(
                 _pill("Tool calling verified", color=accent, border=accent)
             )
         title_row.addWidget(header, stretch=1)
 
-        status = QLabel(badge_text)
-        status.setStyleSheet(
-            f"color: {badge_color}; font-size: {FS_CAPTION}px; font-weight: bold; "
-            f"border: 1px solid {badge_color}; border-radius: 9px; "
-            f"padding: 1px 8px; background: transparent;"
-        )
-        title_row.addWidget(status)
-
+        # Right-hand badges, in order: storage required, compatibility icon,
+        # downloaded icon. The two states are icons with the full wording on
+        # the tooltip, so the row stays short on every card.
         size_label = _pill(f"{model.size_gb:.1f} GB", color=accent, border=accent)
         title_row.addWidget(size_label)
 
-        # v2.4.5 Phase 2.2 (T006): an ADDITIONAL pill, never a replacement for
-        # the status badge. Overloading `_card_status` would drop a hardware
-        # incompatibility warning on a model that happens to be downloaded --
-        # the one case where that warning matters most.
+        status = _icon_badge(
+            "✓" if fits else "!",
+            color=badge_color,
+            tooltip="Compatible" if fits else badge_text,
+            object_name="compatBadge",
+        )
+        title_row.addWidget(status)
+
+        # An ADDITIONAL badge, never a replacement for the compatibility one.
+        # Overloading `_card_status` would drop a hardware incompatibility
+        # warning on a model that happens to be downloaded -- the one case
+        # where that warning matters most.
         if downloaded:
-            downloaded_pill = _pill("Downloaded", color=SUCCESS, border=SUCCESS)
-            downloaded_pill.setObjectName("downloadedPill")
+            downloaded_pill = _icon_badge(
+                "⤓",
+                color=BADGE_DOWNLOADED,
+                tooltip="Downloaded",
+                object_name="downloadedPill",
+            )
             title_row.addWidget(downloaded_pill)
         layout.addLayout(title_row)
 
@@ -901,7 +934,7 @@ class _ModelCard(QWidget):
             # Over budget: dim the card with a dashed muted border so it reads
             # as unavailable, while the requirement note above stays readable.
             self.setStyleSheet(
-                f"QWidget#modelCard {{ background-color: {BG_CARD}; "
+                f"QWidget#modelCard {{ background-color: {rgba_css(accent, 0.04)}; "
                 f"border: 1px dashed {BORDER_STRONG}; border-radius: 8px; }}"
             )
             size_label.setStyleSheet(
@@ -970,11 +1003,9 @@ class _ModelCard(QWidget):
             why.setWordWrap(True)
             layout.addWidget(why)
 
-        for label in self.findChildren(QLabel):
-            if label.objectName() != "licenseNote":
-                label.setAttribute(
-                    Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
-                )
+        # The badges keep their mouse events so their tooltips show on hover;
+        # every other label stays selectable (the app-wide text filter) and
+        # the card toggles from its checkbox or any non-text area.
         if fits:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -1163,7 +1194,18 @@ class TypedCatalogPage(QWidget):
     def refresh_from_state(self) -> None:
         """Recompute tier defaults + badges from the current installer state."""
         if not self._user_touched:
-            self._selection.selected = set(self._current_defaults())
+            # Rebuild from the tier defaults, but keep every already-downloaded
+            # model that is currently selected. Auto-selection runs once per
+            # session, so a second showEvent (Back from Configuration) used to
+            # reset to the bare defaults and silently drop the downloaded
+            # models it had pre-selected on the first visit.
+            downloaded = {
+                mid
+                for mid in self._state.installed_report.downloaded
+                if mid in self._catalog
+            }
+            kept = self._selection.selected & downloaded
+            self._selection.selected = set(self._current_defaults()) | kept
         self._refresh_installed_report()
         self._apply_downloaded_autoselect()
         self._rebuild_tabs()
@@ -1283,6 +1325,8 @@ class TypedCatalogPage(QWidget):
         # Removing tabs can drop the corner widget on some Qt builds; pin it
         # back onto the category row after every rebuild.
         self._tabs.setCornerWidget(self._refresh_button, Qt.Corner.TopRightCorner)
+        # Cards were just rebuilt: every label on them is selectable.
+        make_labels_selectable(self._tabs)
 
     def _models_for_section(self, section_key: str) -> list[CatalogModel]:
         """Models shown under a tab.
@@ -1521,6 +1565,12 @@ class TypedCatalogPage(QWidget):
             for mid in self._selection.selected
             if mid in self._catalog and mid not in downloaded
         )
+        # Disk arithmetic below charges only what still has to be fetched:
+        # models already on disk consume no new space, so warning about the
+        # whole selection told a host holding 220 GB of weights that it was
+        # about to run out of room for a 9 GB download.
+        pending_total = self._state.pending_models_gb
+        already_total = max(0.0, total - pending_total)
 
         # v1.8.0 Phase 4 (OSI003.P3.D): publish the multi-selection the
         # protocol-routed model step consumes, and keep the legacy single
@@ -1582,7 +1632,7 @@ class TypedCatalogPage(QWidget):
                 card.checkbox.setEnabled(True)
                 card.disabled_for_disk = False
                 continue
-            remaining = free - total - card.model.size_gb
+            remaining = free - pending_total - card.model.size_gb
             # Compatible cards stay selectable even when the current basket
             # would dip below the OS reserve. The totals line warns, and the
             # Review install guard still blocks a too-large download. Operators
@@ -1596,7 +1646,7 @@ class TypedCatalogPage(QWidget):
                 card.disabled_for_disk = False
 
         count = len(self._selection.selected)
-        remaining_after = (free - total) if free > 0 else None
+        remaining_after = (free - pending_total) if free > 0 else None
         disk_short = remaining_after is not None and remaining_after < reserve
         suffix = (
             f"  --  leaves less than {int(reserve)} GB free; "
@@ -1604,9 +1654,12 @@ class TypedCatalogPage(QWidget):
             if disk_short
             else ""
         )
+        already = (
+            f" ({already_total:.1f} GB already downloaded)" if already_total > 0 else ""
+        )
         self._totals_label.setText(
             f"{count} model{'s' if count != 1 else ''} selected  --  "
-            f"{total:.1f} GB total download{suffix}"
+            f"{pending_total:.1f} GB to download{already}{suffix}"
         )
         self._totals_label.setStyleSheet(
             f"color: {ERROR if disk_short else ACCENT}; font-weight: bold; "

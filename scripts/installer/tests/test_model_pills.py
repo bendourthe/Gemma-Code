@@ -186,7 +186,9 @@ def test_card_header_row_is_not_window_fill(qt_app, tmp_path: Path) -> None:
         host_ram_gb=32,
         gpu_vendor="nvidia",
     )
-    assert BG_CARD in card.styleSheet()
+    # The card is tinted with its provider color rather than the flat card fill.
+    assert "rgba(" in card.styleSheet()
+    assert BG_CARD not in card.styleSheet()
     header = card.findChild(QWidget, "cardHeaderRow")
     assert header is not None
     assert BG_WINDOW not in header.styleSheet()

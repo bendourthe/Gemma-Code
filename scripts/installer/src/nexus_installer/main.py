@@ -2,7 +2,7 @@
 
 Supports two modes:
 
-- Interactive GUI (default): launches the PyQt5 wizard with all 7 pages.
+- Interactive GUI (default): launches the PyQt5 wizard with all 5 pages.
 - ``--headless``: runs the full install engine without a GUI. Useful for
   CI smoke tests and scripted installs. In headless mode, `--json-output`
   emits a machine-parseable JSON summary on stdout. Exit code is 0 on
@@ -426,19 +426,17 @@ def _register_gui_pages(
 ) -> tuple[InstallingPage, CompletePage]:
     """Register the canonical interactive wizard route in display order."""
     from nexus_installer.pages.complete import CompletePage
-    from nexus_installer.pages.configuration import ConfigurationPage
     from nexus_installer.pages.installing import InstallingPage
     from nexus_installer.pages.review import ReviewPage
-    from nexus_installer.pages.setup import SetupPage
     from nexus_installer.pages.typed_catalog import TypedCatalogPage
     from nexus_installer.pages.welcome import WelcomePage
 
+    # Welcome carries the machine checks (prerequisites + GPU) and the
+    # configuration choices (install path, features).
     window.add_page(WelcomePage(state))
-    window.add_page(SetupPage(state))
     # The typed catalog produces `state.selected_model_ids` for the
     # protocol-routed install step.
     window.add_page(TypedCatalogPage(state))
-    window.add_page(ConfigurationPage(state))
     window.add_page(ReviewPage(state))
     installing_page = InstallingPage(state, on_engine_created=on_engine_created)
     window.add_page(installing_page)

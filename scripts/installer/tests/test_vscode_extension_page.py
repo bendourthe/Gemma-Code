@@ -259,7 +259,7 @@ class TestVsCodeExtensionPage:
             detect_fn=_status,
             list_fn=lambda _path: (EXTENSION_ID, ""),
         )
-        assert "Replace the installed Nexus VS Code extension" in page._checkbox.text()
+        assert page._checkbox.text().startswith("Update the Nexus AI Studio VS Code")
 
     def test_list_exception_keeps_install_label(self, qt_app) -> None:
         def boom(_path: str) -> tuple[str | None, str]:
@@ -270,7 +270,7 @@ class TestVsCodeExtensionPage:
             detect_fn=_status,
             list_fn=boom,
         )
-        assert page._checkbox.text().startswith("Install the Nexus VS Code extension")
+        assert page._checkbox.text().startswith("Install the Nexus AI Studio VS Code")
 
     def test_version_unreadable_copy_stays_visible(self, qt_app) -> None:
         page = VsCodeExtensionPage(

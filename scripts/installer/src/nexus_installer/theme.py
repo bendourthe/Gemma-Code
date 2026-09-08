@@ -23,8 +23,10 @@ from nexus_installer.constants import (
     FS_CAPTION,
     FS_H1,
     FS_H2,
+    FS_H3,
     FW_BOLD,
     FW_SEMIBOLD,
+    SUCCESS,
     TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
@@ -180,6 +182,91 @@ QFrame#card {{
     padding: 16px;
 }}
 
+/* -- Surface cards (Welcome prerequisites, Configuration columns, Review
+   facts / model summary): one rounded, bordered panel treatment so the three
+   pages read as one family. Inner captions, heads, stat tiles and pills are
+   the building blocks the Review mockup is drawn from. ------------------ */
+QFrame#surfaceCard {{
+    background-color: {BG_CARD};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 12px;
+}}
+QFrame#surfaceCard QLabel,
+QFrame#surfaceCard QCheckBox,
+QFrame#surfaceCard QToolButton {{
+    background: transparent;
+}}
+QLabel#cardHead {{
+    font-size: {FS_H3}px;
+    font-weight: {FW_SEMIBOLD};
+    color: {TEXT_PRIMARY};
+    background: transparent;
+}}
+QLabel#cardCaption {{
+    font-size: {FS_CAPTION}px;
+    font-weight: {FW_SEMIBOLD};
+    color: {TEXT_SECONDARY};
+    background: transparent;
+}}
+QFrame#prereqCard {{
+    background-color: {BG_CARD};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 12px;
+}}
+QFrame#prereqCard QLabel {{
+    background: transparent;
+    border: none;
+}}
+QFrame#insetBox {{
+    background-color: {BG_INPUT};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 8px;
+}}
+QFrame#insetBox QLabel {{
+    background: transparent;
+    border: none;
+}}
+QFrame#statTile {{
+    background-color: {BG_INPUT};
+    border: 1px solid {BORDER};
+    border-radius: 10px;
+}}
+QFrame#statTile QLabel {{
+    background: transparent;
+    border: none;
+}}
+QLabel#statCaption {{
+    font-size: {FS_CAPTION}px;
+    color: {TEXT_SECONDARY};
+    background: transparent;
+}}
+QLabel#statValue {{
+    font-size: {FS_H3}px;
+    font-weight: {FW_BOLD};
+    color: {TEXT_PRIMARY};
+    background: transparent;
+}}
+QLabel#successPill {{
+    color: {SUCCESS};
+    border: 1px solid {SUCCESS};
+    border-radius: 8px;
+    padding: 4px 10px;
+    background-color: {BG_INPUT};
+    font-size: {FS_CAPTION}px;
+    font-weight: {FW_SEMIBOLD};
+}}
+QToolButton#iconButton {{
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: {TEXT_SECONDARY};
+    padding: 2px;
+}}
+QToolButton#iconButton:hover {{
+    background-color: {BG_ELEVATED};
+    color: {TEXT_PRIMARY};
+}}
+
 /* -- Primary button (cyan gradient) ---------------------------------- */
 QPushButton#primaryButton {{
     background-color: qlineargradient(
@@ -228,6 +315,22 @@ QPushButton#secondaryButton:pressed {{
 QPushButton#secondaryButton:disabled {{
     border-color: {BG_CARD};
     color: {TEXT_MUTED};
+}}
+
+/* -- Browse button overlaid on the install-path field: a filled rounded
+   button so it stands out from the field it sits in. ---------------------- */
+QPushButton#install-path-browse {{
+    background-color: {TEXT_MUTED};
+    color: {TEXT_PRIMARY};
+    border: none;
+    border-radius: 15px;
+    padding: 0 14px;
+    font-size: {FS_CAPTION}px;
+    font-weight: {FW_SEMIBOLD};
+}}
+QPushButton#install-path-browse:hover {{
+    background-color: {TEXT_SECONDARY};
+    color: {BG_WINDOW};
 }}
 
 /* -- Text input fields ------------------------------------------------- */

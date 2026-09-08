@@ -137,25 +137,33 @@ class TestReviewPageRebuild:
         assert "gemma4:e4b" in text
 
 
-class TestGpuDetectionPageCallback:
+class TestGpuPrerequisiteCallback:
+    """GPU detection is a prerequisite row on Welcome (no separate page)."""
+
     def test_detection_complete_with_gpu(self, qt_app: object) -> None:
-        with patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"):
-            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+        with (
+            patch("nexus_installer.pages.prerequisites._DetectionWorker.start"),
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+        ):
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
 
             state = InstallerState()
-            page = GpuDetectionPage(state)
-            page._on_detection_complete("RTX 4090", "nvidia", 24576)
+            page = PrerequisitesPage(state)
+            page._on_gpu("RTX 4090", "nvidia", 24576)
             assert state.gpu_vendor == "nvidia"
             assert state.vram_mb == 24576
             assert state.recommended_model != ""
 
     def test_detection_complete_no_gpu(self, qt_app: object) -> None:
-        with patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"):
-            from nexus_installer.pages.gpu_detection import GpuDetectionPage
+        with (
+            patch("nexus_installer.pages.prerequisites._DetectionWorker.start"),
+            patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"),
+        ):
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
 
             state = InstallerState()
-            page = GpuDetectionPage(state)
-            page._on_detection_complete("", "none", 0)
+            page = PrerequisitesPage(state)
+            page._on_gpu("", "none", 0)
             assert state.gpu_vendor == "none"
             assert state.recommended_model == "gemma4:e2b"
 

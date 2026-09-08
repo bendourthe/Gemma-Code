@@ -40,12 +40,9 @@ VSCODE_CLI_CANDIDATES: tuple[str, ...] = (
 
 
 _INSTALL_LABEL = (
-    "Install the Nexus VS Code extension "
-    "(uses local models for agentic coding inside VS Code)"
+    "Install the Nexus AI Studio VS Code extension using the latest release"
 )
-_REPLACE_LABEL = (
-    "Replace the installed Nexus VS Code extension with this installer's copy"
-)
+_REPLACE_LABEL = "Update the Nexus AI Studio VS Code extension using the latest release"
 
 
 def detect_vscode_cli(which_fn=shutil.which, run_fn=None) -> VsCodeCliStatus:

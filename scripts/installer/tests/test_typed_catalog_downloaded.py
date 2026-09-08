@@ -84,7 +84,9 @@ class TestDownloadedPill:
         assert card.downloaded is True
         pill = card.findChild(QLabel, "downloadedPill")
         assert pill is not None
-        assert pill.text() == "Downloaded"
+        # An icon badge: the wording lives on the tooltip.
+        assert pill.toolTip() == "Downloaded"
+        assert pill.text() != "Downloaded"
 
     def test_undownloaded_card_has_no_pill(self, qt_app) -> None:
         card = self._card(downloaded=False)
@@ -153,6 +155,21 @@ class TestAutoSelection:
         page.refresh_from_state()
         assert "qwen2.5-coder:7b" not in page.selection().selected
 
+    def test_auto_selection_survives_a_revisit_of_the_page(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        # Back from Configuration fires a second showEvent. Auto-selection is a
+        # first-load action, so the refresh used to reset the untouched
+        # selection to the bare tier defaults and drop every downloaded model
+        # it had pre-selected on the first visit.
+        state = _gpu_state(vram_mb=8192)
+        page = _page(state, tmp_path, _downloaded("qwen2.5-coder:7b"))
+        page.refresh_from_state()
+        assert "qwen2.5-coder:7b" in page.selection().selected
+        page.refresh_from_state()
+        assert "qwen2.5-coder:7b" in page.selection().selected
+        assert "qwen2.5-coder:7b" in state.selected_model_ids
+
     def test_an_empty_report_leaves_defaults_untouched(
         self, qt_app, tmp_path: Path
     ) -> None:
@@ -205,3 +222,34 @@ class TestProbeSafety:
         page.refresh_from_state()
         assert state.installed_report.is_downloaded("juggernaut-xl-v9")
         assert state.installed_report.downloaded_gb == 6.7
+
+
+class TestPendingOnlyTotals:
+    """The totals line and disk warning charge only what still downloads."""
+
+    def test_totals_line_reports_pending_and_already_downloaded(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        state = _gpu_state(vram_mb=8192)
+        page = _page(state, tmp_path, _downloaded("juggernaut-xl-v9", gb=6.7))
+        page.refresh_from_state()
+        text = page._totals_label.text()
+        assert "to download" in text
+        assert "already downloaded" in text
+        assert f"{state.pending_models_gb:.1f} GB to download" in text
+        assert f"{state.selected_models_gb - state.pending_models_gb:.1f} GB" in text
+
+    def test_disk_warning_ignores_models_already_on_disk(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        # Free disk covers the pending download but not the whole selection:
+        # the OS-reserve warning must stay silent.
+        state = _gpu_state(vram_mb=8192)
+        page = _page(state, tmp_path, _downloaded("juggernaut-xl-v9", gb=6.7))
+        page.refresh_from_state()
+        selection_total = state.selected_models_gb
+        pending = state.pending_models_gb
+        assert pending < selection_total
+        state.free_disk_gb = int(pending) + state.disk_reserve_gb + 2
+        page._update_selection_state()
+        assert "leaves less than" not in page._totals_label.text()

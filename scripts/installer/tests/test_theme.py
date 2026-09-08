@@ -26,6 +26,11 @@ class TestGenerateStylesheet:
             "QCheckBox",
             "QFrame#calloutBox",
             "QFrame#card",
+            "QFrame#surfaceCard",
+            "QFrame#insetBox",
+            "QFrame#statTile",
+            "QLabel#successPill",
+            "QToolButton#iconButton",
             "QTabWidget::pane",
             "QTabBar::tab",
         ]:
@@ -138,13 +143,10 @@ class TestConstants:
         assert constants.ACCENT_VIDEO == "#22c55e"  # --accent-video
 
     def test_section_accents_cover_all_catalog_tabs(self) -> None:
-        assert set(constants.SECTION_ACCENTS) == {
-            "chat",
-            "agentic",
-            "image",
-            "video",
-            "audio",
-        }
+        from nexus_installer.pages.typed_catalog import TYPE_TABS
+
+        # The Review page colors one category pill per Models tab.
+        assert set(constants.SECTION_ACCENTS) == {key for key, _l, _i in TYPE_TABS}
         for value in constants.SECTION_ACCENTS.values():
             assert value.startswith("#")
 
@@ -175,6 +177,6 @@ class TestConstants:
         assert len(constants.FONT_MONO) > 0
 
     def test_step_names_count(self) -> None:
-        assert len(constants.STEP_NAMES) == 7
+        assert len(constants.STEP_NAMES) == 5
         assert constants.STEP_NAMES[0] == "Welcome"
         assert constants.STEP_NAMES[-1] == "Complete"

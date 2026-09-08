@@ -1,15 +1,17 @@
-"""Welcome page: hero title, intro, and 'before you begin' live checks."""
+"""Welcome page: compact hero, prerequisites cards, and the configuration panel.
+
+The former Setup and Configuration steps are folded in here: the prerequisite
+cards (VS Code, Python, disk, Ollama, GPU) sit under the hero, and the
+configuration cards (install path + Ollama URL, features) follow, so every
+machine-level choice is made on one page before the model selection.
+"""
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
@@ -17,23 +19,16 @@ from nexus_installer.constants import (
     ACCENT_CODING,
     ACCENT_IMAGE,
     ACCENT_VIDEO,
-    BASE_INSTALL_GB,
-    FS_BODY,
     FS_CAPTION,
-    FS_DISPLAY,
-    SUCCESS,
+    FS_H1,
     TEXT_BODY,
-    TEXT_SECONDARY,
-    WARNING,
 )
-from nexus_installer.engine.platform_utils import no_window_kwargs
-from nexus_installer.widgets.callout_box import CalloutBox
+from nexus_installer.pages.configuration import ConfigurationPage
+from nexus_installer.pages.prerequisites import PrerequisitesPage
 from nexus_installer.widgets.gradient_wordmark import GradientWordmark
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
-
-DETECTION_TIMEOUT = 5
 
 # (label, module accent) -- the desktop app's four pillars.
 _PILLARS: tuple[tuple[str, str], ...] = (
@@ -44,123 +39,31 @@ _PILLARS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _existing_anchor(path: str) -> str:
-    """Nearest existing directory on the install path's volume.
-
-    The install path (e.g. C:\\Program Files\\NexusAI) does not exist yet on the
-    Welcome page, so probing it directly raised FileNotFoundError and the check
-    wrongly reported 0 GB free (the amber-dot-with-ample-space bug). Walk up to
-    the deepest existing parent, falling back to the home directory.
-    """
-    candidate = Path(path)
-    while not candidate.exists() and candidate != candidate.parent:
-        candidate = candidate.parent
-    return str(candidate) if candidate.exists() else os.path.expanduser("~")
-
-
-class _QuickCheckWorker(QThread):
-    """Runs lightweight checks in the background."""
-
-    vscode_found = pyqtSignal(bool, str)  # (found, path)
-    python_found = pyqtSignal(bool, str)  # (found, version)
-    disk_ok = pyqtSignal(bool, float)  # (sufficient, gb_free)
-
-    def __init__(self, install_path: str, required_gb: float) -> None:
-        super().__init__()
-        self._install_path = install_path
-        self._required_gb = required_gb
-
-    def run(self) -> None:
-        # VS Code
-        vscode = shutil.which("code")
-        if vscode is None and sys.platform == "win32":
-            vscode = shutil.which("code.cmd")
-        self.vscode_found.emit(vscode is not None, vscode or "")
-
-        # Python 3.11+
-        py_path, py_ok = self._find_python()
-        self.python_found.emit(py_ok, py_path)
-
-        # Disk space: probe an existing anchor on the target volume (the install
-        # dir does not exist yet) against the base-install requirement.
-        try:
-            usage = shutil.disk_usage(_existing_anchor(self._install_path))
-            gb_free = usage.free / (1024**3)
-            self.disk_ok.emit(gb_free >= self._required_gb, round(gb_free, 1))
-        except OSError:
-            self.disk_ok.emit(False, 0.0)
-
-    @staticmethod
-    def _find_python() -> tuple[str, bool]:
-        for cmd in ("python", "python3", "py"):
-            path = shutil.which(cmd)
-            if path is None:
-                continue
-            if "WindowsApps" in path:
-                continue
-            try:
-                result = subprocess.run(
-                    [path, "-c", "import sys; print(sys.version_info.minor)"],
-                    capture_output=True,
-                    text=True,
-                    timeout=DETECTION_TIMEOUT,
-                    **no_window_kwargs(),
-                )
-                minor = int(result.stdout.strip())
-                if minor >= 11:
-                    return path, True
-            except (subprocess.TimeoutExpired, ValueError, OSError):
-                continue
-        return "", False
-
-
-class _StatusDot(QWidget):
-    """Small colored dot + label indicating a check result."""
-
-    def __init__(self, text: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 2, 0, 2)
-        layout.setSpacing(8)
-
-        self._dot = QLabel("\u25cf")
-        self._dot.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
-            f"background: transparent;"
-        )
-        self._dot.setFixedWidth(14)
-        layout.addWidget(self._dot)
-
-        self._label = QLabel(text)
-        self._label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
-            f"background: transparent;"
-        )
-        layout.addWidget(self._label, stretch=1)
-
-    def set_ok(self, ok: bool) -> None:
-        color = SUCCESS if ok else WARNING
-        self._dot.setStyleSheet(
-            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
-        )
-
-
 class WelcomePage(QWidget):
-    """First wizard page with intro text and live prerequisite dots."""
+    """First wizard page: intro, live prerequisite checks, configuration."""
 
-    def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        state: InstallerState,
+        parent: QWidget | None = None,
+        *,
+        detect_fn: Callable[..., Any] | None = None,
+        inspect_fn: Callable[..., Any] | None = None,
+        list_fn: Callable[..., Any] | None = None,
+    ) -> None:
         super().__init__(parent)
         self._state = state
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        # Hero title. The floating-logo lockup is retired (T013): no logo beside
-        # the title, no bob animation -- just the wordmark-scale hero heading.
+        # Hero title at page-title scale (the display size made the hero alone
+        # fill the first screen).
         title = GradientWordmark(
             "Welcome to Nexus",
             " AI Studio",
-            FS_DISPLAY,
+            FS_H1,
             align=Qt.AlignmentFlag.AlignLeft,
         )
         layout.addWidget(title)
@@ -175,7 +78,7 @@ class WelcomePage(QWidget):
         )
         subtitle.setObjectName("secondaryLabel")
         subtitle.setStyleSheet(
-            f"color: {TEXT_BODY}; font-size: {FS_BODY}px; background: transparent;"
+            f"color: {TEXT_BODY}; font-size: {FS_CAPTION}px; background: transparent;"
         )
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
@@ -194,45 +97,31 @@ class WelcomePage(QWidget):
         chips.addStretch()
         layout.addLayout(chips)
 
-        # Before-you-begin callout. The disk requirement is the base install
-        # (plus any already-selected models); the precise per-selection check
-        # lives on the Models picker footer.
-        required_gb = BASE_INSTALL_GB + getattr(state, "selected_models_gb", 0.0)
-        self._callout = CalloutBox(title="Before you begin")
-        self._vscode_dot = _StatusDot("Visual Studio Code installed")
-        self._python_dot = _StatusDot("Python 3.11 or newer")
-        self._disk_dot = _StatusDot(
-            f"At least {int(required_gb)} GB free for the base install "
-            "(model downloads need more)"
-        )
-        self._inet_dot = _StatusDot("Internet connection for downloading components")
-        self._inet_dot.set_ok(True)  # Assumed OK
+        # The machine checks, including GPU detection, directly under the hero.
+        self._prereq = PrerequisitesPage(state)
+        layout.addWidget(self._prereq)
 
-        self._callout.add_item(self._vscode_dot)
-        self._callout.add_item(self._python_dot)
-        self._callout.add_item(self._disk_dot)
-        self._callout.add_item(self._inet_dot)
-        layout.addWidget(self._callout)
+        # Configuration: install path + Ollama URL, and the optional features.
+        config_head = QLabel("Configuration")
+        config_head.setObjectName("cardHead")
+        layout.addWidget(config_head)
+        self._config = ConfigurationPage(
+            state, detect_fn=detect_fn, inspect_fn=inspect_fn, list_fn=list_fn
+        )
+        layout.addWidget(self._config)
+        # Unsloth's compatibility lock depends on the GPU probe that runs on
+        # this very page, so re-evaluate it the moment the probe finishes.
+        self._prereq.gpu_detected.connect(self._config.refresh_host)
 
         layout.addStretch()
 
-        # Run detection in background
-        self._worker = _QuickCheckWorker(state.install_path, required_gb)
-        self._worker.vscode_found.connect(self._on_vscode)
-        self._worker.python_found.connect(self._on_python)
-        self._worker.disk_ok.connect(self._on_disk)
-        self._worker.start()
+    def set_interactive(self, enabled: bool) -> None:
+        """Lock the configuration choices once installation has started."""
+        self._config.set_interactive(enabled)
 
-    def _on_vscode(self, found: bool, path: str) -> None:
-        self._vscode_dot.set_ok(found)
-        if found:
-            self._state.vscode_path = path
-
-    def _on_python(self, found: bool, path: str) -> None:
-        self._python_dot.set_ok(found)
-        if found:
-            self._state.python_path = path
-
-    def _on_disk(self, sufficient: bool, gb_free: float) -> None:
-        self._disk_dot.set_ok(sufficient)
-        self._state.apply_disk_free_gb(gb_free)
+    def validate(self) -> tuple[bool, str]:
+        """Next requires the prerequisites and a usable install path."""
+        ok, msg = self._prereq.validate()
+        if not ok:
+            return ok, msg
+        return self._config.validate()

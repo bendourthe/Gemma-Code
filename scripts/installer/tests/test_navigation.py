@@ -31,15 +31,15 @@ class TestValidationProtocol:
 
 
 class TestPageSequence:
-    def test_seven_step_names(self) -> None:
+    def test_five_step_names(self) -> None:
+        # Welcome carries the machine checks and the configuration choices, so
+        # there is no separate Setup or Configuration step.
         from nexus_installer.constants import STEP_NAMES
 
-        assert len(STEP_NAMES) == 7
+        assert len(STEP_NAMES) == 5
         assert STEP_NAMES == [
             "Welcome",
-            "Setup",
             "Models",
-            "Configuration",
             "Review",
             "Installing",
             "Complete",
@@ -59,9 +59,7 @@ class TestPageSequence:
 
         route = [
             ("nexus_installer.pages.welcome.WelcomePage", "Welcome"),
-            ("nexus_installer.pages.setup.SetupPage", "Setup"),
             ("nexus_installer.pages.typed_catalog.TypedCatalogPage", "Models"),
-            ("nexus_installer.pages.configuration.ConfigurationPage", "Configuration"),
             ("nexus_installer.pages.review.ReviewPage", "Review"),
             ("nexus_installer.pages.installing.InstallingPage", "Installing"),
             ("nexus_installer.pages.complete.CompletePage", "Complete"),
@@ -93,7 +91,7 @@ class TestPageSequence:
         assert window.pages == [name for _target, name in route]
         assert installing == "Installing"
         assert complete == "Complete"
-        factories["Configuration"].assert_called_once_with(state)
+        factories["Welcome"].assert_called_once_with(state)
         factories["Installing"].assert_called_once_with(
             state, on_engine_created=on_engine_created
         )
@@ -111,7 +109,7 @@ class TestPageSequence:
         from nexus_installer.engine.extension_installer import VsCodeCliStatus
         from nexus_installer.installer_state import InstallerState
         from nexus_installer.main import _register_gui_pages
-        from nexus_installer.pages.configuration import ConfigurationPage
+        from nexus_installer.pages.welcome import WelcomePage
         from nexus_installer.window import InstallerWindow
 
         not_found = VsCodeCliStatus(None, None, None, False, "not-found")
@@ -128,8 +126,6 @@ class TestPageSequence:
             return VsCodeCliStatus(path, "code", version, supported, reason)
 
         generic_targets = [
-            "nexus_installer.pages.welcome.WelcomePage",
-            "nexus_installer.pages.setup.SetupPage",
             "nexus_installer.pages.typed_catalog.TypedCatalogPage",
             "nexus_installer.pages.review.ReviewPage",
             "nexus_installer.pages.installing.InstallingPage",
@@ -151,20 +147,29 @@ class TestPageSequence:
                     side_effect=inspect_saved,
                 )
             )
+            stack.enter_context(
+                patch("nexus_installer.pages.prerequisites._DetectionWorker.start")
+            )
+            stack.enter_context(
+                patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start")
+            )
             for target in generic_targets:
                 stack.enter_context(patch(target, side_effect=generic_page))
             _register_gui_pages(window, state)
 
-            config_index = STEP_NAMES.index("Configuration")
-            config_page = window._pages[config_index]
-            assert isinstance(config_page, ConfigurationPage)
-            vscode = config_page._vscode
+            welcome_index = STEP_NAMES.index("Welcome")
+            welcome_page = window._pages[welcome_index]
+            assert isinstance(welcome_page, WelcomePage)
+            vscode = welcome_page._config._vscode
             assert "extension" not in state.components_to_install
 
-            state.vscode_path = saved_path
             window.show()
             window.show_first_page()
-            window.switch_page(config_index)
+            # Leave Welcome, let the saved path appear, and come back: the
+            # showEvent re-detects against the saved CLI.
+            window.switch_page(STEP_NAMES.index("Models"))
+            state.vscode_path = saved_path
+            window.switch_page(welcome_index)
             qt_app.processEvents()
 
             assert vscode._checkbox.isEnabled() is supported
@@ -182,6 +187,6 @@ class TestInstallerStateNavigation:
         assert not (index > 0)
 
     def test_forward_from_last_page_closes(self) -> None:
-        pages_count = 7
+        pages_count = 5
         index = pages_count - 1
         assert index == pages_count - 1  # Should trigger close
