@@ -258,7 +258,7 @@ describe("ImageStudioPage (chat)", () => {
     ).toHaveLength(1);
   });
 
-  it("does not generate until a conflicting active model switch is approved", async () => {
+  it("does not generate until the user chooses to cancel the conflicting active job", async () => {
     const client = new InMemoryDiffusionClient();
     render(
       <ImageStudioPage
@@ -280,12 +280,54 @@ describe("ImageStudioPage (chat)", () => {
     });
     fireEvent.click(screen.getByTestId("media-composer-submit"));
     expect(
-      await screen.findByTestId("model-switch-dialog"),
+      await screen.findByTestId("image-gpu-busy-confirm"),
     ).toBeInTheDocument();
     expect(client.lastRequest).toBeNull();
-    fireEvent.click(screen.getByTestId("model-switch-dialog-switch"));
+    fireEvent.click(screen.getByTestId("image-gpu-busy-confirm-confirm"));
     await waitFor(() => expect(client.lastRequest?.mode).toBe("txt2img"));
-    expect(screen.queryByTestId("model-switch-dialog")).toBeNull();
+    expect(screen.queryByTestId("image-gpu-busy-confirm")).toBeNull();
+  });
+
+  // v2.4.8 follow-up (2026-09-07): a request made while another job holds the
+  // GPU (often one from a session no longer on screen) asks to cancel it or
+  // wait, instead of silently queueing behind a task the user cannot see.
+  it("asks to switch models when another job holds the GPU; Cancel drops it, Switch clears and sends", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        activeSchedulerJob={{
+          id: "older-image-job",
+          moduleId: "image",
+          jobType: "txt2img",
+          estimatedVramGB: 6,
+          startedAt: 1,
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a black puppy" },
+    });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    const dialog = await screen.findByTestId("image-gpu-busy-confirm");
+    // v2.4.8 follow-up: the title names the kind of model being loaded and
+    // the body names what is on the GPU and what switching does to it.
+    expect(dialog.textContent).toContain("Switch to Image model:");
+    expect(dialog.textContent).toContain("A task in Images is currently running on the GPU.");
+    expect(dialog.textContent).toContain("Switching will stop it, clear the GPU");
+    expect(screen.getByTestId("image-gpu-busy-confirm-checkbox")).toBeInTheDocument();
+    expect(client.lastRequest).toBeNull();
+    fireEvent.click(screen.getByTestId("image-gpu-busy-confirm-cancel"));
+    expect(screen.queryByTestId("image-gpu-busy-confirm")).toBeNull();
+    expect(client.lastRequest).toBeNull();
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a black puppy" },
+    });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    fireEvent.click(await screen.findByTestId("image-gpu-busy-confirm-confirm"));
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("txt2img"));
+    expect(screen.queryByTestId("image-gpu-busy-confirm")).toBeNull();
   });
 
   it("an attached image routes to img2img with the source image", async () => {

@@ -10,7 +10,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileJson, ImagePlus } from "lucide-react";
+import { setModelActivity } from "../../lib/modelActivity";
+import { Download, FileJson, ImagePlus, Sparkles } from "lucide-react";
 
 import { useModelResidency } from "../../shared/models/useModelResidency";
 import {
@@ -20,6 +21,20 @@ import {
   type ResidencySessionMemory,
   type SchedulerActiveJob,
 } from "../../shared/models/schedulerResidency";
+import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
+import {
+  cancelActiveGpuJob,
+  gpuSwitchBody,
+  gpuSwitchTitle,
+  queuedHolder,
+  resolveGpuHolder,
+  type GpuSwitchPrompt,
+} from "../../shared/models/gpuBusy";
+import {
+  askBeforeModelSwitch,
+  setAskBeforeModelSwitch,
+} from "../../shared/models/modelSwitchPreference";
+import { estimateGenerationSeconds } from "../../shared/chat/generationProgress";
 import {
   ModelSwitchChip,
   ModelSwitchDialog,
@@ -83,7 +98,7 @@ import {
   type VideoFormValues,
 } from "./VideoPromptForm";
 import { inferVideoIntent } from "./intent";
-import { TimelinePreviewer, type TimelineSegment } from "./TimelinePreviewer";
+import { type TimelineSegment } from "./TimelinePreviewer";
 import {
   createIpcVideoClient,
   type VideoClient,
@@ -301,7 +316,24 @@ export function VideoLabPage({
   const [activeJob, setActiveJob] = useState<{
     jobId: string;
     messageId: string;
+    /** v2.4.8 follow-up: the session the job belongs to (may not be visible). */
+    sessionId: string | null;
   } | null>(null);
+  // v2.4.8 follow-up: see ImageStudioPage -- pending bubble survives a session
+  // switch; completions persist to the job's own session.
+  const pendingTurnRef = useRef<{ sessionId: string | null; assistant: ChatMessage } | null>(null);
+  const jobSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeJob) pendingTurnRef.current = null;
+  }, [activeJob]);
+  const [busyConfirm, setBusyConfirm] = useState<GpuSwitchPrompt | null>(null);
+  // One switch question per job: the first `queued` report opens it.
+  const queuedPromptedRef = useRef<Set<string>>(new Set());
+  // v2.4.8 follow-up: the seconds between "Switch and start" and the job
+  // starting are the GPU actually being cleared; say so rather than freeze.
+  const [clearingFor, setClearingFor] = useState<string | null>(null);
+  const [askDialog, setAskDialog] = useState(() => askBeforeModelSwitch());
+  const jobIdRef = useRef<string | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<
     ReadonlyMap<string, readonly TimelineSegment[]>
@@ -309,6 +341,10 @@ export function VideoLabPage({
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> mp4Path
   // v2.4.8 Phase 8: last explicit runtime stage per message (see ImageStudioPage).
   const stageByMessage = useRef<Map<string, string>>(new Map());
+  // v2.4.8 follow-up: last byte-level load report per message (see ImageStudioPage).
+  const loadByMessage = useRef<
+    Map<string, { loadedBytes: number; totalBytes: number; etaS?: number | null }>
+  >(new Map());
   const frameRatesByMessage = useRef<Map<string, number>>(new Map());
   const [enhancementSources, setEnhancementSources] = useState<
     ReadonlyMap<string, VideoEnhancementSourceBinding>
@@ -326,9 +362,12 @@ export function VideoLabPage({
   const [workflowByMessage, setWorkflowByMessage] = useState<
     Record<string, Record<string, unknown>>
   >({});
-  const [frameComments, setFrameComments] = useState<
-    readonly { frame: number; text: string }[]
-  >([]);
+  // v2.4.8 follow-up: frame notes were written by the inline frame-by-frame
+  // previewer, which duplicated the clip and has been removed. The list stays
+  // wired into the prompt so a future previewer can fill it again.
+  const [frameComments] = useState<readonly { frame: number; text: string }[]>(
+    [],
+  );
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const chainRef = useRef<{
     messageId: string;
@@ -342,6 +381,31 @@ export function VideoLabPage({
   } | null>(null);
 
   const isGenerating = activeJob !== null;
+  // v2.4.8 follow-up: see ImageStudioPage -- the GPU handover gets its own row.
+  const shownMessages = useMemo<readonly ChatMessage[]>(
+    () =>
+      clearingFor === null
+        ? messages
+        : [
+            ...messages,
+            {
+              id: "video-gpu-clearing",
+              role: "assistant" as const,
+              content: "",
+              pending: true,
+              activity: "video-generation" as const,
+              progress: {
+                step: 0,
+                total: 0,
+                stage: "clearing",
+                detail: `Unloading ${clearingFor}.`,
+              },
+            },
+          ],
+    [messages, clearingFor],
+  );
+  const selectedModelName =
+    models.find((m) => m.id === selectedModelId)?.displayName ?? selectedModelId;
   // v2.2.0 Phase 8 (DF-9/10/11): the same single-GPU switch policy Image
   // Studio has used since Phase 4. Video is the tab most likely to collide
   // with agentic work, and it was the one still loading unconditionally.
@@ -427,7 +491,8 @@ export function VideoLabPage({
       mediaRef?: string | null;
     }): void => {
       if (backendDown) return;
-      const sessionId = activeSessionIdRef.current;
+      // A completion for a job started in another session persists there.
+      const sessionId = jobSessionRef.current ?? activeSessionIdRef.current;
       if (!sessionId || !studioClient.appendTurn) return;
       try {
         void Promise.resolve(
@@ -650,6 +715,16 @@ export function VideoLabPage({
     [client, diffusionTier, vramGB],
   );
 
+  // v2.4.8 follow-up: name the model this job uses for the sidebar GPU card.
+  useEffect(() => {
+    if (!activeJob) return;
+    const label =
+      models.find((candidate) => candidate.id === selectedModelId)?.displayName ??
+      selectedModelId;
+    setModelActivity({ pillar: "video", modelLabel: label });
+    return () => setModelActivity(null);
+  }, [activeJob, models, selectedModelId]);
+
   const advanceFromEvents = useCallback(
     async (
       events: readonly VideoProgressEvent[],
@@ -657,11 +732,39 @@ export function VideoLabPage({
     ): Promise<{ done: boolean; nextJobId?: string }> => {
       for (const event of events) {
         if (event.kind === "progress") {
+          // v2.4.8 follow-up: a queued job asks to take the GPU instead of
+          // showing a waiting message; the bubble stays on "Loading model".
+          if (event.stage === "queued") {
+            const jobId = jobIdRef.current;
+            if (jobId && !queuedPromptedRef.current.has(jobId)) {
+              queuedPromptedRef.current.add(jobId);
+              setBusyConfirm({
+                kind: "queued",
+                holder: queuedHolder(event.blockedBy),
+                jobId,
+                messageId,
+              });
+            }
+            continue;
+          }
           const stage =
             event.stage ?? stageByMessage.current.get(messageId) ?? "loading";
           stageByMessage.current.set(messageId, stage);
+          if (typeof event.totalBytes === "number") {
+            loadByMessage.current.set(messageId, {
+              loadedBytes: event.loadedBytes ?? 0,
+              totalBytes: event.totalBytes,
+              etaS: event.etaS,
+            });
+          }
           patchMessage(messageId, {
-            progress: { step: event.step ?? 0, total: event.totalSteps ?? 0, stage },
+            progress: {
+              step: event.step ?? 0,
+              total: event.totalSteps ?? 0,
+              stage,
+              ...(loadByMessage.current.get(messageId) ?? {}),
+              ...(event.blockedBy ? { blockedBy: event.blockedBy } : {}),
+            },
           });
         } else if (event.kind === "complete") {
           const mp4Path = event.outputPath ?? event.mp4Path ?? "";
@@ -900,12 +1003,19 @@ export function VideoLabPage({
         try {
           const events = await client.drainEvents(activeJob.jobId);
           if (cancelled) return;
+          jobSessionRef.current = activeJob.sessionId;
+          jobIdRef.current = activeJob.jobId;
           const { done, nextJobId } = await advanceFromEvents(
             events,
             activeJob.messageId,
           );
+          jobSessionRef.current = null;
           if (nextJobId) {
-            setActiveJob({ jobId: nextJobId, messageId: activeJob.messageId });
+            setActiveJob({
+              jobId: nextJobId,
+              messageId: activeJob.messageId,
+              sessionId: activeJob.sessionId,
+            });
             return;
           }
           if (done) {
@@ -998,9 +1108,32 @@ export function VideoLabPage({
       attachments: readonly string[],
       residencyApproved = false,
       retryAssistantId?: string,
+      busyApproved = false,
     ): Promise<void> => {
       stickNow();
       if (isGenerating) return;
+      // v2.4.8 follow-up: another task holds the GPU (often a job from a
+      // session no longer on screen) or simply still loaded on it (Ollama
+      // keeps a chat model resident for minutes after its last reply). Ask
+      // before taking it. Either answer settles the GPU question, so the
+      // residency policy below then only checks that the model is installed.
+      if (!busyApproved && !residencyApproved && askBeforeModelSwitch()) {
+        const holder = await resolveGpuHolder({
+          active: activeSchedulerJob,
+          targetModelId: selectedModelId,
+          nameFor: (id) => models.find((m) => m.id === id)?.displayName ?? id,
+        });
+        if (holder) {
+          setBusyConfirm({
+            kind: "submit",
+            holder,
+            text,
+            attachments,
+            ...(retryAssistantId ? { retryAssistantId } : {}),
+          });
+          return;
+        }
+      }
       if (!residencyApproved) {
         const selected = models.find((m) => m.id === selectedModelId);
         const verdict = residency.request({
@@ -1012,11 +1145,14 @@ export function VideoLabPage({
           activeJob: busyContextFromScheduler(activeSchedulerJob),
           installed: Boolean(selected?.installed),
         });
-        if (verdict.kind === "confirm") {
+        if (verdict.kind === "confirm" && !busyApproved) {
           pendingPromptRef.current = { text, attachments };
           return;
         }
-        if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+        if (
+          verdict.kind === "not-installed" ||
+          (verdict.kind === "defer" && !busyApproved)
+        ) {
           setMessages((prev) => [
             ...prev,
             withLiveTimestamp({
@@ -1085,6 +1221,13 @@ export function VideoLabPage({
             content: "",
             pending: true,
             activity: "video-generation",
+            estimateSeconds: estimateGenerationSeconds({
+              pillar: "video",
+              width: values.width,
+              height: values.height,
+              steps: values.steps,
+              frames: Math.max(1, values.durationSeconds * values.fps),
+            }),
           }),
         ]);
         await ensureSession(text);
@@ -1173,7 +1316,11 @@ export function VideoLabPage({
           segmentCount: segments.length,
           sessionContinueFrom,
         });
-        setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
+        setActiveJob({
+          jobId: accepted.jobId,
+          messageId: assistantId,
+          sessionId: activeSessionIdRef.current,
+        });
       } catch (err) {
         chainRef.current = null;
         if (!(await markMediaRuntimeFailure(assistantId, err))) {
@@ -1476,6 +1623,54 @@ export function VideoLabPage({
       >
         models settings
       </a>
+      {busyConfirm && (
+        <ConfirmDialog
+          testId="video-gpu-busy-confirm"
+          title={gpuSwitchTitle("video", selectedModelName)}
+          body={gpuSwitchBody(busyConfirm.holder, selectedModelName).map((line) => (
+            <p key={line} style={{ margin: "0 0 var(--space-1)" }}>
+              {line}
+            </p>
+          ))}
+          checkbox={{
+            label: "Do not show this again",
+            checked: !askDialog,
+            onChange: (hide) => {
+              setAskDialog(!hide);
+              setAskBeforeModelSwitch(!hide);
+            },
+          }}
+          confirmLabel="Switch and start"
+          cancelLabel={busyConfirm.kind === "queued" ? "Stop this request" : "Cancel"}
+          onCancel={() => {
+            const next = busyConfirm;
+            setBusyConfirm(null);
+            if (next.kind === "queued") {
+              void queueClient.cancel(next.jobId).catch(() => undefined);
+              patchMessage(next.messageId, {
+                pending: false,
+                progress: undefined,
+                content: "Stopped.",
+              });
+              setActiveJob(null);
+            }
+          }}
+          onConfirm={() => {
+            const next = busyConfirm;
+            setBusyConfirm(null);
+            // Say what is happening while the GPU is actually being cleared.
+            setClearingFor(next.holder.label);
+            void cancelActiveGpuJob()
+              .catch(() => false)
+              .then(() => {
+                setClearingFor(null);
+                return next.kind === "submit"
+                  ? handleSubmit(next.text, next.attachments, false, next.retryAssistantId, true)
+                  : undefined;
+              });
+          }}
+        />
+      )}
       {residency.pending && (
         <ModelSwitchDialog
           pending={residency.pending}
@@ -1556,7 +1751,7 @@ export function VideoLabPage({
             </p>
           ) : (
             <MessageList
-              messages={messages}
+              messages={shownMessages}
               enableTools={false}
               onMediaError={handleMediaError}
               renderAfter={(m) => {
@@ -1564,23 +1759,10 @@ export function VideoLabPage({
                 const panelOpen = openEnhancementPanels.has(m.id);
                 return (
                   <>
-                    {m.role === "assistant" &&
-                    (m.media || (playlists.get(m.id)?.length ?? 0) > 0) ? (
-                      <TimelinePreviewer
-                        src={
-                          playlists.get(m.id)?.[0]?.src ?? m.media?.src ?? null
-                        }
-                        fps={
-                          frameRatesByMessage.current.get(m.id) ?? values.fps
-                        }
-                        segments={playlists.get(m.id)}
-                        testId={`video-timeline-${m.id}`}
-                        comments={frameComments}
-                        onAddComment={(c) =>
-                          setFrameComments((prev) => [...prev, c])
-                        }
-                      />
-                    ) : null}
+                    {/* v2.4.8 follow-up: the result is the clip the bubble
+                        already plays. The full frame-by-frame previewer that
+                        used to sit here repeated the same video at full width
+                        under it, so a 4 s clip appeared twice. */}
                     {m.role === "assistant" && m.media ? (
                       <div
                         data-testid={`video-actions-${m.id}`}
@@ -1620,7 +1802,7 @@ export function VideoLabPage({
                               else enhancementButtonRefs.current.delete(m.id);
                             }}
                             type="button"
-                            className="nx-control"
+                            className="nx-icon-btn"
                             aria-label={`Enhance video ${m.id}`}
                             aria-expanded={panelOpen}
                             title="Create a separate enhanced copy. The original is preserved."
@@ -1634,7 +1816,7 @@ export function VideoLabPage({
                               });
                             }}
                           >
-                            Enhance
+                            <Sparkles size={16} aria-hidden="true" />
                           </button>
                         ) : null}
                       </div>

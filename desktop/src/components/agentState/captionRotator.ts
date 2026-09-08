@@ -105,6 +105,15 @@ export const STUDIO_PENDING_CAPTIONS = [
   "Creating...",
   "Crafting...",
   "Generating...",
+  // v2.4.8 follow-up: a wider pool, and the rotator now picks at random on
+  // every tick (never the same word twice in a row) instead of walking one
+  // shuffled order that repeated identically every loop.
+  "Rendering...",
+  "Composing...",
+  "Imagining...",
+  "Refining...",
+  "Sketching...",
+  "Polishing...",
 ] as const;
 
 export type StudioPendingCaption = (typeof STUDIO_PENDING_CAPTIONS)[number];
@@ -129,7 +138,14 @@ export function shuffleStudioCaptions(
   return order;
 }
 
-/** Same contract as `usePendingCaptionRotator`, over the studio pool. */
+/**
+ * Studio rotator: one random order per pending bubble, looped.
+ *
+ * v2.4.8 follow-up (2026-09-07): a fresh random pick on every tick could
+ * revisit words unevenly and repeat one soon after showing it. A prompt now
+ * shuffles the pool once and walks that order, so every word appears before
+ * any repeats and the next prompt gets a different order.
+ */
 export function useStudioCaptionRotator(active: boolean): StudioPendingCaption {
   const [order] = useState<StudioPendingCaption[]>(() => shuffleStudioCaptions());
   const [index, setIndex] = useState(0);

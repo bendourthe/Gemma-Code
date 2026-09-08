@@ -270,7 +270,6 @@ export function ModelsSettings({
           <div>
             <h1 style={{ margin: 0 }}>Models</h1>
           </div>
-          <DiskSummary disk={disk} />
         </header>
 
         {backendDown ? (
@@ -332,6 +331,9 @@ export function ModelsSettings({
               label="Search models"
             />
           </label>
+          {/* v2.4.8 follow-up: storage lives on the same row as the tabs and
+              search, flush right, so the whole header is one line. */}
+          <DiskSummary disk={disk} />
         </div>
       </div>
 
@@ -835,33 +837,32 @@ function DiskSummary({ disk }: { disk: DiskUsageDto | null }): JSX.Element {
   return (
     <div
       data-testid="models-disk-summary"
+      // v2.4.8 follow-up: compact enough to share the tab row. The full
+      // sentence lives in the tooltip and the bar's accessible value.
       title={
         disk.measurementPath && disk.measuredAt
-          ? `Measured at ${disk.measurementPath} on ${new Date(disk.measuredAt).toLocaleString()}`
-          : undefined
+          ? `${label}. Measured at ${disk.measurementPath} on ${new Date(disk.measuredAt).toLocaleString()}`
+          : label
       }
-      style={{ minWidth: 320, color: "var(--fg-muted)" }}
+      style={{
+        marginLeft: "auto",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        color: "var(--fg-muted)",
+        fontSize: "0.78em",
+        whiteSpace: "nowrap",
+      }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          fontSize: "0.82em",
-        }}
-      >
-        <span>{formatBytes(modelBytes)} used by models</span>
-        <span>
-          {formatBytes(disk.freeBytes)} free ({percent.toFixed(1)}%)
-        </span>
-      </div>
+      <span>{formatBytes(modelBytes)} used</span>
       <progress
         aria-label="Model storage usage"
         aria-valuetext={label}
         value={modelBytes}
         max={totalAvailableWithoutModels || 1}
-        style={{ width: "100%", accentColor: "var(--accent-primary, #6366f1)" }}
+        style={{ width: 90, accentColor: "var(--accent-primary, #6366f1)" }}
       />
+      <span>{formatBytes(disk.freeBytes)} free</span>
     </div>
   );
 }
@@ -960,23 +961,23 @@ const tabListStyle: CSSProperties = {
 };
 
 /**
- * v2.4.4 Phase 6.1 (T023): tabs left, search right, on one line. Wrapping is
- * allowed so a narrow Settings pane drops search below the tabs rather than
- * forcing the page to scroll sideways.
+ * v2.4.4 Phase 6.1 (T023): tabs, search, and storage on one line. v2.4.8
+ * follow-up: the search field sits right after the last tab and the storage
+ * summary is flush right (its own margin-left auto). Wrapping is allowed so a
+ * narrow Settings pane drops items below rather than scrolling sideways.
  */
 const tabRowStyle: CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
   alignItems: "center",
-  justifyContent: "space-between",
+  justifyContent: "flex-start",
   gap: "var(--space-2, 8px)",
 };
 
 const searchLabelStyle: CSSProperties = {
   display: "block",
-  flex: "1 1 14rem",
-  minWidth: "10rem",
-  maxWidth: "22rem",
+  flex: "0 1 16rem",
+  minWidth: "9rem",
 };
 
 const sectionStyle: CSSProperties = {

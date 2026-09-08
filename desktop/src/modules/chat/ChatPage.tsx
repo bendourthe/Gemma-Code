@@ -114,6 +114,17 @@ import {
   type UseSidecarStatusOptions,
 } from "../../lib/sidecarStatus";
 import { useModelResidency } from "../../shared/models/useModelResidency";
+import * as chatTurns from "./chatTurns";
+import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
+import { gpuSwitchBody, gpuSwitchTitle } from "../../shared/models/gpuBusy";
+import {
+  askBeforeModelSwitch,
+  setAskBeforeModelSwitch,
+} from "../../shared/models/modelSwitchPreference";
+import {
+  useModelLoadWatch,
+  warmModel,
+} from "../../shared/models/modelLoadWatch";
 import { ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
 import {
   busyContextFromScheduler,
@@ -262,18 +273,58 @@ export function ChatPage({
   const [personaByChat, setPersonaByChat] = useState<Record<string, string>>(
     {},
   );
+  // v2.4.8 follow-up: the persona can be written before the first message
+  // creates the chat; the draft moves onto the chat when it is created. The
+  // ref mirrors state so a turn sent in the same tick sees the persona.
+  const personaByChatRef = useRef<Record<string, string>>({});
+  const [draftPersona, setDraftPersona] = useState("");
+  const setChatPersona = useCallback(
+    (chatId: string, value: string) => {
+      personaByChatRef.current = { ...personaByChatRef.current, [chatId]: value };
+      setPersonaByChat((prev) => ({ ...prev, [chatId]: value }));
+      void client
+        .setPersona?.(chatId, value.trim() ? value : null)
+        .catch(() => undefined);
+    },
+    [client],
+  );
+  const adoptDraftPersona = useCallback(
+    (chatId: string) => {
+      const draft = draftPersona.trim();
+      if (!draft) return;
+      setChatPersona(chatId, draftPersona);
+      setDraftPersona("");
+    },
+    [draftPersona, setChatPersona],
+  );
   // v2.2.7 Phase 3: persona is a text control under the composer, not a header gear.
   const [personaOpen, setPersonaOpen] = useState(false);
   // v2.4.8 Phase 2 (T007): the popover closes on an outside pointer or Escape.
   const personaPopoverRef = useRef<HTMLDivElement>(null);
-  const personaSurface = useMemo(() => [personaPopoverRef], []);
+  // v2.4.8 follow-up: the toggle is part of the dismiss surface so a click on
+  // it toggles instead of closing-then-reopening.
+  const personaToggleRef = useRef<HTMLButtonElement>(null);
+  const personaSurface = useMemo(
+    () => [personaPopoverRef, personaToggleRef],
+    [],
+  );
   const closePersona = useCallback(() => setPersonaOpen(false), []);
   useDismissOnOutside(personaSurface, personaOpen, closePersona);
   const [voiceLoop, setVoiceLoop] =
     useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const ttsAbortRef = useRef<AbortController | null>(null);
-  const chatTurnEpochRef = useRef(0);
+  // v2.4.8 follow-up: a chat may switch model mid-conversation. The override
+  // wins over the chat's stored model for this app session; the sidecar
+  // session restarts with the replayed history so no context is lost.
+  const [modelOverrideByChat, setModelOverrideByChat] = useState<
+    Record<string, string>
+  >({});
+  const [pendingModelSwitch, setPendingModelSwitch] = useState<string | null>(
+    null,
+  );
+  const [warmingModelId, setWarmingModelId] = useState<string | null>(null);
+  const [askDialog, setAskDialog] = useState(() => askBeforeModelSwitch());
   const voiceMicRef = useRef<MicRecorder | null>(voiceMicRecorder ?? null);
   const [documentModelInstalled, setDocumentModelInstalled] = useState<
     boolean | null
@@ -332,31 +383,97 @@ export function ChatPage({
     };
   }, [modelsClientOverride]);
 
+  // v2.4.8 follow-up: the model this session actually talks to.
+  const effectiveModelId =
+    (activeChat ? modelOverrideByChat[activeChat.id] : undefined) ??
+    activeChat?.modelId ??
+    modelId;
+  const effectiveModel = useMemo(
+    () => listedModels.find((m) => m.id === effectiveModelId),
+    [listedModels, effectiveModelId],
+  );
+  const storedRows = activeChat ? messagesByChat.get(activeChat.id) : undefined;
+  const hasPendingReply = Boolean(
+    storedRows?.some(
+      (m) => m.pending && m.role === "assistant" && m.activity === "chat-streaming",
+    ),
+  );
+  const warmBubbleId = activeChat ? `${activeChat.id}-model-warm` : null;
+  // Watch the model load while a reply is pending or a switch is warming up.
+  const modelLoad = useModelLoadWatch({
+    active: hasPendingReply || warmingModelId !== null,
+    modelId: warmingModelId ?? effectiveModelId,
+    modelVramGB: effectiveModel?.vramGB ?? null,
+  });
+  const loadingProgress = useMemo<ChatMessage["progress"]>(
+    () =>
+      modelLoad.loading
+        ? {
+            step: 0,
+            total: 0,
+            stage: "loading",
+            ...(modelLoad.pct !== null
+              ? { loadedBytes: modelLoad.pct, totalBytes: 100 }
+              : {}),
+          }
+        : undefined,
+    [modelLoad.loading, modelLoad.pct],
+  );
+
   const messages = useMemo(() => {
     if (!activeChat) return [];
-    const rows = messagesByChat.get(activeChat.id) ?? [];
-    if (!voiceLoop.captureVisible) return rows;
-    return [
-      ...rows,
-      {
+    const stored = messagesByChat.get(activeChat.id) ?? [];
+    // A pending chat reply shows "Loading model" for as long as Ollama has not
+    // loaded the model; the caption returns to the studio rotator after.
+    const rows = loadingProgress
+      ? stored.map((m) =>
+          m.pending && m.role === "assistant" && m.activity === "chat-streaming"
+            ? { ...m, progress: loadingProgress }
+            : m,
+        )
+      : stored;
+    const extras: ChatMessage[] = [];
+    if (warmingModelId !== null && warmBubbleId) {
+      // Transient, never persisted: the model switch loading the new model.
+      extras.push({
+        id: warmBubbleId,
+        role: "assistant",
+        content: "",
+        pending: true,
+        activity: "chat-streaming",
+        progress: loadingProgress ?? { step: 0, total: 0, stage: "loading" },
+      });
+    }
+    if (voiceLoop.captureVisible) {
+      extras.push({
         id: `${activeChat.id}-asr-capture`,
         role: "assistant" as const,
         content: "",
         pending: true,
         activity: "asr-capture" as const,
-      },
-    ];
-  }, [activeChat, messagesByChat, voiceLoop.captureVisible]);
+      });
+    }
+    return extras.length > 0 ? [...rows, ...extras] : rows;
+  }, [
+    activeChat,
+    messagesByChat,
+    voiceLoop.captureVisible,
+    loadingProgress,
+    warmingModelId,
+    warmBubbleId,
+  ]);
 
   const lastMessage = messages[messages.length - 1];
   const { scrollRef, onScroll, stickNow } = useStickToBottom(
     `${messages.length}:${lastMessage?.id ?? ""}:${lastMessage?.content?.length ?? 0}:${lastMessage?.pending ? 1 : 0}`,
   );
 
-  const selectedListedModel = useMemo(() => {
-    const id = activeChat?.modelId ?? modelId;
-    return listedModels.find((m) => m.id === id);
-  }, [activeChat, listedModels, modelId]);
+  const selectedListedModel = effectiveModel;
+  const modelDisplayName = useCallback(
+    (id: string): string =>
+      listedModels.find((candidate) => candidate.id === id)?.displayName ?? id,
+    [listedModels],
+  );
 
   const pickerModel = useMemo(
     () => listedModels.find((m) => m.id === modelId),
@@ -431,6 +548,12 @@ export function ChatPage({
     (chat: Chat) => {
       setActiveChat(chat);
       setSelected({ kind: "chat", id: chat.id });
+      // v2.4.8 follow-up: the picker shows the model this session talks to,
+      // so a switch is always relative to what is really loaded.
+      const sessionModel = modelOverrideByChat[chat.id] ?? chat.modelId;
+      if (listedModels.some((m) => m.id === sessionModel && m.installed)) {
+        setModelId(sessionModel);
+      }
       if (!client.listMessages) return;
 
       const version = (hydrationVersionRef.current.get(chat.id) ?? 0) + 1;
@@ -439,6 +562,15 @@ export function ChatPage({
         (records) => {
           if (hydrationVersionRef.current.get(chat.id) !== version) return;
           const hydrated = records.map(chatMessageFromRecord);
+          // v2.4.8 follow-up: a reply still being written for this chat keeps
+          // its pending bubble across a session switch or a tab change.
+          const inFlight = chatTurns.inFlightTurn(chat.id);
+          if (
+            inFlight &&
+            !hydrated.some((m) => m.id === inFlight.assistantId)
+          ) {
+            hydrated.push(withLiveTimestamp(inFlight.pending));
+          }
           const next = new Map(messagesByChatRef.current);
           next.set(chat.id, hydrated);
           messagesByChatRef.current = next;
@@ -458,7 +590,7 @@ export function ChatPage({
         }
       });
     },
-    [client],
+    [client, listedModels, modelOverrideByChat],
   );
 
   const persistMessage = useCallback(
@@ -533,10 +665,31 @@ export function ChatPage({
     [],
   );
 
+  // v2.4.8 follow-up: replies finish into whichever ChatPage is mounted. The
+  // instance that started the turn may be gone (tab change) or showing another
+  // session; this listener patches the bubble when the reply lands.
+  useEffect(
+    () =>
+      chatTurns.subscribeCompletedTurns(({ chatId, assistantId, message }) => {
+        const rows = messagesByChatRef.current.get(chatId);
+        if (!rows) return;
+        if (rows.some((m) => m.id === assistantId)) {
+          patchMessage(chatId, assistantId, { ...message, pending: false });
+          return;
+        }
+        // Persisted by the originating turn; only the view needs the row.
+        const next = new Map(messagesByChatRef.current);
+        next.set(chatId, [...rows, withLiveTimestamp(message)]);
+        messagesByChatRef.current = next;
+        setMessagesByChat(next);
+      }),
+    [patchMessage],
+  );
+
   const handleStopTurn = useCallback((): void => {
-    chatTurnEpochRef.current += 1;
     const chatId = activeChat?.id;
     if (!chatId) return;
+    chatTurns.cancelTurn(chatId);
     const pending = [...(messagesByChatRef.current.get(chatId) ?? [])]
       .reverse()
       .find((m) => m.pending && m.role === "assistant");
@@ -561,14 +714,15 @@ export function ChatPage({
       images: readonly string[] = [],
     ): Promise<string> => {
       const assistantId = `${baseId}-assistant`;
-      const turn = ++chatTurnEpochRef.current;
-      appendMessage(chatId, {
+      const pendingBubble: ChatMessage = {
         id: assistantId,
         role: "assistant",
         content: "",
         pending: true,
         activity: "chat-streaming",
-      });
+      };
+      const turn = chatTurns.beginTurn(chatId, pendingBubble);
+      appendMessage(chatId, pendingBubble);
       let content: string;
       let usage = {
         inputTokens: null as number | null,
@@ -581,7 +735,9 @@ export function ChatPage({
         let sessionId = sessionIdsRef.current.get(chatId);
         if (!sessionId) {
           const started = await chatSession.start({
-            modelId: foldModelId(chat?.modelId ?? modelId),
+            modelId: foldModelId(
+              modelOverrideByChat[chatId] ?? chat?.modelId ?? modelId,
+            ),
             title: chat?.title,
             history: replayHistory(
               messagesByChatRef.current.get(chatId) ?? [],
@@ -591,7 +747,9 @@ export function ChatPage({
           sessionId = started.sessionId;
           sessionIdsRef.current.set(chatId, sessionId);
         }
-        const persona = personaByChat[chatId]?.trim();
+        const persona = (
+          personaByChatRef.current[chatId] ?? personaByChat[chatId]
+        )?.trim();
         const outbound =
           persona && persona.length > 0
             ? `[Persona]\n${persona}\n\n${message.trim().length > 0 ? message : images.length > 0 ? "(image)" : message}`
@@ -613,7 +771,9 @@ export function ChatPage({
           if (!isUnknownChatSessionError(err)) throw err;
           sessionIdsRef.current.delete(chatId);
           const restarted = await chatSession.start({
-            modelId: foldModelId(chat?.modelId ?? modelId),
+            modelId: foldModelId(
+              modelOverrideByChat[chatId] ?? chat?.modelId ?? modelId,
+            ),
             title: chat?.title,
             history: replayHistory(
               messagesByChatRef.current.get(chatId) ?? [],
@@ -635,7 +795,7 @@ export function ChatPage({
       } catch (err) {
         content = formatChatTurnError(err);
       }
-      if (turn !== chatTurnEpochRef.current) return "";
+      if (!chatTurns.isCurrentTurn(chatId, turn)) return "";
       const requestUsage = {
         version: 1 as const,
         ...usage,
@@ -668,14 +828,16 @@ export function ChatPage({
         requestUsage,
         messageUsage,
       });
-      void persistMessage(chatId, {
+      const finished: ChatMessage = {
         id: assistantId,
         role: "assistant",
         content,
         reasoningText,
         requestUsage,
         messageUsage,
-      });
+      };
+      void persistMessage(chatId, finished);
+      chatTurns.completeTurn({ chatId, assistantId, message: finished });
       return content;
     },
     [
@@ -683,6 +845,7 @@ export function ChatPage({
       appendMessage,
       chatSession,
       modelId,
+      modelOverrideByChat,
       patchMessage,
       persistMessage,
       personaByChat,
@@ -790,6 +953,7 @@ export function ChatPage({
         setActiveChat(chat);
         setSelected({ kind: "chat", id: chat.id });
         setTreeVersion((v) => v + 1);
+        adoptDraftPersona(chat.id);
       } else {
         await hydrationPromisesRef.current.get(chat.id);
       }
@@ -1078,8 +1242,9 @@ export function ChatPage({
     setActiveChat(chat);
     setSelected({ kind: "chat", id: chat.id });
     setTreeVersion((v) => v + 1);
+    adoptDraftPersona(chat.id);
     setPersonaOpen(false);
-  }, [activeChat, client, modelId]);
+  }, [activeChat, adoptDraftPersona, client, modelId]);
 
   const ensureVoiceMic = useCallback((): MicRecorder => {
     if (!voiceMicRef.current) {
@@ -1279,6 +1444,50 @@ export function ChatPage({
           </div>
         ) : null}
 
+        {pendingModelSwitch && activeChat ? (
+          <ConfirmDialog
+            testId="chat-model-switch-confirm"
+            title={gpuSwitchTitle("chat", modelDisplayName(pendingModelSwitch))}
+            body={[
+              ...gpuSwitchBody(
+                { label: modelDisplayName(effectiveModelId), running: false },
+                modelDisplayName(pendingModelSwitch),
+              ),
+              "This conversation is kept.",
+            ].map((line) => (
+              <p key={line} style={{ margin: "0 0 var(--space-1)" }}>
+                {line}
+              </p>
+            ))}
+            checkbox={{
+              label: "Do not show this again",
+              checked: !askDialog,
+              onChange: (hide: boolean) => {
+                setAskDialog(!hide);
+                setAskBeforeModelSwitch(!hide);
+              },
+            }}
+            confirmLabel="Switch and load"
+            onCancel={() => setPendingModelSwitch(null)}
+            onConfirm={() => {
+              const next = pendingModelSwitch;
+              const chatId = activeChat.id;
+              setPendingModelSwitch(null);
+              userChangedModelRef.current = true;
+              setModelId(next);
+              writeFavorite("chat", next);
+              setModelOverrideByChat((prev) => ({ ...prev, [chatId]: next }));
+              // The next message restarts the sidecar session with the
+              // replayed history, so the context carries over.
+              sessionIdsRef.current.delete(chatId);
+              setWarmingModelId(next);
+              void warmModel(next).finally(() => {
+                setWarmingModelId((current) => (current === next ? null : current));
+              });
+            }}
+          />
+        ) : null}
+
         {residency.pending ? (
           <ModelSwitchDialog
             pending={residency.pending}
@@ -1372,13 +1581,15 @@ export function ChatPage({
               Recording -- microphone is open
             </span>
           ) : null}
-          {personaOpen && activeChat ? (
+          {personaOpen ? (
             <div
               data-testid="chat-persona-popover"
               ref={personaPopoverRef}
               style={{
                 position: "absolute",
-                left: 0,
+                // v2.4.8 follow-up: anchored to the right edge, under the
+                // Persona button, not the left of the composer.
+                right: 0,
                 bottom: "100%",
                 zIndex: 30,
                 width: "min(22rem, 100%)",
@@ -1408,16 +1619,13 @@ export function ChatPage({
                 id="chat-persona-field"
                 data-testid="chat-persona"
                 rows={3}
-                value={personaByChat[activeChat.id] ?? ""}
+                value={
+                  activeChat ? (personaByChat[activeChat.id] ?? "") : draftPersona
+                }
                 onChange={(e) => {
                   const next = e.target.value;
-                  setPersonaByChat((prev) => ({
-                    ...prev,
-                    [activeChat.id]: next,
-                  }));
-                  void client
-                    .setPersona?.(activeChat.id, next.trim() ? next : null)
-                    .catch(() => undefined);
+                  if (activeChat) setChatPersona(activeChat.id, next);
+                  else setDraftPersona(next);
                 }}
                 placeholder="Optional system prompt for this chat"
                 style={{
@@ -1444,27 +1652,22 @@ export function ChatPage({
             onStop={handleStopTurn}
             submitAccentVar="--accent-chatbot"
             voiceModes={voiceModes}
-            // v2.2.9 Phase 1.1 (T001): Persona lives in the composer
-            // overflow, not as an always-visible footer label.
-            overflowActions={
-              activeChat
-                ? [
-                    {
-                      id: "persona",
-                      label: "Persona",
-                      active: personaOpen,
-                      testId: "chat-persona-toggle",
-                      onSelect: () => setPersonaOpen((v) => !v),
-                    },
-                  ]
-                : []
-            }
+            // v2.4.8 follow-up: Persona is its own person-icon button that
+            // opens the persona box directly (no "..." menu in between).
+            // Available before the first message too: the draft persona
+            // moves onto the chat the first send creates.
+            personaAction={{
+              active: personaOpen,
+              testId: "chat-persona-toggle",
+              toggleRef: personaToggleRef,
+              onToggle: () => setPersonaOpen((v) => !v),
+            }}
             accept={chatComposerAccept({
               allowImages: imageGate.enabled,
               allowAudio: true,
             })}
             placeholder="Type a message, attach a document, or record audio to transcribe locally."
-            streaming={messages.some((m) => m.pending)}
+            streaming={messages.some((m) => m.pending && m.id !== warmBubbleId)}
             imageEnabled={imageGate.enabled}
             imageDisabledReason={imageGate.tooltip}
             audioEnabled
@@ -1483,12 +1686,26 @@ export function ChatPage({
               recommendOrder={recommendOrderForTask(selection, "chat")}
               value={modelId}
               onChange={(nextModelId) => {
+                // v2.4.8 follow-up: inside a session, switching asks first,
+                // then loads the new model; the conversation is kept.
+                // The switcher also syncs its value once on mount when the
+                // current id is not an installed option; only a change away
+                // from a valid installed model is the user's switch.
+                if (
+                  activeChat &&
+                  nextModelId !== effectiveModelId &&
+                  listedModels.some((m) => m.id === modelId && m.installed) &&
+                  askDialog
+                ) {
+                  setPendingModelSwitch(nextModelId);
+                  return;
+                }
                 userChangedModelRef.current = true;
                 setModelId(nextModelId);
                 writeFavorite("chat", nextModelId);
               }}
               onGetMoreModels={onGetMoreModels}
-              disabled={Boolean(activeChat)}
+              disabled={messages.some((m) => m.pending)}
             />
           </ComposerContextRow>
         </footer>

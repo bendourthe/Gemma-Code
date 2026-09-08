@@ -24,7 +24,8 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from "react";
-import { Plus, Send, Square } from "lucide-react";
+import { Plus, Send, Square, UserRound } from "lucide-react";
+import type { RefObject } from "react";
 import { useDismissOnOutside } from "../ui/useDismissOnOutside";
 import {
   AccentBeam,
@@ -83,6 +84,22 @@ export interface MediaComposerProps {
    * always-visible label. Omitted by default, so the studios are unchanged.
    */
   overflowActions?: readonly ComposerOverflowAction[];
+  /**
+   * v2.4.8 follow-up: a dedicated Persona button (person icon) in the right
+   * control cluster. It opens the persona box directly; there is no menu in
+   * between. Chat passes it; the studios leave it out.
+   */
+  personaAction?: ComposerPersonaAction;
+}
+
+/** The Persona toggle in the right control cluster. */
+export interface ComposerPersonaAction {
+  readonly active: boolean;
+  /** Test id override so callers keep stable hooks (e.g. chat-persona-toggle). */
+  readonly testId?: string;
+  /** Lets the caller count the toggle as part of the popover's dismiss surface. */
+  readonly toggleRef?: RefObject<HTMLButtonElement | null>;
+  onToggle(): void;
 }
 
 /** One entry in the mic dropdown. */
@@ -170,6 +187,7 @@ export function MediaComposer({
   micRecorder: micRecorderOverride,
   voiceModes = [],
   overflowActions = [],
+  personaAction,
 }: MediaComposerProps): JSX.Element {
   const [text, setText] = useState("");
   // v2.2.0 Phase 5 (5.4): mic menu + auto-grow ref (focus state already exists).
@@ -496,6 +514,21 @@ export function MediaComposer({
               >
                 <Plus size={18} aria-hidden="true" />
               </button>
+              {personaAction ? (
+                <button
+                  type="button"
+                  aria-label="Persona"
+                  title="Persona"
+                  data-testid={personaAction.testId ?? "media-composer-persona"}
+                  ref={personaAction.toggleRef}
+                  aria-pressed={personaAction.active}
+                  disabled={disabled}
+                  onClick={() => personaAction.onToggle()}
+                  style={clusterIconStyle}
+                >
+                  <UserRound size={18} aria-hidden="true" />
+                </button>
+              ) : null}
               {hasOverflow ? (
                 <button
                   type="button"

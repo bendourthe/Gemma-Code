@@ -442,7 +442,15 @@ describe("ModelsSettings", () => {
   it("renders the disk-usage summary", async () => {
     await loaded(client());
     await waitFor(() => {
+      // v2.4.8 follow-up: compact copy ("182 GB used" / "206 GB free") so
+      // the summary shares the tab row; the full sentence is the bar's value.
       expect(screen.getByTestId("models-disk-summary").textContent).toMatch(
+        /used/,
+      );
+      expect(screen.getByTestId("models-disk-summary").textContent).toMatch(
+        /free/,
+      );
+      expect(screen.getByTestId("models-disk-summary").textContent).not.toMatch(
         /used by models/,
       );
       expect(

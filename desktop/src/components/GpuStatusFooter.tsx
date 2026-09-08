@@ -15,6 +15,7 @@
 import { memo, useEffect, useState } from "react";
 
 import type { LocalModelTelemetry, TelemetryStream } from "./LocalModelStatus.types";
+import { useModelActivity } from "../lib/modelActivity";
 
 export interface GpuStatusFooterProps {
   compact: boolean;
@@ -37,6 +38,9 @@ function GpuStatusFooterInner({
   testId = "gpu-status-footer",
 }: GpuStatusFooterProps): JSX.Element {
   const [sample, setSample] = useState<LocalModelTelemetry | null>(null);
+  // v2.4.8 follow-up: the media model the Images / Videos page is loading or
+  // running, named on the headline row (the scheduler sample carries no id).
+  const activity = useModelActivity();
 
   useEffect(() => {
     if (!stream) return;
@@ -122,17 +126,38 @@ function GpuStatusFooterInner({
       }}
     >
       {/* v2.4.8 Phase 8: no headline row while idle; the card is bar + one
-          line of numbers. The model row appears only while a model is loaded,
-          and the stale marker keeps its own row only when there is a headline
-          to share it with. */}
-      {!sample.idle || stale ? (
+          line of numbers. The model row appears while a model is loaded or a
+          studio page has published the model it is loading; that model's name
+          sits flush right in the muted caption style. The stale marker keeps
+          its own row only when there is a headline to share it with. */}
+      {!sample.idle || stale || activity ? (
         <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-2)" }}>
-          {!sample.idle ? (
+          {!sample.idle || activity ? (
             <span
               data-testid={`${testId}-headline`}
-              style={{ color: "var(--fg-0)", overflow: "hidden", textOverflow: "ellipsis" }}
+              style={{
+                color: "var(--fg-0)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
             >
-              {headline}
+              {sample.idle ? "Local model" : headline}
+            </span>
+          ) : null}
+          {activity ? (
+            <span
+              data-testid={`${testId}-model`}
+              title={activity.modelLabel}
+              style={{
+                color: "var(--fg-muted)",
+                marginLeft: "auto",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {activity.modelLabel}
             </span>
           ) : null}
           {stale ? (
@@ -145,9 +170,11 @@ function GpuStatusFooterInner({
       <div style={{ height: 4, borderRadius: 2, background: "var(--bg-2)", overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, height: "100%", background: barColor(pct) }} />
       </div>
+      {/* v2.4.8 follow-up: the label on the left, the percentage on the right;
+          free VRAM moved to the tooltip. */}
       <div style={{ display: "flex", justifyContent: "space-between", color: "var(--fg-muted)" }}>
-        <span>GPU usage {pct.toFixed(0)}%</span>
-        <span>{sample.vramFreeGB.toFixed(1)} GB free</span>
+        <span>GPU usage</span>
+        <span data-testid={`${testId}-gpu-pct`}>{pct.toFixed(0)}%</span>
       </div>
     </div>
   );

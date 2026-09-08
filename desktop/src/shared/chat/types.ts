@@ -45,7 +45,25 @@ export interface ChatMessage {
    * weights move onto the GPU, `generating` once sampling starts). Absent
    * or `loading` renders the bubble's "Loading model..." state.
    */
-  progress?: { readonly step: number; readonly total: number; readonly stage?: string };
+  progress?: {
+    readonly step: number;
+    readonly total: number;
+    readonly stage?: string;
+    /** Bytes of weights read so far / to read while `stage` is `loading`. */
+    readonly loadedBytes?: number;
+    readonly totalBytes?: number;
+    /** Runtime estimate of seconds until the weights are loaded. */
+    readonly etaS?: number | null;
+    /** Module holding the GPU while `stage` is `queued` (e.g. `chat`). */
+    readonly blockedBy?: string;
+    /** A line under the caption, e.g. "Unloading Gemma 4 12B." */
+    readonly detail?: string;
+  };
+  /**
+   * v2.4.8 follow-up: how long a job of this shape usually takes, shown
+   * until the run's own step rate gives a measured estimate.
+   */
+  estimateSeconds?: number;
   /**
    * v1.17.0 Phase 2 -- agent activity driving the inline orb while this
    * message is pending. Surfaces pass a typed activity; the bubble maps it

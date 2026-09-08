@@ -167,6 +167,8 @@ export interface CatalogSortOptions {
   gpuVendor?: string;
   defaults?: ReadonlySet<string>;
   recommendOrder?: readonly string[];
+  /** The user's own order (Settings > Preferences); outranks the rest. */
+  userOrder?: readonly string[];
 }
 
 export function catalogSortGpuVendor(hostVramGB: number | null | undefined): string {
@@ -349,6 +351,14 @@ export function pickerOrder(
   (options.recommendOrder ?? []).forEach((id, index) => {
     if (!recRank.has(id)) recRank.set(id, index);
   });
+  // v2.4.8 follow-up: an order the user set in Settings > Preferences outranks
+  // every heuristic below, including the catalog tier. Models the user has not
+  // placed keep their heuristic order underneath.
+  const userRank = new Map<string, number>();
+  (options.userOrder ?? []).forEach((id, index) => {
+    if (!userRank.has(id)) userRank.set(id, index);
+  });
+  const placed = (m: ListedModelDto): number => (userRank.has(m.id) ? 0 : 1);
   const tier = (m: ListedModelDto): number => {
     const kind = recommendationKind(m);
     return kind === "required" ? 0 : kind === "recommended" ? 1 : 2;
@@ -357,6 +367,8 @@ export function pickerOrder(
     typeof hostVramGB === "number" && isCatalogOverBudget(m, hostVramGB, gpuVendor) ? 1 : 0;
   return [...models].sort(
     (a, b) =>
+      placed(a) - placed(b) ||
+      (userRank.get(a.id) ?? 0) - (userRank.get(b.id) ?? 0) ||
       over(a) - over(b) ||
       tier(a) - tier(b) ||
       (recRank.get(a.id) ?? 10_000) - (recRank.get(b.id) ?? 10_000) ||

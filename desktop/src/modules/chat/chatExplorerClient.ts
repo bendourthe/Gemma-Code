@@ -121,7 +121,10 @@ export class InMemoryChatExplorerClient implements SyncChatExplorerClient {
       bucket.push(chat);
       chatsByFolder.set(chat.folderId, bucket);
     }
-    for (const bucket of chatsByFolder.values()) bucket.sort((a, b) => a.title.localeCompare(b.title));
+    // v2.4.8 follow-up: newest session first, matching ChatExplorerStore.
+    for (const bucket of chatsByFolder.values()) {
+      bucket.sort((a, b) => b.createdAt - a.createdAt || a.title.localeCompare(b.title));
+    }
 
     const buildNode = (folder: Folder | null): FolderTreeNode => {
       const parentKey = folder?.id ?? null;

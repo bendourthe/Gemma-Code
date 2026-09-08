@@ -155,6 +155,144 @@ describe("MessageBubble media", () => {
     expect(screen.queryByText("Loading model...")).toBeNull();
   });
 
+  // v2.4.8 follow-up (2026-09-07): a job parked behind another module used to
+  // read "Loading model..." for twenty minutes at 0% GPU. The sidecar now says
+  // `queued` and names the holder; the runtime reports weight bytes while it
+  // really loads, which the bubble renders as a bar with a time estimate.
+  it("says Waiting for GPU and names the holder while the job is queued", () => {
+    const base: ChatMessage = {
+      id: "studio-queued",
+      role: "assistant",
+      content: "",
+      pending: true,
+      activity: "image-generation",
+    };
+    const { rerender } = render(
+      <MessageBubble
+        message={{
+          ...base,
+          progress: { step: 0, total: 0, stage: "queued", blockedBy: "chat" },
+        }}
+      />,
+    );
+    // Plain words: the caption says what we are waiting for, and a second
+    // line says what is still running. No module names in parentheses.
+    expect(screen.getByTestId("agent-state-orb-caption").textContent).toBe(
+      "Waiting for the GPU to free up...",
+    );
+    expect(screen.getByTestId("model-queued-detail-studio-queued").textContent).toBe(
+      "A chat reply is still being written.",
+    );
+    expect(screen.getByRole("img", { name: "Waiting for GPU" })).toBeInTheDocument();
+    rerender(
+      <MessageBubble
+        message={{
+          ...base,
+          progress: { step: 0, total: 0, stage: "queued", blockedBy: "image" },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("model-queued-detail-studio-queued").textContent).toBe(
+      "Another image is still being generated.",
+    );
+    rerender(
+      <MessageBubble
+        message={{ ...base, progress: { step: 0, total: 0, stage: "queued" } }}
+      />,
+    );
+    expect(screen.getByTestId("agent-state-orb-caption").textContent).toBe(
+      "Waiting for the GPU to free up...",
+    );
+    expect(screen.queryByTestId("model-queued-detail-studio-queued")).toBeNull();
+  });
+
+  it("renders a byte-level bar with percent and time left while the model loads", () => {
+    const base: ChatMessage = {
+      id: "studio-bytes",
+      role: "assistant",
+      content: "",
+      pending: true,
+      activity: "image-generation",
+    };
+    const { rerender } = render(
+      <MessageBubble
+        message={{
+          ...base,
+          progress: {
+            step: 0,
+            total: 0,
+            stage: "loading",
+            loadedBytes: 2_000,
+            totalBytes: 5_000,
+            etaS: 12.4,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("agent-state-orb-caption").textContent).toBe(
+      "Loading model 40%",
+    );
+    const bar = screen
+      .getByTestId("model-load-progress-studio-bytes")
+      .querySelector("progress");
+    // v2.4.8 follow-up: the bar reports the phase fraction in tenths of a
+    // percent, so load bytes and sampling steps share one scale.
+    expect(bar).toHaveAttribute("value", "400");
+    expect(bar).toHaveAttribute("max", "1000");
+    expect(bar).toHaveClass("nexus-progress");
+    expect(screen.getByTestId("model-load-eta-studio-bytes").textContent).toBe(
+      "about 12 s left",
+    );
+    // Minutes once the estimate passes a minute; no line when there is none.
+    rerender(
+      <MessageBubble
+        message={{
+          ...base,
+          progress: {
+            step: 0,
+            total: 0,
+            stage: "loading",
+            loadedBytes: 500,
+            totalBytes: 5_000,
+            etaS: 150,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("agent-state-orb-caption").textContent).toBe(
+      "Loading model 10%",
+    );
+    expect(screen.getByTestId("model-load-eta-studio-bytes").textContent).toBe(
+      "about 3 min left",
+    );
+    rerender(
+      <MessageBubble
+        message={{
+          ...base,
+          progress: {
+            step: 0,
+            total: 0,
+            stage: "loading",
+            loadedBytes: 5_000,
+            totalBytes: 5_000,
+            etaS: 0,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("agent-state-orb-caption").textContent).toBe(
+      "Loading model 100%",
+    );
+    expect(screen.queryByTestId("model-load-eta-studio-bytes")).toBeNull();
+    // The generating stage drops the bar along with the loading caption.
+    rerender(
+      <MessageBubble
+        message={{ ...base, progress: { step: 0, total: 0, stage: "generating" } }}
+      />,
+    );
+    expect(screen.queryByTestId("model-load-progress-studio-bytes")).toBeNull();
+  });
+
   it("replaces undecodable generated media with a visible failure", () => {
     const onMediaError = vi.fn();
     const msg: ChatMessage = {

@@ -34,7 +34,9 @@ describe("Video Lab switch policy", () => {
   });
 
   it("returns without generating when the policy asks for confirmation", () => {
-    expect(SOURCE).toContain('if (verdict.kind === "confirm")');
+    // v2.4.8 follow-up: a busy-GPU answer already given carries through the
+    // confirm verdict, so the condition also checks `busyApproved`.
+    expect(SOURCE).toContain('if (verdict.kind === "confirm" && !busyApproved)');
     expect(SOURCE).toContain("pendingPromptRef.current = { text, attachments }");
   });
 

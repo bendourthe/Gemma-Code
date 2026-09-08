@@ -229,10 +229,13 @@ describe("<ChatPage>", () => {
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    // v2.2.9 Phase 1.1 (T001): persona lives in the composer overflow menu,
-    // never as an always-visible footer label.
-    expect(screen.queryByTestId("chat-persona-toggle")).toBeNull();
-    await user.click(screen.getByTestId("media-composer-overflow-toggle"));
+    // v2.4.8 follow-up: Persona is a person-icon button in the composer's
+    // right cluster that opens the box directly. There is no "..." menu.
+    expect(screen.queryByTestId("media-composer-overflow-toggle")).toBeNull();
+    expect(screen.getByTestId("chat-persona-toggle")).toHaveAttribute(
+      "aria-label",
+      "Persona",
+    );
     await user.click(screen.getByTestId("chat-persona-toggle"));
     fireEvent.change(screen.getByTestId("chat-persona"), {
       target: { value: "Be terse." },
@@ -244,6 +247,43 @@ describe("<ChatPage>", () => {
     await waitFor(() => expect(sent[0]).toContain("[Persona]"));
     expect(sent[0]).toContain("Be terse.");
     expect(sent[0]).toContain("hello");
+  });
+
+  // v2.4.8 follow-up (2026-09-07): the persona can be set before the first
+  // message; the first send creates the chat and carries the draft onto it.
+  it("offers Persona before the first message and applies the draft to the new chat", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const sent: string[] = [];
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async ({ message }) => {
+        sent.push(message);
+        return {
+          sessionId: "s",
+          events: [
+            { kind: "token", text: "ok" },
+            { kind: "done", finishReason: "stop" },
+          ],
+        };
+      },
+    };
+    const user = userEvent.setup();
+    render(
+      <ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />,
+    );
+    // No chat open yet, and the button is already there.
+    await user.click(screen.getByTestId("chat-persona-toggle"));
+    fireEvent.change(screen.getByTestId("chat-persona"), {
+      target: { value: "Answer in haiku." },
+    });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "hello" },
+    });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    await waitFor(() => expect(sent[0]).toContain("[Persona]"));
+    expect(sent[0]).toContain("Answer in haiku.");
+    // The first send created the chat the draft moved onto.
+    expect(client.listTree().chats).toHaveLength(1);
   });
 
   // v2.4.8 Phase 2 (T007/T008): operator screenshot 2 (2026-09-06) showed the
@@ -262,9 +302,11 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} modelsClient={INSTALLED_CHAT_MODELS} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    await user.click(screen.getByTestId("media-composer-overflow-toggle"));
     await user.click(screen.getByTestId("chat-persona-toggle"));
     const popover = screen.getByTestId("chat-persona-popover");
+    // v2.4.8 follow-up: anchored to the right edge of the composer.
+    expect(popover.style.right).toBe("0px");
+    expect(popover.style.left).toBe("");
     expect(popover.style.background).toBe("var(--bg-elevated)");
     expect(popover.style.border).toBe("1px solid var(--border-subtle)");
     expect(popover.style.borderRadius).toBe("var(--radius-md)");
@@ -282,7 +324,6 @@ describe("<ChatPage>", () => {
     fireEvent.pointerDown(document.body);
     expect(screen.queryByTestId("chat-persona-popover")).toBeNull();
     // Reopen, then Escape closes it.
-    await user.click(screen.getByTestId("media-composer-overflow-toggle"));
     await user.click(screen.getByTestId("chat-persona-toggle"));
     expect(screen.getByTestId("chat-persona-popover")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -618,7 +659,7 @@ describe("<ChatPage>", () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("the model selector lives under the composer and is disabled while a chat is active", async () => {
+  it("the model selector lives under the composer and switches with confirmation inside a chat", async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });
     const chat = client.createChat({
@@ -626,8 +667,36 @@ describe("<ChatPage>", () => {
       title: "draft",
       modelId: "gemma4:e4b",
     });
+    const twoModels = {
+      lastSelection: {
+        schemaVersion: 1 as const,
+        orderedIds: ["gemma4:e4b", "lfm2.5:1.2b"],
+        recommendedByTask: { chat: "gemma4:e4b" },
+        downloadedSinceInstall: [],
+      },
+      async list() {
+        return [
+          {
+            id: "gemma4:e4b",
+            displayName: "Gemma 4 E4B",
+            type: "llm" as const,
+            task: "chat",
+            installed: true,
+            source: "registry" as const,
+          },
+          {
+            id: "lfm2.5:1.2b",
+            displayName: "LFM 2.5 1.2B",
+            type: "llm" as const,
+            task: "chat",
+            installed: true,
+            source: "registry" as const,
+          },
+        ];
+      },
+    };
     const user = userEvent.setup();
-    render(<ChatPage client={client} />);
+    render(<ChatPage client={client} modelsClient={twoModels} />);
     expect(
       screen
         .getByTestId("composer-context-row")
@@ -636,7 +705,66 @@ describe("<ChatPage>", () => {
     expect(screen.getByTestId("chat-model-select")).not.toBeDisabled();
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    expect(screen.getByTestId("chat-model-select")).toBeDisabled();
+    // v2.4.8 follow-up: the picker follows the session's model and stays
+    // usable inside a session. Switching asks first; cancel keeps the model,
+    // confirm switches and loads it.
+    const select = screen.getByTestId("chat-model-select") as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("gemma4:e4b"));
+    expect(select).not.toBeDisabled();
+    fireEvent.change(select, { target: { value: "lfm2.5:1.2b" } });
+    const dialog = screen.getByTestId("chat-model-switch-confirm");
+    expect(dialog.textContent).toContain("LFM 2.5 1.2B");
+    await user.click(screen.getByTestId("chat-model-switch-confirm-cancel"));
+    expect(screen.queryByTestId("chat-model-switch-confirm")).toBeNull();
+    expect(select.value).toBe("gemma4:e4b");
+    fireEvent.change(select, { target: { value: "lfm2.5:1.2b" } });
+    await user.click(screen.getByTestId("chat-model-switch-confirm-confirm"));
+    await waitFor(() => expect(select.value).toBe("lfm2.5:1.2b"));
+    expect(screen.queryByTestId("chat-model-switch-confirm")).toBeNull();
+  });
+
+  // v2.4.8 follow-up (2026-09-07): operator switched sessions while a reply
+  // was being written and came back to neither the orb nor the reply.
+  it("keeps a reply in flight across a session switch and lands it on return", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const a = client.createChat({ folderId: null, title: "A", modelId: "gemma4:e4b" });
+    const b = client.createChat({ folderId: null, title: "B", modelId: "gemma4:e4b" });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async ({ message }) => {
+        if (message.includes("slow")) await gate;
+        return {
+          sessionId: "s",
+          events: [
+            { kind: "token", text: message.includes("slow") ? "Slow reply" : "Fast reply" },
+            { kind: "done", finishReason: "stop" },
+          ],
+        };
+      },
+    };
+    const user = userEvent.setup();
+    render(
+      <ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />,
+    );
+    await user.click(screen.getByTestId(`tree-row-chat-${a.id}`));
+    await user.type(screen.getByTestId("media-composer-textarea"), "slow one{Enter}");
+    await screen.findByRole("img", { name: "Generating reply" });
+    // Switch to B: A's orb leaves the view, nothing is cancelled.
+    await user.click(screen.getByTestId(`tree-row-chat-${b.id}`));
+    await waitFor(() => expect(screen.queryByTestId(/message-pending-/)).toBeNull());
+    // A send in B must not discard A's reply (per-chat turns).
+    await user.type(screen.getByTestId("media-composer-textarea"), "quick{Enter}");
+    expect(await screen.findByText("Fast reply")).toBeInTheDocument();
+    // Back to A: the pending orb is still there, then the reply lands.
+    await user.click(screen.getByTestId(`tree-row-chat-${a.id}`));
+    await screen.findByRole("img", { name: "Generating reply" });
+    release();
+    expect(await screen.findByText("Slow reply")).toBeInTheDocument();
+    expect(screen.queryByTestId(/message-pending-/)).toBeNull();
   });
 
   it("does not render a header breadcrumb for nested chats", async () => {

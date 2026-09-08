@@ -50,7 +50,7 @@ describe("<FolderTree>", () => {
       "Sessions",
     );
     const header = screen.getByTestId("folder-tree-header");
-    expect(header.style.justifyContent).toBe("flex-start");
+    expect(header.style.justifyContent).toBe("space-between");
     expect(header.style.paddingTop).toBe("0px");
     expect(screen.getByTestId("folder-tree-new-folder")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree-new-chat")).toBeInTheDocument();
@@ -777,10 +777,28 @@ describe("history chrome and bulk actions (v2.4.4 Phase 2)", () => {
     // The sidebar rule owns the whole gap on both of its sides. A second
     // padding-top here is exactly what made the gap below the rule larger.
     expect(header.style.paddingTop).toBe("0px");
-    expect(header.style.justifyContent).toBe("flex-start");
+    expect(header.style.justifyContent).toBe("space-between");
     expect(screen.getByTestId("folder-tree-title")).toHaveTextContent(
       "Sessions",
     );
+  });
+
+  it("orders the header actions New session, New folder, Archive, Delete, flush right", () => {
+    // v2.4.8 follow-up: the title stays left; the four whole-list actions sit
+    // together on the right in the order a new user reads them.
+    render(<FolderTree client={seed(1)} storageAdapter={storageAdapter} />);
+    const header = screen.getByTestId("folder-tree-header");
+    expect(header.style.justifyContent).toBe("space-between");
+    const order = Array.from(header.querySelectorAll("button")).map((button) =>
+      button.getAttribute("data-testid"),
+    );
+    expect(order).toEqual([
+      "folder-tree-new-chat",
+      "folder-tree-new-folder",
+      "folder-tree-archive-all",
+      "folder-tree-delete-all",
+    ]);
+    expect(header.firstElementChild).toBe(screen.getByTestId("folder-tree-title"));
   });
 
   it("still renders Sessions on an empty tree", () => {
